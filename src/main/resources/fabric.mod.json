@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "curvegen",
+  "version": "${version}",
+  "name": "Curve Generator",
+  "description": "Design ellipses, equation plots and Bézier curves from blocks, slabs, stairs, trapdoors, fences and glass panes, then place them with a hologram preview or export them to Litematica.",
+  "authors": ["You"],
+  "license": "MIT",
+  "environment": "*",
+  "entrypoints": {
+    "main": ["dev.curvegen.CurveGen"],
+    "client": ["dev.curvegen.client.CurveGenClient"]
+  },
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "minecraft": "~1.21.1",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}
