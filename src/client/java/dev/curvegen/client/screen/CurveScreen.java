@@ -93,7 +93,7 @@ public class CurveScreen extends Screen {
 
     @Override
     protected void init() {
-        labels.clear(); icons.clear(); hint = null; qHField = null;
+        labels.clear(); icons.clear(); pointFields.clear(); hint = null; qHField = null;
 
         String[] names = {"Ellipse", "Equation", "Bézier", "Blocks"};
         for (int k = 0; k < 4; k++) {
@@ -119,6 +119,16 @@ public class CurveScreen extends Screen {
         int by = height - 26;
         labels.add(new Label(M, by + 6, "Depth"));
         addDrawableChild(num(M + 34, by, 30, String.valueOf(S.depth), v -> { S.depth = clampInt(v, 1, 64, S.depth); }));
+        CyclingButtonWidget<Boolean> replace = CyclingButtonWidget.onOffBuilder(S.overwrite)
+                .build(M + 70, by, 70, 20, Text.literal("Replace"), (b, v) -> S.overwrite = v);
+        replace.setTooltip(net.minecraft.client.gui.tooltip.Tooltip.of(Text.literal(
+                "On: the shape replaces blocks already in its way. Off: it only fills air and things like grass, water and snow layers.")));
+        addDrawableChild(replace);
+        CyclingButtonWidget<Boolean> carve = CyclingButtonWidget.onOffBuilder(S.carve)
+                .build(M + 144, by, 66, 20, Text.literal("Carve"), (b, v) -> S.carve = v);
+        carve.setTooltip(net.minecraft.client.gui.tooltip.Tooltip.of(Text.literal(
+                "Clears existing blocks from the space the shape encloses: inside a thin or thick ellipse, or the other side of a filled equation. Filled ellipses, lines and Bézier curves don't carve.")));
+        addDrawableChild(carve);
         int bx = width - M - 3 * 64 - 8;
         addDrawableChild(ButtonWidget.builder(Text.literal("Place"), b -> place()).dimensions(bx, by, 64, 20).build());
         addDrawableChild(ButtonWidget.builder(Text.literal("Export"), b -> export()).dimensions(bx + 68, by, 64, 20).build());
@@ -219,8 +229,64 @@ public class CurveScreen extends Screen {
         rem.active = S.pts.size() > 2;
         addDrawableChild(add);
         addDrawableChild(rem);
-        hint = "Drag the numbered handles in the preview. Right-drag to pan, scroll to zoom.";
+        hint = "Drag the numbered handles in the preview.";
         hintY = row(5) + 2;
+
+        // Point list: number, x and y (in blocks from the bottom left), scrollable when it doesn't fit.
+        pointFields.clear();
+        int n = S.pts.size();
+        listTop = row(5) + 22;
+        listVisible = Math.max(1, (height - 34 - listTop) / POINT_ROW);
+        pointScroll = Math.max(0, Math.min(pointScroll, n - listVisible));
+        for (int k = pointScroll; k < Math.min(n, pointScroll + listVisible); k++) {
+            int y = listTop + (k - pointScroll) * POINT_ROW, idx = k;
+            labels.add(new Label(M, y + 4, String.valueOf(k + 1)));
+            labels.add(new Label(M + 12, y + 4, "x"));
+            labels.add(new Label(M + 80, y + 4, "y"));
+            TextFieldWidget fx = new TextFieldWidget(textRenderer, M + 20, y, 56, 16, Text.literal("Point " + (k + 1) + " x"));
+            TextFieldWidget fy = new TextFieldWidget(textRenderer, M + 88, y, 56, 16, Text.literal("Point " + (k + 1) + " y"));
+            for (int axis = 0; axis < 2; axis++) {
+                TextFieldWidget f = axis == 0 ? fx : fy;
+                int a = axis;
+                f.setMaxLength(12);
+                f.setText(coord(S.pts.get(k)[a]));
+                f.setChangedListener(v -> {
+                    if (syncingPoints) return;
+                    try {
+                        double d = Double.parseDouble(v.trim());
+                        if (Double.isFinite(d)) { S.pts.get(idx)[a] = d; dirty = true; }
+                    } catch (NumberFormatException ignored) { }
+                });
+                addDrawableChild(f);
+            }
+            pointFields.add(new TextFieldWidget[]{fx, fy});
+        }
+    }
+
+    private static final int POINT_ROW = 18;
+    private static int pointScroll = 0;
+    private int listTop, listVisible;
+    private final List<TextFieldWidget[]> pointFields = new ArrayList<>();
+    private boolean syncingPoints;
+
+    private static String coord(double v) {
+        String t = String.format(java.util.Locale.ROOT, "%.3f", v);
+        return t.contains(".") ? t.replaceAll("0+$", "").replaceAll("\\.$", "") : t;
+    }
+
+    /** Keeps the typed coordinates in step with dragged handles (without fighting a field being edited). */
+    private void syncPointFields() {
+        syncingPoints = true;
+        for (int r = 0; r < pointFields.size(); r++) {
+            int k = pointScroll + r;
+            if (k >= S.pts.size()) break;
+            for (int a = 0; a < 2; a++) {
+                TextFieldWidget f = pointFields.get(r)[a];
+                String want = coord(S.pts.get(k)[a]);
+                if (!f.isFocused() && !f.getText().equals(want)) f.setText(want);
+            }
+        }
+        syncingPoints = false;
     }
 
     private void initBlocks() {
@@ -252,16 +318,16 @@ public class CurveScreen extends Screen {
                     S.fullConnects = BlockChoices.fullBlockConnects();
                     dirty = true; textureDirty = true;
                     clearAndInit();
-                }))).dimensions(M, row(6), PANEL_W, 20).build());
+                }))).dimensions(M, row(BlockChoices.FAMILIES.length), PANEL_W, 20).build());
         hint = "Choose a block per piece type, or match them all to one colour.";
-        hintY = row(7) + 2;
+        hintY = row(BlockChoices.FAMILIES.length + 1) + 2;
     }
 
     private static boolean allowed(Family f) {
-        return switch (f) { case SLAB -> S.slab; case STAIRS -> S.stair; case TRAPDOOR -> S.trap; case FENCE -> S.fence; case PANE -> S.pane; default -> true; };
+        return switch (f) { case SLAB -> S.slab; case STAIRS -> S.stair; case TRAPDOOR -> S.trap; case FENCE -> S.fence; case PANE -> S.pane; case WALL -> S.wall; default -> true; };
     }
     private static void setAllowed(Family f, boolean v) {
-        switch (f) { case SLAB -> S.slab = v; case STAIRS -> S.stair = v; case TRAPDOOR -> S.trap = v; case FENCE -> S.fence = v; case PANE -> S.pane = v; default -> {} }
+        switch (f) { case SLAB -> S.slab = v; case STAIRS -> S.stair = v; case TRAPDOOR -> S.trap = v; case FENCE -> S.fence = v; case PANE -> S.pane = v; case WALL -> S.wall = v; default -> {} }
     }
 
     // ---------- widgets ----------
@@ -326,7 +392,13 @@ public class CurveScreen extends Screen {
         super.render(ctx, mouseX, mouseY, delta);
         for (Label l : labels) ctx.drawTextWithShadow(textRenderer, l.text, l.x, l.y, 0xC8CED6);
         for (Icon ic : icons) ctx.drawItem(ic.stack, ic.x, ic.y);
-        if (hint != null) ctx.drawTextWrapped(textRenderer, Text.literal(hint), M, hintY, PANEL_W, 0x9AA5B3);
+        if (hint != null && hintY + 18 < height - 30) ctx.drawTextWrapped(textRenderer, Text.literal(hint), M, hintY, PANEL_W, 0x9AA5B3);
+        if (tab == Tab.BEZIER && S.pts.size() > listVisible) {
+            int h = listVisible * POINT_ROW - 2, bar = Math.max(6, h * listVisible / S.pts.size());
+            int by = listTop + (h - bar) * pointScroll / Math.max(1, S.pts.size() - listVisible);
+            ctx.fill(M + PANEL_W + 1, listTop, M + PANEL_W + 3, listTop + h, 0x30FFFFFF);
+            ctx.fill(M + PANEL_W + 1, by, M + PANEL_W + 3, by + bar, 0xA0FFFFFF);
+        }
 
         int x0 = cx0(), y0 = cy0(), x1 = cx1(), y1 = cy1();
         ctx.fill(x0, y0, x1, y1, 0xFF15181D);
@@ -450,6 +522,7 @@ public class CurveScreen extends Screen {
             if (S.snap) { bx = Math.round(bx * 2) / 2.0; by = Math.round(by * 2) / 2.0; }
             S.pts.set(dragPoint, new double[]{bx, by});
             dirty = true;
+            syncPointFields();
             return true;
         }
         if (panning) { panX += (float) dx; panY += (float) dy; return true; }
@@ -464,6 +537,11 @@ public class CurveScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mx, double my, double h, double v) {
+        if (tab == Tab.BEZIER && mx < M + PANEL_W && my >= listTop && S.pts.size() > listVisible) {
+            pointScroll = Math.max(0, Math.min(S.pts.size() - listVisible, pointScroll - (int) Math.signum(v)));
+            clearAndInit();
+            return true;
+        }
         if (mx >= cx0() && mx < cx1() && my >= cy0() && my < cy1() && result != null) {
             float old = zoom;
             zoom = Math.max(0.5f, Math.min(96f, zoom * (float) Math.pow(1.15, v)));
@@ -487,7 +565,7 @@ public class CurveScreen extends Screen {
         if (layout.isEmpty()) { flash("The shape is empty, so there's nothing to place."); return; }
         if (client.player != null && !client.player.hasPermissionLevel(2))
             client.player.sendMessage(Text.literal("Note: you'll need operator permissions to confirm placement. Export works for everyone."), false);
-        Placement.start(layout, S.depth);
+        Placement.start(layout, S.depth, S.overwrite, S.carve);
         close();
     }
 

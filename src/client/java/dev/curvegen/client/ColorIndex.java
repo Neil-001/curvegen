@@ -49,7 +49,9 @@ public final class ColorIndex {
                     if (w > 0) {
                         int rr = (int) (r / w), gg = (int) (g / w), bb = (int) (b / w);
                         // Grey textures (leaves, vines…) get their colour from a tint; apply the default one.
-                        int tint = mc.getBlockColors().getColor(state, null, null, 0);
+                        // Some modded colour providers expect a world, so a failure here just means "no tint".
+                        int tint;
+                        try { tint = mc.getBlockColors().getColor(state, null, null, 0); } catch (Exception e) { tint = -1; }
                         if (tint != -1 && saturation(rr, gg, bb) < 0.12) {
                             rr = rr * ((tint >> 16) & 0xFF) / 255; gg = gg * ((tint >> 8) & 0xFF) / 255; bb = bb * (tint & 0xFF) / 255;
                         }

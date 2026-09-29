@@ -6,6 +6,7 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
+import net.minecraft.block.Blocks;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.render.RenderLayer;
@@ -40,7 +41,15 @@ public final class Placement {
 
     private static Layout layout;
     private static int depth = 1, rotation = 0, yOffset = 0;
-    private static boolean active;
+    private static boolean active, overwrite = true, carve = false;
+    /** Carve offsets (relative to the anchor) for the current facing. */
+    private static List<BlockPos> carveOffsets = List.of();
+    /** Refreshed a few times a second: which offsets would really change the world right now. */
+    private static List<Entry> toPlace = List.of();
+    private static List<BlockPos> toBreak = List.of();
+    private static BlockPos viewAnchor;
+    private static Direction viewFacing;
+    private static int viewAge;
     private static BlockPos lockedAnchor, anchor;
     private static Direction cachedFacing;
     private static List<Entry> entries = List.of();
@@ -52,10 +61,13 @@ public final class Placement {
 
     public static boolean isActive() { return active; }
 
-    public static void start(Layout l, int d) {
-        layout = l; depth = Math.max(1, d);
-        rotation = 0; yOffset = 0; lockedAnchor = null; cachedFacing = null; active = true;
+    public static void start(Layout l, int d, boolean overwriteBlocks, boolean carveSpace) {
+        layout = l; depth = Math.max(1, d); overwrite = overwriteBlocks; carve = carveSpace;
+        rotation = 0; yOffset = 0; lockedAnchor = null; cachedFacing = null; viewAnchor = null; active = true;
     }
+
+    /** Where the shape may put a block when "Replace" is off: air and things like grass, water or snow layers. */
+    private static boolean free(BlockState current) { return current.isAir() || current.isReplaceable(); }
 
     public static void cancel() {
         if (!active) return;
@@ -100,7 +112,29 @@ public final class Placement {
                 minDz = Math.min(minDz, dz); maxDz = Math.max(maxDz, dz);
             }
         entries = out;
+        List<BlockPos> cv = new ArrayList<>();
+        if (carve)
+            for (Layout.Cell c : layout.carve())
+                for (int k = 0; k < depth; k++) {
+                    int u = c.x() - half;
+                    cv.add(new BlockPos(right.getOffsetX() * u + forward.getOffsetX() * k, c.y(),
+                            right.getOffsetZ() * u + forward.getOffsetZ() * k));
+                }
+        carveOffsets = cv;
         cachedFacing = forward;
+        viewAnchor = null;
+    }
+
+    /** Works out what placing right now would actually do, given the blocks already in the world. */
+    private static void refreshView(MinecraftClient mc) {
+        List<Entry> place = new ArrayList<>();
+        for (Entry e : entries)
+            if (overwrite || free(mc.world.getBlockState(anchor.add(e.dx, e.dy, e.dz)))) place.add(e);
+        List<BlockPos> brk = new ArrayList<>();
+        for (BlockPos o : carveOffsets)
+            if (!mc.world.getBlockState(anchor.add(o)).isAir()) brk.add(o);
+        toPlace = place; toBreak = brk;
+        viewAnchor = anchor; viewFacing = cachedFacing; viewAge = 0;
     }
 
     public static void tick(MinecraftClient mc) {
@@ -112,12 +146,14 @@ public final class Placement {
         if (f != cachedFacing) rebuild(f);
         BlockPos base = lockedAnchor != null ? lockedAnchor : baseTarget(mc);
         anchor = base == null ? null : base.up(yOffset);
+        if (anchor != null && mc.world != null && (!anchor.equals(viewAnchor) || viewFacing != cachedFacing || ++viewAge >= 10))
+            refreshView(mc);
     }
 
     // ---------- rendering ----------
 
     public static void render(WorldRenderContext ctx) {
-        if (!active || anchor == null || entries.isEmpty()) return;
+        if (!active || anchor == null || entries.isEmpty() || !anchor.equals(viewAnchor)) return;
         MinecraftClient mc = MinecraftClient.getInstance();
         MatrixStack ms = ctx.matrixStack();
         Vec3d cam = ctx.camera().getPos();
@@ -127,11 +163,15 @@ public final class Placement {
 
         if (entries.size() <= HOLOGRAM_LIMIT) {
             VertexConsumer fill = imm.getBuffer(RenderLayer.getDebugFilledBox());
-            for (Entry e : entries)
+            for (Entry e : toPlace)
                 for (Box b : e.boxes)
                     WorldRenderer.renderFilledBox(ms, fill,
                             e.dx + b.minX, e.dy + b.minY, e.dz + b.minZ, e.dx + b.maxX, e.dy + b.maxY, e.dz + b.maxZ,
                             e.r, e.g, e.b, 0.45f);
+            if (toBreak.size() <= HOLOGRAM_LIMIT)
+                for (BlockPos o : toBreak)   // blocks carving will remove, in red
+                    WorldRenderer.renderFilledBox(ms, fill, o.getX() + .02, o.getY() + .02, o.getZ() + .02,
+                            o.getX() + .98, o.getY() + .98, o.getZ() + .98, 1f, 0.2f, 0.25f, 0.28f);
             imm.draw(RenderLayer.getDebugFilledBox());
         }
         VertexConsumer lines = imm.getBuffer(RenderLayer.getLines());
@@ -148,7 +188,10 @@ public final class Placement {
         if (mc.player == null) return;
         var tr = mc.textRenderer;
         List<Text> lines = new ArrayList<>();
-        lines.add(Text.literal("Curve Generator: " + entries.size() + " blocks, " + layout.width() + " wide, " + layout.height() + " tall, " + depth + " deep").formatted(Formatting.WHITE));
+        lines.add(Text.literal("Curve Generator: " + layout.width() + " wide, " + layout.height() + " tall, " + depth + " deep").formatted(Formatting.WHITE));
+        String what = toPlace.size() + " blocks to place" + (toPlace.size() < entries.size() ? " (" + (entries.size() - toPlace.size()) + " skipped, Replace is off)" : "");
+        if (carve) what += ", " + toBreak.size() + " to clear (shown in red)";
+        lines.add(Text.literal(what).formatted(Formatting.WHITE));
         lines.add(Text.literal(key(CurveGenClient.CONFIRM) + " place, " + key(CurveGenClient.ROTATE) + " rotate, "
                 + key(CurveGenClient.RAISE) + "/" + key(CurveGenClient.LOWER) + " move up or down, "
                 + key(CurveGenClient.LOCK) + (lockedAnchor != null ? " unlock position" : " lock position") + ", "
@@ -177,10 +220,19 @@ public final class Placement {
         }
         List<BlockPos> pos = new ArrayList<>(entries.size());
         List<BlockState> states = new ArrayList<>(entries.size()), old = new ArrayList<>(entries.size());
+        // Clear first, so carving never removes anything the shape itself places.
+        for (BlockPos o : carveOffsets) {
+            BlockPos p = anchor.add(o);
+            BlockState cur = mc.world.getBlockState(p);
+            if (!cur.isAir()) { pos.add(p); states.add(Blocks.AIR.getDefaultState()); old.add(cur); }
+        }
         for (Entry e : entries) {
             BlockPos p = anchor.add(e.dx, e.dy, e.dz);
-            pos.add(p); states.add(e.state); old.add(mc.world.getBlockState(p));
+            BlockState cur = mc.world.getBlockState(p);
+            if (!overwrite && !free(cur)) continue;
+            pos.add(p); states.add(e.state); old.add(cur);
         }
+        if (pos.isEmpty()) { say(Text.literal("Nothing to change here: every spot is already taken and Replace is off.")); return; }
         undoPositions = pos; undoStates = old;
         send(pos, states, false);
         active = false;
@@ -188,6 +240,9 @@ public final class Placement {
 
     public static void undo() {
         if (undoPositions == null) { say(Text.literal("Nothing to undo.")); return; }
+        // Restore in reverse, so blocks come back in the opposite order they were changed.
+        java.util.Collections.reverse(undoPositions);
+        java.util.Collections.reverse(undoStates);
         send(undoPositions, undoStates, true);
         undoPositions = null; undoStates = null;
     }

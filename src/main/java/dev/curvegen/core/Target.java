@@ -19,6 +19,8 @@ public final class Target {
     /** Curve overlay: flat segment lists {x1,y1,x2,y2,...}; dashed ones mark wall edges. */
     public final List<double[]> overlay = new ArrayList<>(), dashed = new ArrayList<>();
     public Double axisX, axisY;
+    /** Cells whose centre lies in the space the shape encloses; cleared to air when carving (null = never carve). */
+    public boolean[] carve;
     public String error;
     /** For equations: block → math coordinates. */
     public double mx0, msx, my0, msy;
@@ -102,10 +104,19 @@ public final class Target {
         t.symX = t.symY = true;
         t.hollow = s.eMode == ShapeSettings.EllipseMode.THIN;
         final double flo = lo, fhi = hi;
+        // Carving clears the hollow the wall surrounds: inside the ellipse, or inside the wall's inner edge.
+        double carveBelow = switch (s.eMode) {
+            case THIN, OUTWARDS -> 0;
+            case INWARDS -> -T;
+            case MIDDLE -> -T / 2;
+            case FILLED -> Double.NEGATIVE_INFINITY;
+        };
+        if (s.eMode != ShapeSettings.EllipseMode.FILLED) t.carve = new boolean[nx * ny];
         for (int j = 0; j < ny; j++)
             for (int i = 0; i < nx; i++) {
                 int idx = j * nx + i;
                 double d = sdEllipse(x0 + i + .5, y0 + j + .5, a, b);
+                if (t.carve != null) t.carve[idx] = d < carveBelow;
                 if (d - R_CELL > hi || d + R_CELL < lo) continue;
                 if (d - R_CELL >= lo && d + R_CELL <= hi) { t.full(idx); continue; }
                 t.mixed(idx, (x, y) -> { double v = sdEllipse(x + x0, y + y0, a, b); return v >= flo && v <= fhi; });
@@ -314,6 +325,13 @@ public final class Target {
         if (mode == ShapeSettings.EqMode.LINE) t.fillLine(sa, s.qLW);
         else {
             boolean under = mode == ShapeSettings.EqMode.UNDER;
+            // Carving clears the other side: above the curve for "fill under", below it for "fill over".
+            t.carve = new boolean[W * H];
+            for (int j = 0; j < H; j++)
+                for (int i = 0; i < W; i++) {
+                    double v = Fl.eval(i + .5, j + .5);
+                    t.carve[j * W + i] = !Double.isNaN(v) && (under ? v > 0 : v < 0);
+                }
             SegIndex si = new SegIndex(W, H, sa);
             for (int j = 0; j < H; j++)
                 for (int i = 0; i < W; i++) {

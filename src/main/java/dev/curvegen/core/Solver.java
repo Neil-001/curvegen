@@ -21,6 +21,7 @@ public final class Solver {
         if (s.trap) ids.addAll(List.of(Pieces.TD_B, Pieces.TD_T, Pieces.TD_L, Pieces.TD_R));
         if (s.fence) ids.add(Pieces.FENCE);
         if (s.pane) ids.add(Pieces.PANE);
+        if (s.wall) ids.add(Pieces.WALL);
         int[] cAll = ids.stream().mapToInt(Integer::intValue).toArray();
         int[] cX = ids.stream().mapToInt(Integer::intValue).filter(p -> Pieces.MX[p] == p).toArray();
         int[] cY = ids.stream().mapToInt(Integer::intValue).filter(p -> Pieces.MY[p] == p).toArray();
@@ -30,16 +31,34 @@ public final class Solver {
         final boolean sx = t.symX, sy = t.symY, fullConnects = s.fullConnects;
 
         final class Ctx {
+            /** Does the connector type v attach to neighbour nb through nb's given face? */
             boolean connects(int v, int nb, int face) {
-                if (nb == v) return true;
+                if (Pieces.isConnector(nb)) return Pieces.joins(Pieces.FAMILY[v], Pieces.FAMILY[nb]);
                 if (nb == Pieces.FULL && !fullConnects) return false;
                 return Pieces.STURDY[nb][face];
+            }
+            boolean left(int idx) { int v = grid[idx]; return idx % nx > 0 && connects(v, grid[idx - 1], 3); }
+            boolean right(int idx) { int v = grid[idx]; return idx % nx < nx - 1 && connects(v, grid[idx + 1], 2); }
+            /** Bottom row of whatever is in cell idx, as a 16-bit mask: what a wall below it "feels". */
+            int bottom(int idx) {
+                if (idx >= N) return 0;
+                int v = grid[idx];
+                if (!Pieces.isType(v)) return Pieces.BOTTOM[v];
+                if (v == Pieces.FENCE) return 0x03C0;                                   // post, x 6–9
+                if (v == Pieces.PANE) return 0x0180 | (left(idx) ? 0x007F : 0) | (right(idx) ? 0xFE00 : 0);
+                return 0x0FF0 | (left(idx) ? 0x00FF : 0) | (right(idx) ? 0xFF00 : 0); // wall: post, sides
             }
             int resolve(int idx) {
                 int v = grid[idx];
                 if (!Pieces.isType(v)) return v;
-                int i = idx % nx;
-                return v + (i > 0 && connects(v, grid[idx - 1], 3) ? 1 : 0) + (i < nx - 1 && connects(v, grid[idx + 1], 2) ? 2 : 0);
+                boolean L = left(idx), R = right(idx);
+                if (v != Pieces.WALL) return v + (L ? 1 : 0) + (R ? 2 : 0);
+                // A wall side is tall when the block above covers it; a straight wall keeps its post
+                // only if the block above covers its centre.
+                int cov = bottom(idx + nx);
+                return Pieces.wall(L ? ((cov & 0x01FF) == 0x01FF ? 2 : 1) : 0,
+                        R ? ((cov & 0xFF80) == 0xFF80 ? 2 : 1) : 0,
+                        (cov & 0x0180) == 0x0180);
             }
             int cellErr(int idx) {
                 int st = resolve(idx), k = t.kind[idx];
@@ -66,19 +85,28 @@ public final class Solver {
                 boolean selfX = sx && 2 * i + 1 == nx, selfY = sy && 2 * j + 1 == ny;
                 int[] cands = selfX && selfY ? cXY : selfX ? cX : selfY ? cY : cAll;
                 int optim = (i > 0 && t.kind[idx - 1] != 0 ? 1 : 0) + (i < nx - 1 && t.kind[idx + 1] != 0 ? 2 : 0);
+                int above = j + 1 < ny ? t.kind[idx + nx] : 0;
+                int wallGuess = Pieces.wall((optim & 1) != 0 ? (above == 1 ? 2 : 1) : 0, (optim & 2) != 0 ? (above == 1 ? 2 : 1) : 0, above != 0);
                 int best = 0, bestE = Integer.MAX_VALUE;
                 for (int cand : cands) {
-                    int e = t.errTab[idx][Pieces.isType(cand) ? cand + optim : cand];
+                    int st = cand == Pieces.WALL ? wallGuess : Pieces.isType(cand) ? cand + optim : cand;
+                    int e = t.errTab[idx][st];
                     if (e < bestE) { bestE = e; best = cand; }
                 }
                 setOrbit(grid, nx, cells, best);
                 Set<Integer> aff = new LinkedHashSet<>();
-                for (int[] cc : cells) for (int di = -1; di <= 1; di++) { int q = cc[0] + di; if (q >= 0 && q < nx) aff.add(cc[1] * nx + q); }
+                // A change here can reshape side neighbours (connections) and the row below (wall heights).
+                for (int[] cc : cells)
+                    for (int dj = -1; dj <= 0; dj++)
+                        for (int di = -1; di <= 1; di++) {
+                            int q = cc[0] + di, r = cc[1] + dj;
+                            if (q >= 0 && q < nx && r >= 0) aff.add(r * nx + q);
+                        }
                 orbs.add(new Orbit(idx, cells, cands, aff.stream().mapToInt(Integer::intValue).toArray()));
             }
         }
 
-        if (s.fence || s.pane) {
+        if (s.fence || s.pane || s.wall) {
             for (int it = 0; it < 30; it++) {
                 boolean changed = false;
                 for (Orbit o : orbs) {
@@ -109,6 +137,7 @@ public final class Solver {
                 for (int i = 0; i < nx; i++) {
                     if (solid[j * nx + i] != Pieces.FULL) continue;
                     if (Pieces.isConnector(at(solid, nx, ny, i - 1, j)) || Pieces.isConnector(at(solid, nx, ny, i + 1, j))) continue;
+                    if (Pieces.FAMILY[at(solid, nx, ny, i, j - 1)] == Pieces.Family.WALL) continue;   // a wall below takes its height from this block
                     boolean exposed = !Pieces.STURDY[at(solid, nx, ny, i, j + 1)][0] || !Pieces.STURDY[at(solid, nx, ny, i, j - 1)][1]
                             || !Pieces.STURDY[at(solid, nx, ny, i - 1, j)][3] || !Pieces.STURDY[at(solid, nx, ny, i + 1, j)][2];
                     if (!exposed) out[j * nx + i] = Pieces.EMPTY;

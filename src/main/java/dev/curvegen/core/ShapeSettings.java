@@ -30,11 +30,15 @@ public final class ShapeSettings {
     public boolean snap = false;
 
     /** Piece families the solver may use (full blocks are always allowed). */
-    public boolean slab = true, stair = true, trap = true, fence = true, pane = true;
+    public boolean slab = true, stair = true, trap = true, fence = true, pane = true, wall = true;
     /** False when the chosen full block is one fences/panes refuse to attach to (leaves, pumpkins…). */
     public boolean fullConnects = true;
     /** How many blocks deep the shape is extruded when placed or exported. */
     public int depth = 1;
+    /** Placement: may the shape replace blocks that are already there? (Off: only air and replaceable blocks.) */
+    public boolean overwrite = true;
+    /** Placement: clear the space the shape encloses (inside an ellipse wall, the far side of a filled equation). */
+    public boolean carve = false;
 
     /** Independent copy, so the solver can run on a worker thread while the UI keeps editing. */
     public ShapeSettings copy() {
@@ -45,8 +49,8 @@ public final class ShapeSettings {
         c.bW = bW; c.bH = bH; c.bMode = bMode; c.bLW = bLW; c.snap = snap;
         c.pts.clear();
         for (double[] p : pts) c.pts.add(p.clone());
-        c.slab = slab; c.stair = stair; c.trap = trap; c.fence = fence; c.pane = pane;
-        c.fullConnects = fullConnects; c.depth = depth;
+        c.slab = slab; c.stair = stair; c.trap = trap; c.fence = fence; c.pane = pane; c.wall = wall;
+        c.fullConnects = fullConnects; c.depth = depth; c.overwrite = overwrite; c.carve = carve;
         return c;
     }
 }

@@ -7,6 +7,11 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
+import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
+import net.fabricmc.fabric.api.resource.SimpleSynchronousResourceReloadListener;
+import net.minecraft.resource.ResourceManager;
+import net.minecraft.resource.ResourceType;
+import net.minecraft.util.Identifier;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
 import org.lwjgl.glfw.GLFW;
@@ -51,6 +56,11 @@ public class CurveGenClient implements ClientModInitializer {
             Placement.tick(mc);
         });
         WorldRenderEvents.AFTER_TRANSLUCENT.register(Placement::render);
+        // Block colours come from the active resource packs, so recompute them whenever packs change.
+        ResourceManagerHelper.get(ResourceType.CLIENT_RESOURCES).registerReloadListener(new SimpleSynchronousResourceReloadListener() {
+            @Override public Identifier getFabricId() { return Identifier.of("curvegen", "block_colours"); }
+            @Override public void reload(ResourceManager manager) { ColorIndex.clear(); }
+        });
         HudRenderCallback.EVENT.register((dc, tickCounter) -> Placement.renderHud(dc));
     }
 }

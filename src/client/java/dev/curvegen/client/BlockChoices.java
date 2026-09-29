@@ -12,8 +12,11 @@ import net.minecraft.block.PaneBlock;
 import net.minecraft.block.SlabBlock;
 import net.minecraft.block.StairsBlock;
 import net.minecraft.block.TrapdoorBlock;
+import net.minecraft.block.WallBlock;
 import net.minecraft.block.enums.BlockHalf;
 import net.minecraft.block.enums.SlabType;
+import net.minecraft.block.enums.WallShape;
+import net.minecraft.state.property.EnumProperty;
 import net.minecraft.item.Items;
 import net.minecraft.registry.Registries;
 import net.minecraft.state.property.BooleanProperty;
@@ -33,7 +36,7 @@ import java.util.Map;
 public final class BlockChoices {
     private BlockChoices() {}
 
-    public static final Family[] FAMILIES = {Family.FULL, Family.SLAB, Family.STAIRS, Family.TRAPDOOR, Family.FENCE, Family.PANE};
+    public static final Family[] FAMILIES = {Family.FULL, Family.SLAB, Family.STAIRS, Family.TRAPDOOR, Family.FENCE, Family.PANE, Family.WALL};
     public static final Map<Family, Block> CHOICE = new EnumMap<>(Family.class);
     /** Colour last picked with the colour picker, or -1. */
     public static int pickedColor = -1;
@@ -45,12 +48,13 @@ public final class BlockChoices {
         CHOICE.put(Family.TRAPDOOR, Blocks.SPRUCE_TRAPDOOR);
         CHOICE.put(Family.FENCE, Blocks.SPRUCE_FENCE);
         CHOICE.put(Family.PANE, Blocks.GLASS_PANE);
+        CHOICE.put(Family.WALL, Blocks.STONE_BRICK_WALL);
     }
 
     public static String familyName(Family f) {
         return switch (f) {
             case FULL -> "Full blocks"; case SLAB -> "Slabs"; case STAIRS -> "Stairs";
-            case TRAPDOOR -> "Trapdoors"; case FENCE -> "Fences"; case PANE -> "Panes"; default -> "";
+            case TRAPDOOR -> "Trapdoors"; case FENCE -> "Fences"; case PANE -> "Panes"; case WALL -> "Walls"; default -> "";
         };
     }
 
@@ -78,6 +82,7 @@ public final class BlockChoices {
             case TRAPDOOR -> b instanceof TrapdoorBlock;
             case FENCE -> b instanceof FenceBlock;
             case PANE -> b instanceof PaneBlock;
+            case WALL -> b instanceof WallBlock;
             default -> false;
         };
     }
@@ -100,7 +105,7 @@ public final class BlockChoices {
         return best;
     }
 
-    /** Fences and panes refuse to attach to some full blocks (leaves, pumpkins, melons, shulker boxes…). */
+    /** Fences, panes and walls refuse to attach to some full blocks (leaves, pumpkins, melons, shulker boxes…). */
     public static boolean fullBlockConnects() {
         return !Block.cannotConnect(CHOICE.get(Family.FULL).getDefaultState());
     }
@@ -131,7 +136,9 @@ public final class BlockChoices {
             case Pieces.TD_L -> s = with(with(s, TrapdoorBlock.OPEN, true), TrapdoorBlock.FACING, right);
             case Pieces.TD_R -> s = with(with(s, TrapdoorBlock.OPEN, true), TrapdoorBlock.FACING, left);
             default -> {
-                if (Pieces.isConnector(piece)) {
+                if (Pieces.FAMILY[piece] == Family.WALL) {
+                    s = wallState(s, piece, right, forward, k, depth);
+                } else if (Pieces.isConnector(piece)) {
                     s = with(s, side(left), Pieces.connectsLeft(piece));
                     s = with(s, side(right), Pieces.connectsRight(piece));
                     s = with(s, side(forward), k < depth - 1);
@@ -142,6 +149,36 @@ public final class BlockChoices {
         s = with(s, Properties.WATERLOGGED, false);
         if (s.contains(Properties.PERSISTENT)) s = s.with(Properties.PERSISTENT, true);   // stop leaves decaying
         return s;
+    }
+
+    /**
+     * Wall sides come from the solver (left/right: none, low or tall). Walls in the layers in front and
+     * behind (depth) connect too, and the post follows the game's rule for the whole set of four sides.
+     */
+    private static BlockState wallState(BlockState s, int piece, Direction right, Direction forward, int k, int depth) {
+        int l = Pieces.wallLeft(piece), r = Pieces.wallRight(piece);
+        boolean covered = Pieces.wallCovered(piece), front = k < depth - 1, back = k > 0;
+        WallShape depthShape = covered ? WallShape.TALL : WallShape.LOW;
+        s = with(s, wallSide(right.getOpposite()), shape(l));
+        s = with(s, wallSide(right), shape(r));
+        s = with(s, wallSide(forward), front ? depthShape : WallShape.NONE);
+        s = with(s, wallSide(forward.getOpposite()), back ? depthShape : WallShape.NONE);
+        boolean post;
+        if (!front && !back && l == 0 && r == 0) post = true;                       // on its own
+        else if (front != back || (l == 0) != (r == 0)) post = true;                // a corner or an end
+        else if ((front && back && depthShape == WallShape.TALL) || (l == 2 && r == 2)) post = false; // straight and tall
+        else post = covered;                                                        // straight: post if something sits on it
+        return with(s, Properties.UP, post);
+    }
+
+    private static WallShape shape(int v) { return v == 0 ? WallShape.NONE : v == 1 ? WallShape.LOW : WallShape.TALL; }
+
+    private static EnumProperty<WallShape> wallSide(Direction d) {
+        return switch (d) {
+            case NORTH -> Properties.NORTH_WALL_SHAPE; case SOUTH -> Properties.SOUTH_WALL_SHAPE;
+            case EAST -> Properties.EAST_WALL_SHAPE; case WEST -> Properties.WEST_WALL_SHAPE;
+            default -> throw new IllegalArgumentException("not horizontal: " + d);
+        };
     }
 
     private static BooleanProperty side(Direction d) {

@@ -46,18 +46,16 @@ public final class PreviewTexture implements AutoCloseable {
                     case BLOCKS -> 0xFF000000 | ColorIndex.of(BlockChoices.blockFor(p));
                 };
                 int edge = darken(rgb, 0.55f);
-                for (int[] q : Pieces.RECTS[p]) {
-                    int x0 = i * sub + Math.round(q[0] * sub / 16f), x1 = i * sub + Math.round(q[2] * sub / 16f);
-                    int top = (r.ny() - 1 - j) * sub + sub - Math.round(q[3] * sub / 16f);
-                    int bot = (r.ny() - 1 - j) * sub + sub - Math.round(q[1] * sub / 16f);
-                    if (x1 <= x0) x1 = x0 + 1;
-                    if (bot <= top) bot = top + 1;
-                    img.fillRect(x0, top, x1 - x0, bot - top, abgr(rgb));
-                    if (sub >= 8) {
-                        for (int x = x0; x < x1; x++) { img.setColor(x, top, abgr(edge)); img.setColor(x, bot - 1, abgr(edge)); }
-                        for (int y = top; y < bot; y++) { img.setColor(x0, y, abgr(edge)); img.setColor(x1 - 1, y, abgr(edge)); }
+                int ox = i * sub, oy = (r.ny() - 1 - j) * sub;
+                boolean[] in = shape(p);
+                for (int y = 0; y < sub; y++)
+                    for (int x = 0; x < sub; x++) {
+                        if (!in[y * sub + x]) continue;
+                        // Outline the piece's overall silhouette, not each rectangle it's made of.
+                        boolean border = sub >= 8 && (x == 0 || y == 0 || x == sub - 1 || y == sub - 1
+                                || !in[y * sub + x - 1] || !in[y * sub + x + 1] || !in[(y - 1) * sub + x] || !in[(y + 1) * sub + x]);
+                        img.setColor(ox + x, oy + y, abgr(border ? edge : rgb));
                     }
-                }
             }
 
         if (grid && sub >= 4) {
@@ -80,6 +78,23 @@ public final class PreviewTexture implements AutoCloseable {
             for (double[] segs : t.dashed) stroke(img, segs, r.ny(), 1, true);
         }
         tex.upload();
+    }
+
+    private boolean[][] shapeCache = new boolean[Pieces.COUNT][];
+    private int shapeSub = -1;
+
+    /** The piece scaled to sub×sub pixels (row 0 at the top), cached per scale. */
+    private boolean[] shape(int p) {
+        if (shapeSub != sub) { shapeCache = new boolean[Pieces.COUNT][]; shapeSub = sub; }
+        boolean[] in = shapeCache[p];
+        if (in != null) return in;
+        in = new boolean[sub * sub];
+        for (int[] q : Pieces.RECTS[p]) {
+            int x0 = Math.round(q[0] * sub / 16f), x1 = Math.max(x0 + 1, Math.round(q[2] * sub / 16f));
+            int top = sub - Math.round(q[3] * sub / 16f), bot = Math.max(top + 1, sub - Math.round(q[1] * sub / 16f));
+            for (int y = top; y < bot; y++) for (int x = x0; x < x1; x++) in[y * sub + x] = true;
+        }
+        return shapeCache[p] = in;
     }
 
     private void stroke(NativeImage img, double[] s, int ny, int thick, boolean dashed) {
