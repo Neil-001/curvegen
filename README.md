@@ -32,6 +32,10 @@ Press **G** to open the generator. Every key can be rebound under Options, Contr
   - **Colours follow the face you'll see:** block colours use the top face for floors and the side face for walls, so logs show their rings and grass blocks are green.
 - **Right-click** any button that steps through options (Shape, the examples, Colour and the rest) to step backwards.
 - With an inequality typed in, the Shape button is greyed out because the inequality decides the filled side.
+- **Count tab** lists how many of each block the shape uses, like the web version's materials list.
+  - Grouped by piece type, with one row per orientation or state. Each row's icon is drawn exactly as in the preview, in the current colouring.
+  - With Depth or Height above 1, counts cover every layer.
+  - Hover a row to see the full name and which block it uses.
 - **Colour** (top right) switches the preview between plain stone, piece types, or the colours of your chosen blocks. **Curve** shows or hides the true curve.
 - **Replace** (bottom bar): when off, the shape only goes into air and replaceable blocks like grass, water and snow layers, leaving existing builds alone.
 - **Carve** (bottom bar): clears existing blocks from the space the shape encloses. That's inside a thin or thick ellipse, above a "fill under" equation, or below a "fill over" one. Filled ellipses, lines and Bézier curves don't carve. The preview shows blocks that will be cleared in red.
@@ -47,7 +51,7 @@ Press **G** to open the generator. Every key can be rebound under Options, Contr
 | Enter | Place it |
 | R | Rotate by 90° |
 | Page Up / Page Down | Move up or down |
-| K | Lock the position (so you can walk around it), or unlock |
+| K | Lock the position and direction, so you can walk around it without it turning (R still rotates it), or unlock |
 | Backspace | Cancel |
 | Z | Undo the last placement |
 

@@ -14,7 +14,7 @@ import net.minecraft.util.Identifier;
 public final class PreviewTexture implements AutoCloseable {
     public enum Colors { STONE, PIECES, BLOCKS }
 
-    private static final int BG = 0xFF1B1F25, STONE = 0xFFA9AAA6, GRID = 0x22FFFFFF, GRID_MAJOR = 0x55FFFFFF,
+    static final int BG = 0xFF1B1F25, STONE = 0xFFA9AAA6, GRID = 0x22FFFFFF, GRID_MAJOR = 0x55FFFFFF,
             AXIS = 0xAA6EA0FF, CURVE = 0xFFFF4D73;
 
     private NativeImageBackedTexture tex;
@@ -40,22 +40,12 @@ public final class PreviewTexture implements AutoCloseable {
             for (int i = 0; i < r.nx(); i++) {
                 int p = r.at(i, j);
                 if (p == Pieces.EMPTY) continue;
-                int rgb = switch (colors) {
-                    case STONE -> STONE;
-                    case PIECES -> 0xFF000000 | Pieces.COLOR[p];
-                    case BLOCKS -> 0xFF000000 | ColorIndex.of(BlockChoices.blockFor(p));
-                };
-                int edge = darken(rgb, 0.55f);
+                int rgb = colorFor(p, colors), edge = darken(rgb, 0.55f);
                 int ox = i * sub, oy = (r.ny() - 1 - j) * sub;
-                boolean[] in = shape(p);
+                boolean[] in = shape(p), border = sub >= 8 ? outline(in, sub) : null;
                 for (int y = 0; y < sub; y++)
-                    for (int x = 0; x < sub; x++) {
-                        if (!in[y * sub + x]) continue;
-                        // Outline the piece's overall silhouette, not each rectangle it's made of.
-                        boolean border = sub >= 8 && (x == 0 || y == 0 || x == sub - 1 || y == sub - 1
-                                || !in[y * sub + x - 1] || !in[y * sub + x + 1] || !in[(y - 1) * sub + x] || !in[(y + 1) * sub + x]);
-                        img.setColor(ox + x, oy + y, abgr(border ? edge : rgb));
-                    }
+                    for (int x = 0; x < sub; x++)
+                        if (in[y * sub + x]) img.setColor(ox + x, oy + y, abgr(border != null && border[y * sub + x] ? edge : rgb));
             }
 
         if (grid && sub >= 4) {
@@ -87,14 +77,45 @@ public final class PreviewTexture implements AutoCloseable {
     private boolean[] shape(int p) {
         if (shapeSub != sub) { shapeCache = new boolean[Pieces.COUNT][]; shapeSub = sub; }
         boolean[] in = shapeCache[p];
-        if (in != null) return in;
-        in = new boolean[sub * sub];
+        return in != null ? in : (shapeCache[p] = silhouette(p, sub));
+    }
+
+    /** A piece's silhouette at size×size pixels, row 0 at the top. */
+    static boolean[] silhouette(int p, int size) {
+        boolean[] in = new boolean[size * size];
         for (int[] q : Pieces.RECTS[p]) {
-            int x0 = Math.round(q[0] * sub / 16f), x1 = Math.max(x0 + 1, Math.round(q[2] * sub / 16f));
-            int top = sub - Math.round(q[3] * sub / 16f), bot = Math.max(top + 1, sub - Math.round(q[1] * sub / 16f));
-            for (int y = top; y < bot; y++) for (int x = x0; x < x1; x++) in[y * sub + x] = true;
+            int x0 = Math.round(q[0] * size / 16f), x1 = Math.max(x0 + 1, Math.round(q[2] * size / 16f));
+            int top = size - Math.round(q[3] * size / 16f), bot = Math.max(top + 1, size - Math.round(q[1] * size / 16f));
+            for (int y = top; y < bot; y++) for (int x = x0; x < x1; x++) in[y * size + x] = true;
         }
-        return shapeCache[p] = in;
+        return in;
+    }
+
+    /**
+     * Pixels on the edge of the silhouette: any filled pixel touching an empty one, diagonals included, so inside
+     * corners (like a stair's) are outlined too. Pieces without inside corners are unaffected by the diagonal check.
+     */
+    static boolean[] outline(boolean[] in, int size) {
+        boolean[] e = new boolean[size * size];
+        for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++) {
+                if (!in[y * size + x]) continue;
+                boolean edge = x == 0 || y == 0 || x == size - 1 || y == size - 1;
+                for (int dy = -1; !edge && dy <= 1; dy++)
+                    for (int dx = -1; dx <= 1; dx++)
+                        if (!in[(y + dy) * size + x + dx]) { edge = true; break; }
+                e[y * size + x] = edge;
+            }
+        return e;
+    }
+
+    /** Fill colour (ARGB) of a piece in the given colouring, exactly as the preview paints it. */
+    static int colorFor(int p, Colors colors) {
+        return switch (colors) {
+            case STONE -> STONE;
+            case PIECES -> 0xFF000000 | Pieces.COLOR[p];
+            case BLOCKS -> 0xFF000000 | ColorIndex.of(BlockChoices.blockFor(p));
+        };
     }
 
     private void stroke(NativeImage img, double[] s, int ny, int thick, boolean dashed) {
@@ -121,7 +142,7 @@ public final class PreviewTexture implements AutoCloseable {
         return (argb & 0xFF00FF00) | ((argb >> 16) & 0xFF) | ((argb & 0xFF) << 16);
     }
 
-    private static int darken(int argb, float f) {
+    static int darken(int argb, float f) {
         int r = (int) (((argb >> 16) & 0xFF) * f), g = (int) (((argb >> 8) & 0xFF) * f), b = (int) ((argb & 0xFF) * f);
         return 0xFF000000 | (r << 16) | (g << 8) | b;
     }

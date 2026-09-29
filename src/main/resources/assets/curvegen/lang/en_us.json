@@ -6,6 +6,6 @@
   "key.curvegen.rotate": "Rotate shape",
   "key.curvegen.raise": "Raise shape",
   "key.curvegen.lower": "Lower shape",
-  "key.curvegen.lock": "Lock or unlock shape position",
+  "key.curvegen.lock": "Lock or unlock shape position and direction",
   "key.curvegen.undo": "Undo last placement"
 }

@@ -51,6 +51,8 @@ public final class Placement {
     private static Direction viewFacing;
     private static int viewAge;
     private static BlockPos lockedAnchor, anchor;
+    /** While locked, the direction the player was facing when they locked, so looking around doesn't turn the shape. */
+    private static Direction lockedFacing;
     private static Direction cachedFacing;
     private static List<Entry> entries = List.of();
     private static int minDx, minDy, minDz, maxDx, maxDy, maxDz;
@@ -63,7 +65,7 @@ public final class Placement {
 
     public static void start(Layout l, int d, boolean overwriteBlocks, boolean carveSpace, boolean flat) {
         layout = l; depth = Math.max(1, d); overwrite = overwriteBlocks; carve = carveSpace; floor = flat;
-        rotation = 0; yOffset = 0; lockedAnchor = null; cachedFacing = null; viewAnchor = null; active = true;
+        rotation = 0; yOffset = 0; lockedAnchor = null; lockedFacing = null; cachedFacing = null; viewAnchor = null; active = true;
     }
 
     /** Where the shape may put a block when "Replace" is off: air and things like grass, water or snow layers. */
@@ -77,10 +79,20 @@ public final class Placement {
 
     public static void rotate() { rotation = (rotation + 1) & 3; }
     public static void raise(int dy) { yOffset += dy; }
-    public static void toggleLock() { lockedAnchor = lockedAnchor == null ? baseTarget(MinecraftClient.getInstance()) : null; }
+    /** Freezes (or releases) both where the shape is and which way it faces. R still rotates it while locked. */
+    public static void toggleLock() {
+        MinecraftClient mc = MinecraftClient.getInstance();
+        if (lockedAnchor == null && mc.player != null) {
+            lockedAnchor = baseTarget(mc);
+            lockedFacing = mc.player.getHorizontalFacing();
+        } else {
+            lockedAnchor = null;
+            lockedFacing = null;
+        }
+    }
 
     private static Direction facing(MinecraftClient mc) {
-        Direction f = mc.player.getHorizontalFacing();
+        Direction f = lockedFacing != null ? lockedFacing : mc.player.getHorizontalFacing();
         for (int i = 0; i < rotation; i++) f = f.rotateYClockwise();
         return f;
     }
@@ -204,7 +216,7 @@ public final class Placement {
         lines.add(Text.literal(what).formatted(Formatting.WHITE));
         lines.add(Text.literal(key(CurveGenClient.CONFIRM) + " place, " + key(CurveGenClient.ROTATE) + " rotate, "
                 + key(CurveGenClient.RAISE) + "/" + key(CurveGenClient.LOWER) + " move up or down, "
-                + key(CurveGenClient.LOCK) + (lockedAnchor != null ? " unlock position" : " lock position") + ", "
+                + key(CurveGenClient.LOCK) + (lockedAnchor != null ? " unlock (follow your view again)" : " lock position and direction") + ", "
                 + key(CurveGenClient.CANCEL) + " cancel").formatted(Formatting.GRAY));
         if (entries.size() > HOLOGRAM_LIMIT) lines.add(Text.literal("Large shape: only its outline is previewed.").formatted(Formatting.YELLOW));
         if (!mc.player.hasPermissionLevel(2))
