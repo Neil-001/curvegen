@@ -41,7 +41,7 @@ public final class Placement {
 
     private static Layout layout;
     private static int depth = 1, rotation = 0, yOffset = 0;
-    private static boolean active, overwrite = true, carve = false;
+    private static boolean active, overwrite = true, carve = false, floor = false;
     /** Carve offsets (relative to the anchor) for the current facing. */
     private static List<BlockPos> carveOffsets = List.of();
     /** Refreshed a few times a second: which offsets would really change the world right now. */
@@ -53,7 +53,7 @@ public final class Placement {
     private static BlockPos lockedAnchor, anchor;
     private static Direction cachedFacing;
     private static List<Entry> entries = List.of();
-    private static int minDx, minDz, maxDx, maxDz;
+    private static int minDx, minDy, minDz, maxDx, maxDy, maxDz;
 
     private static List<BlockPos> undoPositions;
     private static List<BlockState> undoStates;
@@ -61,8 +61,8 @@ public final class Placement {
 
     public static boolean isActive() { return active; }
 
-    public static void start(Layout l, int d, boolean overwriteBlocks, boolean carveSpace) {
-        layout = l; depth = Math.max(1, d); overwrite = overwriteBlocks; carve = carveSpace;
+    public static void start(Layout l, int d, boolean overwriteBlocks, boolean carveSpace, boolean flat) {
+        layout = l; depth = Math.max(1, d); overwrite = overwriteBlocks; carve = carveSpace; floor = flat;
         rotation = 0; yOffset = 0; lockedAnchor = null; cachedFacing = null; viewAnchor = null; active = true;
     }
 
@@ -92,34 +92,42 @@ public final class Placement {
         return BlockPos.ofFloored(hit.getPos());
     }
 
+    /**
+     * Upright: the drawing stands facing the player, its bottom-middle on the targeted block, extruded away from them.
+     * Flat: the drawing lies on the ground centred on the targeted block, its "up" pointing away from the player,
+     * with layers stacking upwards.
+     */
+    private static BlockPos offset(int x, int y, int k, Direction right, Direction forward) {
+        int u = x - layout.width() / 2;
+        if (floor) {
+            int v = y - layout.height() / 2;
+            return new BlockPos(right.getOffsetX() * u + forward.getOffsetX() * v, k, right.getOffsetZ() * u + forward.getOffsetZ() * v);
+        }
+        return new BlockPos(right.getOffsetX() * u + forward.getOffsetX() * k, y, right.getOffsetZ() * u + forward.getOffsetZ() * k);
+    }
+
     private static void rebuild(Direction forward) {
         Direction right = forward.rotateYClockwise();
-        int half = layout.width() / 2;
         List<Entry> out = new ArrayList<>(layout.cells().size() * depth);
-        minDx = minDz = Integer.MAX_VALUE; maxDx = maxDz = Integer.MIN_VALUE;
+        minDx = minDy = minDz = Integer.MAX_VALUE; maxDx = maxDy = maxDz = Integer.MIN_VALUE;
         for (Layout.Cell c : layout.cells())
             for (int k = 0; k < depth; k++) {
-                int u = c.x() - half;
-                int dx = right.getOffsetX() * u + forward.getOffsetX() * k;
-                int dz = right.getOffsetZ() * u + forward.getOffsetZ() * k;
-                BlockState st = BlockChoices.stateFor(c.piece(), right, forward, k, depth);
+                BlockPos o = offset(c.x(), c.y(), k, right, forward);
+                BlockState st = BlockChoices.stateFor(c.piece(), right, forward, k, depth, floor);
                 List<Box> boxes = out.size() < HOLOGRAM_LIMIT
                         ? st.getOutlineShape(EmptyBlockView.INSTANCE, BlockPos.ORIGIN).getBoundingBoxes() : List.of();
-                int rgb = ColorIndex.of(st.getBlock());
-                out.add(new Entry(dx, c.y(), dz, st, boxes,
+                int rgb = ColorIndex.of(st.getBlock(), floor);
+                out.add(new Entry(o.getX(), o.getY(), o.getZ(), st, boxes,
                         ((rgb >> 16) & 0xFF) / 255f, ((rgb >> 8) & 0xFF) / 255f, (rgb & 0xFF) / 255f));
-                minDx = Math.min(minDx, dx); maxDx = Math.max(maxDx, dx);
-                minDz = Math.min(minDz, dz); maxDz = Math.max(maxDz, dz);
+                minDx = Math.min(minDx, o.getX()); maxDx = Math.max(maxDx, o.getX());
+                minDy = Math.min(minDy, o.getY()); maxDy = Math.max(maxDy, o.getY());
+                minDz = Math.min(minDz, o.getZ()); maxDz = Math.max(maxDz, o.getZ());
             }
         entries = out;
         List<BlockPos> cv = new ArrayList<>();
         if (carve)
             for (Layout.Cell c : layout.carve())
-                for (int k = 0; k < depth; k++) {
-                    int u = c.x() - half;
-                    cv.add(new BlockPos(right.getOffsetX() * u + forward.getOffsetX() * k, c.y(),
-                            right.getOffsetZ() * u + forward.getOffsetZ() * k));
-                }
+                for (int k = 0; k < depth; k++) cv.add(offset(c.x(), c.y(), k, right, forward));
         carveOffsets = cv;
         cachedFacing = forward;
         viewAnchor = null;
@@ -175,7 +183,7 @@ public final class Placement {
             imm.draw(RenderLayer.getDebugFilledBox());
         }
         VertexConsumer lines = imm.getBuffer(RenderLayer.getLines());
-        Box bounds = new Box(minDx, 0, minDz, maxDx + 1, layout.height(), maxDz + 1);
+        Box bounds = new Box(minDx, minDy, minDz, maxDx + 1, maxDy + 1, maxDz + 1);
         WorldRenderer.drawBox(ms, lines, bounds, 1f, 1f, 1f, 0.9f);
         WorldRenderer.drawBox(ms, lines, new Box(0, 0, 0, 1, 1, 1).expand(0.02), 1f, 0.3f, 0.45f, 1f);  // the anchor block
         imm.draw(RenderLayer.getLines());
@@ -188,7 +196,9 @@ public final class Placement {
         if (mc.player == null) return;
         var tr = mc.textRenderer;
         List<Text> lines = new ArrayList<>();
-        lines.add(Text.literal("Curve Generator: " + layout.width() + " wide, " + layout.height() + " tall, " + depth + " deep").formatted(Formatting.WHITE));
+        lines.add(Text.literal("Curve Generator: " + (floor
+                ? "floor, " + layout.width() + " by " + layout.height() + ", " + depth + (depth == 1 ? " layer" : " layers") + " high"
+                : layout.width() + " wide, " + layout.height() + " tall, " + depth + " deep")).formatted(Formatting.WHITE));
         String what = toPlace.size() + " blocks to place" + (toPlace.size() < entries.size() ? " (" + (entries.size() - toPlace.size()) + " skipped, Replace is off)" : "");
         if (carve) what += ", " + toBreak.size() + " to clear (shown in red)";
         lines.add(Text.literal(what).formatted(Formatting.WHITE));

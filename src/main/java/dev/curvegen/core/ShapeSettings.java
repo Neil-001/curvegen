@@ -35,6 +35,8 @@ public final class ShapeSettings {
     public boolean fullConnects = true;
     /** How many blocks deep the shape is extruded when placed or exported. */
     public int depth = 1;
+    /** Build flat on the ground (a floor, drawn from above) instead of upright (a wall, drawn from the side). */
+    public boolean floor = false;
     /** Placement: may the shape replace blocks that are already there? (Off: only air and replaceable blocks.) */
     public boolean overwrite = true;
     /** Placement: clear the space the shape encloses (inside an ellipse wall, the far side of a filled equation). */
@@ -50,7 +52,7 @@ public final class ShapeSettings {
         c.pts.clear();
         for (double[] p : pts) c.pts.add(p.clone());
         c.slab = slab; c.stair = stair; c.trap = trap; c.fence = fence; c.pane = pane; c.wall = wall;
-        c.fullConnects = fullConnects; c.depth = depth; c.overwrite = overwrite; c.carve = carve;
+        c.fullConnects = fullConnects; c.depth = depth; c.overwrite = overwrite; c.carve = carve; c.floor = floor;
         return c;
     }
 }

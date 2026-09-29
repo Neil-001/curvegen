@@ -16,19 +16,25 @@ import dev.curvegen.core.Solver;
 import net.minecraft.block.Block;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.gui.tooltip.Tooltip;
 import net.minecraft.client.gui.widget.ButtonWidget;
+import net.minecraft.client.gui.widget.ClickableWidget;
 import net.minecraft.client.gui.widget.CyclingButtonWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.item.ItemStack;
+import net.minecraft.screen.ScreenTexts;
 import net.minecraft.text.Text;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 public class CurveScreen extends Screen {
     private enum Tab { ELLIPSE, EQUATION, BEZIER, BLOCKS }
@@ -68,7 +74,10 @@ public class CurveScreen extends Screen {
     private final List<Icon> icons = new ArrayList<>();
     private String hint;
     private int hintY;
-    private TextFieldWidget qHField;
+    private TextFieldWidget qHField, qLWField;
+    private CyclingButtonWidget<EqMode> eqShape;
+    /** What a right-click does on buttons that step through options: step backwards. */
+    private final Map<ClickableWidget, Runnable> reverse = new HashMap<>();
     private String status;
     private long statusUntil;
 
@@ -93,7 +102,7 @@ public class CurveScreen extends Screen {
 
     @Override
     protected void init() {
-        labels.clear(); icons.clear(); pointFields.clear(); hint = null; qHField = null;
+        labels.clear(); icons.clear(); pointFields.clear(); reverse.clear(); hint = null; qHField = null; qLWField = null; eqShape = null;
 
         String[] names = {"Ellipse", "Equation", "Bézier", "Blocks"};
         for (int k = 0; k < 4; k++) {
@@ -102,12 +111,10 @@ public class CurveScreen extends Screen {
             b.active = tab != t;
             addDrawableChild(b);
         }
-        addDrawableChild(CyclingButtonWidget.<PreviewTexture.Colors>builder(c -> Text.literal(switch (c) {
-                    case STONE -> "Plain"; case PIECES -> "Piece types"; case BLOCKS -> "Block colours"; }))
-                .values(PreviewTexture.Colors.values()).initially(colors)
-                .build(width - M - 170, 6, 104, 20, Text.literal("Colour"), (b, v) -> { colors = v; textureDirty = true; }));
-        addDrawableChild(CyclingButtonWidget.onOffBuilder(showCurve)
-                .build(width - M - 62, 6, 62, 20, Text.literal("Curve"), (b, v) -> { showCurve = v; textureDirty = true; }));
+        addDrawableChild(cycler(List.of(PreviewTexture.Colors.values()), colors, c -> Text.literal(switch (c) {
+                    case STONE -> "Plain"; case PIECES -> "Piece types"; case BLOCKS -> "Block colours"; }),
+                width - M - 170, 6, 104, "Colour", v -> { colors = v; textureDirty = true; }));
+        addDrawableChild(toggle(showCurve, width - M - 62, 6, 62, "Curve", v -> { showCurve = v; textureDirty = true; }));
 
         switch (tab) {
             case ELLIPSE -> initEllipse();
@@ -117,22 +124,31 @@ public class CurveScreen extends Screen {
         }
 
         int by = height - 26;
-        labels.add(new Label(M, by + 6, "Depth"));
-        addDrawableChild(num(M + 34, by, 30, String.valueOf(S.depth), v -> { S.depth = clampInt(v, 1, 64, S.depth); }));
-        CyclingButtonWidget<Boolean> replace = CyclingButtonWidget.onOffBuilder(S.overwrite)
-                .build(M + 70, by, 70, 20, Text.literal("Replace"), (b, v) -> S.overwrite = v);
-        replace.setTooltip(net.minecraft.client.gui.tooltip.Tooltip.of(Text.literal(
+        CyclingButtonWidget<Boolean> orient = CyclingButtonWidget.builder((Boolean v) -> Text.literal(v ? "Flat" : "Upright"))
+                .values(List.of(false, true)).initially(S.floor).omitKeyText()
+                .build(M, by, 50, 20, Text.literal("Build"), (b, v) -> setFloor(v));
+        orient.setTooltip(Tooltip.of(Text.literal("Upright builds a wall, drawn from the side. Flat builds a floor, drawn from above.")));
+        reverse.put(orient, () -> setFloor(!S.floor));
+        addDrawableChild(orient);
+        labels.add(new Label(M + 54, by + 6, S.floor ? "Height" : "Depth"));
+        TextFieldWidget depthField = num(M + 88, by, 26, String.valueOf(S.depth), v -> {
+            int d = clampInt(v, 1, 64, S.depth);
+            if (d != S.depth) { S.depth = d; dirty = true; }   // walls look different when more than one deep
+        });
+        depthField.setTooltip(Tooltip.of(Text.literal(S.floor ? "How many layers the floor is stacked up." : "How many blocks deep the shape is built.")));
+        addDrawableChild(depthField);
+        CyclingButtonWidget<Boolean> replace = toggle(S.overwrite, M + 118, by, 62, "Replace", v -> S.overwrite = v);
+        replace.setTooltip(Tooltip.of(Text.literal(
                 "On: the shape replaces blocks already in its way. Off: it only fills air and things like grass, water and snow layers.")));
         addDrawableChild(replace);
-        CyclingButtonWidget<Boolean> carve = CyclingButtonWidget.onOffBuilder(S.carve)
-                .build(M + 144, by, 66, 20, Text.literal("Carve"), (b, v) -> S.carve = v);
-        carve.setTooltip(net.minecraft.client.gui.tooltip.Tooltip.of(Text.literal(
+        CyclingButtonWidget<Boolean> carve = toggle(S.carve, M + 184, by, 54, "Carve", v -> S.carve = v);
+        carve.setTooltip(Tooltip.of(Text.literal(
                 "Clears existing blocks from the space the shape encloses: inside a thin or thick ellipse, or the other side of a filled equation. Filled ellipses, lines and Bézier curves don't carve.")));
         addDrawableChild(carve);
-        int bx = width - M - 3 * 64 - 8;
-        addDrawableChild(ButtonWidget.builder(Text.literal("Place"), b -> place()).dimensions(bx, by, 64, 20).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("Export"), b -> export()).dimensions(bx + 68, by, 64, 20).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("Done"), b -> close()).dimensions(bx + 136, by, 64, 20).build());
+        int bx = width - M - 3 * 56 - 8;
+        addDrawableChild(ButtonWidget.builder(Text.literal("Place"), b -> place()).dimensions(bx, by, 56, 20).build());
+        addDrawableChild(ButtonWidget.builder(Text.literal("Export"), b -> export()).dimensions(bx + 60, by, 56, 20).build());
+        addDrawableChild(ButtonWidget.builder(Text.literal("Done"), b -> close()).dimensions(bx + 120, by, 56, 20).build());
     }
 
     private void switchTab(Tab t) {
@@ -148,11 +164,10 @@ public class CurveScreen extends Screen {
         addDrawableChild(num(M, row(0), 64, String.valueOf(S.eW), v -> { S.eW = clampInt(v, 1, 400, S.eW); dirty = true; }));
         labels.add(new Label(M + 71, row(0) + 6, "×"));
         addDrawableChild(num(M + 86, row(0), 64, String.valueOf(S.eH), v -> { S.eH = clampInt(v, 1, 400, S.eH); dirty = true; }));
-        addDrawableChild(CyclingButtonWidget.<EllipseMode>builder(m -> Text.literal(switch (m) {
+        addDrawableChild(cycler(List.of(EllipseMode.values()), S.eMode, m -> Text.literal(switch (m) {
                     case THIN -> "Thin"; case FILLED -> "Filled"; case OUTWARDS -> "Thick outwards";
-                    case INWARDS -> "Thick inwards"; case MIDDLE -> "Thick middle"; }))
-                .values(EllipseMode.values()).initially(S.eMode)
-                .build(M, row(1), PANEL_W, 20, Text.literal("Shape"), (b, v) -> { S.eMode = v; dirty = true; clearAndInit(); }));
+                    case INWARDS -> "Thick inwards"; case MIDDLE -> "Thick middle"; }),
+                M, row(1), PANEL_W, "Shape", v -> { S.eMode = v; dirty = true; clearAndInit(); }));
         labels.add(new Label(M, row(2) + 6, "Thickness"));
         TextFieldWidget t = num(M + 60, row(2), PANEL_W - 60, fmt(S.eT), v -> { S.eT = clampNum(v, 0.0625, 50, S.eT); dirty = true; });
         t.setEditable(S.eMode == EllipseMode.OUTWARDS || S.eMode == EllipseMode.INWARDS || S.eMode == EllipseMode.MIDDLE);
@@ -171,7 +186,7 @@ public class CurveScreen extends Screen {
         TextFieldWidget eq = new TextFieldWidget(textRenderer, M, row(0), PANEL_W, 20, Text.literal("Equation"));
         eq.setMaxLength(256);
         eq.setText(S.src);
-        eq.setChangedListener(v -> { S.src = v; dirty = true; });
+        eq.setChangedListener(v -> { S.src = v; dirty = true; updateEquationControls(); });
         addDrawableChild(eq);
         labels.add(new Label(M, row(1) + 6, "x"));
         addDrawableChild(text(M + 10, row(1), 62, S.xmin, v -> { S.xmin = v; dirty = true; }));
@@ -187,34 +202,52 @@ public class CurveScreen extends Screen {
         qHField = num(M + 90, row(3), 60, String.valueOf(S.qH), v -> { if (!S.qLock) { S.qH = clampInt(v, 1, 400, S.qH); dirty = true; } });
         qHField.setEditable(!S.qLock);
         addDrawableChild(qHField);
-        addDrawableChild(CyclingButtonWidget.onOffBuilder(S.qLock).build(M, row(4), PANEL_W, 20, Text.literal("Same scale"),
-                (b, v) -> { S.qLock = v; qHField.setEditable(!v); dirty = true; }));
-        addDrawableChild(CyclingButtonWidget.<EqMode>builder(m -> Text.literal(switch (m) {
-                    case LINE -> "Line"; case UNDER -> "Fill under"; case OVER -> "Fill over"; }))
-                .values(EqMode.values()).initially(S.qMode)
-                .build(M, row(5), PANEL_W, 20, Text.literal("Shape"), (b, v) -> { S.qMode = v; dirty = true; }));
+        addDrawableChild(toggle(S.qLock, M, row(4), PANEL_W, "Same scale", v -> { S.qLock = v; qHField.setEditable(!v); dirty = true; }));
+        eqShape = cycler(List.of(EqMode.values()), S.qMode, m -> Text.literal(switch (m) {
+                    case LINE -> "Line"; case UNDER -> "Fill under"; case OVER -> "Fill over"; }),
+                M, row(5), PANEL_W, "Shape", v -> { S.qMode = v; dirty = true; updateEquationControls(); });
+        addDrawableChild(eqShape);
         labels.add(new Label(M, row(6) + 6, "Line width"));
-        addDrawableChild(num(M + 60, row(6), PANEL_W - 60, fmt(S.qLW), v -> { S.qLW = clampNum(v, 0.0625, 50, S.qLW); dirty = true; }));
+        qLWField = num(M + 60, row(6), PANEL_W - 60, fmt(S.qLW), v -> { S.qLW = clampNum(v, 0.0625, 50, S.qLW); dirty = true; });
+        addDrawableChild(qLWField);
         String pn = presetIndex < 0 ? "Try an example" : "Example: " + PRESETS[presetIndex].name;
-        addDrawableChild(ButtonWidget.builder(Text.literal(pn), b -> {
-            presetIndex = (presetIndex + 1) % PRESETS.length;
-            Preset p = PRESETS[presetIndex];
-            S.src = p.src; S.xmin = p.xmin; S.xmax = p.xmax; S.ymin = p.ymin; S.ymax = p.ymax; S.qMode = p.mode;
-            dirty = true; autoFit = true; clearAndInit();
-        }).dimensions(M, row(7), PANEL_W, 20).build());
+        ButtonWidget example = ButtonWidget.builder(Text.literal(pn), b -> applyPreset((presetIndex + 1) % PRESETS.length))
+                .dimensions(M, row(7), PANEL_W, 20).build();
+        example.setTooltip(Tooltip.of(Text.literal("Click for the next example, right-click for the previous one.")));
+        reverse.put(example, () -> applyPreset(presetIndex < 0 ? PRESETS.length - 1 : (presetIndex - 1 + PRESETS.length) % PRESETS.length));
+        addDrawableChild(example);
+        updateEquationControls();
+    }
+
+    private void applyPreset(int index) {
+        presetIndex = index;
+        Preset p = PRESETS[index];
+        S.src = p.src; S.xmin = p.xmin; S.xmax = p.xmax; S.ymin = p.ymin; S.ymax = p.ymax; S.qMode = p.mode;
+        dirty = true; autoFit = true; clearAndInit();
+    }
+
+    private static boolean isInequality(String src) {
+        return src.contains("<") || src.contains(">") || src.contains("≤") || src.contains("≥");
+    }
+
+    /** An inequality decides the filled side itself, so the Shape choice (and line width) don't apply. */
+    private void updateEquationControls() {
+        if (eqShape == null) return;
+        boolean ineq = isInequality(S.src);
+        eqShape.active = !ineq;
+        eqShape.setTooltip(ineq ? Tooltip.of(Text.literal("Your inequality sets the shape. Use = to choose it here.")) : null);
+        if (qLWField != null) qLWField.setEditable(!ineq && S.qMode == EqMode.LINE);
     }
 
     private void initBezier() {
         addDrawableChild(num(M, row(0), 64, String.valueOf(S.bW), v -> { S.bW = clampInt(v, 1, 400, S.bW); dirty = true; autoFit = true; }));
         labels.add(new Label(M + 71, row(0) + 6, "×"));
         addDrawableChild(num(M + 86, row(0), 64, String.valueOf(S.bH), v -> { S.bH = clampInt(v, 1, 400, S.bH); dirty = true; autoFit = true; }));
-        addDrawableChild(CyclingButtonWidget.<BzMode>builder(m -> Text.literal(m == BzMode.LINE ? "Line" : "Filled"))
-                .values(BzMode.values()).initially(S.bMode)
-                .build(M, row(1), PANEL_W, 20, Text.literal("Shape"), (b, v) -> { S.bMode = v; dirty = true; }));
+        addDrawableChild(cycler(List.of(BzMode.values()), S.bMode, m -> Text.literal(m == BzMode.LINE ? "Line" : "Filled"),
+                M, row(1), PANEL_W, "Shape", v -> { S.bMode = v; dirty = true; }));
         labels.add(new Label(M, row(2) + 6, "Line width"));
         addDrawableChild(num(M + 60, row(2), PANEL_W - 60, fmt(S.bLW), v -> { S.bLW = clampNum(v, 0.0625, 50, S.bLW); dirty = true; }));
-        addDrawableChild(CyclingButtonWidget.onOffBuilder(S.snap).build(M, row(3), PANEL_W, 20, Text.literal("Snap to half blocks"),
-                (b, v) -> S.snap = v));
+        addDrawableChild(toggle(S.snap, M, row(3), PANEL_W, "Snap to half blocks", v -> S.snap = v));
         ButtonWidget add = ButtonWidget.builder(Text.literal("Add point"), b -> {
             int n = S.pts.size();
             double[] a = S.pts.get(n - 2), c = S.pts.get(n - 1);
@@ -241,10 +274,16 @@ public class CurveScreen extends Screen {
         for (int k = pointScroll; k < Math.min(n, pointScroll + listVisible); k++) {
             int y = listTop + (k - pointScroll) * POINT_ROW, idx = k;
             labels.add(new Label(M, y + 4, String.valueOf(k + 1)));
-            labels.add(new Label(M + 12, y + 4, "x"));
-            labels.add(new Label(M + 80, y + 4, "y"));
-            TextFieldWidget fx = new TextFieldWidget(textRenderer, M + 20, y, 56, 16, Text.literal("Point " + (k + 1) + " x"));
-            TextFieldWidget fy = new TextFieldWidget(textRenderer, M + 88, y, 56, 16, Text.literal("Point " + (k + 1) + " y"));
+            labels.add(new Label(M + 10, y + 4, "x"));
+            labels.add(new Label(M + 71, y + 4, "y"));
+            TextFieldWidget fx = new TextFieldWidget(textRenderer, M + 17, y, 50, 16, Text.literal("Point " + (k + 1) + " x"));
+            TextFieldWidget fy = new TextFieldWidget(textRenderer, M + 78, y, 50, 16, Text.literal("Point " + (k + 1) + " y"));
+            ButtonWidget x = ButtonWidget.builder(Text.literal("×"), b -> {
+                if (S.pts.size() > 2) { S.pts.remove(idx); dirty = true; clearAndInit(); }
+            }).dimensions(M + 132, y, 18, 16).build();
+            x.active = n > 2;
+            x.setTooltip(Tooltip.of(Text.literal(n > 2 ? "Remove point " + (k + 1) : "A curve needs at least two points")));
+            addDrawableChild(x);
             for (int axis = 0; axis < 2; axis++) {
                 TextFieldWidget f = axis == 0 ? fx : fy;
                 int a = axis;
@@ -297,8 +336,14 @@ public class CurveScreen extends Screen {
                 labels.add(new Label(M + 4, y + 6, "Use"));
             } else {
                 boolean on = allowed(f);
-                addDrawableChild(ButtonWidget.builder(Text.literal(on ? "Use" : "Off"), b -> { setAllowed(f, !allowed(f)); dirty = true; clearAndInit(); })
-                        .dimensions(M, y, 26, 20).build());
+                ButtonWidget use = ButtonWidget.builder(Text.literal(on ? "Use" : "Off"), b -> { setAllowed(f, !allowed(f)); dirty = true; clearAndInit(); })
+                        .dimensions(M, y, 26, 20).build();
+                if (S.floor && (f == Family.SLAB || f == Family.STAIRS)) {
+                    use.active = false;
+                    use.setTooltip(Tooltip.of(Text.literal("From above, " + BlockChoices.familyName(f).toLowerCase(java.util.Locale.ROOT)
+                            + " look like full blocks, so flat builds don't use them.")));
+                }
+                addDrawableChild(use);
             }
             Block block = BlockChoices.CHOICE.get(f);
             String name = textRenderer.trimToWidth(block.getName().getString(), PANEL_W - 54 - 8);
@@ -331,6 +376,29 @@ public class CurveScreen extends Screen {
     }
 
     // ---------- widgets ----------
+    /** A button that steps through options: click for the next one, right-click for the previous one. */
+    private <T> CyclingButtonWidget<T> cycler(List<T> values, T initial, Function<T, Text> names,
+                                              int x, int y, int w, String label, Consumer<T> onChange) {
+        CyclingButtonWidget<T> b = CyclingButtonWidget.builder(names).values(values).initially(initial)
+                .build(x, y, w, 20, Text.literal(label), (btn, v) -> onChange.accept(v));
+        reverse.put(b, () -> {
+            T prev = values.get((values.indexOf(b.getValue()) - 1 + values.size()) % values.size());
+            b.setValue(prev);
+            onChange.accept(prev);
+        });
+        return b;
+    }
+
+    private CyclingButtonWidget<Boolean> toggle(boolean initial, int x, int y, int w, String label, Consumer<Boolean> onChange) {
+        return cycler(List.of(true, false), initial, ScreenTexts::onOrOff, x, y, w, label, onChange);
+    }
+
+    private void setFloor(boolean flat) {
+        S.floor = flat;
+        dirty = true; textureDirty = true; autoFit = true;
+        clearAndInit();
+    }
+
     private TextFieldWidget num(int x, int y, int w, String value, Consumer<String> onChange) {
         return text(x, y, w, value, onChange);
     }
@@ -425,7 +493,7 @@ public class CurveScreen extends Screen {
             int total = 0;
             for (int p = 1; p < Pieces.COUNT; p++) total += result.counts()[p];
             double pct = result.area() > 0 ? result.err() / result.area() * 100 : 0;
-            line = total + " pieces on " + result.nx() + "×" + result.ny() + String.format(", mismatch %.2f blocks² (%.1f%%)", result.err(), pct)
+            line = (result.floor() ? "Seen from above: " : "") + total + " pieces on " + result.nx() + "×" + result.ny() + String.format(", mismatch %.2f blocks² (%.1f%%)", result.err(), pct)
                     + (job != null ? "  Updating…" : "");
         }
         if (status != null && System.currentTimeMillis() < statusUntil) { line = status; color = 0xFFE08A; }
@@ -499,6 +567,15 @@ public class CurveScreen extends Screen {
     // ---------- input ----------
     @Override
     public boolean mouseClicked(double mx, double my, int button) {
+        if (button == 1)
+            for (var e : reverse.entrySet()) {
+                ClickableWidget w = e.getKey();
+                if (w.active && w.visible && w.isMouseOver(mx, my)) {
+                    w.playDownSound(client.getSoundManager());
+                    e.getValue().run();   // may rebuild the screen, so stop looking straight away
+                    return true;
+                }
+            }
         if (super.mouseClicked(mx, my, button)) return true;
         boolean inCanvas = mx >= cx0() && mx < cx1() && my >= cy0() && my < cy1();
         if (!inCanvas || result == null) return false;
@@ -565,7 +642,7 @@ public class CurveScreen extends Screen {
         if (layout.isEmpty()) { flash("The shape is empty, so there's nothing to place."); return; }
         if (client.player != null && !client.player.hasPermissionLevel(2))
             client.player.sendMessage(Text.literal("Note: you'll need operator permissions to confirm placement. Export works for everyone."), false);
-        Placement.start(layout, S.depth, S.overwrite, S.carve);
+        Placement.start(layout, S.depth, S.overwrite, S.carve, S.floor);
         close();
     }
 
@@ -576,7 +653,7 @@ public class CurveScreen extends Screen {
         String kind = switch (S.gen) { case ELLIPSE -> "ellipse"; case EQUATION -> "equation"; case BEZIER -> "bezier"; };
         try {
             String author = client.player != null ? client.player.getName().getString() : "Curve Generator";
-            Path file = LitematicExporter.export(layout, S.depth, LitematicExporter.defaultName(kind), author);
+            Path file = LitematicExporter.export(layout, S.depth, S.floor, LitematicExporter.defaultName(kind) + (S.floor ? "_floor" : ""), author);
             flash("Exported to schematics/" + file.getFileName());
             if (client.player != null) client.player.sendMessage(Text.literal("Curve Generator: exported to schematics/" + file.getFileName()), false);
         } catch (Exception e) {

@@ -92,7 +92,7 @@ public final class BlockChoices {
         pickedColor = rgb;
         for (Family f : FAMILIES) {
             Block best = closest(f, rgb);
-            if (best != null) CHOICE.put(f, best);
+            if (best != null) CHOICE.put(f, best);   // closeness uses the side or top face, to match the build
         }
     }
 
@@ -116,10 +116,12 @@ public final class BlockChoices {
 
     /**
      * @param right world direction of the drawing's +x
-     * @param forward world direction the shape is extruded in (depth)
-     * @param k depth layer, 0 … depth-1
+     * @param forward upright: the direction the shape is extruded in (depth); flat: the direction of the drawing's +y
+     * @param k layer, 0 … depth-1 (upright: front to back; flat: bottom to top)
+     * @param floor whether the shape lies flat, drawn from above
      */
-    public static BlockState stateFor(int piece, Direction right, Direction forward, int k, int depth) {
+    public static BlockState stateFor(int piece, Direction right, Direction forward, int k, int depth, boolean floor) {
+        if (floor) return floorState(piece, right, forward, k, depth);
         BlockState s = blockFor(piece).getDefaultState();
         Direction left = right.getOpposite();
         switch (piece) {
@@ -148,6 +150,36 @@ public final class BlockChoices {
         }
         s = with(s, Properties.WATERLOGGED, false);
         if (s.contains(Properties.PERSISTENT)) s = s.with(Properties.PERSISTENT, true);   // stop leaves decaying
+        return s;
+    }
+
+    /** A flat shape: the drawing is the view from above and layers stack upwards. */
+    private static BlockState floorState(int piece, Direction right, Direction forward, int k, int depth) {
+        BlockState s = blockFor(piece).getDefaultState();
+        Direction left = right.getOpposite(), back = forward.getOpposite();
+        switch (piece) {
+            // An open trapdoor lies against the side opposite its FACING.
+            case Pieces.TD_L -> s = with(with(s, TrapdoorBlock.OPEN, true), TrapdoorBlock.FACING, right);
+            case Pieces.TD_R -> s = with(with(s, TrapdoorBlock.OPEN, true), TrapdoorBlock.FACING, left);
+            case Pieces.F_TD_U -> s = with(with(s, TrapdoorBlock.OPEN, true), TrapdoorBlock.FACING, back);
+            case Pieces.F_TD_D -> s = with(with(s, TrapdoorBlock.OPEN, true), TrapdoorBlock.FACING, forward);
+            default -> {
+                if (Pieces.isFloorConnector(piece)) {
+                    int bits = Pieces.floorBits(piece);
+                    Direction[] dirs = {left, right, forward, back};
+                    if (Pieces.FAMILY[piece] == Family.WALL) {
+                        // Every layer but the top has the same wall above it, which makes its sides tall.
+                        WallShape sh = k < depth - 1 ? WallShape.TALL : WallShape.LOW;
+                        for (int d = 0; d < 4; d++) s = with(s, wallSide(dirs[d]), (bits & (1 << d)) != 0 ? sh : WallShape.NONE);
+                        s = with(s, Properties.UP, Pieces.floorWallPost(bits));
+                    } else {
+                        for (int d = 0; d < 4; d++) s = with(s, side(dirs[d]), (bits & (1 << d)) != 0);
+                    }
+                }
+            }
+        }
+        s = with(s, Properties.WATERLOGGED, false);
+        if (s.contains(Properties.PERSISTENT)) s = s.with(Properties.PERSISTENT, true);
         return s;
     }
 

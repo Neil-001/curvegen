@@ -4,10 +4,15 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Every piece state the solver can place, seen from the side (x right, y up, 16×16 pixel units).
- * Fence and pane states are consecutive: base, +1 connected left, +2 connected right, +3 both.
- * Wall states are WALL + left*6 + right*2 + covered, where left/right are 0 none, 1 low, 2 tall,
- * and covered says the block above covers the wall's centre (which decides whether a straight wall keeps its post).
+ * Every piece state the solver can place, as a 16×16 silhouette in the drawing (x right, y up).
+ *
+ * Upright shapes are seen from the side: all states below F_TD_U. Fence and pane states are base, +1 connected
+ * left, +2 right, +3 both. Side walls are WALL + ((left*3 + right)*2 + covered)*2 + post, with left/right
+ * 0 none, 1 low, 2 tall, and covered meaning the block above covers the wall's centre.
+ *
+ * Flat shapes (floors) are seen from above, with the drawing's "up" pointing away from the player. Only states that
+ * look different from a full block from above are used: EMPTY, FULL, TD_L, TD_R, F_TD_U, F_TD_D, and floor fences,
+ * panes and walls, which connect in four directions: base + (left 1 | right 2 | top 4 | bottom 8).
  */
 public final class Pieces {
     private Pieces() {}
@@ -17,8 +22,10 @@ public final class Pieces {
             TD_B = 8, TD_T = 9, TD_L = 10, TD_R = 11,
             FENCE = 12, FENCE_L = 13, FENCE_R = 14, FENCE_LR = 15,
             PANE = 16, PANE_L = 17, PANE_R = 18, PANE_LR = 19,
-            WALL = 20;
-    public static final int COUNT = 38;
+            WALL = 20,
+            F_TD_U = 56, F_TD_D = 57,
+            F_FENCE = 58, F_PANE = 74, F_WALL = 90;
+    public static final int COUNT = 106;
 
     public enum Family { AIR, FULL, SLAB, STAIRS, TRAPDOOR, FENCE, PANE, WALL }
 
@@ -32,7 +39,7 @@ public final class Pieces {
     /** 256-entry masks, index = y*16 + x. */
     public static final byte[][] MASK = new byte[COUNT][256];
     public static final int[] PIXELS = new int[COUNT];
-    /** Bottom row of the shape as a 16-bit mask (bit x set when pixel x of row 0 is filled). */
+    /** Bottom row of the silhouette as a 16-bit mask (bit x set when pixel x of row 0 is filled). */
     public static final int[] BOTTOM = new int[COUNT];
     /** Full faces a fence, pane or wall can attach to: [state][0=bottom,1=top,2=left,3=right]. */
     public static final boolean[][] STURDY = new boolean[COUNT][4];
@@ -41,15 +48,31 @@ public final class Pieces {
         FAMILY[s] = f; NAME[s] = name; COLOR[s] = color; MX[s] = mx; MY[s] = my; RECTS[s] = rects;
     }
 
-    public static int wall(int left, int right, boolean covered) { return WALL + left * 6 + right * 2 + (covered ? 1 : 0); }
-    public static int wallLeft(int s) { return (s - WALL) / 6; }
-    public static int wallRight(int s) { return (s - WALL) / 2 % 3; }
-    public static boolean wallCovered(int s) { return ((s - WALL) & 1) == 1; }
-    /** Post rule for a wall with nothing in front or behind: a straight wall drops its post unless something rests on it. */
-    public static boolean wallPost(int s) {
-        int l = wallLeft(s), r = wallRight(s);
-        if (l == 0 || r == 0) return true;
-        return wallCovered(s) && !(l == 2 && r == 2);
+    // ---------- side walls ----------
+    public static int wall(int left, int right, boolean covered, boolean post) {
+        return WALL + ((left * 3 + right) * 2 + (covered ? 1 : 0)) * 2 + (post ? 1 : 0);
+    }
+    public static int wallLeft(int s) { return (s - WALL) / 12; }
+    public static int wallRight(int s) { return (s - WALL) / 4 % 3; }
+    public static boolean wallCovered(int s) { return ((s - WALL) / 2 & 1) == 1; }
+    public static boolean wallPost(int s) { return ((s - WALL) & 1) == 1; }
+    /** The game's post rule for a wall with nothing in front or behind. */
+    public static boolean wallPostRule(int left, int right, boolean covered) {
+        if (left == 0 || right == 0) return true;
+        return covered && !(left == 2 && right == 2);
+    }
+
+    // ---------- floor connectors ----------
+    public static final int LEFT = 1, RIGHT = 2, TOP = 4, BOTTOM_SIDE = 8;
+    public static boolean isFloorConnector(int s) { return s >= F_FENCE && s < COUNT; }
+    public static int floorBits(int s) { return (s - F_FENCE) & 15; }
+    /** A floor wall is straight (and so has no post) when it connects on exactly two opposite sides. */
+    public static boolean floorWallPost(int bits) { return bits != (LEFT | RIGHT) && bits != (TOP | BOTTOM_SIDE); }
+
+    private static int swapBits(int b, int x, int y) {
+        boolean bx = (b & x) != 0, by = (b & y) != 0;
+        b &= ~(x | y);
+        return b | (bx ? y : 0) | (by ? x : 0);
     }
 
     static {
@@ -78,18 +101,37 @@ public final class Pieces {
         String[] side = {"none", "low", "tall"};
         for (int l = 0; l < 3; l++)
             for (int r = 0; r < 3; r++)
-                for (int c = 0; c < 2; c++) {
-                    int s = wall(l, r, c == 1);
-                    List<int[]> rects = new ArrayList<>();
-                    if (wallPost(s)) rects.add(new int[]{4, 0, 12, 16});
-                    if (l > 0) rects.add(new int[]{0, 0, 8, l == 2 ? 16 : 14});
-                    if (r > 0) rects.add(new int[]{8, 0, 16, r == 2 ? 16 : 14});
-                    String name = l == 0 && r == 0 ? "Wall, post only"
-                            : "Wall, left " + side[l] + ", right " + side[r] + (wallPost(s) ? ", with post" : ", no post");
-                    // Shades of slate: brighter with more connections, bluer when tall.
-                    int base = 0x6a6f8c + 0x0c0c0c * (l + r) + (l == 2 || r == 2 ? 0x000018 : 0) + (c == 1 ? 0x080000 : 0);
-                    def(s, Family.WALL, name, base, wall(r, l, c == 1), s, rects.toArray(new int[0][]));
-                }
+                for (int c = 0; c < 2; c++)
+                    for (int p = 0; p < 2; p++) {
+                        int s = wall(l, r, c == 1, p == 1);
+                        List<int[]> rects = new ArrayList<>();
+                        if (p == 1) rects.add(new int[]{4, 0, 12, 16});
+                        if (l > 0) rects.add(new int[]{0, 0, 8, l == 2 ? 16 : 14});
+                        if (r > 0) rects.add(new int[]{8, 0, 16, r == 2 ? 16 : 14});
+                        String name = l == 0 && r == 0 ? "Wall, post only"
+                                : "Wall, left " + side[l] + ", right " + side[r] + (p == 1 ? ", with post" : ", no post");
+                        int base = 0x6a6f8c + 0x0c0c0c * (l + r) + (l == 2 || r == 2 ? 0x000018 : 0) + (p == 1 ? 0x080000 : 0);
+                        def(s, Family.WALL, name, base, wall(r, l, c == 1, p == 1), s, rects.toArray(new int[0][]));
+                    }
+
+        // ---- floors (top view) ----
+        def(F_TD_U, Family.TRAPDOOR, "Trapdoor, open, on top side", 0xb85bd6, F_TD_U, F_TD_D, new int[]{0, 13, 16, 16});
+        def(F_TD_D, Family.TRAPDOOR, "Trapdoor, open, on bottom side", 0x7d3aa0, F_TD_D, F_TD_U, new int[]{0, 0, 16, 3});
+        String[] dirs = {"left", "right", "top", "bottom"};
+        for (int bits = 0; bits < 16; bits++) {
+            List<String> ds = new ArrayList<>();
+            for (int d = 0; d < 4; d++) if ((bits & (1 << d)) != 0) ds.add(dirs[d]);
+            String conn = ds.isEmpty() ? "post only" : "connected " + String.join(", ", ds);
+            int mx = swapBits(bits, LEFT, RIGHT), my = swapBits(bits, TOP, BOTTOM_SIDE);
+            int n = Integer.bitCount(bits);
+            def(F_FENCE + bits, Family.FENCE, "Fence (from above), " + conn, 0x8d7d22 + 0x0e0c04 * n,
+                    F_FENCE + mx, F_FENCE + my, arms(new int[]{6, 6, 10, 10}, bits, 7, 9));
+            def(F_PANE + bits, Family.PANE, "Glass pane (from above), " + conn, 0x16908f + 0x0e0c0c * n,
+                    F_PANE + mx, F_PANE + my, arms(new int[]{7, 7, 9, 9}, bits, 7, 9));
+            boolean hasPost = floorWallPost(bits);
+            def(F_WALL + bits, Family.WALL, "Wall (from above), " + conn + (hasPost ? "" : ", no post"), 0x6a6f8c + 0x0c0c0c * n,
+                    F_WALL + mx, F_WALL + my, arms(hasPost ? new int[]{4, 4, 12, 12} : null, bits, 5, 11));
+        }
 
         for (int s = 0; s < COUNT; s++) {
             for (int[] r : RECTS[s])
@@ -112,13 +154,25 @@ public final class Pieces {
         }
     }
 
+    /** A post (or none) plus arms of width a0..a1 reaching from the centre to each connected edge. */
+    private static int[][] arms(int[] post, int bits, int a0, int a1) {
+        List<int[]> r = new ArrayList<>();
+        if (post != null) r.add(post);
+        if ((bits & LEFT) != 0) r.add(new int[]{0, a0, 8, a1});
+        if ((bits & RIGHT) != 0) r.add(new int[]{8, a0, 16, a1});
+        if ((bits & TOP) != 0) r.add(new int[]{a0, 8, a1, 16});
+        if ((bits & BOTTOM_SIDE) != 0) r.add(new int[]{a0, 0, a1, 8});
+        return r.toArray(new int[0][]);
+    }
+
     public static boolean isConnector(int s) {
         Family f = FAMILY[s];
         return f == Family.FENCE || f == Family.PANE || f == Family.WALL;
     }
-    /** Is this the type token used while solving (the base fence/pane/wall state)? */
-    public static boolean isType(int s) { return s == FENCE || s == PANE || s == WALL; }
+    /** Is this a type token used while solving (the base fence/pane/wall state of either orientation)? */
+    public static boolean isType(int s) { return s == FENCE || s == PANE || s == WALL || s == F_FENCE || s == F_PANE || s == F_WALL; }
     public static boolean connectsLeft(int s) {
+        if (isFloorConnector(s)) return (floorBits(s) & LEFT) != 0;
         return switch (FAMILY[s]) {
             case FENCE -> ((s - FENCE) & 1) != 0;
             case PANE -> ((s - PANE) & 1) != 0;
@@ -127,6 +181,7 @@ public final class Pieces {
         };
     }
     public static boolean connectsRight(int s) {
+        if (isFloorConnector(s)) return (floorBits(s) & RIGHT) != 0;
         return switch (FAMILY[s]) {
             case FENCE -> ((s - FENCE) & 2) != 0;
             case PANE -> ((s - PANE) & 2) != 0;

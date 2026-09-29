@@ -25,7 +25,8 @@ import java.util.Map;
 
 /**
  * Writes a single-region Litematica schematic into the game's schematics folder.
- * The drawing's x axis runs east, its y axis up, and depth runs south; rotate it in Litematica as needed.
+ * Upright shapes: the drawing's x axis runs east, its y axis up, and depth runs south.
+ * Flat shapes: x runs east, the drawing's y runs north, and layers stack up. Rotate in Litematica as needed.
  */
 public final class LitematicExporter {
     private LitematicExporter() {}
@@ -33,8 +34,10 @@ public final class LitematicExporter {
     /** Litematica reads older schematic versions and upgrades them, so version 6 is the safe choice. */
     private static final int SCHEMATIC_VERSION = 6, SUB_VERSION = 1;
 
-    public static Path export(Layout layout, int depth, String baseName, String author) throws IOException {
-        int sx = layout.width(), sy = layout.height(), sz = Math.max(1, depth);
+    public static Path export(Layout layout, int depth, boolean floor, String baseName, String author) throws IOException {
+        int d = Math.max(1, depth);
+        // Upright: drawing x → east, y → up, depth → south. Flat: drawing x → east, y → north, layers → up.
+        int sx = layout.width(), sy = floor ? d : layout.height(), sz = floor ? layout.height() : d;
         int volume = sx * sy * sz;
         List<BlockState> palette = new ArrayList<>();
         Map<BlockState, Integer> index = new HashMap<>();
@@ -44,10 +47,12 @@ public final class LitematicExporter {
         int[] values = new int[volume];
         int total = 0;
         for (Layout.Cell c : layout.cells())
-            for (int k = 0; k < sz; k++) {
-                BlockState st = BlockChoices.stateFor(c.piece(), Direction.EAST, Direction.SOUTH, k, sz);
+            for (int k = 0; k < d; k++) {
+                BlockState st = floor ? BlockChoices.stateFor(c.piece(), Direction.EAST, Direction.NORTH, k, d, true)
+                                      : BlockChoices.stateFor(c.piece(), Direction.EAST, Direction.SOUTH, k, d, false);
+                int wy = floor ? k : c.y(), wz = floor ? layout.height() - 1 - c.y() : k;
                 int id = index.computeIfAbsent(st, s -> { palette.add(s); return palette.size() - 1; });
-                values[(c.y() * sz + k) * sx + c.x()] = id;
+                values[(wy * sz + wz) * sx + c.x()] = id;
                 total++;
             }
         int bits = LitematicBits.bitsFor(palette.size());

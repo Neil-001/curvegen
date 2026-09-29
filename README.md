@@ -22,20 +22,25 @@ Press **G** to open the generator. Every key can be rebound under Options, Contr
 
 - **Ellipse, Equation, Bézier tabs** set up the shape, exactly like the web version.
   - Equations accept the Desmos-style syntax: `y = 2sin(x)`, `x^2 + y^2 = 16`, `y < 9 - x^2/4`.
-  - On the Bézier tab, drag the numbered handles in the preview, or type exact x and y positions in the point list. Scroll the list when there are more points than fit.
+  - On the Bézier tab, drag the numbered handles in the preview, or type exact x and y positions in the point list. Remove a point with its × button, and scroll the list when there are more points than fit.
 - **Blocks tab** controls which blocks are used.
   - Click a block to choose one yourself from a searchable list, sortable by name or by closeness in colour.
   - **Match a colour…** opens a colour picker. It picks, for every piece type, the block whose texture is closest to that colour (compared in CIELAB, so "close" means close to the eye).
   - Turning a piece type off means the solver won't use it.
+- **Upright / Flat** (bottom left) builds the shape upright like a wall, drawn from the side, or flat like a floor, drawn from above with the drawing's top pointing away from you.
+  - **Flat builds use the pieces that differ from above:** full blocks, open trapdoors against any side, and fences, panes and walls connecting in all four directions. Slabs and stairs look like full blocks from above, so flat builds don't use them.
+  - **Colours follow the face you'll see:** block colours use the top face for floors and the side face for walls, so logs show their rings and grass blocks are green.
+- **Right-click** any button that steps through options (Shape, the examples, Colour and the rest) to step backwards.
+- With an inequality typed in, the Shape button is greyed out because the inequality decides the filled side.
 - **Colour** (top right) switches the preview between plain stone, piece types, or the colours of your chosen blocks. **Curve** shows or hides the true curve.
 - **Replace** (bottom bar): when off, the shape only goes into air and replaceable blocks like grass, water and snow layers, leaving existing builds alone.
 - **Carve** (bottom bar): clears existing blocks from the space the shape encloses. That's inside a thin or thick ellipse, above a "fill under" equation, or below a "fill over" one. Filled ellipses, lines and Bézier curves don't carve. The preview shows blocks that will be cleared in red.
-- **Depth** extrudes the shape that many blocks deep, which is useful for tunnels and vaults. Fences and panes connect front to back as well.
+- **Depth** (upright) extrudes the shape that many blocks deep, which is useful for tunnels and vaults. **Height** (flat) stacks the floor that many layers up. Fences, panes and walls connect through the extra layers too, and walls follow the game's rules as they do. For example, a straight wall more than one block deep gets posts, because its front and back blocks each connect on one side only.
 - Scroll to zoom the preview, drag it to pan, and hover a block to see its piece and block.
 
 ### Place
 
-**Place** closes the screen and shows a translucent preview where you're looking. The shape faces you; its middle-bottom block sits on the block your crosshair targets.
+**Place** closes the screen and shows a translucent preview where you're looking. An upright shape faces you, with its middle-bottom block on the block your crosshair targets. A flat shape lies centred on that block.
 
 | Key | Action |
 |---|---|
@@ -55,7 +60,7 @@ Undo restores everything the placement changed, including carved blocks. It rest
 
 ### Export
 
-**Export** writes `schematics/curvegen_<kind>_<date>.litematic` in your game folder. Load it with Litematica's Load Schematics menu. The drawing's width runs east, height runs up, and depth runs south; rotate it in Litematica as needed. Export works without any permissions.
+**Export** writes `schematics/curvegen_<kind>_<date>.litematic` in your game folder (with `_floor` added for flat builds). Load it with Litematica's Load Schematics menu. Upright shapes run east (width), up (height) and south (depth). Flat shapes run east and north, stacking up; rotate them in Litematica as needed. Export works without any permissions.
 
 ## How it works
 
@@ -82,5 +87,4 @@ The solver runs on a background thread, so dragging handles never stalls the gam
 - Built and tested only for 1.21.1 Fabric.
 - Preview colours come from each block's particle texture. Blocks with very different top and side textures, like grass blocks, are represented by that one texture.
 - The hologram shows at most 30,000 blocks in detail. Bigger shapes show their bounding box only.
-- The side-view preview treats walls as one block deep. With Depth above 1, walls also connect front to back, which can change a post or side height. The hologram and the placed blocks show the real result.
 - Exported schematics contain the shape only; carving isn't included.
