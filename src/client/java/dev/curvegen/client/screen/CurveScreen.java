@@ -4,6 +4,8 @@ import dev.curvegen.client.BlockChoices;
 import dev.curvegen.client.CurveGenClient;
 import dev.curvegen.client.LitematicExporter;
 import dev.curvegen.client.Placement;
+import dev.curvegen.client.PresetStore;
+import dev.curvegen.core.PresetData;
 import dev.curvegen.core.Layout;
 import dev.curvegen.core.Pieces;
 import dev.curvegen.core.Pieces.Family;
@@ -44,26 +46,16 @@ public class CurveScreen extends Screen {
     private enum Tab { ELLIPSE, EQUATION, BEZIER, BLOCKS, COUNT }
 
     private static final ShapeSettings S = CurveGenClient.SETTINGS;
-    private static final ExecutorService EXEC = Executors.newSingleThreadExecutor(r -> {
+    static final ExecutorService EXEC = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "Curve Generator solver");
         t.setDaemon(true);
         return t;
     });
 
-    private record Preset(String name, String src, String xmin, String xmax, String ymin, String ymax, EqMode mode) {}
-    private static final Preset[] PRESETS = {
-            new Preset("Sine wave", "y = 2sin(x)", "-2pi", "2pi", "-3", "3", EqMode.LINE),
-            new Preset("Parabolic arch", "y = 9 - x^2/4", "-6", "6", "0", "9", EqMode.UNDER),
-            new Preset("Catenary arch", "y = 14 - 2cosh(x/2)", "-5.2", "5.2", "0", "12", EqMode.UNDER),
-            new Preset("Gothic arch", "y = sqrt(64 - (|x| + 3)^2)", "-5", "5", "0", "8", EqMode.UNDER),
-            new Preset("Circle", "x^2 + y^2 = 16", "-5", "5", "-5", "5", EqMode.LINE),
-            new Preset("Heart", "(x^2 + y^2 - 1)^3 = x^2 y^3", "-1.5", "1.5", "-1.3", "1.5", EqMode.UNDER),
-            new Preset("Tangent", "y = tan(x)", "-4", "4", "-4", "4", EqMode.LINE)};
 
     private static Tab tab = Tab.ELLIPSE;
-    private static PreviewTexture.Colors colors = PreviewTexture.Colors.BLOCKS;
+    static PreviewTexture.Colors colors = PreviewTexture.Colors.BLOCKS;
     private static boolean showCurve = true;
-    private static int presetIndex = -1;
 
     private Solver.Result result;
     private Future<Solver.Result> job;
@@ -137,9 +129,9 @@ public class CurveScreen extends Screen {
         addDrawableChild(toggle(showCurve, width - M - curveW, 6, curveW, "Curve", v -> { showCurve = v; textureDirty = true; }));
 
         switch (tab) {
-            case ELLIPSE -> initEllipse();
-            case EQUATION -> initEquation();
-            case BEZIER -> initBezier();
+            case ELLIPSE -> { initEllipse(); presetButtons(); }
+            case EQUATION -> { initEquation(); presetButtons(); }
+            case BEZIER -> { initBezier(); presetButtons(); }
             case BLOCKS -> initBlocks();
             case COUNT -> { }
         }
@@ -189,6 +181,45 @@ public class CurveScreen extends Screen {
     }
 
     private int tw(String s) { return textRenderer.getWidth(s); }
+
+    // ---------- presets ----------
+    /** Top of the Save/Load preset row, the last thing in the left panel. */
+    private int presetRowY() { return height - 52; }
+
+    private void presetButtons() {
+        int y = presetRowY(), w = (PANEL_W - 4) / 2;
+        ButtonWidget save = ButtonWidget.builder(Text.literal("Save preset"), b -> savePreset()).dimensions(M, y, w, 20).build();
+        save.setTooltip(Tooltip.of(Text.literal("Save this tab's shape settings under a name.")));
+        addDrawableChild(save);
+        ButtonWidget load = ButtonWidget.builder(Text.literal("Load preset"),
+                b -> client.setScreen(new PresetsScreen(this, S.gen, this::loadPreset))).dimensions(M + w + 4, y, w, 20).build();
+        load.setTooltip(Tooltip.of(Text.literal("Browse, preview and load saved shapes.")));
+        addDrawableChild(load);
+    }
+
+    private void savePreset() {
+        Gen g = S.gen;
+        String suggestion = PresetStore.unique(g, PresetData.defaultName(S, g));
+        client.setScreen(new NameDialogScreen(this, "Save preset", suggestion, name -> {
+            if (name.isEmpty()) return new NameDialogScreen.Check(false, "Save", "Type a name for the preset.");
+            if (PresetStore.find(g, name) != null) return new NameDialogScreen.Check(true, "Replace", "A preset with this name exists. Saving replaces it.");
+            return new NameDialogScreen.Check(true, "Save", null);
+        }, name -> {
+            PresetStore.save(g, name, S);
+            flash("Saved preset \"" + name + "\"");
+        }));
+    }
+
+    private void loadPreset(PresetStore.Preset p) {
+        ShapeSettings.Gen g = p.gen();
+        if (g == null) return;
+        PresetData.apply(p.data, g, S);
+        tab = switch (g) { case ELLIPSE -> Tab.ELLIPSE; case EQUATION -> Tab.EQUATION; case BEZIER -> Tab.BEZIER; };
+        pointScroll = 0;
+        dirty = true; autoFit = true;
+        clearAndInit();
+        flash("Loaded preset \"" + p.name + "\"");
+    }
 
     private void switchTab(Tab t) {
         tab = t;
@@ -250,21 +281,9 @@ public class CurveScreen extends Screen {
         labels.add(new Label(M, row(6) + 6, "Line width"));
         qLWField = spin(M + 60, row(6), PANEL_W - 60, 20, fmt(S.qLW), v -> { S.qLW = clampNum(v, 0.0625, 50, S.qLW); dirty = true; },
                 () -> S.qLW, 0.25, 0.0625, 50, () -> !isInequality(S.src) && S.qMode == EqMode.LINE, false);
-        String pn = presetIndex < 0 ? "Try an example" : "Example: " + PRESETS[presetIndex].name;
-        ButtonWidget example = ButtonWidget.builder(Text.literal(pn), b -> applyPreset((presetIndex + 1) % PRESETS.length))
-                .dimensions(M, row(7), PANEL_W, 20).build();
-        example.setTooltip(Tooltip.of(Text.literal("Click for the next example, right-click for the previous one.")));
-        reverse.put(example, () -> applyPreset(presetIndex < 0 ? PRESETS.length - 1 : (presetIndex - 1 + PRESETS.length) % PRESETS.length));
-        addDrawableChild(example);
         updateEquationControls();
     }
 
-    private void applyPreset(int index) {
-        presetIndex = index;
-        Preset p = PRESETS[index];
-        S.src = p.src; S.xmin = p.xmin; S.xmax = p.xmax; S.ymin = p.ymin; S.ymax = p.ymax; S.qMode = p.mode;
-        dirty = true; autoFit = true; clearAndInit();
-    }
 
     private static boolean isInequality(String src) {
         return src.contains("<") || src.contains(">") || src.contains("≤") || src.contains("≥");
@@ -310,7 +329,7 @@ public class CurveScreen extends Screen {
         pointFields.clear();
         int n = S.pts.size();
         listTop = row(5) + 22;
-        listVisible = Math.max(1, (height - 34 - listTop) / POINT_ROW);
+        listVisible = Math.max(1, (presetRowY() - 4 - listTop) / POINT_ROW);
         pointScroll = Math.max(0, Math.min(pointScroll, n - listVisible));
         for (int k = pointScroll; k < Math.min(n, pointScroll + listVisible); k++) {
             int y = listTop + (k - pointScroll) * POINT_ROW, idx = k;
@@ -686,7 +705,8 @@ public class CurveScreen extends Screen {
         super.render(ctx, mouseX, mouseY, delta);
         for (Label l : labels) ctx.drawTextWithShadow(textRenderer, l.text, l.x, l.y, 0xC8CED6);
         for (Icon ic : icons) ctx.drawItem(ic.stack, ic.x, ic.y);
-        if (hint != null && hintY + 18 < height - 30) ctx.drawTextWrapped(textRenderer, Text.literal(hint), M, hintY, PANEL_W, 0x9AA5B3);
+        int hintLimit = tab == Tab.BLOCKS || tab == Tab.COUNT ? height - 30 : presetRowY() - 4;
+        if (hint != null && hintY + 18 < hintLimit) ctx.drawTextWrapped(textRenderer, Text.literal(hint), M, hintY, PANEL_W, 0x9AA5B3);
         if (tab == Tab.BEZIER && S.pts.size() > listVisible) {
             int h = listVisible * POINT_ROW - 2, bar = Math.max(6, h * listVisible / S.pts.size());
             int by = listTop + (h - bar) * pointScroll / Math.max(1, S.pts.size() - listVisible);

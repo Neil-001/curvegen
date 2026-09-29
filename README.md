@@ -30,6 +30,15 @@ Press **G** to open the generator. Every key can be rebound under Options, Contr
 - **Upright / Flat** (bottom left) builds the shape upright like a wall, drawn from the side, or flat like a floor, drawn from above with the drawing's top pointing away from you.
   - **Flat builds use the pieces that differ from above:** full blocks, open trapdoors against any side, and fences, panes and walls connecting in all four directions. Slabs and stairs look like full blocks from above, so flat builds don't use them.
   - **Colours follow the face you'll see:** block colours use the top face for floors and the side face for walls, so logs show their rings and grass blocks are green.
+- **Presets:** each shape tab has **Save preset** and **Load preset** at the bottom of its panel.
+  - **Saving** asks for a name, already filled in from the shape's settings (for example "Ellipse 31×19, thin"). Typing an existing name replaces that preset.
+  - **Loading** opens every preset for that tab, with a search bar.
+    - **Preview:** hover a preset to preview it, or select it and press Preview. The preview uses your current blocks, orientation and depth.
+    - **Load:** double-click it, or select it and press Load (or Enter).
+    - **Manage:** hovering or selecting a preset shows pin, rename and delete buttons on its right. Pinned presets stay at the top. Deleting asks for confirmation first.
+  - **What a preset stores:** only its tab's own shape settings. Loading one keeps your block choices, pieces, orientation and depth.
+  - **Examples:** the old equation examples are included as ready-made presets, and you can rename or delete them like any other.
+  - **Storage:** presets live in `.minecraft/config/curvegen/presets.json`.
 - **Arrows** next to number fields step the value up or down: sizes and depth by 1, thickness and line width by ¼ block, Bézier points by ½ block. An arrow greys out at its limit (sizes never reach 0, points stay inside the grid) and whenever its field doesn't apply.
 - **Right-click** any button that steps through options (Shape, the examples, Colour and the rest) to step backwards.
 - With an inequality typed in, the Shape button is greyed out because the inequality decides the filled side.

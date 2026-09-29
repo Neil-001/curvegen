@@ -11,6 +11,8 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.math.BlockPos;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Common entrypoint. On a server (or the integrated server in singleplayer) it accepts
@@ -18,6 +20,7 @@ import net.minecraft.util.math.BlockPos;
  */
 public class CurveGen implements ModInitializer {
     public static final String MOD_ID = "curvegen";
+    public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
     /** How far from the player a placement may reach. */
     public static final int MAX_DISTANCE = 512;
 
