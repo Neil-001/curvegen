@@ -84,8 +84,10 @@ public final class PreviewTexture implements AutoCloseable {
     static boolean[] silhouette(int p, int size) {
         boolean[] in = new boolean[size * size];
         for (int[] q : Pieces.RECTS[p]) {
-            int x0 = Math.round(q[0] * size / 16f), x1 = Math.max(x0 + 1, Math.round(q[2] * size / 16f));
-            int top = size - Math.round(q[3] * size / 16f), bot = Math.max(top + 1, size - Math.round(q[1] * size / 16f));
+            int x0 = Math.max(0, Math.min(size, Math.round(q[0] * size / 16f)));
+            int top = Math.max(0, Math.min(size, size - Math.round(q[3] * size / 16f)));
+            int x1 = Math.max(0, Math.min(size, Math.max(x0 + 1, Math.round(q[2] * size / 16f))));
+            int bot = Math.max(0, Math.min(size, Math.max(top + 1, size - Math.round(q[1] * size / 16f))));
             for (int y = top; y < bot; y++) for (int x = x0; x < x1; x++) in[y * size + x] = true;
         }
         return in;

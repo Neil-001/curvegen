@@ -30,10 +30,11 @@ Press **G** to open the generator. Every key can be rebound under Options, Contr
 - **Upright / Flat** (bottom left) builds the shape upright like a wall, drawn from the side, or flat like a floor, drawn from above with the drawing's top pointing away from you.
   - **Flat builds use the pieces that differ from above:** full blocks, open trapdoors against any side, and fences, panes and walls connecting in all four directions. Slabs and stairs look like full blocks from above, so flat builds don't use them.
   - **Colours follow the face you'll see:** block colours use the top face for floors and the side face for walls, so logs show their rings and grass blocks are green.
+- **Arrows** next to number fields step the value up or down: sizes and depth by 1, thickness and line width by ¼ block, Bézier points by ½ block. An arrow greys out at its limit (sizes never reach 0, points stay inside the grid) and whenever its field doesn't apply.
 - **Right-click** any button that steps through options (Shape, the examples, Colour and the rest) to step backwards.
 - With an inequality typed in, the Shape button is greyed out because the inequality decides the filled side.
 - **Count tab** lists how many of each block the shape uses, like the web version's materials list.
-  - Grouped by piece type, with one row per orientation or state. Each row's icon is drawn exactly as in the preview, in the current colouring.
+  - Grouped by piece type, with one row per orientation or state. The total and mismatch are shown at the top of the preview. Each row's icon is drawn exactly as in the preview, in the current colouring.
   - With Depth or Height above 1, counts cover every layer.
   - Hover a row to see the full name and which block it uses.
 - **Colour** (top right) switches the preview between plain stone, piece types, or the colours of your chosen blocks. **Curve** shows or hides the true curve.

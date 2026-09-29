@@ -16,10 +16,12 @@ import dev.curvegen.core.Solver;
 import net.minecraft.block.Block;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.gui.screen.narration.NarrationMessageBuilder;
 import net.minecraft.client.gui.tooltip.Tooltip;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.ClickableWidget;
 import net.minecraft.client.gui.widget.CyclingButtonWidget;
+import net.minecraft.client.gui.widget.PressableWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.item.ItemStack;
 import net.minecraft.screen.ScreenTexts;
@@ -33,7 +35,9 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.DoubleSupplier;
 import java.util.function.Function;
 
 public class CurveScreen extends Screen {
@@ -102,7 +106,7 @@ public class CurveScreen extends Screen {
 
     @Override
     protected void init() {
-        labels.clear(); icons.clear(); pointFields.clear(); reverse.clear(); hint = null; qHField = null; qLWField = null; eqShape = null;
+        labels.clear(); icons.clear(); pointFields.clear(); reverse.clear(); spinners.clear(); hint = null; qHField = null; qLWField = null; eqShape = null;
 
         // Top bar: tabs on the left, view options on the right, each button as wide as its text needs.
         String[] names = {"Ellipse", "Equation", "Bézier", "Blocks", "Count"};
@@ -143,7 +147,7 @@ public class CurveScreen extends Screen {
         // Bottom bar: build options on the left, actions on the right, each button as wide as its text needs.
         int by = height - 26;
         String on = ScreenTexts.onOrOff(true).getString(), off = ScreenTexts.onOrOff(false).getString();
-        int orientText = Math.max(tw("Upright"), tw("Flat")), labelW = Math.max(tw("Depth"), tw("Height")) + 4, fieldW = 26;
+        int orientText = Math.max(tw("Upright"), tw("Flat")), labelW = Math.max(tw("Depth"), tw("Height")) + 2, fieldW = 30;
         int replaceText = Math.max(tw("Replace: " + on), tw("Replace: " + off)), carveText = Math.max(tw("Carve: " + on), tw("Carve: " + off));
         int actionText = Math.max(tw("Place"), Math.max(tw("Export"), tw("Done")));
         int bpad = 12, bgap = 4;
@@ -163,12 +167,11 @@ public class CurveScreen extends Screen {
         x += orientText + bpad + bgap;
         labels.add(new Label(x, by + 6, S.floor ? "Height" : "Depth"));
         x += labelW;
-        TextFieldWidget depthField = num(x, by, fieldW, String.valueOf(S.depth), v -> {
+        TextFieldWidget depthField = spin(x, by, fieldW, 20, String.valueOf(S.depth), v -> {
             int d = clampInt(v, 1, 64, S.depth);
             if (d != S.depth) { S.depth = d; dirty = true; }   // walls look different when more than one deep
-        });
+        }, () -> S.depth, 1, 1, 64, () -> true, true);
         depthField.setTooltip(Tooltip.of(Text.literal(S.floor ? "How many layers the floor is stacked up." : "How many blocks deep the shape is built.")));
-        addDrawableChild(depthField);
         x += fieldW + bgap;
         CyclingButtonWidget<Boolean> replace = toggle(S.overwrite, x, by, replaceText + bpad, "Replace", v -> S.overwrite = v);
         replace.setTooltip(Tooltip.of(Text.literal(
@@ -197,17 +200,18 @@ public class CurveScreen extends Screen {
     }
 
     private void initEllipse() {
-        addDrawableChild(num(M, row(0), 64, String.valueOf(S.eW), v -> { S.eW = clampInt(v, 1, 400, S.eW); dirty = true; }));
+        spin(M, row(0), 64, 20, String.valueOf(S.eW), v -> { S.eW = clampInt(v, 1, 400, S.eW); dirty = true; }, () -> S.eW, 1, 1, 400, () -> true, true);
         labels.add(new Label(M + 71, row(0) + 6, "×"));
-        addDrawableChild(num(M + 86, row(0), 64, String.valueOf(S.eH), v -> { S.eH = clampInt(v, 1, 400, S.eH); dirty = true; }));
+        spin(M + 86, row(0), 64, 20, String.valueOf(S.eH), v -> { S.eH = clampInt(v, 1, 400, S.eH); dirty = true; }, () -> S.eH, 1, 1, 400, () -> true, true);
         addDrawableChild(cycler(List.of(EllipseMode.values()), S.eMode, m -> Text.literal(switch (m) {
                     case THIN -> "Thin"; case FILLED -> "Filled"; case OUTWARDS -> "Thick outwards";
                     case INWARDS -> "Thick inwards"; case MIDDLE -> "Thick middle"; }),
                 M, row(1), PANEL_W, "Shape", v -> { S.eMode = v; dirty = true; clearAndInit(); }));
         labels.add(new Label(M, row(2) + 6, "Thickness"));
-        TextFieldWidget t = num(M + 60, row(2), PANEL_W - 60, fmt(S.eT), v -> { S.eT = clampNum(v, 0.0625, 50, S.eT); dirty = true; });
-        t.setEditable(S.eMode == EllipseMode.OUTWARDS || S.eMode == EllipseMode.INWARDS || S.eMode == EllipseMode.MIDDLE);
-        addDrawableChild(t);
+        boolean thick = S.eMode == EllipseMode.OUTWARDS || S.eMode == EllipseMode.INWARDS || S.eMode == EllipseMode.MIDDLE;
+        TextFieldWidget t = spin(M + 60, row(2), PANEL_W - 60, 20, fmt(S.eT), v -> { S.eT = clampNum(v, 0.0625, 50, S.eT); dirty = true; },
+                () -> S.eT, 0.25, 0.0625, 50, () -> thick, false);
+        t.setEditable(thick);
         hint = switch (S.eMode) {
             case THIN -> "A hollow shell: the outer surface follows the ellipse.";
             case FILLED -> "Everything inside the ellipse.";
@@ -233,19 +237,19 @@ public class CurveScreen extends Screen {
         labels.add(new Label(M + 76, row(2) + 6, "to"));
         addDrawableChild(text(M + 90, row(2), 60, S.ymax, v -> { S.ymax = v; dirty = true; }));
         labels.add(new Label(M, row(3) + 6, "W"));
-        addDrawableChild(num(M + 10, row(3), 62, String.valueOf(S.qW), v -> { S.qW = clampInt(v, 1, 400, S.qW); dirty = true; }));
+        spin(M + 10, row(3), 62, 20, String.valueOf(S.qW), v -> { S.qW = clampInt(v, 1, 400, S.qW); dirty = true; }, () -> S.qW, 1, 1, 400, () -> true, true);
         labels.add(new Label(M + 76, row(3) + 6, "H"));
-        qHField = num(M + 90, row(3), 60, String.valueOf(S.qH), v -> { if (!S.qLock) { S.qH = clampInt(v, 1, 400, S.qH); dirty = true; } });
+        qHField = spin(M + 90, row(3), 60, 20, String.valueOf(S.qH), v -> { if (!S.qLock) { S.qH = clampInt(v, 1, 400, S.qH); dirty = true; } },
+                () -> S.qH, 1, 1, 400, () -> !S.qLock, true);
         qHField.setEditable(!S.qLock);
-        addDrawableChild(qHField);
         addDrawableChild(toggle(S.qLock, M, row(4), PANEL_W, "Same scale", v -> { S.qLock = v; qHField.setEditable(!v); dirty = true; }));
         eqShape = cycler(List.of(EqMode.values()), S.qMode, m -> Text.literal(switch (m) {
                     case LINE -> "Line"; case UNDER -> "Fill under"; case OVER -> "Fill over"; }),
                 M, row(5), PANEL_W, "Shape", v -> { S.qMode = v; dirty = true; updateEquationControls(); });
         addDrawableChild(eqShape);
         labels.add(new Label(M, row(6) + 6, "Line width"));
-        qLWField = num(M + 60, row(6), PANEL_W - 60, fmt(S.qLW), v -> { S.qLW = clampNum(v, 0.0625, 50, S.qLW); dirty = true; });
-        addDrawableChild(qLWField);
+        qLWField = spin(M + 60, row(6), PANEL_W - 60, 20, fmt(S.qLW), v -> { S.qLW = clampNum(v, 0.0625, 50, S.qLW); dirty = true; },
+                () -> S.qLW, 0.25, 0.0625, 50, () -> !isInequality(S.src) && S.qMode == EqMode.LINE, false);
         String pn = presetIndex < 0 ? "Try an example" : "Example: " + PRESETS[presetIndex].name;
         ButtonWidget example = ButtonWidget.builder(Text.literal(pn), b -> applyPreset((presetIndex + 1) % PRESETS.length))
                 .dimensions(M, row(7), PANEL_W, 20).build();
@@ -276,13 +280,14 @@ public class CurveScreen extends Screen {
     }
 
     private void initBezier() {
-        addDrawableChild(num(M, row(0), 64, String.valueOf(S.bW), v -> { S.bW = clampInt(v, 1, 400, S.bW); dirty = true; autoFit = true; }));
+        spin(M, row(0), 64, 20, String.valueOf(S.bW), v -> { S.bW = clampInt(v, 1, 400, S.bW); dirty = true; autoFit = true; }, () -> S.bW, 1, 1, 400, () -> true, true);
         labels.add(new Label(M + 71, row(0) + 6, "×"));
-        addDrawableChild(num(M + 86, row(0), 64, String.valueOf(S.bH), v -> { S.bH = clampInt(v, 1, 400, S.bH); dirty = true; autoFit = true; }));
+        spin(M + 86, row(0), 64, 20, String.valueOf(S.bH), v -> { S.bH = clampInt(v, 1, 400, S.bH); dirty = true; autoFit = true; }, () -> S.bH, 1, 1, 400, () -> true, true);
         addDrawableChild(cycler(List.of(BzMode.values()), S.bMode, m -> Text.literal(m == BzMode.LINE ? "Line" : "Filled"),
                 M, row(1), PANEL_W, "Shape", v -> { S.bMode = v; dirty = true; }));
         labels.add(new Label(M, row(2) + 6, "Line width"));
-        addDrawableChild(num(M + 60, row(2), PANEL_W - 60, fmt(S.bLW), v -> { S.bLW = clampNum(v, 0.0625, 50, S.bLW); dirty = true; }));
+        spin(M + 60, row(2), PANEL_W - 60, 20, fmt(S.bLW), v -> { S.bLW = clampNum(v, 0.0625, 50, S.bLW); dirty = true; },
+                () -> S.bLW, 0.25, 0.0625, 50, () -> true, false);
         addDrawableChild(toggle(S.snap, M, row(3), PANEL_W, "Snap to half blocks", v -> S.snap = v));
         ButtonWidget add = ButtonWidget.builder(Text.literal("Add point"), b -> {
             int n = S.pts.size();
@@ -312,8 +317,8 @@ public class CurveScreen extends Screen {
             labels.add(new Label(M, y + 4, String.valueOf(k + 1)));
             labels.add(new Label(M + 10, y + 4, "x"));
             labels.add(new Label(M + 71, y + 4, "y"));
-            TextFieldWidget fx = new TextFieldWidget(textRenderer, M + 17, y, 50, 16, Text.literal("Point " + (k + 1) + " x"));
-            TextFieldWidget fy = new TextFieldWidget(textRenderer, M + 78, y, 50, 16, Text.literal("Point " + (k + 1) + " y"));
+            TextFieldWidget fx = new TextFieldWidget(textRenderer, M + 17, y, 50 - ARROW_SLOT, 16, Text.literal("Point " + (k + 1) + " x"));
+            TextFieldWidget fy = new TextFieldWidget(textRenderer, M + 78, y, 50 - ARROW_SLOT, 16, Text.literal("Point " + (k + 1) + " y"));
             ButtonWidget x = ButtonWidget.builder(Text.literal("×"), b -> {
                 if (S.pts.size() > 2) { S.pts.remove(idx); dirty = true; clearAndInit(); }
             }).dimensions(M + 132, y, 18, 16).build();
@@ -333,6 +338,9 @@ public class CurveScreen extends Screen {
                     } catch (NumberFormatException ignored) { }
                 });
                 addDrawableChild(f);
+                // Arrows step by half a block and keep the point inside the grid.
+                arrows(f, (axis == 0 ? M + 17 : M + 78) + 50 - ARROW_SLOT + 1, y, 16,
+                        () -> idx < S.pts.size() ? S.pts.get(idx)[a] : 0, 0.5, 0, a == 0 ? S.bW : S.bH, () -> true, false);
             }
             pointFields.add(new TextFieldWidget[]{fx, fy});
         }
@@ -474,23 +482,6 @@ public class CurveScreen extends Screen {
         int top = top(), bottom = height - 30, x0 = M, x1 = M + PANEL_W;
         ctx.enableScissor(x0, top, x1 + 4, bottom);
         int y = top - countScroll;
-        String stats;
-        if (result == null) stats = "Working…";
-        else if (result.target().error != null) stats = "Nothing to build until the equation is fixed.";
-        else {
-            int perLayer = 0;
-            for (int p = 1; p < Pieces.COUNT; p++) perLayer += result.counts()[p];
-            double pct = result.area() > 0 ? result.err() / result.area() * 100 : 0;
-            stats = (S.depth > 1 ? perLayer * S.depth + " pieces (" + perLayer + " per layer, " + S.depth + (S.floor ? " layers)" : " deep)") : perLayer + " pieces")
-                    + " on a " + result.nx() + "×" + result.ny() + " grid. "
-                    + String.format(java.util.Locale.ROOT, "Mismatch %.2f blocks² (%.2f%%)", result.err(), pct)
-                    + (result.target().hollow ? ", the surface fit." : ", the area that differs from the target shape.");
-        }
-        var lines = textRenderer.wrapLines(Text.literal(stats), PANEL_W - 8);
-        ctx.fill(x0, y, x1, y + lines.size() * 9 + 8, 0x60000000);
-        for (int k = 0; k < lines.size(); k++) ctx.drawText(textRenderer, lines.get(k), x0 + 4, y + 4 + k * 9, 0xDDE3EA, false);
-        y += lines.size() * 9 + 12;
-
         String tip = null;
         for (CountRow r : countRows()) {
             String n = String.valueOf(r.count);
@@ -540,6 +531,79 @@ public class CurveScreen extends Screen {
     }
 
     // ---------- widgets ----------
+    /** Horizontal space the arrows take from a field: 8 px of arrows plus a 1 px gap. */
+    private static final int ARROW_SLOT = 9;
+
+    private record Spinner(Arrow up, Arrow down, DoubleSupplier value, double min, double max, BooleanSupplier enabled) {}
+    private final List<Spinner> spinners = new ArrayList<>();
+
+    /** A small up or down arrow. Drawn by hand so it stays crisp at 8 pixels, and greyed out when it can't go further. */
+    private static final class Arrow extends PressableWidget {
+        private final boolean up;
+        private final Runnable action;
+
+        Arrow(int x, int y, int w, int h, boolean up, Runnable action) {
+            super(x, y, w, h, Text.literal(up ? "Increase" : "Decrease"));
+            this.up = up; this.action = action;
+        }
+
+        @Override public void onPress() { action.run(); }
+
+        @Override
+        protected void renderWidget(DrawContext ctx, int mouseX, int mouseY, float delta) {
+            int x = getX(), y = getY();
+            ctx.fill(x, y, x + width, y + height, !active ? 0xFF22262C : isHovered() ? 0xFF55606E : 0xFF3A424D);
+            int c = active ? 0xFFE4E9EF : 0xFF4E5560, cx = x + width / 2, cy = y + height / 2;
+            for (int r = 0; r < 3; r++) {          // a 5-pixel-wide triangle
+                int half = up ? r : 2 - r, yy = cy - 1 + r - (up ? 1 : 0);
+                ctx.fill(cx - half, yy, cx + half + 1, yy + 1, c);
+            }
+        }
+
+        @Override
+        protected void appendClickableNarrations(NarrationMessageBuilder builder) { appendDefaultNarrations(builder); }
+    }
+
+    /**
+     * A number field of total width w whose right edge holds up/down arrows (taken from the field, not added to it).
+     * The arrows step the value within [min, max] and grey out at the ends or when the field doesn't apply.
+     */
+    private TextFieldWidget spin(int x, int y, int w, int h, String value, Consumer<String> onChange,
+                                 DoubleSupplier current, double step, double min, double max, BooleanSupplier enabled, boolean integer) {
+        TextFieldWidget f = new TextFieldWidget(textRenderer, x, y, w - ARROW_SLOT, h, Text.empty());
+        f.setMaxLength(64);
+        f.setText(value);
+        f.setChangedListener(onChange);
+        addDrawableChild(f);
+        arrows(f, x + w - ARROW_SLOT + 1, y, h, current, step, min, max, enabled, integer);
+        return f;
+    }
+
+    private void arrows(TextFieldWidget f, int ax, int y, int h, DoubleSupplier current, double step, double min, double max,
+                        BooleanSupplier enabled, boolean integer) {
+        int top = h / 2;
+        Arrow up = new Arrow(ax, y, ARROW_SLOT - 1, top, true, () -> nudge(f, current, step, min, max, integer));
+        Arrow down = new Arrow(ax, y + top, ARROW_SLOT - 1, h - top, false, () -> nudge(f, current, -step, min, max, integer));
+        addDrawableChild(up);
+        addDrawableChild(down);
+        Spinner sp = new Spinner(up, down, current, min, max, enabled);
+        spinners.add(sp);
+        refresh(sp);
+    }
+
+    /** Steps the value and writes it into the field, whose own listener then applies it (clamped to the limits). */
+    private void nudge(TextFieldWidget f, DoubleSupplier current, double step, double min, double max, boolean integer) {
+        double v = Math.max(min, Math.min(max, current.getAsDouble() + step));
+        f.setText(integer ? String.valueOf(Math.round(v)) : coord(v));
+    }
+
+    private static void refresh(Spinner sp) {
+        boolean on = sp.enabled.getAsBoolean();
+        double v = sp.value.getAsDouble();
+        sp.up.active = on && v < sp.max - 1e-9;
+        sp.down.active = on && v > sp.min + 1e-9;
+    }
+
     /** A button that steps through options: click for the next one, right-click for the previous one. */
     private <T> CyclingButtonWidget<T> cycler(List<T> values, T initial, Function<T, Text> names,
                                               int x, int y, int w, String label, Consumer<T> onChange) {
@@ -563,9 +627,6 @@ public class CurveScreen extends Screen {
         clearAndInit();
     }
 
-    private TextFieldWidget num(int x, int y, int w, String value, Consumer<String> onChange) {
-        return text(x, y, w, value, onChange);
-    }
     private TextFieldWidget text(int x, int y, int w, String value, Consumer<String> onChange) {
         TextFieldWidget f = new TextFieldWidget(textRenderer, x, y, w, 20, Text.empty());
         f.setMaxLength(64);
@@ -621,6 +682,7 @@ public class CurveScreen extends Screen {
     @Override
     public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
         poll();
+        for (Spinner sp : spinners) refresh(sp);
         super.render(ctx, mouseX, mouseY, delta);
         for (Label l : labels) ctx.drawTextWithShadow(textRenderer, l.text, l.x, l.y, 0xC8CED6);
         for (Icon ic : icons) ctx.drawItem(ic.stack, ic.x, ic.y);
