@@ -2,12 +2,13 @@ package dev.curvegen.client;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonParser;
 import dev.curvegen.core.PresetData;
 import dev.curvegen.core.ShapeSettings;
 import net.fabricmc.loader.api.FabricLoader;
 
 import java.io.IOException;
-import java.io.Reader;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -39,8 +40,11 @@ public final class PresetStore {
         }
     }
 
+    /** Bumped when the file layout changes in a way older versions can't read. */
+    private static final int FORMAT_VERSION = 1;
+
     private static final class FileFormat {
-        int version = 1;
+        int version = FORMAT_VERSION;
         List<Preset> presets = new ArrayList<>();
     }
 
@@ -54,12 +58,23 @@ public final class PresetStore {
         presets = new ArrayList<>();
         Path f = file();
         if (Files.exists(f)) {
-            try (Reader r = Files.newBufferedReader(f, StandardCharsets.UTF_8)) {
-                FileFormat ff = GSON.fromJson(r, FileFormat.class);
-                if (ff != null && ff.presets != null)
-                    for (Preset p : ff.presets) if (p != null && p.name != null && p.gen() != null && p.data != null) presets.add(p);
+            try {
+                // Read the version before binding the rest, since a newer layout may not bind to these classes.
+                JsonElement root = JsonParser.parseString(Files.readString(f));
+                JsonElement v = root.isJsonObject() ? root.getAsJsonObject().get("version") : null;
+                int version = v != null && v.isJsonPrimitive() && v.getAsJsonPrimitive().isNumber() ? v.getAsInt() : FORMAT_VERSION;
+                if (version > FORMAT_VERSION) {
+                    // Saved by a newer version of the mod. Keep it as it is instead of overwriting it.
+                    Files.move(f, f.resolveSibling("presets.v" + version + ".json"), StandardCopyOption.REPLACE_EXISTING);
+                    dev.curvegen.CurveGen.LOGGER.warn("presets.json is from a newer version of Curve Generator (format {}), so it was set aside", version);
+                } else {
+                    FileFormat ff = GSON.fromJson(root, FileFormat.class);
+                    if (ff != null && ff.presets != null)
+                        for (Preset p : ff.presets) if (p != null && p.name != null && p.gen() != null && p.data != null) presets.add(p);
+                }
             } catch (Exception e) {
                 // Keep a damaged file for the player instead of overwriting it, and start fresh.
+                dev.curvegen.CurveGen.LOGGER.warn("Couldn't read presets.json, so it was set aside as presets.broken.json", e);
                 try { Files.move(f, f.resolveSibling("presets.broken.json"), StandardCopyOption.REPLACE_EXISTING); } catch (IOException ignored) { }
             }
         } else {
