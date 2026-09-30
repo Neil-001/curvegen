@@ -2,6 +2,7 @@ package dev.curvegen.core;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -53,6 +54,38 @@ class PresetDataTest {
         assertEquals(1, t.bH);                                 // a number, clamped to the minimum
         assertEquals(ShapeSettings.BzMode.LINE, t.bMode);
         assertEquals(4, t.pts.size(), "fewer than two valid points: keep the old ones");
+    }
+
+    @Test
+    void blockChoicesRoundTrip() {
+        ShapeSettings s = new ShapeSettings();
+        s.slab = false; s.pane = false;
+        Map<String, String> d = PresetData.captureBlocks(s, f -> "test:" + f.name().toLowerCase());
+        assertEquals("test:stairs", d.get("stairs"));
+        assertEquals("false", d.get("slabUsed"));
+        assertFalse(d.containsKey("fullUsed"), "full blocks are always used");
+        assertFalse(d.containsKey("air"));
+
+        ShapeSettings t = new ShapeSettings();
+        Map<Pieces.Family, String> blocks = new EnumMap<>(Pieces.Family.class);
+        PresetData.applyBlocks(d, t, blocks::put);
+        for (Pieces.Family f : Pieces.Family.values()) {
+            if (f == Pieces.Family.AIR) continue;
+            assertEquals(s.allows(f), t.allows(f), f + " used");
+            assertEquals("test:" + f.name().toLowerCase(), blocks.get(f), f + " block");
+        }
+    }
+
+    @Test
+    void missingOrBadBlockValuesKeepCurrentChoices() {
+        ShapeSettings t = new ShapeSettings();
+        t.wall = false;
+        Map<Pieces.Family, String> blocks = new EnumMap<>(Pieces.Family.class);
+        PresetData.applyBlocks(Map.of("fenceUsed", "nope", "slabUsed", "false", "pane", "test:pane"), t, blocks::put);
+        assertTrue(t.fence);
+        assertFalse(t.slab);
+        assertFalse(t.wall, "not in the preset");
+        assertEquals(Map.of(Pieces.Family.PANE, "test:pane"), blocks);
     }
 
     @Test

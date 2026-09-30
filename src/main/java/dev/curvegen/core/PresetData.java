@@ -6,11 +6,14 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
 
 /**
  * A preset stores one shape tab's own settings as text (so it survives format changes gracefully):
  * the ellipse's size and shape, the equation and its ranges, or the Bézier grid and points.
- * Block choices, pieces, orientation and depth aren't part of a preset.
+ * It can also store the block choices: each piece type's block and whether it's used.
+ * Orientation and depth aren't part of a preset.
  */
 public final class PresetData {
     private PresetData() {}
@@ -87,6 +90,33 @@ public final class PresetData {
             }
         }
     }
+
+    /**
+     * The block choices as text: for each piece type, its block's id ("slab": "minecraft:oak_slab")
+     * and, except for full blocks, whether it's used ("slabUsed": "true").
+     */
+    public static Map<String, String> captureBlocks(ShapeSettings s, Function<Pieces.Family, String> blockId) {
+        Map<String, String> d = new LinkedHashMap<>();
+        for (Pieces.Family f : Pieces.Family.values()) {
+            if (f == Pieces.Family.AIR) continue;
+            d.put(key(f), blockId.apply(f));
+            if (f != Pieces.Family.FULL) d.put(key(f) + "Used", String.valueOf(s.allows(f)));
+        }
+        return d;
+    }
+
+    /** Applies stored block choices: sets whether each piece type is used, and hands each stored block id to setBlock. */
+    public static void applyBlocks(Map<String, String> d, ShapeSettings s, BiConsumer<Pieces.Family, String> setBlock) {
+        for (Pieces.Family f : Pieces.Family.values()) {
+            if (f == Pieces.Family.AIR) continue;
+            String used = d.get(key(f) + "Used");
+            if ("true".equals(used) || "false".equals(used)) s.allow(f, Boolean.parseBoolean(used));
+            String id = d.get(key(f));
+            if (id != null) setBlock.accept(f, id);
+        }
+    }
+
+    private static String key(Pieces.Family f) { return f.name().toLowerCase(Locale.ROOT); }
 
     /** A name describing the shape, used to pre-fill the Save dialog. */
     public static String defaultName(ShapeSettings s, ShapeSettings.Gen gen) {

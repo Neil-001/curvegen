@@ -1,31 +1,37 @@
 package dev.curvegen.client.screen;
 
+import dev.curvegen.client.BlockChoices;
 import dev.curvegen.client.CurveGenClient;
 import dev.curvegen.client.PresetStore;
 import dev.curvegen.client.PresetStore.Preset;
+import dev.curvegen.core.Pieces.Family;
 import dev.curvegen.core.PresetData;
 import dev.curvegen.core.ShapeSettings;
 import dev.curvegen.core.Solver;
+import net.minecraft.block.Block;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.ConfirmScreen;
 import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.gui.tooltip.Tooltip;
 import net.minecraft.client.gui.widget.ButtonWidget;
+import net.minecraft.client.gui.widget.CyclingButtonWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.screen.ScreenTexts;
 import net.minecraft.text.Text;
 import org.lwjgl.glfw.GLFW;
 
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Future;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
 /** Every saved preset for one shape tab, with search, a live preview, and pin / rename / delete. */
 public class PresetsScreen extends Screen {
     private final Screen parent;
     private final ShapeSettings.Gen gen;
-    private final Consumer<Preset> onLoad;
+    private final BiConsumer<Preset, Boolean> onLoad;   // the preset, and whether to load its blocks
 
     private TextFieldWidget search;
     private String query = "";
@@ -35,11 +41,16 @@ public class PresetsScreen extends Screen {
     private Preset lastClicked;
     private long lastClickTime;
     private ButtonWidget previewButton, loadButton;
+    private CyclingButtonWidget<Boolean> blocksButton;
+    /** Whether to load the blocks of presets that have them. */
+    private boolean loadBlocks = true;
 
     private final PreviewTexture texture = new PreviewTexture();
     private Preset textureFor;
-    private final Map<Preset, Solver.Result> results = new HashMap<>();
-    private final Map<Preset, Future<Solver.Result>> jobs = new HashMap<>();
+    /** A preview is solved per preset, with or without its blocks. */
+    private record Key(Preset preset, boolean blocks) {}
+    private final Map<Key, Solver.Result> results = new HashMap<>();
+    private final Map<Key, Future<Solver.Result>> jobs = new HashMap<>();
 
     private static final int ROW = 20, ICON = 12;
     // 9×9 pixel icons
@@ -50,7 +61,7 @@ public class PresetsScreen extends Screen {
     private static final String[] TRASH = {
             "...###...", "#########", ".#######.", ".#.#.#.#.", ".#.#.#.#.", ".#.#.#.#.", ".#.#.#.#.", ".#.#.#.#.", "..#####.."};
 
-    public PresetsScreen(Screen parent, ShapeSettings.Gen gen, Consumer<Preset> onLoad) {
+    public PresetsScreen(Screen parent, ShapeSettings.Gen gen, BiConsumer<Preset, Boolean> onLoad) {
         super(Text.literal("Load a preset: " + switch (gen) { case ELLIPSE -> "ellipse"; case EQUATION -> "equation"; case BEZIER -> "Bézier curve"; }));
         this.parent = parent; this.gen = gen; this.onLoad = onLoad;
     }
@@ -75,12 +86,17 @@ public class PresetsScreen extends Screen {
         addDrawableChild(search);
         setInitialFocus(search);
 
-        int by = height - 26, bw = Math.max(60, textRenderer.getWidth("Preview") + 20), x = width - 8 - 3 * bw - 8;
+        int by = height - 26, bw = Math.max(60, textRenderer.getWidth("Preview") + 20);
+        int blocksW = textRenderer.getWidth("Blocks: OFF") + 20, x = width - 8 - 3 * bw - blocksW - 12;
         previewButton = ButtonWidget.builder(Text.literal("Preview"), b -> previewed = selected).dimensions(x, by, bw, 20).build();
-        loadButton = ButtonWidget.builder(Text.literal("Load"), b -> { if (selected != null) load(selected); }).dimensions(x + bw + 4, by, bw, 20).build();
+        blocksButton = CyclingButtonWidget.onOffBuilder(loadBlocks).build(x + bw + 4, by, blocksW, 20, Text.literal("Blocks"),
+                (b, v) -> { loadBlocks = v; textureFor = null; });
+        loadButton = ButtonWidget.builder(Text.literal("Load"), b -> { if (selected != null) load(selected); })
+                .dimensions(x + bw + blocksW + 8, by, bw, 20).build();
         addDrawableChild(previewButton);
+        addDrawableChild(blocksButton);
         addDrawableChild(loadButton);
-        addDrawableChild(ButtonWidget.builder(Text.literal("Cancel"), b -> close()).dimensions(x + 2 * (bw + 4), by, bw, 20).build());
+        addDrawableChild(ButtonWidget.builder(Text.literal("Cancel"), b -> close()).dimensions(width - 8 - bw, by, bw, 20).build());
         refilter();
     }
 
@@ -92,25 +108,37 @@ public class PresetsScreen extends Screen {
 
     private void load(Preset p) {
         client.setScreen(parent);
-        onLoad.accept(p);
+        onLoad.accept(p, withBlocks(p));
     }
 
+    /** Whether loading (and previewing) this preset uses its blocks: only if it has some and the Blocks option is on. */
+    private boolean withBlocks(Preset p) { return loadBlocks && p.blocks != null; }
+
     // ---------- preview ----------
+    /** The block choices the preview of p uses. */
+    private Map<Family, Block> choiceFor(Preset p) {
+        Map<Family, Block> choice = new EnumMap<>(BlockChoices.CHOICE);
+        if (withBlocks(p)) BlockChoices.apply(p.blocks, CurveGenClient.SETTINGS.copy(), choice);
+        return choice;
+    }
+
     private ShapeSettings settingsFor(Preset p) {
-        ShapeSettings s = CurveGenClient.SETTINGS.copy();   // current pieces, orientation and depth
+        ShapeSettings s = CurveGenClient.SETTINGS.copy();   // current orientation and depth, and pieces unless it has its own
         PresetData.apply(p.data, gen, s);
+        if (withBlocks(p)) BlockChoices.apply(p.blocks, s, new EnumMap<>(BlockChoices.CHOICE));
         return s;
     }
 
     private Solver.Result resultFor(Preset p) {
-        Solver.Result r = results.get(p);
+        Key k = new Key(p, withBlocks(p));
+        Solver.Result r = results.get(k);
         if (r != null) return r;
-        Future<Solver.Result> job = jobs.get(p);
-        if (job == null) { ShapeSettings s = settingsFor(p); jobs.put(p, CurveScreen.EXEC.submit(() -> Solver.run(s))); return null; }
+        Future<Solver.Result> job = jobs.get(k);
+        if (job == null) { ShapeSettings s = settingsFor(p); jobs.put(k, CurveScreen.EXEC.submit(() -> Solver.run(s))); return null; }
         if (!job.isDone()) return null;
-        jobs.remove(p);
+        jobs.remove(k);
         try { r = job.get(); } catch (Exception e) { return null; }
-        results.put(p, r);
+        results.put(k, r);
         return r;
     }
 
@@ -142,6 +170,12 @@ public class PresetsScreen extends Screen {
         hovered = hr >= 0 ? shown.get(hr) : null;
         previewButton.active = selected != null;
         loadButton.active = selected != null;
+        boolean hasBlocks = selected != null && selected.blocks != null;
+        blocksButton.active = hasBlocks;
+        blocksButton.setValue(loadBlocks && (selected == null || hasBlocks));
+        blocksButton.setTooltip(Tooltip.of(Text.literal(selected == null ? "Select a preset first."
+                : hasBlocks ? "Also load the preset's block for each piece type, and whether it's used."
+                : "This preset was saved without blocks.")));
         super.render(ctx, mx, my, delta);
         ctx.drawTextWithShadow(textRenderer, title, listX(), 10, 0xFFFFFF);
 
@@ -199,7 +233,7 @@ public class PresetsScreen extends Screen {
             else if (r.target().error != null)
                 ctx.drawTextWrapped(textRenderer, Text.literal(r.target().error), px0 + 8, py0 + 8, px1 - px0 - 16, 0xFF8098);
             else {
-                if (textureFor != target || texture.id() == null) { texture.update(r, CurveScreen.colors, true, true); textureFor = target; }
+                if (textureFor != target || texture.id() == null) { texture.update(r, CurveScreen.colors, true, true, choiceFor(target)); textureFor = target; }
                 float aw = px1 - px0 - 12, ah = py1 - py0 - 12 - infoH;
                 float z = Math.min(aw / r.nx(), ah / r.ny());
                 float ox = px0 + (px1 - px0 - r.nx() * z) / 2f, oy = py0 + 6 + (ah - r.ny() * z) / 2f;
@@ -279,7 +313,7 @@ public class PresetsScreen extends Screen {
                 PresetStore.delete(p);
                 if (selected == p) selected = null;
                 if (previewed == p) previewed = null;
-                results.remove(p);
+                results.keySet().removeIf(k -> k.preset() == p);
                 refilter();
             }
             client.setScreen(this);

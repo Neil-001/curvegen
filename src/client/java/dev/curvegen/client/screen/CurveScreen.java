@@ -205,16 +205,17 @@ public class CurveScreen extends Screen {
             if (name.isEmpty()) return new NameDialogScreen.Check(false, "Save", "Type a name for the preset.");
             if (PresetStore.find(g, name) != null) return new NameDialogScreen.Check(true, "Replace", "A preset with this name exists. Saving replaces it.");
             return new NameDialogScreen.Check(true, "Save", null);
-        }, name -> {
-            PresetStore.save(g, name, S);
+        }, "Save blocks", "Also save the block for each piece type, and whether it's used.", (name, withBlocks) -> {
+            PresetStore.save(g, name, S, withBlocks);
             flash("Saved preset \"" + name + "\"");
         }));
     }
 
-    private void loadPreset(PresetStore.Preset p) {
+    private void loadPreset(PresetStore.Preset p, boolean withBlocks) {
         ShapeSettings.Gen g = p.gen();
         if (g == null) return;
         PresetData.apply(p.data, g, S);
+        if (withBlocks && p.blocks != null) { BlockChoices.apply(p.blocks, S, BlockChoices.CHOICE); textureDirty = true; }
         tab = switch (g) { case ELLIPSE -> Tab.ELLIPSE; case EQUATION -> Tab.EQUATION; case BEZIER -> Tab.BEZIER; };
         pointScroll = 0;
         dirty = true; autoFit = true;
@@ -407,8 +408,8 @@ public class CurveScreen extends Screen {
             if (f == Family.FULL) {
                 labels.add(new Label(M + 4, y + 6, "Use"));
             } else {
-                boolean on = allowed(f);
-                ButtonWidget use = ButtonWidget.builder(Text.literal(on ? "Use" : "Off"), b -> { setAllowed(f, !allowed(f)); dirty = true; clearAndInit(); })
+                boolean on = S.allows(f);
+                ButtonWidget use = ButtonWidget.builder(Text.literal(on ? "Use" : "Off"), b -> { S.allow(f, !S.allows(f)); dirty = true; clearAndInit(); })
                         .dimensions(M, y, 26, 20).build();
                 if (S.floor && (f == Family.SLAB || f == Family.STAIRS)) {
                     use.active = false;
@@ -438,13 +439,6 @@ public class CurveScreen extends Screen {
                 }))).dimensions(M, row(BlockChoices.FAMILIES.length), PANEL_W, 20).build());
         hint = "Choose a block per piece type, or match them all to one colour.";
         hintY = row(BlockChoices.FAMILIES.length + 1) + 2;
-    }
-
-    private static boolean allowed(Family f) {
-        return switch (f) { case SLAB -> S.slab; case STAIRS -> S.stair; case TRAPDOOR -> S.trap; case FENCE -> S.fence; case PANE -> S.pane; case WALL -> S.wall; default -> true; };
-    }
-    private static void setAllowed(Family f, boolean v) {
-        switch (f) { case SLAB -> S.slab = v; case STAIRS -> S.stair = v; case TRAPDOOR -> S.trap = v; case FENCE -> S.fence = v; case PANE -> S.pane = v; case WALL -> S.wall = v; default -> {} }
     }
 
     // ---------- block count (the web version's "Materials") ----------
@@ -497,8 +491,8 @@ public class CurveScreen extends Screen {
             for (int[] m : merged.values()) total += m[1];
             boolean unused = floor && (f == Family.SLAB || f == Family.STAIRS);
             String blockName = BlockChoices.CHOICE.get(f).getName().getString();
-            rows.add(new CountRow(true, BlockChoices.familyName(f) + (unused ? " (not used flat)" : allowed(f) ? "" : " (off)"),
-                    total, -1, unused || !allowed(f), blockName));
+            rows.add(new CountRow(true, BlockChoices.familyName(f) + (unused ? " (not used flat)" : S.allows(f) ? "" : " (off)"),
+                    total, -1, unused || !S.allows(f), blockName));
             for (var e : merged.entrySet())
                 rows.add(new CountRow(false, e.getKey(), e.getValue()[1], e.getValue()[0], e.getValue()[1] == 0,
                         Pieces.NAME[e.getValue()[0]] + ": " + blockName));
