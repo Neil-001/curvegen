@@ -1,106 +1,44 @@
-# Curve Generator (Fabric mod for Minecraft Java 1.21.1)
+# Curve Generator
 
-Design ellipses, equation plots and Bézier curves in-game, built from full blocks, slabs, stairs, trapdoors, fences, glass panes and walls. Then place them with a hologram preview, or export them to a Litematica schematic.
+<!-- TODO: preview GIF -->
 
-## Build
+A Fabric mod for Minecraft Java 1.21.1 that turns ellipses, equations and Bézier curves into blocks. It picks full blocks, slabs, stairs, trapdoors, fences, glass panes and walls to match the curve as closely as possible. You can then place the result in your world or export it as a Litematica schematic.
 
-You need JDK 21.
+## Install
+
+<!-- TODO: add the Modrinth and CurseForge links on release. Also add the Modrinth URL as "homepage" in fabric.mod.json. -->
+Download the mod from Modrinth or CurseForge. Put the jar in your `mods` folder along with [Fabric API](https://modrinth.com/mod/fabric-api). You'll need Fabric Loader and Minecraft 1.21.1.
+
+## Quick tour
+
+1. Press **G** to open the generator.
+2. Pick a tab: **Ellipse**, **Equation** or **Bézier**. Equations use Desmos-style syntax, like `y = 2sin(x)`, `x^2 + y^2 = 16` or `y < 9 - x^2/4`. On the Bézier tab, drag the numbered handles in the preview.
+3. On the **Blocks** tab, choose a block for each piece type, or use **Match a colour…** to pick blocks whose textures are closest to a colour.
+4. Choose **Upright** to build it like a wall or **Flat** to build it like a floor.
+5. Check the **Count** tab to see how many of each block you'll need.
+6. Press **Place** to position a hologram in the world, then press Enter to build it. Or press **Export** to save a `.litematic` file.
+
+Placing needs operator permissions, the same as `/setblock`. In singleplayer, that means cheats must be on. Exporting works anywhere.
+
+Right-click a button that steps through options to step backwards. You can rebind every key under Options → Controls → Key Binds → Curve Generator.
+
+The [wiki](https://github.com/Neil-001/curvegen/wiki) covers the rest: placement keys, Replace and Carve, presets, exporting, and how resource packs and modded blocks work.
+
+## Development
+
+You'll need JDK 21.
 
 ```
-./gradlew build          # Windows: gradlew.bat build
+./gradlew build       # builds the jar into build/libs/
+./gradlew runClient   # starts a dev client with the mod
+./gradlew test        # runs the tests for dev.curvegen.core
 ```
 
-The mod jar ends up in `build/libs/curvegen-1.0.0.jar`. Put it in your `mods` folder together with [Fabric API](https://modrinth.com/mod/fabric-api) for 1.21.1.
+On Windows, use `gradlew.bat`. The Minecraft, Yarn, Loader and Fabric API versions are in `gradle.properties`.
 
-`./gradlew runClient` starts a development client with the mod loaded.
+- `dev.curvegen.core` holds the shape maths and the solver. It has no Minecraft imports, so the tests run without the game. Keep it that way.
+- Run `./gradlew build` and `./gradlew test` before pushing.
 
-`./gradlew test` runs the tests for the shape maths in `dev.curvegen.core`: parser, solver results, Minecraft's connection rules, carving, presets, Litematica packing, and the preview outlines. They don't need Minecraft running.
+---
 
-The versions in `gradle.properties` are for 1.21.1. For newer builds, check https://fabricmc.net/develop. Moving to a different Minecraft version will need some code changes: rendering, networking and screen APIs shift between releases.
-
-## Use
-
-Press **G** to open the generator. Every key can be rebound under Options, Controls, Key Binds, Curve Generator.
-
-- **Ellipse, Equation, Bézier tabs** set up the shape, exactly like the web version.
-  - Equations accept the Desmos-style syntax: `y = 2sin(x)`, `x^2 + y^2 = 16`, `y < 9 - x^2/4`.
-  - On the Bézier tab, drag the numbered handles in the preview, or type exact x and y positions in the point list. Remove a point with its × button, and scroll the list when there are more points than fit.
-- **Blocks tab** controls which blocks are used.
-  - Click a block to choose one yourself from a searchable list, sortable by name or by closeness in colour.
-  - **Match a colour…** opens a colour picker. It picks, for every piece type, the block whose texture is closest to that colour (compared in CIELAB, so "close" means close to the eye).
-  - Turning a piece type off means the solver won't use it.
-- **Upright / Flat** (bottom left) builds the shape upright like a wall, drawn from the side, or flat like a floor, drawn from above with the drawing's top pointing away from you.
-  - **Flat builds use the pieces that differ from above:** full blocks, open trapdoors against any side, and fences, panes and walls connecting in all four directions. Slabs and stairs look like full blocks from above, so flat builds don't use them.
-  - **Colours follow the face you'll see:** block colours use the top face for floors and the side face for walls, so logs show their rings and grass blocks are green.
-- **Presets:** each shape tab has **Save preset** and **Load preset** at the bottom of its panel.
-  - **Saving** asks for a name, already filled in from the shape's settings (for example "Ellipse 31×19, thin"). Typing an existing name replaces that preset.
-  - **Loading** opens every preset for that tab, with a search bar.
-    - **Preview:** hover a preset to preview it, or select it and press Preview. The preview uses your current blocks, orientation and depth.
-    - **Load:** double-click it, or select it and press Load (or Enter).
-    - **Manage:** hovering or selecting a preset shows pin, rename and delete buttons on its right. Pinned presets stay at the top. Deleting asks for confirmation first.
-  - **What a preset stores:** only its tab's own shape settings. Loading one keeps your block choices, pieces, orientation and depth.
-  - **Examples:** the old equation examples are included as ready-made presets, and you can rename or delete them like any other.
-  - **Storage:** presets live in `.minecraft/config/curvegen/presets.json`.
-- **Arrows** next to number fields step the value up or down: sizes and depth by 1, thickness and line width by ¼ block, Bézier points by ½ block. An arrow greys out at its limit (sizes never reach 0, points stay inside the grid) and whenever its field doesn't apply.
-- **Right-click** any button that steps through options (Shape, the examples, Colour and the rest) to step backwards.
-- With an inequality typed in, the Shape button is greyed out because the inequality decides the filled side.
-- **Count tab** lists how many of each block the shape uses, like the web version's materials list.
-  - Grouped by piece type, with one row per orientation or state. The total and mismatch are shown at the top of the preview. Each row's icon is drawn exactly as in the preview, in the current colouring.
-  - With Depth or Height above 1, counts cover every layer.
-  - Hover a row to see the full name and which block it uses.
-- **Colour** (top right) switches the preview between plain stone, piece types, or the colours of your chosen blocks. **Curve** shows or hides the true curve.
-- **Replace** (bottom bar): when off, the shape only goes into air and replaceable blocks like grass, water and snow layers, leaving existing builds alone.
-- **Carve** (bottom bar): clears existing blocks from the space the shape encloses. That's inside a thin or thick ellipse, above a "fill under" equation, or below a "fill over" one. Filled ellipses, lines and Bézier curves don't carve. The preview shows blocks that will be cleared in red.
-- **Depth** (upright) extrudes the shape that many blocks deep, which is useful for tunnels and vaults. **Height** (flat) stacks the floor that many layers up. Fences, panes and walls connect through the extra layers too, and walls follow the game's rules as they do. For example, a straight wall more than one block deep gets posts, because its front and back blocks each connect on one side only.
-- Scroll to zoom the preview, drag it to pan, and hover a block to see its piece and block.
-
-### Place
-
-**Place** closes the screen and shows a translucent preview where you're looking. An upright shape faces you, with its middle-bottom block on the block your crosshair targets. A flat shape lies centred on that block.
-
-| Key | Action |
-|---|---|
-| Enter | Place it |
-| R | Rotate by 90° |
-| Page Up / Page Down | Move up or down |
-| K | Lock the position and direction, so you can walk around it without it turning (R still rotates it), or unlock |
-| Backspace | Cancel |
-| Z | Undo the last placement |
-
-Placing needs **operator permissions (level 2)**, the same as `/setblock`. In singleplayer, that means cheats must be on.
-
-- **With the mod on the server** (or in singleplayer), blocks are sent in batches and placed at once. The server checks permissions itself.
-- **On a server without the mod**, it falls back to `/setblock` commands, 40 per tick. This also needs operator rights.
-
-Undo restores everything the placement changed, including carved blocks. It restores the previous block states. It doesn't restore the contents of chests or other block entities, so be careful placing over them.
-
-### Export
-
-**Export** writes `schematics/curvegen_<kind>_<date>.litematic` in your game folder (with `_floor` added for flat builds). Load it with Litematica's Load Schematics menu. Upright shapes run east (width), up (height) and south (depth). Flat shapes run east and north, stacking up; rotate them in Litematica as needed. Export works without any permissions.
-
-## How it works
-
-The shape maths lives in `dev.curvegen.core`, which is plain Java with no Minecraft dependencies. It's a direct port of the web generator and gives identical results.
-
-1. Each cell is sampled at 16×16, Minecraft's own pixel grid.
-2. Every allowed piece is scored by how many pixels it gets wrong.
-3. Fences, panes and walls are then refined together with their neighbours, since their shape depends on what's around them. Their connections follow the game's rules: fences join fences, panes and walls join each other, and all of them attach to full faces. They skip leaves, pumpkins and similar blocks that the game refuses to connect to. A wall's sides also turn tall when the block above covers them, and a straight wall drops its post unless something rests on it.
-
-The solver runs on a background thread, so dragging handles never stalls the game.
-
-## Resource packs and modded blocks
-
-**Resource packs:** block colours are read from the textures of whatever packs are active, and they're recomputed whenever you change packs or press F3+T.
-
-**Modded blocks:** they're included automatically when they're built on the vanilla block types.
-- Slabs, stairs, trapdoors, fences, panes and walls appear in the lists when their mod uses Minecraft's own slab, stair, trapdoor, fence, pane and wall classes, which most mods do.
-- Full blocks are recognised by their shape.
-- A modded block's colour comes from its texture like any other.
-- Blocks that imitate these shapes with their own code, like some decorative mods' custom stairs, won't show up.
-
-## Known limits
-
-- Built and tested only for 1.21.1 Fabric.
-- Preview colours come from each block's particle texture. Blocks with very different top and side textures, like grass blocks, are represented by that one texture.
-- The hologram shows at most 30,000 blocks in detail. Bigger shapes show their bounding box only.
-- Exported schematics contain the shape only; carving isn't included.
+License: MIT.

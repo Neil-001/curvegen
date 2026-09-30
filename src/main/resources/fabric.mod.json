@@ -3,8 +3,12 @@
   "id": "curvegen",
   "version": "${version}",
   "name": "Curve Generator",
-  "description": "Design ellipses, equation plots and Bézier curves from blocks, slabs, stairs, trapdoors, fences and glass panes, then place them with a hologram preview or export them to Litematica.",
-  "authors": ["You"],
+  "description": "Turn ellipses, equations and Bézier curves into full blocks, slabs, stairs, trapdoors, fences, glass panes and walls, then place them with a hologram or export them to Litematica.",
+  "authors": ["Neil C."],
+  "contact": {
+    "sources": "https://github.com/Neil-001/curvegen",
+    "issues": "https://github.com/Neil-001/curvegen/issues"
+  },
   "license": "MIT",
   "environment": "*",
   "entrypoints": {
