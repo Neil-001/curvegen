@@ -67,4 +67,15 @@ class PresetDataTest {
             assertNull(Solver.run(u).target().error, e.name());
         }
     }
+
+    @Test
+    void fileStemsAreSafeFileNames() {
+        assertEquals("equation-heart", PresetData.fileStem(ShapeSettings.Gen.EQUATION, "Heart"));
+        assertEquals("equation-y-2sin-x", PresetData.fileStem(ShapeSettings.Gen.EQUATION, "y = 2sin(x)"));
+        assertEquals("bezier-cubic-bezier-40-20-line-1", PresetData.fileStem(ShapeSettings.Gen.BEZIER, "Cubic Bézier 40×20, line 1"));
+        assertEquals("ellipse-a-b-c", PresetData.fileStem(ShapeSettings.Gen.ELLIPSE, "../a\\b:c*?"));
+        assertEquals("ellipse", PresetData.fileStem(ShapeSettings.Gen.ELLIPSE, "???"));
+        String longName = PresetData.fileStem(ShapeSettings.Gen.ELLIPSE, "x".repeat(59) + " yz");
+        assertEquals("ellipse-" + "x".repeat(59), longName);
+    }
 }
