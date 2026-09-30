@@ -31,7 +31,7 @@ Loom's `splitEnvironmentSourceSets()` splits the code into `src/main` (common) a
   - `ColorIndex`: average texture colours for the face you'll see, matched in CIELAB.
   - `Placement`: placement mode, hologram, Replace and Carve, undo, and the `/setblock` fallback.
   - `LitematicExporter`: writes the `.litematic` file.
-  - `PresetStore`: reads and writes `config/curvegen/presets.json`, replacing the file atomically.
+  - `PresetStore`: reads and writes one JSON file per preset in `config/curvegen/presets/`, replacing each file atomically.
 - `dev/curvegen/client/screen/`:
   - `CurveScreen`: the main UI.
   - `PreviewTexture`: renders a solved grid into a dynamic texture.

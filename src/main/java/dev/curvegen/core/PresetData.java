@@ -1,5 +1,6 @@
 package dev.curvegen.core;
 
+import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -109,6 +110,17 @@ public final class PresetData {
                 yield kind + " " + s.bW + "×" + s.bH + ", " + (s.bMode == ShapeSettings.BzMode.LINE ? "line " + num(s.bLW) : "filled");
             }
         };
+    }
+
+    /**
+     * A safe file name (without ".json") for a preset: its tab, then its name in lower case with
+     * anything but letters and digits turned into dashes, e.g. "equation-heart".
+     */
+    public static String fileStem(ShapeSettings.Gen gen, String name) {
+        String plain = Normalizer.normalize(name, Normalizer.Form.NFD).replaceAll("\\p{M}", "").toLowerCase(Locale.ROOT);
+        String slug = plain.replaceAll("[^a-z0-9]+", "-").replaceAll("^-|-$", "");
+        if (slug.length() > 60) slug = slug.substring(0, 60).replaceAll("-$", "");
+        return gen.name().toLowerCase(Locale.ROOT) + (slug.isEmpty() ? "" : "-" + slug);
     }
 
     /** The examples that used to sit behind the Equation tab's example button, as starting presets. */
