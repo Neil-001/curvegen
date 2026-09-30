@@ -71,7 +71,7 @@ public class CurveScreen extends Screen {
     private final List<Icon> icons = new ArrayList<>();
     private String hint;
     private int hintY;
-    private TextFieldWidget qHField, qLWField;
+    private TextFieldWidget qHField, qLWField, bLWField;
     private CyclingButtonWidget<EqMode> eqShape;
     /** What a right-click does on buttons that step through options: step backwards. */
     private final Map<ClickableWidget, Runnable> reverse = new HashMap<>();
@@ -99,7 +99,7 @@ public class CurveScreen extends Screen {
 
     @Override
     protected void init() {
-        labels.clear(); icons.clear(); pointFields.clear(); reverse.clear(); spinners.clear(); hint = null; qHField = null; qLWField = null; eqShape = null;
+        labels.clear(); icons.clear(); pointFields.clear(); reverse.clear(); spinners.clear(); hint = null; qHField = null; qLWField = null; bLWField = null; eqShape = null;
 
         // Top bar: tabs on the left, view options on the right, each button as wide as its text needs.
         String[] names = {"Ellipse", "Equation", "Bézier", "Blocks", "Count"};
@@ -299,15 +299,23 @@ public class CurveScreen extends Screen {
         if (qLWField != null) qLWField.setEditable(!ineq && S.qMode == EqMode.LINE);
     }
 
+    /** A filled Bézier shape ignores line width. */
+    private void updateBezierControls() {
+        boolean line = S.bMode == BzMode.LINE;
+        bLWField.setEditable(line);
+        bLWField.setTooltip(line ? null : Tooltip.of(Text.literal("Filled shapes don't use a line width.")));
+    }
+
     private void initBezier() {
         spin(M, row(0), 64, 20, String.valueOf(S.bW), v -> { S.bW = clampInt(v, 1, 400, S.bW); dirty = true; autoFit = true; }, () -> S.bW, 1, 1, 400, () -> true, true);
         labels.add(new Label(M + 71, row(0) + 6, "×"));
         spin(M + 86, row(0), 64, 20, String.valueOf(S.bH), v -> { S.bH = clampInt(v, 1, 400, S.bH); dirty = true; autoFit = true; }, () -> S.bH, 1, 1, 400, () -> true, true);
         addDrawableChild(cycler(List.of(BzMode.values()), S.bMode, m -> Text.literal(m == BzMode.LINE ? "Line" : "Filled"),
-                M, row(1), PANEL_W, "Shape", v -> { S.bMode = v; dirty = true; }));
+                M, row(1), PANEL_W, "Shape", v -> { S.bMode = v; dirty = true; updateBezierControls(); }));
         labels.add(new Label(M, row(2) + 6, "Line width"));
-        spin(M + 60, row(2), PANEL_W - 60, 20, fmt(S.bLW), v -> { S.bLW = clampNum(v, 0.0625, 50, S.bLW); dirty = true; },
-                () -> S.bLW, 0.25, 0.0625, 50, () -> true, false);
+        bLWField = spin(M + 60, row(2), PANEL_W - 60, 20, fmt(S.bLW), v -> { S.bLW = clampNum(v, 0.0625, 50, S.bLW); dirty = true; },
+                () -> S.bLW, 0.25, 0.0625, 50, () -> S.bMode == BzMode.LINE, false);
+        updateBezierControls();
         addDrawableChild(toggle(S.snap, M, row(3), PANEL_W, "Snap to half blocks", v -> S.snap = v));
         ButtonWidget add = ButtonWidget.builder(Text.literal("Add point"), b -> {
             int n = S.pts.size();
