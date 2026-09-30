@@ -24,7 +24,7 @@ Loom's `splitEnvironmentSourceSets()` splits the code into `src/main` (common) a
   - `PresetData`: preset capture and apply, default names, and the starting examples.
   - `LitematicBits`: Litematica's packed long array.
   - `Silhouette`: piece pixels and outlines, shared by the preview and the Count tab icons.
-- `dev/curvegen/CurveGen.java` and `net/PlaceBlocksPayload.java` are the common entrypoint and the placement packet from client to server. The server checks `hasPermissions(2)`.
+- `dev/curvegen/CurveGen.java` and `net/PlaceBlocksPayload.java` are the common entrypoint and the placement packet from client to server. The server checks the gamemaster permission level (`Permissions.COMMANDS_GAMEMASTER`).
 - `dev/curvegen/client/`:
   - `CurveGenClient`: keybinds (G opens the screen) and render hooks.
   - `BlockChoices`: the block chosen for each piece family, candidate lists, and the mapping from piece to `BlockState` for upright and flat builds.
