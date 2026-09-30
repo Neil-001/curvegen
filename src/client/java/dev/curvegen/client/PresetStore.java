@@ -36,6 +36,7 @@ public final class PresetStore {
         public boolean pinned;
         public long saved;          // last saved or renamed, in milliseconds
         public Map<String, String> data = new LinkedHashMap<>();
+        public Map<String, String> blocks; // block choices, or null if saved without them
         private transient Path file; // where it's saved, or null before the first save
 
         public ShapeSettings.Gen gen() {
@@ -118,12 +119,13 @@ public final class PresetStore {
         for (int i = 2; ; i++) if (find(gen, name + " (" + i + ")") == null) return name + " (" + i + ")";
     }
 
-    /** Saves the settings under this name, replacing a preset of the same name (which keeps its pin). */
-    public static Preset save(ShapeSettings.Gen gen, String name, ShapeSettings s) {
+    /** Saves the settings (and the block choices, if asked) under this name, replacing a preset of the same name (which keeps its pin). */
+    public static Preset save(ShapeSettings.Gen gen, String name, ShapeSettings s, boolean withBlocks) {
         Preset p = find(gen, name);
         if (p == null) { p = new Preset(); p.gen = gen.name(); all().add(p); }
         p.name = name.trim();
         p.data = new LinkedHashMap<>(PresetData.capture(s, gen));
+        p.blocks = withBlocks ? BlockChoices.capture(s) : null;
         p.saved = System.currentTimeMillis();
         write(p);
         return p;

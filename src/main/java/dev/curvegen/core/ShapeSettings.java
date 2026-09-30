@@ -31,6 +31,14 @@ public final class ShapeSettings {
 
     /** Piece families the solver may use (full blocks are always allowed). */
     public boolean slab = true, stair = true, trap = true, fence = true, pane = true, wall = true;
+
+    public boolean allows(Pieces.Family f) {
+        return switch (f) { case SLAB -> slab; case STAIRS -> stair; case TRAPDOOR -> trap; case FENCE -> fence; case PANE -> pane; case WALL -> wall; default -> true; };
+    }
+
+    public void allow(Pieces.Family f, boolean v) {
+        switch (f) { case SLAB -> slab = v; case STAIRS -> stair = v; case TRAPDOOR -> trap = v; case FENCE -> fence = v; case PANE -> pane = v; case WALL -> wall = v; default -> {} }
+    }
     /** False when the chosen full block is one fences/panes refuse to attach to (leaves, pumpkins…). */
     public boolean fullConnects = true;
     /** How many blocks deep the shape is extruded when placed or exported. */

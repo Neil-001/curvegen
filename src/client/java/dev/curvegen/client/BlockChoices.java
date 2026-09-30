@@ -2,6 +2,8 @@ package dev.curvegen.client;
 
 import dev.curvegen.core.Pieces;
 import dev.curvegen.core.Pieces.Family;
+import dev.curvegen.core.PresetData;
+import dev.curvegen.core.ShapeSettings;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
@@ -22,6 +24,7 @@ import net.minecraft.registry.Registries;
 import net.minecraft.state.property.BooleanProperty;
 import net.minecraft.state.property.Properties;
 import net.minecraft.state.property.Property;
+import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 import net.minecraft.world.EmptyBlockView;
@@ -106,8 +109,27 @@ public final class BlockChoices {
     }
 
     /** Fences, panes and walls refuse to attach to some full blocks (leaves, pumpkins, melons, shulker boxes…). */
-    public static boolean fullBlockConnects() {
-        return !Block.cannotConnect(CHOICE.get(Family.FULL).getDefaultState());
+    public static boolean fullBlockConnects() { return connects(CHOICE.get(Family.FULL)); }
+
+    public static boolean connects(Block full) { return !Block.cannotConnect(full.getDefaultState()); }
+
+    /** The current block choices as preset text. */
+    public static Map<String, String> capture(ShapeSettings s) {
+        return PresetData.captureBlocks(s, f -> Registries.BLOCK.getId(CHOICE.get(f)).toString());
+    }
+
+    /**
+     * Applies a preset's block choices to s and choice. Blocks that don't exist (say, from a
+     * mod that isn't installed) or don't fit their piece type keep the current choice.
+     */
+    public static void apply(Map<String, String> blocks, ShapeSettings s, Map<Family, Block> choice) {
+        PresetData.applyBlocks(blocks, s, (f, id) -> {
+            Identifier key = Identifier.tryParse(id);
+            if (key == null || !Registries.BLOCK.containsId(key)) return;
+            Block b = Registries.BLOCK.get(key);
+            if (fits(b, f)) choice.put(f, b);
+        });
+        s.fullConnects = connects(choice.get(Family.FULL));
     }
 
     public static Block blockFor(int piece) { return CHOICE.get(Pieces.FAMILY[piece]); }

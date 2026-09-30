@@ -6,10 +6,13 @@ import dev.curvegen.core.Pieces;
 import dev.curvegen.core.Silhouette;
 import dev.curvegen.core.Solver;
 import dev.curvegen.core.Target;
+import net.minecraft.block.Block;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.texture.NativeImage;
 import net.minecraft.client.texture.NativeImageBackedTexture;
 import net.minecraft.util.Identifier;
+
+import java.util.Map;
 
 /** Paints a solved grid (pieces, grid lines, axes and the true curve) into one texture. */
 public final class PreviewTexture implements AutoCloseable {
@@ -25,6 +28,11 @@ public final class PreviewTexture implements AutoCloseable {
     public Identifier id() { return id; }
 
     public void update(Solver.Result r, Colors colors, boolean curve, boolean grid) {
+        update(r, colors, curve, grid, BlockChoices.CHOICE);
+    }
+
+    /** Paints with the given block choices, for the Blocks colouring. */
+    public void update(Solver.Result r, Colors colors, boolean curve, boolean grid, Map<Pieces.Family, Block> choice) {
         int n = Math.max(r.nx(), r.ny());
         sub = Math.max(2, Math.min(16, 1024 / Math.max(1, n)));
         int w = r.nx() * sub, h = r.ny() * sub;
@@ -41,7 +49,7 @@ public final class PreviewTexture implements AutoCloseable {
             for (int i = 0; i < r.nx(); i++) {
                 int p = r.at(i, j);
                 if (p == Pieces.EMPTY) continue;
-                int rgb = colorFor(p, colors), edge = darken(rgb, 0.55f);
+                int rgb = colorFor(p, colors, choice), edge = darken(rgb, 0.55f);
                 int ox = i * sub, oy = (r.ny() - 1 - j) * sub;
                 boolean[] in = shape(p), border = sub >= 8 ? Silhouette.outline(in, sub) : null;
                 for (int y = 0; y < sub; y++)
@@ -82,11 +90,13 @@ public final class PreviewTexture implements AutoCloseable {
     }
 
     /** Fill colour (ARGB) of a piece in the given colouring, exactly as the preview paints it. */
-    static int colorFor(int p, Colors colors) {
+    static int colorFor(int p, Colors colors) { return colorFor(p, colors, BlockChoices.CHOICE); }
+
+    private static int colorFor(int p, Colors colors, Map<Pieces.Family, Block> choice) {
         return switch (colors) {
             case STONE -> STONE;
             case PIECES -> 0xFF000000 | Pieces.COLOR[p];
-            case BLOCKS -> 0xFF000000 | ColorIndex.of(BlockChoices.blockFor(p));
+            case BLOCKS -> 0xFF000000 | ColorIndex.of(choice.get(Pieces.FAMILY[p]));
         };
     }
 
