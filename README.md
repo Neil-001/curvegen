@@ -34,7 +34,7 @@ You'll need JDK 21.
 ./gradlew test        # runs the tests for dev.curvegen.core
 ```
 
-On Windows, use `gradlew.bat`. The Minecraft, Yarn, Loader and Fabric API versions are in `gradle.properties`.
+On Windows, use `gradlew.bat`. The Minecraft, Loader and Fabric API versions are in `gradle.properties`.
 
 - `dev.curvegen.core` holds the shape maths and the solver. It has no Minecraft imports, so the tests run without the game. Keep it that way.
 - Run `./gradlew build` and `./gradlew test` before pushing.

@@ -8,7 +8,7 @@ An in-game tool that turns ellipses, equation plots and Bézier curves into full
 - `./gradlew runClient` starts a dev client with the mod.
 - `./gradlew test` runs the JUnit tests for the pure-Java core.
 
-Needs JDK 21. Versions are in `gradle.properties`. Run build and test after every change.
+Needs JDK 21. Versions are in `gradle.properties`. The code uses Mojang's official mappings, so class and method names match the ones Minecraft uses (`Level`, `BlockState`, `GuiGraphics`), not Yarn's. Run build and test after every change.
 
 ## Layout
 
@@ -24,7 +24,7 @@ Loom's `splitEnvironmentSourceSets()` splits the code into `src/main` (common) a
   - `PresetData`: preset capture and apply, default names, and the starting examples.
   - `LitematicBits`: Litematica's packed long array.
   - `Silhouette`: piece pixels and outlines, shared by the preview and the Count tab icons.
-- `dev/curvegen/CurveGen.java` and `net/PlaceBlocksPayload.java` are the common entrypoint and the placement packet from client to server. The server checks `hasPermissionLevel(2)`.
+- `dev/curvegen/CurveGen.java` and `net/PlaceBlocksPayload.java` are the common entrypoint and the placement packet from client to server. The server checks `hasPermissions(2)`.
 - `dev/curvegen/client/`:
   - `CurveGenClient`: keybinds (G opens the screen) and render hooks.
   - `BlockChoices`: the block chosen for each piece family, candidate lists, and the mapping from piece to `BlockState` for upright and flat builds.
@@ -53,7 +53,7 @@ Loom's `splitEnvironmentSourceSets()` splits the code into `src/main` (common) a
 
 `ConnectionRulesTest` covers these.
 
-- **Connections.** Fences join only fences. Panes and walls join each other. All three attach to sturdy full faces: full blocks, a stair's tall side, and an open trapdoor's panel. They never attach to slabs, closed trapdoors, or blocks where `Block.cannotConnect` is true (leaves, pumpkins, shulker boxes). `ShapeSettings.fullConnects` models that last case.
+- **Connections.** Fences join only fences. Panes and walls join each other. All three attach to sturdy full faces: full blocks, a stair's tall side, and an open trapdoor's panel. They never attach to slabs, closed trapdoors, or blocks where `Block.isExceptionForConnection` is true (leaves, pumpkins, shulker boxes). `ShapeSettings.fullConnects` models that last case.
 - **Wall sides (upright).** A side is tall when the block above covers that side's test region, taken from the bottom row of the block above.
 - **Wall posts (upright), depth 1.** A wall has a post unless it's straight (both sides connected). A straight wall keeps its post only if the block above covers its centre and the sides aren't both tall.
 - **Wall posts (upright), depth over 1.** The front and back walls connect on one side only, so they always have a post, and that's the post visible from the side.

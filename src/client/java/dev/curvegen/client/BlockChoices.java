@@ -4,36 +4,35 @@ import dev.curvegen.core.Pieces;
 import dev.curvegen.core.Pieces.Family;
 import dev.curvegen.core.PresetData;
 import dev.curvegen.core.ShapeSettings;
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.Blocks;
-import net.minecraft.block.FallingBlock;
-import net.minecraft.block.FenceBlock;
-import net.minecraft.block.OperatorBlock;
-import net.minecraft.block.PaneBlock;
-import net.minecraft.block.SlabBlock;
-import net.minecraft.block.StairsBlock;
-import net.minecraft.block.TrapdoorBlock;
-import net.minecraft.block.WallBlock;
-import net.minecraft.block.enums.BlockHalf;
-import net.minecraft.block.enums.SlabType;
-import net.minecraft.block.enums.WallShape;
-import net.minecraft.state.property.EnumProperty;
-import net.minecraft.item.Items;
-import net.minecraft.registry.Registries;
-import net.minecraft.state.property.BooleanProperty;
-import net.minecraft.state.property.Properties;
-import net.minecraft.state.property.Property;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Direction;
-import net.minecraft.world.EmptyBlockView;
-
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.EmptyBlockGetter;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.FallingBlock;
+import net.minecraft.world.level.block.FenceBlock;
+import net.minecraft.world.level.block.GameMasterBlock;
+import net.minecraft.world.level.block.IronBarsBlock;
+import net.minecraft.world.level.block.SlabBlock;
+import net.minecraft.world.level.block.StairBlock;
+import net.minecraft.world.level.block.TrapDoorBlock;
+import net.minecraft.world.level.block.WallBlock;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.block.state.properties.BooleanProperty;
+import net.minecraft.world.level.block.state.properties.EnumProperty;
+import net.minecraft.world.level.block.state.properties.Half;
+import net.minecraft.world.level.block.state.properties.Property;
+import net.minecraft.world.level.block.state.properties.SlabType;
+import net.minecraft.world.level.block.state.properties.WallSide;
 
 /** The block chosen for each piece family, and how a piece becomes a real BlockState. */
 public final class BlockChoices {
@@ -67,7 +66,7 @@ public final class BlockChoices {
     public static List<Block> candidates(Family f) {
         return CANDIDATES.computeIfAbsent(f, fam -> {
             List<Block> out = new ArrayList<>();
-            for (Block b : Registries.BLOCK) if (fits(b, fam)) out.add(b);
+            for (Block b : BuiltInRegistries.BLOCK) if (fits(b, fam)) out.add(b);
             out.sort(Comparator.comparing(b -> b.getName().getString()));
             return out;
         });
@@ -76,15 +75,15 @@ public final class BlockChoices {
     public static boolean fits(Block b, Family f) {
         if (b.asItem() == Items.AIR) return false;
         return switch (f) {
-            case FULL -> b.getDefaultState().isFullCube(EmptyBlockView.INSTANCE, BlockPos.ORIGIN)
+            case FULL -> b.defaultBlockState().isCollisionShapeFullBlock(EmptyBlockGetter.INSTANCE, BlockPos.ZERO)
                     && !(b instanceof FallingBlock)            // sand, gravel, concrete powder would fall
-                    && !(b instanceof OperatorBlock)           // command, structure and jigsaw blocks
+                    && !(b instanceof GameMasterBlock)           // command, structure and jigsaw blocks
                     && b != Blocks.BARRIER && b != Blocks.BEDROCK && !(b instanceof SlabBlock);
             case SLAB -> b instanceof SlabBlock;
-            case STAIRS -> b instanceof StairsBlock;
-            case TRAPDOOR -> b instanceof TrapdoorBlock;
+            case STAIRS -> b instanceof StairBlock;
+            case TRAPDOOR -> b instanceof TrapDoorBlock;
             case FENCE -> b instanceof FenceBlock;
-            case PANE -> b instanceof PaneBlock;
+            case PANE -> b instanceof IronBarsBlock;
             case WALL -> b instanceof WallBlock;
             default -> false;
         };
@@ -111,11 +110,11 @@ public final class BlockChoices {
     /** Fences, panes and walls refuse to attach to some full blocks (leaves, pumpkins, melons, shulker boxes…). */
     public static boolean fullBlockConnects() { return connects(CHOICE.get(Family.FULL)); }
 
-    public static boolean connects(Block full) { return !Block.cannotConnect(full.getDefaultState()); }
+    public static boolean connects(Block full) { return !Block.isExceptionForConnection(full.defaultBlockState()); }
 
     /** The current block choices as preset text. */
     public static Map<String, String> capture(ShapeSettings s) {
-        return PresetData.captureBlocks(s, f -> Registries.BLOCK.getId(CHOICE.get(f)).toString());
+        return PresetData.captureBlocks(s, f -> BuiltInRegistries.BLOCK.getKey(CHOICE.get(f)).toString());
     }
 
     /**
@@ -124,9 +123,9 @@ public final class BlockChoices {
      */
     public static void apply(Map<String, String> blocks, ShapeSettings s, Map<Family, Block> choice) {
         PresetData.applyBlocks(blocks, s, (f, id) -> {
-            Identifier key = Identifier.tryParse(id);
-            if (key == null || !Registries.BLOCK.containsId(key)) return;
-            Block b = Registries.BLOCK.get(key);
+            ResourceLocation key = ResourceLocation.tryParse(id);
+            if (key == null || !BuiltInRegistries.BLOCK.containsKey(key)) return;
+            Block b = BuiltInRegistries.BLOCK.get(key);
             if (fits(b, f)) choice.put(f, b);
         });
         s.fullConnects = connects(choice.get(Family.FULL));
@@ -144,21 +143,21 @@ public final class BlockChoices {
      */
     public static BlockState stateFor(int piece, Direction right, Direction forward, int k, int depth, boolean floor) {
         if (floor) return floorState(piece, right, forward, k, depth);
-        BlockState s = blockFor(piece).getDefaultState();
+        BlockState s = blockFor(piece).defaultBlockState();
         Direction left = right.getOpposite();
         switch (piece) {
             case Pieces.SLAB_B -> s = with(s, SlabBlock.TYPE, SlabType.BOTTOM);
             case Pieces.SLAB_T -> s = with(s, SlabBlock.TYPE, SlabType.TOP);
             // A stair's FACING is the side its tall back is on.
-            case Pieces.ST_UR -> s = with(with(s, StairsBlock.FACING, right), StairsBlock.HALF, BlockHalf.BOTTOM);
-            case Pieces.ST_UL -> s = with(with(s, StairsBlock.FACING, left), StairsBlock.HALF, BlockHalf.BOTTOM);
-            case Pieces.ST_DR -> s = with(with(s, StairsBlock.FACING, right), StairsBlock.HALF, BlockHalf.TOP);
-            case Pieces.ST_DL -> s = with(with(s, StairsBlock.FACING, left), StairsBlock.HALF, BlockHalf.TOP);
-            case Pieces.TD_B -> s = with(with(s, TrapdoorBlock.OPEN, false), TrapdoorBlock.HALF, BlockHalf.BOTTOM);
-            case Pieces.TD_T -> s = with(with(s, TrapdoorBlock.OPEN, false), TrapdoorBlock.HALF, BlockHalf.TOP);
+            case Pieces.ST_UR -> s = with(with(s, StairBlock.FACING, right), StairBlock.HALF, Half.BOTTOM);
+            case Pieces.ST_UL -> s = with(with(s, StairBlock.FACING, left), StairBlock.HALF, Half.BOTTOM);
+            case Pieces.ST_DR -> s = with(with(s, StairBlock.FACING, right), StairBlock.HALF, Half.TOP);
+            case Pieces.ST_DL -> s = with(with(s, StairBlock.FACING, left), StairBlock.HALF, Half.TOP);
+            case Pieces.TD_B -> s = with(with(s, TrapDoorBlock.OPEN, false), TrapDoorBlock.HALF, Half.BOTTOM);
+            case Pieces.TD_T -> s = with(with(s, TrapDoorBlock.OPEN, false), TrapDoorBlock.HALF, Half.TOP);
             // An open trapdoor lies against the side opposite its FACING.
-            case Pieces.TD_L -> s = with(with(s, TrapdoorBlock.OPEN, true), TrapdoorBlock.FACING, right);
-            case Pieces.TD_R -> s = with(with(s, TrapdoorBlock.OPEN, true), TrapdoorBlock.FACING, left);
+            case Pieces.TD_L -> s = with(with(s, TrapDoorBlock.OPEN, true), TrapDoorBlock.FACING, right);
+            case Pieces.TD_R -> s = with(with(s, TrapDoorBlock.OPEN, true), TrapDoorBlock.FACING, left);
             default -> {
                 if (Pieces.FAMILY[piece] == Family.WALL) {
                     s = wallState(s, piece, right, forward, k, depth);
@@ -170,38 +169,38 @@ public final class BlockChoices {
                 }
             }
         }
-        s = with(s, Properties.WATERLOGGED, false);
-        if (s.contains(Properties.PERSISTENT)) s = s.with(Properties.PERSISTENT, true);   // stop leaves decaying
+        s = with(s, BlockStateProperties.WATERLOGGED, false);
+        if (s.hasProperty(BlockStateProperties.PERSISTENT)) s = s.setValue(BlockStateProperties.PERSISTENT, true);   // stop leaves decaying
         return s;
     }
 
     /** A flat shape: the drawing is the view from above and layers stack upwards. */
     private static BlockState floorState(int piece, Direction right, Direction forward, int k, int depth) {
-        BlockState s = blockFor(piece).getDefaultState();
+        BlockState s = blockFor(piece).defaultBlockState();
         Direction left = right.getOpposite(), back = forward.getOpposite();
         switch (piece) {
             // An open trapdoor lies against the side opposite its FACING.
-            case Pieces.TD_L -> s = with(with(s, TrapdoorBlock.OPEN, true), TrapdoorBlock.FACING, right);
-            case Pieces.TD_R -> s = with(with(s, TrapdoorBlock.OPEN, true), TrapdoorBlock.FACING, left);
-            case Pieces.F_TD_U -> s = with(with(s, TrapdoorBlock.OPEN, true), TrapdoorBlock.FACING, back);
-            case Pieces.F_TD_D -> s = with(with(s, TrapdoorBlock.OPEN, true), TrapdoorBlock.FACING, forward);
+            case Pieces.TD_L -> s = with(with(s, TrapDoorBlock.OPEN, true), TrapDoorBlock.FACING, right);
+            case Pieces.TD_R -> s = with(with(s, TrapDoorBlock.OPEN, true), TrapDoorBlock.FACING, left);
+            case Pieces.F_TD_U -> s = with(with(s, TrapDoorBlock.OPEN, true), TrapDoorBlock.FACING, back);
+            case Pieces.F_TD_D -> s = with(with(s, TrapDoorBlock.OPEN, true), TrapDoorBlock.FACING, forward);
             default -> {
                 if (Pieces.isFloorConnector(piece)) {
                     int bits = Pieces.floorBits(piece);
                     Direction[] dirs = {left, right, forward, back};
                     if (Pieces.FAMILY[piece] == Family.WALL) {
                         // Every layer but the top has the same wall above it, which makes its sides tall.
-                        WallShape sh = k < depth - 1 ? WallShape.TALL : WallShape.LOW;
-                        for (int d = 0; d < 4; d++) s = with(s, wallSide(dirs[d]), (bits & (1 << d)) != 0 ? sh : WallShape.NONE);
-                        s = with(s, Properties.UP, Pieces.floorWallPost(bits));
+                        WallSide sh = k < depth - 1 ? WallSide.TALL : WallSide.LOW;
+                        for (int d = 0; d < 4; d++) s = with(s, wallSide(dirs[d]), (bits & (1 << d)) != 0 ? sh : WallSide.NONE);
+                        s = with(s, BlockStateProperties.UP, Pieces.floorWallPost(bits));
                     } else {
                         for (int d = 0; d < 4; d++) s = with(s, side(dirs[d]), (bits & (1 << d)) != 0);
                     }
                 }
             }
         }
-        s = with(s, Properties.WATERLOGGED, false);
-        if (s.contains(Properties.PERSISTENT)) s = s.with(Properties.PERSISTENT, true);
+        s = with(s, BlockStateProperties.WATERLOGGED, false);
+        if (s.hasProperty(BlockStateProperties.PERSISTENT)) s = s.setValue(BlockStateProperties.PERSISTENT, true);
         return s;
     }
 
@@ -212,38 +211,38 @@ public final class BlockChoices {
     private static BlockState wallState(BlockState s, int piece, Direction right, Direction forward, int k, int depth) {
         int l = Pieces.wallLeft(piece), r = Pieces.wallRight(piece);
         boolean covered = Pieces.wallCovered(piece), front = k < depth - 1, back = k > 0;
-        WallShape depthShape = covered ? WallShape.TALL : WallShape.LOW;
+        WallSide depthShape = covered ? WallSide.TALL : WallSide.LOW;
         s = with(s, wallSide(right.getOpposite()), shape(l));
         s = with(s, wallSide(right), shape(r));
-        s = with(s, wallSide(forward), front ? depthShape : WallShape.NONE);
-        s = with(s, wallSide(forward.getOpposite()), back ? depthShape : WallShape.NONE);
+        s = with(s, wallSide(forward), front ? depthShape : WallSide.NONE);
+        s = with(s, wallSide(forward.getOpposite()), back ? depthShape : WallSide.NONE);
         boolean post;
         if (!front && !back && l == 0 && r == 0) post = true;                       // on its own
         else if (front != back || (l == 0) != (r == 0)) post = true;                // a corner or an end
-        else if ((front && back && depthShape == WallShape.TALL) || (l == 2 && r == 2)) post = false; // straight and tall
+        else if ((front && back && depthShape == WallSide.TALL) || (l == 2 && r == 2)) post = false; // straight and tall
         else post = covered;                                                        // straight: post if something sits on it
-        return with(s, Properties.UP, post);
+        return with(s, BlockStateProperties.UP, post);
     }
 
-    private static WallShape shape(int v) { return v == 0 ? WallShape.NONE : v == 1 ? WallShape.LOW : WallShape.TALL; }
+    private static WallSide shape(int v) { return v == 0 ? WallSide.NONE : v == 1 ? WallSide.LOW : WallSide.TALL; }
 
-    private static EnumProperty<WallShape> wallSide(Direction d) {
+    private static EnumProperty<WallSide> wallSide(Direction d) {
         return switch (d) {
-            case NORTH -> Properties.NORTH_WALL_SHAPE; case SOUTH -> Properties.SOUTH_WALL_SHAPE;
-            case EAST -> Properties.EAST_WALL_SHAPE; case WEST -> Properties.WEST_WALL_SHAPE;
+            case NORTH -> BlockStateProperties.NORTH_WALL; case SOUTH -> BlockStateProperties.SOUTH_WALL;
+            case EAST -> BlockStateProperties.EAST_WALL; case WEST -> BlockStateProperties.WEST_WALL;
             default -> throw new IllegalArgumentException("not horizontal: " + d);
         };
     }
 
     private static BooleanProperty side(Direction d) {
         return switch (d) {
-            case NORTH -> Properties.NORTH; case SOUTH -> Properties.SOUTH;
-            case EAST -> Properties.EAST; case WEST -> Properties.WEST;
+            case NORTH -> BlockStateProperties.NORTH; case SOUTH -> BlockStateProperties.SOUTH;
+            case EAST -> BlockStateProperties.EAST; case WEST -> BlockStateProperties.WEST;
             default -> throw new IllegalArgumentException("not horizontal: " + d);
         };
     }
 
     private static <T extends Comparable<T>> BlockState with(BlockState s, Property<T> p, T v) {
-        return s.contains(p) ? s.with(p, v) : s;
+        return s.hasProperty(p) ? s.setValue(p, v) : s;
     }
 }

@@ -1,5 +1,6 @@
 package dev.curvegen.client.screen;
 
+import com.mojang.blaze3d.vertex.PoseStack;
 import dev.curvegen.client.BlockChoices;
 import dev.curvegen.client.CurveGenClient;
 import dev.curvegen.client.PresetStore;
@@ -8,16 +9,6 @@ import dev.curvegen.core.Pieces.Family;
 import dev.curvegen.core.PresetData;
 import dev.curvegen.core.ShapeSettings;
 import dev.curvegen.core.Solver;
-import net.minecraft.block.Block;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.ConfirmScreen;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.tooltip.Tooltip;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.CyclingButtonWidget;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.screen.ScreenTexts;
-import net.minecraft.text.Text;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.EnumMap;
@@ -26,6 +17,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Future;
 import java.util.function.BiConsumer;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.CycleButton;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.Tooltip;
+import net.minecraft.client.gui.screens.ConfirmScreen;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.CommonComponents;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.level.block.Block;
 
 /** Every saved preset for one shape tab, with search, a live preview, and pin / rename / delete. */
 public class PresetsScreen extends Screen {
@@ -33,15 +34,15 @@ public class PresetsScreen extends Screen {
     private final ShapeSettings.Gen gen;
     private final BiConsumer<Preset, Boolean> onLoad;   // the preset, and whether to load its blocks
 
-    private TextFieldWidget search;
+    private EditBox search;
     private String query = "";
     private List<Preset> shown = List.of();
     private Preset selected, previewed, hovered;
     private int scroll;
     private Preset lastClicked;
     private long lastClickTime;
-    private ButtonWidget previewButton, loadButton;
-    private CyclingButtonWidget<Boolean> blocksButton;
+    private Button previewButton, loadButton;
+    private CycleButton<Boolean> blocksButton;
     /** Whether to load the blocks of presets that have them. */
     private boolean loadBlocks = true;
 
@@ -62,7 +63,7 @@ public class PresetsScreen extends Screen {
             "...###...", "#########", ".#######.", ".#.#.#.#.", ".#.#.#.#.", ".#.#.#.#.", ".#.#.#.#.", ".#.#.#.#.", "..#####.."};
 
     public PresetsScreen(Screen parent, ShapeSettings.Gen gen, BiConsumer<Preset, Boolean> onLoad) {
-        super(Text.literal("Load a preset: " + switch (gen) { case ELLIPSE -> "ellipse"; case EQUATION -> "equation"; case BEZIER -> "Bézier curve"; }));
+        super(Component.literal("Load a preset: " + switch (gen) { case ELLIPSE -> "ellipse"; case EQUATION -> "equation"; case BEZIER -> "Bézier curve"; }));
         this.parent = parent; this.gen = gen; this.onLoad = onLoad;
     }
 
@@ -79,24 +80,24 @@ public class PresetsScreen extends Screen {
 
     @Override
     protected void init() {
-        search = new TextFieldWidget(textRenderer, listX(), 26, listW(), 20, Text.literal("Search"));
-        search.setPlaceholder(Text.literal("Search presets"));
-        search.setText(query);
-        search.setChangedListener(v -> { query = v; scroll = 0; refilter(); });
-        addDrawableChild(search);
+        search = new EditBox(font, listX(), 26, listW(), 20, Component.literal("Search"));
+        search.setHint(Component.literal("Search presets"));
+        search.setValue(query);
+        search.setResponder(v -> { query = v; scroll = 0; refilter(); });
+        addRenderableWidget(search);
         setInitialFocus(search);
 
-        int by = height - 26, bw = Math.max(60, textRenderer.getWidth("Preview") + 20);
-        int blocksW = textRenderer.getWidth("Blocks: OFF") + 20, x = width - 8 - 3 * bw - blocksW - 12;
-        previewButton = ButtonWidget.builder(Text.literal("Preview"), b -> previewed = selected).dimensions(x, by, bw, 20).build();
-        blocksButton = CyclingButtonWidget.onOffBuilder(loadBlocks).build(x + bw + 4, by, blocksW, 20, Text.literal("Blocks"),
+        int by = height - 26, bw = Math.max(60, font.width("Preview") + 20);
+        int blocksW = font.width("Blocks: OFF") + 20, x = width - 8 - 3 * bw - blocksW - 12;
+        previewButton = Button.builder(Component.literal("Preview"), b -> previewed = selected).bounds(x, by, bw, 20).build();
+        blocksButton = CycleButton.onOffBuilder(loadBlocks).create(x + bw + 4, by, blocksW, 20, Component.literal("Blocks"),
                 (b, v) -> { loadBlocks = v; textureFor = null; });
-        loadButton = ButtonWidget.builder(Text.literal("Load"), b -> { if (selected != null) load(selected); })
-                .dimensions(x + bw + blocksW + 8, by, bw, 20).build();
-        addDrawableChild(previewButton);
-        addDrawableChild(blocksButton);
-        addDrawableChild(loadButton);
-        addDrawableChild(ButtonWidget.builder(Text.literal("Cancel"), b -> close()).dimensions(width - 8 - bw, by, bw, 20).build());
+        loadButton = Button.builder(Component.literal("Load"), b -> { if (selected != null) load(selected); })
+                .bounds(x + bw + blocksW + 8, by, bw, 20).build();
+        addRenderableWidget(previewButton);
+        addRenderableWidget(blocksButton);
+        addRenderableWidget(loadButton);
+        addRenderableWidget(Button.builder(Component.literal("Cancel"), b -> onClose()).bounds(width - 8 - bw, by, bw, 20).build());
         refilter();
     }
 
@@ -107,7 +108,7 @@ public class PresetsScreen extends Screen {
     }
 
     private void load(Preset p) {
-        client.setScreen(parent);
+        minecraft.setScreen(parent);
         onLoad.accept(p, withBlocks(p));
     }
 
@@ -165,7 +166,7 @@ public class PresetsScreen extends Screen {
     private int iconX(int k) { return listX() + listW() - 4 - (3 - k) * (ICON + 2); }
 
     @Override
-    public void render(DrawContext ctx, int mx, int my, float delta) {
+    public void render(GuiGraphics ctx, int mx, int my, float delta) {
         int hr = rowAt(mx, my);
         hovered = hr >= 0 ? shown.get(hr) : null;
         previewButton.active = selected != null;
@@ -173,18 +174,18 @@ public class PresetsScreen extends Screen {
         boolean hasBlocks = selected != null && selected.blocks != null;
         blocksButton.active = hasBlocks;
         blocksButton.setValue(loadBlocks && (selected == null || hasBlocks));
-        blocksButton.setTooltip(Tooltip.of(Text.literal(selected == null ? "Select a preset first."
+        blocksButton.setTooltip(Tooltip.create(Component.literal(selected == null ? "Select a preset first."
                 : hasBlocks ? "Also load the preset's block for each piece type, and whether it's used."
                 : "This preset was saved without blocks.")));
         super.render(ctx, mx, my, delta);
-        ctx.drawTextWithShadow(textRenderer, title, listX(), 10, 0xFFFFFF);
+        ctx.drawString(font, title, listX(), 10, 0xFFFFFF);
 
         // list
         int x0 = listX(), x1 = x0 + listW(), top = listTop();
         ctx.fill(x0 - 1, top - 1, x1 + 1, listBottom() + 1, 0x80000000);
         if (shown.isEmpty()) {
             String msg = query.isBlank() ? "No presets yet. Use Save preset in the generator to add one." : "No presets match your search.";
-            ctx.drawTextWrapped(textRenderer, Text.literal(msg), x0 + 6, top + 6, listW() - 12, 0x9AA5B3);
+            ctx.drawWordWrap(font, Component.literal(msg), x0 + 6, top + 6, listW() - 12, 0x9AA5B3);
         }
         String tip = null;
         for (int i = scroll; i < shown.size() && i < scroll + visibleRows(); i++) {
@@ -195,8 +196,8 @@ public class PresetsScreen extends Screen {
             else if (hov) ctx.fill(x0, y, x1, y + ROW, 0x20FFFFFF);
             int room = listW() - 8 - (icons || p.pinned ? 3 * (ICON + 2) + 4 : 0);
             String name = p.name;
-            if (textRenderer.getWidth(name) > room) name = textRenderer.trimToWidth(name, room - textRenderer.getWidth("…")) + "…";
-            ctx.drawText(textRenderer, name, x0 + 5, y + 6, 0xE4E9EF, false);
+            if (font.width(name) > room) name = font.plainSubstrByWidth(name, room - font.width("…")) + "…";
+            ctx.drawString(font, name, x0 + 5, y + 6, 0xE4E9EF, false);
             int iy = y + (ROW - ICON) / 2;
             if (icons) {
                 int over = iconAt(i, mx, my);
@@ -221,41 +222,41 @@ public class PresetsScreen extends Screen {
         // preview
         int px0 = pvX0(), py0 = pvY0(), px1 = pvX1(), py1 = pvY1();
         ctx.fill(px0, py0, px1, py1, 0xFF15181D);
-        ctx.drawBorder(px0 - 1, py0 - 1, px1 - px0 + 2, py1 - py0 + 2, 0xFF3A424D);
+        ctx.renderOutline(px0 - 1, py0 - 1, px1 - px0 + 2, py1 - py0 + 2, 0xFF3A424D);
         Preset target = hovered != null ? hovered : previewed;
         if (target == null) {
-            ctx.drawTextWrapped(textRenderer, Text.literal("Hover a preset to preview it, or select one and press Preview."),
+            ctx.drawWordWrap(font, Component.literal("Hover a preset to preview it, or select one and press Preview."),
                     px0 + 8, py0 + 8, px1 - px0 - 16, 0x9AA5B3);
         } else {
             Solver.Result r = resultFor(target);
             int infoH = 24;
-            if (r == null) ctx.drawText(textRenderer, "Working…", px0 + 8, py0 + 8, 0x9AA5B3, false);
+            if (r == null) ctx.drawString(font, "Working…", px0 + 8, py0 + 8, 0x9AA5B3, false);
             else if (r.target().error != null)
-                ctx.drawTextWrapped(textRenderer, Text.literal(r.target().error), px0 + 8, py0 + 8, px1 - px0 - 16, 0xFF8098);
+                ctx.drawWordWrap(font, Component.literal(r.target().error), px0 + 8, py0 + 8, px1 - px0 - 16, 0xFF8098);
             else {
                 if (textureFor != target || texture.id() == null) { texture.update(r, CurveScreen.colors, true, true, choiceFor(target)); textureFor = target; }
                 float aw = px1 - px0 - 12, ah = py1 - py0 - 12 - infoH;
                 float z = Math.min(aw / r.nx(), ah / r.ny());
                 float ox = px0 + (px1 - px0 - r.nx() * z) / 2f, oy = py0 + 6 + (ah - r.ny() * z) / 2f;
                 ctx.enableScissor(px0, py0, px1, py1);
-                var m = ctx.getMatrices();
-                m.push();
+                var m = ctx.pose();
+                m.pushPose();
                 m.translate(ox, oy, 0);
                 float s = z / texture.sub;
                 m.scale(s, s, 1);
-                ctx.drawTexture(texture.id(), 0, 0, 0f, 0f, texture.width, texture.height, texture.width, texture.height);
-                m.pop();
+                ctx.blit(texture.id(), 0, 0, 0f, 0f, texture.width, texture.height, texture.width, texture.height);
+                m.popPose();
                 ctx.disableScissor();
             }
             ctx.fill(px0, py1 - infoH, px1, py1, 0xB0000000);
-            ctx.drawText(textRenderer, textRenderer.trimToWidth(target.name, px1 - px0 - 12), px0 + 6, py1 - infoH + 3, 0xFFFFFF, false);
+            ctx.drawString(font, font.plainSubstrByWidth(target.name, px1 - px0 - 12), px0 + 6, py1 - infoH + 3, 0xFFFFFF, false);
             String desc = PresetData.defaultName(settingsFor(target), gen);
-            ctx.drawText(textRenderer, textRenderer.trimToWidth(desc, px1 - px0 - 12), px0 + 6, py1 - infoH + 13, 0x9AA5B3, false);
+            ctx.drawString(font, font.plainSubstrByWidth(desc, px1 - px0 - 12), px0 + 6, py1 - infoH + 13, 0x9AA5B3, false);
         }
-        if (tip != null) ctx.drawTooltip(textRenderer, Text.literal(tip), mx, my);
+        if (tip != null) ctx.renderTooltip(font, Component.literal(tip), mx, my);
     }
 
-    private static void drawArt(DrawContext ctx, String[] art, int x, int y, int color) {
+    private static void drawArt(GuiGraphics ctx, String[] art, int x, int y, int color) {
         int ox = x + (ICON - 9) / 2, oy = y + (ICON - 9) / 2;
         for (int r = 0; r < art.length; r++)
             for (int c = 0; c < art[r].length(); c++)
@@ -299,7 +300,7 @@ public class PresetsScreen extends Screen {
     }
 
     private void rename(Preset p) {
-        client.setScreen(new NameDialogScreen(this, "Rename preset", p.name, name -> {
+        minecraft.setScreen(new NameDialogScreen(this, "Rename preset", p.name, name -> {
             if (name.isEmpty()) return new NameDialogScreen.Check(false, "Rename", "Type a name for the preset.");
             Preset other = PresetStore.find(gen, name);
             if (other != null && other != p) return new NameDialogScreen.Check(false, "Rename", "Another preset already has this name.");
@@ -308,7 +309,7 @@ public class PresetsScreen extends Screen {
     }
 
     private void delete(Preset p) {
-        client.setScreen(new ConfirmScreen(yes -> {
+        minecraft.setScreen(new ConfirmScreen(yes -> {
             if (yes) {
                 PresetStore.delete(p);
                 if (selected == p) selected = null;
@@ -316,10 +317,10 @@ public class PresetsScreen extends Screen {
                 results.keySet().removeIf(k -> k.preset() == p);
                 refilter();
             }
-            client.setScreen(this);
-        }, Text.literal("Are you sure?"),
-                Text.literal("Delete the preset \"" + p.name + "\"? This can't be undone."),
-                Text.literal("Delete"), ScreenTexts.CANCEL));
+            minecraft.setScreen(this);
+        }, Component.literal("Are you sure?"),
+                Component.literal("Delete the preset \"" + p.name + "\"? This can't be undone."),
+                Component.literal("Delete"), CommonComponents.GUI_CANCEL));
     }
 
     @Override
@@ -330,8 +331,8 @@ public class PresetsScreen extends Screen {
     }
 
     @Override
-    public void close() { client.setScreen(parent); }
+    public void onClose() { minecraft.setScreen(parent); }
 
     @Override
-    public boolean shouldPause() { return parent.shouldPause(); }
+    public boolean isPauseScreen() { return parent.isPauseScreen(); }
 }

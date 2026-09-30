@@ -1,18 +1,17 @@
 package dev.curvegen.client.screen;
 
+import com.mojang.blaze3d.platform.NativeImage;
 import dev.curvegen.client.BlockChoices;
 import dev.curvegen.client.ColorIndex;
 import dev.curvegen.core.Pieces;
 import dev.curvegen.core.Silhouette;
 import dev.curvegen.core.Solver;
 import dev.curvegen.core.Target;
-import net.minecraft.block.Block;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.texture.NativeImage;
-import net.minecraft.client.texture.NativeImageBackedTexture;
-import net.minecraft.util.Identifier;
-
 import java.util.Map;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.texture.DynamicTexture;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.level.block.Block;
 
 /** Paints a solved grid (pieces, grid lines, axes and the true curve) into one texture. */
 public final class PreviewTexture implements AutoCloseable {
@@ -21,11 +20,11 @@ public final class PreviewTexture implements AutoCloseable {
     static final int BG = 0xFF1B1F25, STONE = 0xFFA9AAA6, GRID = 0x22FFFFFF, GRID_MAJOR = 0x55FFFFFF,
             AXIS = 0xAA6EA0FF, CURVE = 0xFFFF4D73;
 
-    private NativeImageBackedTexture tex;
-    private Identifier id;
+    private DynamicTexture tex;
+    private ResourceLocation id;
     public int width, height, sub;
 
-    public Identifier id() { return id; }
+    public ResourceLocation id() { return id; }
 
     public void update(Solver.Result r, Colors colors, boolean curve, boolean grid) {
         update(r, colors, curve, grid, BlockChoices.CHOICE);
@@ -38,11 +37,11 @@ public final class PreviewTexture implements AutoCloseable {
         int w = r.nx() * sub, h = r.ny() * sub;
         if (tex == null || width != w || height != h) {
             close();
-            tex = new NativeImageBackedTexture(new NativeImage(w, h, false));
-            id = MinecraftClient.getInstance().getTextureManager().registerDynamicTexture("curvegen_preview", tex);
+            tex = new DynamicTexture(new NativeImage(w, h, false));
+            id = Minecraft.getInstance().getTextureManager().register("curvegen_preview", tex);
             width = w; height = h;
         }
-        NativeImage img = tex.getImage();
+        NativeImage img = tex.getPixels();
         img.fillRect(0, 0, w, h, abgr(BG));
 
         for (int j = 0; j < r.ny(); j++)
@@ -54,7 +53,7 @@ public final class PreviewTexture implements AutoCloseable {
                 boolean[] in = shape(p), border = sub >= 8 ? Silhouette.outline(in, sub) : null;
                 for (int y = 0; y < sub; y++)
                     for (int x = 0; x < sub; x++)
-                        if (in[y * sub + x]) img.setColor(ox + x, oy + y, abgr(border != null && border[y * sub + x] ? edge : rgb));
+                        if (in[y * sub + x]) img.setPixelRGBA(ox + x, oy + y, abgr(border != null && border[y * sub + x] ? edge : rgb));
             }
 
         if (grid && sub >= 4) {
@@ -112,7 +111,7 @@ public final class PreviewTexture implements AutoCloseable {
                 int px = (int) Math.floor(x1 + (x2 - x1) * u), py = (int) Math.floor(y1 + (y2 - y1) * u);
                 for (int a = 0; a < thick; a++) for (int b = 0; b < thick; b++) {
                     int xx = px + a - thick / 2, yy = py + b - thick / 2;
-                    if (xx >= 0 && yy >= 0 && xx < width && yy < height) img.setColor(xx, yy, abgr(CURVE));
+                    if (xx >= 0 && yy >= 0 && xx < width && yy < height) img.setPixelRGBA(xx, yy, abgr(CURVE));
                 }
             }
             run += len;
@@ -131,17 +130,17 @@ public final class PreviewTexture implements AutoCloseable {
 
     private void blend(NativeImage img, int x, int y, int argb) {
         if (x < 0 || y < 0 || x >= width || y >= height) return;
-        int dst = img.getColor(x, y);   // ABGR
+        int dst = img.getPixelRGBA(x, y);   // ABGR
         float a = (argb >>> 24) / 255f;
         int sr = (argb >> 16) & 0xFF, sg = (argb >> 8) & 0xFF, sb = argb & 0xFF;
         int dr = dst & 0xFF, dg = (dst >> 8) & 0xFF, db = (dst >> 16) & 0xFF;
         int r = (int) (sr * a + dr * (1 - a)), g = (int) (sg * a + dg * (1 - a)), b = (int) (sb * a + db * (1 - a));
-        img.setColor(x, y, 0xFF000000 | (b << 16) | (g << 8) | r);
+        img.setPixelRGBA(x, y, 0xFF000000 | (b << 16) | (g << 8) | r);
     }
 
     @Override
     public void close() {
-        if (id != null) MinecraftClient.getInstance().getTextureManager().destroyTexture(id);
+        if (id != null) Minecraft.getInstance().getTextureManager().release(id);
         id = null; tex = null; width = height = 0;
     }
 }
