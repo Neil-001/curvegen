@@ -14,6 +14,8 @@ The mod jar ends up in `build/libs/curvegen-1.0.0.jar`. Put it in your `mods` fo
 
 `./gradlew runClient` starts a development client with the mod loaded.
 
+`./gradlew test` runs the tests for the shape maths in `dev.curvegen.core`: parser, solver results, Minecraft's connection rules, carving, presets, Litematica packing, and the preview outlines. They don't need Minecraft running.
+
 The versions in `gradle.properties` are for 1.21.1. For newer builds, check https://fabricmc.net/develop. Moving to a different Minecraft version will need some code changes: rendering, networking and screen APIs shift between releases.
 
 ## Use

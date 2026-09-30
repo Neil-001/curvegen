@@ -10,6 +10,7 @@ import dev.curvegen.core.Layout;
 import dev.curvegen.core.Pieces;
 import dev.curvegen.core.Pieces.Family;
 import dev.curvegen.core.ShapeSettings;
+import dev.curvegen.core.Silhouette;
 import dev.curvegen.core.ShapeSettings.BzMode;
 import dev.curvegen.core.ShapeSettings.EllipseMode;
 import dev.curvegen.core.ShapeSettings.EqMode;
@@ -541,7 +542,7 @@ public class CurveScreen extends Screen {
         int size = 14;
         ctx.fill(x - 1, y - 1, x + size + 1, y + size + 1, 0x40FFFFFF);
         ctx.fill(x, y, x + size, y + size, PreviewTexture.BG);
-        boolean[] in = PreviewTexture.silhouette(p, size), edge = PreviewTexture.outline(in, size);
+        boolean[] in = Silhouette.of(p, size), edge = Silhouette.outline(in, size);
         int fill = PreviewTexture.colorFor(p, colors), dark = PreviewTexture.darken(fill, 0.55f);
         if (dim) { fill = (fill & 0xFFFFFF) | 0x58000000; dark = (dark & 0xFFFFFF) | 0x58000000; }
         for (int py = 0; py < size; py++)
