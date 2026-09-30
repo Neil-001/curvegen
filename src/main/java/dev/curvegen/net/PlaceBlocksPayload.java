@@ -5,7 +5,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * One batch of blocks to set, relative to an origin. States travel as raw block-state ids,
@@ -16,7 +16,7 @@ public record PlaceBlocksPayload(BlockPos origin, int[] offsets, int[] states, b
         implements CustomPacketPayload {
 
     public static final int MAX_PER_BATCH = 2500;
-    public static final CustomPacketPayload.Type<PlaceBlocksPayload> ID = new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(CurveGen.MOD_ID, "place_blocks"));
+    public static final CustomPacketPayload.Type<PlaceBlocksPayload> ID = new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath(CurveGen.MOD_ID, "place_blocks"));
     public static final StreamCodec<FriendlyByteBuf, PlaceBlocksPayload> CODEC = StreamCodec.ofMember(PlaceBlocksPayload::write, PlaceBlocksPayload::read);
 
     private static int zig(int v) { return (v << 1) ^ (v >> 31); }

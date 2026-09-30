@@ -9,11 +9,12 @@ import java.util.Map;
 import java.util.Optional;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.block.model.BakedQuad;
+import net.minecraft.client.renderer.block.model.BlockModelPart;
+import net.minecraft.client.renderer.block.model.BlockStateModel;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
-import net.minecraft.client.resources.model.BakedModel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.EmptyBlockGetter;
@@ -29,7 +30,7 @@ public final class ColorIndex {
 
     private static final Map<Block, Integer> SIDE = new HashMap<>(), TOP = new HashMap<>();
     /** Per texture: {red, green, blue, coverage}, or {-1} when it can't be read. */
-    private static final Map<ResourceLocation, int[]> TEXTURES = new HashMap<>();
+    private static final Map<Identifier, int[]> TEXTURES = new HashMap<>();
 
     /** Colour for the current build orientation (top face when building a floor). */
     public static int of(Block block) { return of(block, CurveGenClient.SETTINGS.floor); }
@@ -44,18 +45,21 @@ public final class ColorIndex {
         BlockState state = block.defaultBlockState();
         Minecraft mc = Minecraft.getInstance();
         try {
-            BakedModel model = mc.getBlockRenderer().getBlockModel(state);
+            BlockStateModel model = mc.getBlockRenderer().getBlockModel(state);
             Direction face = top ? Direction.UP : Direction.NORTH;
-            List<BakedQuad> quads = new ArrayList<>(model.getQuads(state, face, RandomSource.create(42L)));
+            List<BlockModelPart> parts = model.collectParts(RandomSource.create(42L));
+            List<BakedQuad> quads = new ArrayList<>();
+            for (BlockModelPart part : parts) quads.addAll(part.getQuads(face));
             if (quads.isEmpty())
-                for (BakedQuad q : model.getQuads(state, null, RandomSource.create(42L))) if (q.getDirection() == face) quads.add(q);
+                for (BlockModelPart part : parts)
+                    for (BakedQuad q : part.getQuads(null)) if (q.direction() == face) quads.add(q);
             double r = 0, g = 0, b = 0, w = 0;
             for (BakedQuad q : quads) {
-                int[] avg = average(q.getSprite());
+                int[] avg = average(q.sprite());
                 if (avg == null) continue;
                 int rr = avg[0], gg = avg[1], bb = avg[2];
                 if (q.isTinted()) {
-                    int tint = tint(state, q.getTintIndex());
+                    int tint = tint(state, q.tintIndex());
                     if (tint != -1) { rr = rr * ((tint >> 16) & 0xFF) / 255; gg = gg * ((tint >> 8) & 0xFF) / 255; bb = bb * (tint & 0xFF) / 255; }
                 }
                 r += rr * (double) avg[3]; g += gg * (double) avg[3]; b += bb * (double) avg[3]; w += avg[3];
@@ -63,7 +67,7 @@ public final class ColorIndex {
             if (w > 0) return ((int) (r / w) << 16) | ((int) (g / w) << 8) | (int) (b / w);
 
             // No quads on that face (unusual models): fall back to the particle texture.
-            int[] p = average(model.getParticleIcon());
+            int[] p = average(model.particleIcon());
             if (p != null) {
                 int rr = p[0], gg = p[1], bb = p[2];
                 int tint = tint(state, 0);
@@ -89,18 +93,18 @@ public final class ColorIndex {
         return v.length == 4 ? v : null;
     }
 
-    private static int[] readTexture(ResourceLocation sid) {
-        ResourceLocation tex = ResourceLocation.fromNamespaceAndPath(sid.getNamespace(), "textures/" + sid.getPath() + ".png");
+    private static int[] readTexture(Identifier sid) {
+        Identifier tex = Identifier.fromNamespaceAndPath(sid.getNamespace(), "textures/" + sid.getPath() + ".png");
         Optional<Resource> res = Minecraft.getInstance().getResourceManager().getResource(tex);
         if (res.isEmpty()) return new int[]{-1};
         try (InputStream in = res.get().open(); NativeImage img = NativeImage.read(in)) {
             long r = 0, g = 0, b = 0, w = 0;
             for (int y = 0; y < img.getHeight(); y++)
                 for (int x = 0; x < img.getWidth(); x++) {
-                    int abgr = img.getPixelRGBA(x, y);
-                    int a = abgr >>> 24;
+                    int argb = img.getPixel(x, y);
+                    int a = argb >>> 24;
                     if (a < 16) continue;
-                    r += (long) (abgr & 0xFF) * a; g += (long) ((abgr >> 8) & 0xFF) * a; b += (long) ((abgr >> 16) & 0xFF) * a; w += a;
+                    r += (long) ((argb >> 16) & 0xFF) * a; g += (long) ((argb >> 8) & 0xFF) * a; b += (long) (argb & 0xFF) * a; w += a;
                 }
             if (w == 0) return new int[]{-1};
             // Coverage (how much of the texture is opaque) weighs overlays such as the grass side's green fringe.

@@ -9,6 +9,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.permissions.Permissions;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import org.slf4j.Logger;
@@ -31,12 +32,12 @@ public class CurveGen implements ModInitializer {
         // Fabric runs play payload handlers on the server thread.
         ServerPlayNetworking.registerGlobalReceiver(PlaceBlocksPayload.ID, (payload, context) -> {
             ServerPlayer player = context.player();
-            if (!player.hasPermissions(2)) {
+            if (!player.permissions().hasPermission(Permissions.COMMANDS_GAMEMASTER)) {
                 if (payload.last())
                     player.displayClientMessage(Component.literal("Curve Generator: placing needs operator permissions (level 2). You can still export to Litematica.").withStyle(ChatFormatting.RED), false);
                 return;
             }
-            ServerLevel world = player.serverLevel();
+            ServerLevel world = player.level();
             int skipped = 0;
             for (int i = 0; i < payload.states().length; i++) {
                 BlockPos pos = payload.origin().offset(payload.offsets()[3 * i], payload.offsets()[3 * i + 1], payload.offsets()[3 * i + 2]);

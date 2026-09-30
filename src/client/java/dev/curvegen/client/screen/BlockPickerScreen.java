@@ -13,6 +13,7 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.CycleButton;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
@@ -52,8 +53,8 @@ public class BlockPickerScreen extends Screen {
         search.setResponder(v -> { query = v; scroll = 0; refilter(); });
         addRenderableWidget(search);
         setInitialFocus(search);
-        addRenderableWidget(CycleButton.<Sort>builder(s -> Component.literal(s == Sort.NAME ? "Name" : "Closest colour"))
-                .withValues(Sort.values()).withInitialValue(sort)
+        addRenderableWidget(CycleButton.<Sort>builder(s -> Component.literal(s == Sort.NAME ? "Name" : "Closest colour"), sort)
+                .withValues(Sort.values())
                 .create(M + 186, 24, 140, 20, Component.literal("Sort"), (b, v) -> { sort = v; refilter(); }));
         addRenderableWidget(Button.builder(Component.literal("Cancel"), b -> onClose()).bounds(width - M - 80, height - 26, 80, 20).build());
         refilter();
@@ -79,9 +80,9 @@ public class BlockPickerScreen extends Screen {
     @Override
     public void render(GuiGraphics ctx, int mx, int my, float delta) {
         super.render(ctx, mx, my, delta);
-        ctx.drawString(font, title, M, 8, 0xFFFFFF);
+        ctx.drawString(font, title, M, 8, 0xFFFFFFFF);
         String info = shown.size() + " of " + all.size() + " blocks";
-        ctx.drawString(font, info, width - M - font.width(info), 30, 0x9AA5B3, false);
+        ctx.drawString(font, info, width - M - font.width(info), 30, 0xFF9AA5B3, false);
 
         int cols = cols(), top = gridTop();
         Block current = BlockChoices.CHOICE.get(family);
@@ -101,19 +102,20 @@ public class BlockPickerScreen extends Screen {
             if (over) { ctx.fill(x, y, x + CELL - 2, y + CELL - 2, 0x40FFFFFF); hovered = b; }
             ctx.renderItem(new ItemStack(b), x + 1, y + 1);
         }
-        if (shown.isEmpty()) ctx.drawString(font, "No blocks match your search.", M, top + 4, 0x9AA5B3, false);
+        if (shown.isEmpty()) ctx.drawString(font, "No blocks match your search.", M, top + 4, 0xFF9AA5B3, false);
         if (maxScroll > 0) {
             int h = gridBottom() - top, bar = Math.max(10, h * visibleRows() / (maxScroll + visibleRows()));
             int by = top + (h - bar) * scroll / maxScroll;
             ctx.fill(width - 4, by, width - 2, by + bar, 0x80FFFFFF);
         }
         if (hovered != null)
-            ctx.renderTooltip(font, Component.literal(hovered.getName().getString() + "  #" + String.format("%06X", ColorIndex.of(hovered))), mx, my);
+            ctx.setTooltipForNextFrame(font, Component.literal(hovered.getName().getString() + "  #" + String.format("%06X", ColorIndex.of(hovered))), mx, my);
     }
 
     @Override
-    public boolean mouseClicked(double mx, double my, int button) {
-        if (super.mouseClicked(mx, my, button)) return true;
+    public boolean mouseClicked(MouseButtonEvent event, boolean doubled) {
+        double mx = event.x(), my = event.y(); int button = event.button();
+        if (super.mouseClicked(event, doubled)) return true;
         int cols = cols(), c = (int) ((mx - M) / CELL), r = (int) ((my - gridTop()) / CELL);
         if (mx < M || c >= cols || my < gridTop() || r >= visibleRows()) return false;
         int n = (r + scroll) * cols + c;

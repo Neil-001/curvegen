@@ -3,14 +3,12 @@ package dev.curvegen.client.screen;
 import com.mojang.blaze3d.vertex.PoseStack;
 import dev.curvegen.client.BlockChoices;
 import dev.curvegen.client.CurveGenClient;
-import dev.curvegen.client.PresetStore;
 import dev.curvegen.client.PresetStore.Preset;
+import dev.curvegen.client.PresetStore;
 import dev.curvegen.core.Pieces.Family;
 import dev.curvegen.core.PresetData;
 import dev.curvegen.core.ShapeSettings;
 import dev.curvegen.core.Solver;
-import org.lwjgl.glfw.GLFW;
-
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
@@ -24,9 +22,13 @@ import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.ConfirmScreen;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.level.block.Block;
+import org.lwjgl.glfw.GLFW;
 
 /** Every saved preset for one shape tab, with search, a live preview, and pin / rename / delete. */
 public class PresetsScreen extends Screen {
@@ -178,14 +180,14 @@ public class PresetsScreen extends Screen {
                 : hasBlocks ? "Also load the preset's block for each piece type, and whether it's used."
                 : "This preset was saved without blocks.")));
         super.render(ctx, mx, my, delta);
-        ctx.drawString(font, title, listX(), 10, 0xFFFFFF);
+        ctx.drawString(font, title, listX(), 10, 0xFFFFFFFF);
 
         // list
         int x0 = listX(), x1 = x0 + listW(), top = listTop();
         ctx.fill(x0 - 1, top - 1, x1 + 1, listBottom() + 1, 0x80000000);
         if (shown.isEmpty()) {
             String msg = query.isBlank() ? "No presets yet. Use Save preset in the generator to add one." : "No presets match your search.";
-            ctx.drawWordWrap(font, Component.literal(msg), x0 + 6, top + 6, listW() - 12, 0x9AA5B3);
+            ctx.drawWordWrap(font, Component.literal(msg), x0 + 6, top + 6, listW() - 12, 0xFF9AA5B3);
         }
         String tip = null;
         for (int i = scroll; i < shown.size() && i < scroll + visibleRows(); i++) {
@@ -197,7 +199,7 @@ public class PresetsScreen extends Screen {
             int room = listW() - 8 - (icons || p.pinned ? 3 * (ICON + 2) + 4 : 0);
             String name = p.name;
             if (font.width(name) > room) name = font.plainSubstrByWidth(name, room - font.width("…")) + "…";
-            ctx.drawString(font, name, x0 + 5, y + 6, 0xE4E9EF, false);
+            ctx.drawString(font, name, x0 + 5, y + 6, 0xFFE4E9EF, false);
             int iy = y + (ROW - ICON) / 2;
             if (icons) {
                 int over = iconAt(i, mx, my);
@@ -226,13 +228,13 @@ public class PresetsScreen extends Screen {
         Preset target = hovered != null ? hovered : previewed;
         if (target == null) {
             ctx.drawWordWrap(font, Component.literal("Hover a preset to preview it, or select one and press Preview."),
-                    px0 + 8, py0 + 8, px1 - px0 - 16, 0x9AA5B3);
+                    px0 + 8, py0 + 8, px1 - px0 - 16, 0xFF9AA5B3);
         } else {
             Solver.Result r = resultFor(target);
             int infoH = 24;
-            if (r == null) ctx.drawString(font, "Working…", px0 + 8, py0 + 8, 0x9AA5B3, false);
+            if (r == null) ctx.drawString(font, "Working…", px0 + 8, py0 + 8, 0xFF9AA5B3, false);
             else if (r.target().error != null)
-                ctx.drawWordWrap(font, Component.literal(r.target().error), px0 + 8, py0 + 8, px1 - px0 - 16, 0xFF8098);
+                ctx.drawWordWrap(font, Component.literal(r.target().error), px0 + 8, py0 + 8, px1 - px0 - 16, 0xFFFF8098);
             else {
                 if (textureFor != target || texture.id() == null) { texture.update(r, CurveScreen.colors, true, true, choiceFor(target)); textureFor = target; }
                 float aw = px1 - px0 - 12, ah = py1 - py0 - 12 - infoH;
@@ -240,20 +242,20 @@ public class PresetsScreen extends Screen {
                 float ox = px0 + (px1 - px0 - r.nx() * z) / 2f, oy = py0 + 6 + (ah - r.ny() * z) / 2f;
                 ctx.enableScissor(px0, py0, px1, py1);
                 var m = ctx.pose();
-                m.pushPose();
-                m.translate(ox, oy, 0);
+                m.pushMatrix();
+                m.translate(ox, oy);
                 float s = z / texture.sub;
-                m.scale(s, s, 1);
-                ctx.blit(texture.id(), 0, 0, 0f, 0f, texture.width, texture.height, texture.width, texture.height);
-                m.popPose();
+                m.scale(s, s);
+                ctx.blit(RenderPipelines.GUI_TEXTURED, texture.id(), 0, 0, 0f, 0f, texture.width, texture.height, texture.width, texture.height);
+                m.popMatrix();
                 ctx.disableScissor();
             }
             ctx.fill(px0, py1 - infoH, px1, py1, 0xB0000000);
-            ctx.drawString(font, font.plainSubstrByWidth(target.name, px1 - px0 - 12), px0 + 6, py1 - infoH + 3, 0xFFFFFF, false);
+            ctx.drawString(font, font.plainSubstrByWidth(target.name, px1 - px0 - 12), px0 + 6, py1 - infoH + 3, 0xFFFFFFFF, false);
             String desc = PresetData.defaultName(settingsFor(target), gen);
-            ctx.drawString(font, font.plainSubstrByWidth(desc, px1 - px0 - 12), px0 + 6, py1 - infoH + 13, 0x9AA5B3, false);
+            ctx.drawString(font, font.plainSubstrByWidth(desc, px1 - px0 - 12), px0 + 6, py1 - infoH + 13, 0xFF9AA5B3, false);
         }
-        if (tip != null) ctx.renderTooltip(font, Component.literal(tip), mx, my);
+        if (tip != null) ctx.setTooltipForNextFrame(font, Component.literal(tip), mx, my);
     }
 
     private static void drawArt(GuiGraphics ctx, String[] art, int x, int y, int color) {
@@ -265,8 +267,9 @@ public class PresetsScreen extends Screen {
 
     // ---------- input ----------
     @Override
-    public boolean mouseClicked(double mx, double my, int button) {
-        if (super.mouseClicked(mx, my, button)) return true;
+    public boolean mouseClicked(MouseButtonEvent event, boolean doubled) {
+        double mx = event.x(), my = event.y(); int button = event.button();
+        if (super.mouseClicked(event, doubled)) return true;
         int row = rowAt(mx, my);
         if (row < 0 || button != 0) return false;
         Preset p = shown.get(row);
@@ -294,9 +297,10 @@ public class PresetsScreen extends Screen {
     }
 
     @Override
-    public boolean keyPressed(int key, int scan, int mods) {
+    public boolean keyPressed(KeyEvent event) {
+        int key = event.key();
         if ((key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_KP_ENTER) && selected != null) { load(selected); return true; }
-        return super.keyPressed(key, scan, mods);
+        return super.keyPressed(event);
     }
 
     private void rename(Preset p) {

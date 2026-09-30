@@ -4,19 +4,24 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import dev.curvegen.core.Layout;
 import dev.curvegen.net.PlaceBlocksPayload;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.List;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
+import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.renderer.ShapeRenderer;
+import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.commands.arguments.blocks.BlockStateParser;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.permissions.Permissions;
+import net.minecraft.util.ARGB;
 import net.minecraft.world.level.EmptyBlockGetter;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
@@ -25,9 +30,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.List;
+import net.minecraft.world.phys.shapes.Shapes;
 
 /** After "Place": a translucent preview follows the crosshair until the player confirms or cancels. */
 public final class Placement {
@@ -175,31 +178,50 @@ public final class Placement {
     public static void render(WorldRenderContext ctx) {
         if (!active || anchor == null || entries.isEmpty() || !anchor.equals(viewAnchor)) return;
         Minecraft mc = Minecraft.getInstance();
-        PoseStack ms = ctx.matrixStack();
-        Vec3 cam = ctx.camera().getPosition();
+        PoseStack ms = ctx.matrices();
+        Vec3 cam = ctx.worldState().cameraRenderState.pos;
         MultiBufferSource.BufferSource imm = mc.renderBuffers().bufferSource();
         ms.pushPose();
         ms.translate(anchor.getX() - cam.x, anchor.getY() - cam.y, anchor.getZ() - cam.z);
 
         if (entries.size() <= HOLOGRAM_LIMIT) {
-            VertexConsumer fill = imm.getBuffer(RenderType.debugFilledBox());
-            for (Entry e : toPlace)
+            VertexConsumer fill = imm.getBuffer(RenderTypes.debugFilledBox());
+            PoseStack.Pose pose = ms.last();
+            for (Entry e : toPlace) {
+                int color = ARGB.colorFromFloat(0.45f, e.r, e.g, e.b);
                 for (AABB b : e.boxes)
-                    LevelRenderer.addChainedFilledBoxVertices(ms, fill,
-                            e.dx + b.minX, e.dy + b.minY, e.dz + b.minZ, e.dx + b.maxX, e.dy + b.maxY, e.dz + b.maxZ,
-                            e.r, e.g, e.b, 0.45f);
-            if (toBreak.size() <= HOLOGRAM_LIMIT)
+                    filledBox(pose, fill, e.dx + b.minX, e.dy + b.minY, e.dz + b.minZ, e.dx + b.maxX, e.dy + b.maxY, e.dz + b.maxZ, color);
+            }
+            if (toBreak.size() <= HOLOGRAM_LIMIT) {
+                int red = ARGB.colorFromFloat(0.28f, 1f, 0.2f, 0.25f);
                 for (BlockPos o : toBreak)   // blocks carving will remove, in red
-                    LevelRenderer.addChainedFilledBoxVertices(ms, fill, o.getX() + .02, o.getY() + .02, o.getZ() + .02,
-                            o.getX() + .98, o.getY() + .98, o.getZ() + .98, 1f, 0.2f, 0.25f, 0.28f);
-            imm.endBatch(RenderType.debugFilledBox());
+                    filledBox(pose, fill, o.getX() + .02, o.getY() + .02, o.getZ() + .02, o.getX() + .98, o.getY() + .98, o.getZ() + .98, red);
+            }
+            imm.endBatch(RenderTypes.debugFilledBox());
         }
-        VertexConsumer lines = imm.getBuffer(RenderType.lines());
+        VertexConsumer lines = imm.getBuffer(RenderTypes.lines());
+        float width = mc.getWindow().getAppropriateLineWidth();
         AABB bounds = new AABB(minDx, minDy, minDz, maxDx + 1, maxDy + 1, maxDz + 1);
-        LevelRenderer.renderLineBox(ms, lines, bounds, 1f, 1f, 1f, 0.9f);
-        LevelRenderer.renderLineBox(ms, lines, new AABB(0, 0, 0, 1, 1, 1).inflate(0.02), 1f, 0.3f, 0.45f, 1f);  // the anchor block
-        imm.endBatch(RenderType.lines());
+        ShapeRenderer.renderShape(ms, lines, Shapes.create(bounds), 0, 0, 0, ARGB.colorFromFloat(0.9f, 1f, 1f, 1f), width);
+        ShapeRenderer.renderShape(ms, lines, Shapes.create(new AABB(0, 0, 0, 1, 1, 1).inflate(0.02)), 0, 0, 0,
+                ARGB.colorFromFloat(1f, 1f, 0.3f, 0.45f), width);   // the anchor block
+        imm.endBatch(RenderTypes.lines());
         ms.popPose();
+    }
+
+    /** The six faces of a box as quads, each wound to face outwards so back faces are culled. */
+    private static void filledBox(PoseStack.Pose pose, VertexConsumer vc, double x0, double y0, double z0, double x1, double y1, double z1, int color) {
+        float a = (float) x0, b = (float) y0, c = (float) z0, d = (float) x1, e = (float) y1, f = (float) z1;
+        quad(pose, vc, color, a, b, c, d, b, c, d, b, f, a, b, f);   // down
+        quad(pose, vc, color, a, e, c, a, e, f, d, e, f, d, e, c);   // up
+        quad(pose, vc, color, a, b, c, a, e, c, d, e, c, d, b, c);   // north
+        quad(pose, vc, color, a, b, f, d, b, f, d, e, f, a, e, f);   // south
+        quad(pose, vc, color, a, b, c, a, b, f, a, e, f, a, e, c);   // west
+        quad(pose, vc, color, d, b, c, d, e, c, d, e, f, d, b, f);   // east
+    }
+
+    private static void quad(PoseStack.Pose pose, VertexConsumer vc, int color, float... xyz) {
+        for (int i = 0; i < 12; i += 3) vc.addVertex(pose, xyz[i], xyz[i + 1], xyz[i + 2]).setColor(color);
     }
 
     public static void renderHud(GuiGraphics dc) {
@@ -219,12 +241,12 @@ public final class Placement {
                 + key(CurveGenClient.LOCK) + (lockedAnchor != null ? " unlock (follow your view again)" : " lock position and direction") + ", "
                 + key(CurveGenClient.CANCEL) + " cancel").withStyle(ChatFormatting.GRAY));
         if (entries.size() > HOLOGRAM_LIMIT) lines.add(Component.literal("Large shape: only its outline is previewed.").withStyle(ChatFormatting.YELLOW));
-        if (!mc.player.hasPermissions(2))
+        if (!mc.player.permissions().hasPermission(Permissions.COMMANDS_GAMEMASTER))
             lines.add(Component.literal("You need operator permissions to place blocks here. Cancel and use Export instead.").withStyle(ChatFormatting.RED));
         int y = 6;
         for (Component t : lines) {
             dc.fill(4, y - 2, 8 + tr.width(t), y + 10, 0x90000000);
-            dc.drawString(tr, t, 6, y, 0xFFFFFF);
+            dc.drawString(tr, t, 6, y, 0xFFFFFFFF);
             y += 13;
         }
     }
@@ -236,7 +258,7 @@ public final class Placement {
     public static void confirm() {
         Minecraft mc = Minecraft.getInstance();
         if (!active || anchor == null || mc.player == null || mc.level == null) return;
-        if (!mc.player.hasPermissions(2)) {
+        if (!mc.player.permissions().hasPermission(Permissions.COMMANDS_GAMEMASTER)) {
             say(Component.literal("You need operator permissions (level 2) to place shapes. Use Export to make a Litematica schematic instead.").withStyle(ChatFormatting.RED));
             return;
         }

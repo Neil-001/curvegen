@@ -10,7 +10,7 @@ import dev.curvegen.core.Target;
 import java.util.Map;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.level.block.Block;
 
 /** Paints a solved grid (pieces, grid lines, axes and the true curve) into one texture. */
@@ -21,10 +21,12 @@ public final class PreviewTexture implements AutoCloseable {
             AXIS = 0xAA6EA0FF, CURVE = 0xFFFF4D73;
 
     private DynamicTexture tex;
-    private ResourceLocation id;
+    private Identifier id;
+    /** Several previews can be open at once (the main screen and the presets list), so each texture gets its own id. */
+    private static int nextId;
     public int width, height, sub;
 
-    public ResourceLocation id() { return id; }
+    public Identifier id() { return id; }
 
     public void update(Solver.Result r, Colors colors, boolean curve, boolean grid) {
         update(r, colors, curve, grid, BlockChoices.CHOICE);
@@ -37,12 +39,13 @@ public final class PreviewTexture implements AutoCloseable {
         int w = r.nx() * sub, h = r.ny() * sub;
         if (tex == null || width != w || height != h) {
             close();
-            tex = new DynamicTexture(new NativeImage(w, h, false));
-            id = Minecraft.getInstance().getTextureManager().register("curvegen_preview", tex);
+            id = Identifier.fromNamespaceAndPath("curvegen", "preview_" + nextId++);
+            tex = new DynamicTexture(id::toString, new NativeImage(w, h, false));
+            Minecraft.getInstance().getTextureManager().register(id, tex);
             width = w; height = h;
         }
         NativeImage img = tex.getPixels();
-        img.fillRect(0, 0, w, h, abgr(BG));
+        img.fillRect(0, 0, w, h, BG);
 
         for (int j = 0; j < r.ny(); j++)
             for (int i = 0; i < r.nx(); i++) {
@@ -53,7 +56,7 @@ public final class PreviewTexture implements AutoCloseable {
                 boolean[] in = shape(p), border = sub >= 8 ? Silhouette.outline(in, sub) : null;
                 for (int y = 0; y < sub; y++)
                     for (int x = 0; x < sub; x++)
-                        if (in[y * sub + x]) img.setPixelRGBA(ox + x, oy + y, abgr(border != null && border[y * sub + x] ? edge : rgb));
+                        if (in[y * sub + x]) img.setPixel(ox + x, oy + y, border != null && border[y * sub + x] ? edge : rgb);
             }
 
         if (grid && sub >= 4) {
@@ -111,16 +114,11 @@ public final class PreviewTexture implements AutoCloseable {
                 int px = (int) Math.floor(x1 + (x2 - x1) * u), py = (int) Math.floor(y1 + (y2 - y1) * u);
                 for (int a = 0; a < thick; a++) for (int b = 0; b < thick; b++) {
                     int xx = px + a - thick / 2, yy = py + b - thick / 2;
-                    if (xx >= 0 && yy >= 0 && xx < width && yy < height) img.setPixelRGBA(xx, yy, abgr(CURVE));
+                    if (xx >= 0 && yy >= 0 && xx < width && yy < height) img.setPixel(xx, yy, CURVE);
                 }
             }
             run += len;
         }
-    }
-
-    /** ARGB → the ABGR layout NativeImage uses. */
-    private static int abgr(int argb) {
-        return (argb & 0xFF00FF00) | ((argb >> 16) & 0xFF) | ((argb & 0xFF) << 16);
     }
 
     static int darken(int argb, float f) {
@@ -130,12 +128,12 @@ public final class PreviewTexture implements AutoCloseable {
 
     private void blend(NativeImage img, int x, int y, int argb) {
         if (x < 0 || y < 0 || x >= width || y >= height) return;
-        int dst = img.getPixelRGBA(x, y);   // ABGR
+        int dst = img.getPixel(x, y);
         float a = (argb >>> 24) / 255f;
         int sr = (argb >> 16) & 0xFF, sg = (argb >> 8) & 0xFF, sb = argb & 0xFF;
-        int dr = dst & 0xFF, dg = (dst >> 8) & 0xFF, db = (dst >> 16) & 0xFF;
+        int dr = (dst >> 16) & 0xFF, dg = (dst >> 8) & 0xFF, db = dst & 0xFF;
         int r = (int) (sr * a + dr * (1 - a)), g = (int) (sg * a + dg * (1 - a)), b = (int) (sb * a + db * (1 - a));
-        img.setPixelRGBA(x, y, 0xFF000000 | (b << 16) | (g << 8) | r);
+        img.setPixel(x, y, 0xFF000000 | (r << 16) | (g << 8) | b);
     }
 
     @Override

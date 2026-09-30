@@ -1,5 +1,5 @@
 {
-  "category.curvegen": "Curve Generator",
+  "key.category.curvegen.main": "Curve Generator",
   "key.curvegen.open": "Open curve generator",
   "key.curvegen.confirm": "Place shape (in placement mode)",
   "key.curvegen.cancel": "Cancel placement",

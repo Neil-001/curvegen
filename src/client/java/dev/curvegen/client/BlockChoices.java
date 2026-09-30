@@ -1,7 +1,7 @@
 package dev.curvegen.client;
 
-import dev.curvegen.core.Pieces;
 import dev.curvegen.core.Pieces.Family;
+import dev.curvegen.core.Pieces;
 import dev.curvegen.core.PresetData;
 import dev.curvegen.core.ShapeSettings;
 import java.util.ArrayList;
@@ -12,7 +12,7 @@ import java.util.Map;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.EmptyBlockGetter;
 import net.minecraft.world.level.block.Block;
@@ -123,9 +123,9 @@ public final class BlockChoices {
      */
     public static void apply(Map<String, String> blocks, ShapeSettings s, Map<Family, Block> choice) {
         PresetData.applyBlocks(blocks, s, (f, id) -> {
-            ResourceLocation key = ResourceLocation.tryParse(id);
+            Identifier key = Identifier.tryParse(id);
             if (key == null || !BuiltInRegistries.BLOCK.containsKey(key)) return;
-            Block b = BuiltInRegistries.BLOCK.get(key);
+            Block b = BuiltInRegistries.BLOCK.getValue(key);
             if (fits(b, f)) choice.put(f, b);
         });
         s.fullConnects = connects(choice.get(Family.FULL));

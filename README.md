@@ -2,12 +2,12 @@
 
 <!-- TODO: preview GIF -->
 
-A Fabric mod for Minecraft Java 1.21.1 that turns ellipses, equations and Bézier curves into blocks. It picks full blocks, slabs, stairs, trapdoors, fences, glass panes and walls to match the curve as closely as possible. You can then place the result in your world or export it as a Litematica schematic.
+A Fabric mod for Minecraft Java 1.21.11 that turns ellipses, equations and Bézier curves into blocks. It picks full blocks, slabs, stairs, trapdoors, fences, glass panes and walls to match the curve as closely as possible. You can then place the result in your world or export it as a Litematica schematic.
 
 ## Install
 
 <!-- TODO: add the Modrinth and CurseForge links on release. Also add the Modrinth URL as "homepage" in fabric.mod.json. -->
-Download the mod from Modrinth or CurseForge. Put the jar in your `mods` folder along with [Fabric API](https://modrinth.com/mod/fabric-api). You'll need Fabric Loader and Minecraft 1.21.1.
+Download the mod from Modrinth or CurseForge. Put the jar in your `mods` folder along with [Fabric API](https://modrinth.com/mod/fabric-api). You'll need Fabric Loader and Minecraft 1.21.11.
 
 ## Quick tour
 

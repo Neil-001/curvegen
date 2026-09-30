@@ -11,6 +11,7 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
@@ -76,7 +77,7 @@ public class ColorPickerScreen extends Screen {
     @Override
     public void render(GuiGraphics ctx, int mx, int my, float delta) {
         super.render(ctx, mx, my, delta);
-        ctx.drawString(font, title, sqX(), 16, 0xFFFFFF);
+        ctx.drawString(font, title, sqX(), 16, 0xFFFFFFFF);
         int x0 = sqX(), y0 = sqY();
         // saturation → x, value → y: one vertical gradient per column
         for (int i = 0; i < SQ; i++) {
@@ -92,37 +93,39 @@ public class ColorPickerScreen extends Screen {
         ctx.fill(x0 + 86, y0 + SQ + 10, x0 + 106, y0 + SQ + 30, 0xFF000000 | rgb());
 
         int lx = hx + 30, ly = y0;
-        ctx.drawString(font, "Closest blocks", lx, ly, 0xC8CED6, false);
+        ctx.drawString(font, "Closest blocks", lx, ly, 0xFFC8CED6, false);
         ly += 14;
         for (Family f : BlockChoices.FAMILIES) {
             Block b = preview.get(f);
             if (b == null) continue;
             ctx.fill(lx, ly, lx + 18, ly + 18, 0xFF000000 | ColorIndex.of(b));
             ctx.renderItem(new ItemStack(b), lx + 1, ly + 1);
-            ctx.drawString(font, BlockChoices.familyName(f), lx + 24, ly + 1, 0x9AA5B3, false);
-            ctx.drawString(font, font.plainSubstrByWidth(b.getName().getString(), width - lx - 30), lx + 24, ly + 10, 0xFFFFFF, false);
+            ctx.drawString(font, BlockChoices.familyName(f), lx + 24, ly + 1, 0xFF9AA5B3, false);
+            ctx.drawString(font, font.plainSubstrByWidth(b.getName().getString(), width - lx - 30), lx + 24, ly + 10, 0xFFFFFFFF, false);
             ly += 22;
         }
     }
 
     @Override
-    public boolean mouseClicked(double mx, double my, int button) {
-        if (super.mouseClicked(mx, my, button)) return true;
+    public boolean mouseClicked(MouseButtonEvent event, boolean doubled) {
+        double mx = event.x(), my = event.y(); int button = event.button();
+        if (super.mouseClicked(event, doubled)) return true;
         if (inRect(mx, my, sqX(), sqY(), SQ, SQ)) { dragging = 1; pick(mx, my); return true; }
         if (inRect(mx, my, hueX() - 2, sqY(), 16, SQ)) { dragging = 2; pick(mx, my); return true; }
         return false;
     }
 
     @Override
-    public boolean mouseDragged(double mx, double my, int button, double dx, double dy) {
+    public boolean mouseDragged(MouseButtonEvent event, double dx, double dy) {
+        double mx = event.x(), my = event.y();
         if (dragging != 0) { pick(mx, my); return true; }
-        return super.mouseDragged(mx, my, button, dx, dy);
+        return super.mouseDragged(event, dx, dy);
     }
 
     @Override
-    public boolean mouseReleased(double mx, double my, int button) {
+    public boolean mouseReleased(MouseButtonEvent event) {
         if (dragging != 0) { dragging = 0; refreshPreview(); }
-        return super.mouseReleased(mx, my, button);
+        return super.mouseReleased(event);
     }
 
     private void pick(double mx, double my) {

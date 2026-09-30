@@ -2,6 +2,15 @@ package dev.curvegen.client;
 
 import dev.curvegen.core.Layout;
 import dev.curvegen.core.LitematicBits;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.SharedConstants;
 import net.minecraft.core.Direction;
@@ -12,15 +21,6 @@ import net.minecraft.nbt.NbtIo;
 import net.minecraft.nbt.NbtUtils;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
 /**
  * Writes a single-region Litematica schematic into the game's schematics folder.
@@ -85,7 +85,7 @@ public final class LitematicExporter {
         regions.put(baseName, region);
 
         CompoundTag root = new CompoundTag();
-        root.putInt("MinecraftDataVersion", SharedConstants.getCurrentVersion().getDataVersion().getVersion());
+        root.putInt("MinecraftDataVersion", SharedConstants.getCurrentVersion().dataVersion().version());
         root.putInt("Version", SCHEMATIC_VERSION);
         root.putInt("SubVersion", SUB_VERSION);
         root.put("Metadata", meta);

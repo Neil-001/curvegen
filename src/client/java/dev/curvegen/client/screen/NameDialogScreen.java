@@ -1,7 +1,5 @@
 package dev.curvegen.client.screen;
 
-import org.lwjgl.glfw.GLFW;
-
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -12,7 +10,9 @@ import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.input.KeyEvent;
 import net.minecraft.network.chat.Component;
+import org.lwjgl.glfw.GLFW;
 
 /** A small dialog on top of the previous screen: a name field, an optional on/off option, and confirm or cancel. */
 public class NameDialogScreen extends Screen {
@@ -87,25 +87,25 @@ public class NameDialogScreen extends Screen {
     }
 
     @Override
-    public boolean keyPressed(int key, int scan, int mods) {
+    public boolean keyPressed(KeyEvent event) {
+        int key = event.key();
         if (key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_KP_ENTER) { submit(); return true; }
-        return super.keyPressed(key, scan, mods);
+        return super.keyPressed(event);
     }
 
     @Override
     public void render(GuiGraphics ctx, int mx, int my, float delta) {
-        parent.render(ctx, -1, -1, delta);      // the screen underneath, not interactive
-        ctx.pose().pushPose();
-        ctx.pose().translate(0, 0, 400);  // above everything the parent drew, items included
+        parent.renderBackground(ctx, -1, -1, delta);   // the screen underneath, not interactive
+        parent.render(ctx, -1, -1, delta);
+        ctx.nextStratum();   // above everything the parent drew, items included
         ctx.fill(0, 0, width, height, 0xA0000000);
         int x = x0(), y = y0();
         ctx.fill(x - 1, y - 1, x + W + 1, y + h() + 1, 0xFF5A6472);
         ctx.fill(x, y, x + W, y + h(), 0xFF1F252C);
-        ctx.drawString(font, title, x + 10, y + 9, 0xFFFFFF);
+        ctx.drawString(font, title, x + 10, y + 9, 0xFFFFFFFF);
         if (state != null && state.note() != null)
-            ctx.drawString(font, font.plainSubstrByWidth(state.note(), W - 20), x + 10, noteY(), state.allowed() ? 0xE0C07A : 0xFF8098, false);
+            ctx.drawString(font, font.plainSubstrByWidth(state.note(), W - 20), x + 10, noteY(), state.allowed() ? 0xFFE0C07A : 0xFFFF8098, false);
         for (var d : children()) if (d instanceof net.minecraft.client.gui.components.Renderable dr) dr.render(ctx, mx, my, delta);
-        ctx.pose().popPose();
     }
 
     @Override
