@@ -109,7 +109,7 @@ Only `*/stable` branches release. `main` never does. The `Release` workflow (`.g
 
 The workflow tags each release `<version>+mc<line>`, such as `1.1.0+mc1.21.x`. It skips a branch whose tag exists, so the default `branches=all` only releases branches with a new version. It creates the tag last, after every site has the release.
 
-If a site fails, re-run the failed jobs. A re-run skips versions already on Modrinth. CurseForge has no such check, so first look on CurseForge for the jar of each failed job, and re-run only if it isn't there. For the same reason, don't start a fresh run with CurseForge in `targets` after a partial release, because CurseForge has no duplicate check. To publish to fewer sites, pass `-f targets=curseforge,github`.
+If a site fails, re-run the failed jobs. A re-run skips versions already on Modrinth. CurseForge has no such check, so first look on CurseForge for the jar of each failed job, and re-run only if it isn't there. For the same reason, don't start a fresh run with CurseForge in `targets` after a partial release. To publish to fewer sites, pass `-f targets=curseforge,github`.
 
 **Release notes.** The `CHANGELOG.md` section goes to all three sites as written. Start with a short paragraph that says what the release changes for players. Then list the merged PRs under `## Features` and `## Fixes`, one bullet each, ending in the PR number. Rewrite PR titles so a player understands them, and leave out changes players can't see (CI, refactors, docs).
 
