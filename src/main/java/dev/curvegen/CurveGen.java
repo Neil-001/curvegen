@@ -4,13 +4,14 @@ import dev.curvegen.net.PlaceBlocksPayload;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
-import net.minecraft.util.math.BlockPos;
+import net.minecraft.ChatFormatting;
+import net.minecraft.core.BlockPos;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.permissions.Permissions;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,24 +31,24 @@ public class CurveGen implements ModInitializer {
 
         // Fabric runs play payload handlers on the server thread.
         ServerPlayNetworking.registerGlobalReceiver(PlaceBlocksPayload.ID, (payload, context) -> {
-            ServerPlayerEntity player = context.player();
-            if (!player.hasPermissionLevel(2)) {
+            ServerPlayer player = context.player();
+            if (!player.permissions().hasPermission(Permissions.COMMANDS_GAMEMASTER)) {
                 if (payload.last())
-                    player.sendMessage(Text.literal("Curve Generator: placing needs operator permissions (level 2). You can still export to Litematica.").formatted(Formatting.RED), false);
+                    player.displayClientMessage(Component.literal("Curve Generator: placing needs operator permissions (level 2). You can still export to Litematica.").withStyle(ChatFormatting.RED), false);
                 return;
             }
-            ServerWorld world = player.getServerWorld();
+            ServerLevel world = player.level();
             int skipped = 0;
             for (int i = 0; i < payload.states().length; i++) {
-                BlockPos pos = payload.origin().add(payload.offsets()[3 * i], payload.offsets()[3 * i + 1], payload.offsets()[3 * i + 2]);
-                BlockState state = Block.getStateFromRawId(payload.states()[i]);
-                if (!world.isInBuildLimit(pos) || !world.isChunkLoaded(pos)
-                        || !pos.isWithinDistance(player.getBlockPos(), MAX_DISTANCE)) { skipped++; continue; }
-                world.setBlockState(pos, state, Block.NOTIFY_ALL);
+                BlockPos pos = payload.origin().offset(payload.offsets()[3 * i], payload.offsets()[3 * i + 1], payload.offsets()[3 * i + 2]);
+                BlockState state = Block.stateById(payload.states()[i]);
+                if (!world.isInWorldBounds(pos) || !world.isLoaded(pos)
+                        || !pos.closerThan(player.blockPosition(), MAX_DISTANCE)) { skipped++; continue; }
+                world.setBlock(pos, state, Block.UPDATE_ALL);
             }
             if (payload.last()) {
                 String what = payload.undo() ? "Undid the last placement" : "Placed " + payload.total() + " blocks";
-                player.sendMessage(Text.literal("Curve Generator: " + what + (skipped > 0 ? " (" + skipped + " outside loaded chunks or build height were skipped in the last batch)" : "") + "."), false);
+                player.displayClientMessage(Component.literal("Curve Generator: " + what + (skipped > 0 ? " (" + skipped + " outside loaded chunks or build height were skipped in the last batch)" : "") + "."), false);
             }
         });
     }

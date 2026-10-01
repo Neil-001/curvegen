@@ -2,17 +2,6 @@ package dev.curvegen.client;
 
 import dev.curvegen.core.Layout;
 import dev.curvegen.core.LitematicBits;
-import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.SharedConstants;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.Blocks;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.nbt.NbtHelper;
-import net.minecraft.nbt.NbtIo;
-import net.minecraft.nbt.NbtList;
-import net.minecraft.nbt.NbtLongArray;
-import net.minecraft.util.math.Direction;
-
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -22,6 +11,16 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.SharedConstants;
+import net.minecraft.core.Direction;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.LongArrayTag;
+import net.minecraft.nbt.NbtIo;
+import net.minecraft.nbt.NbtUtils;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
 
 /**
  * Writes a single-region Litematica schematic into the game's schematics folder.
@@ -41,7 +40,7 @@ public final class LitematicExporter {
         int volume = sx * sy * sz;
         List<BlockState> palette = new ArrayList<>();
         Map<BlockState, Integer> index = new HashMap<>();
-        BlockState air = Blocks.AIR.getDefaultState();
+        BlockState air = Blocks.AIR.defaultBlockState();
         palette.add(air);
         index.put(air, 0);
         int[] values = new int[volume];
@@ -57,21 +56,21 @@ public final class LitematicExporter {
             }
         int bits = LitematicBits.bitsFor(palette.size());
 
-        NbtList paletteNbt = new NbtList();
-        for (BlockState st : palette) paletteNbt.add(NbtHelper.fromBlockState(st));
+        ListTag paletteNbt = new ListTag();
+        for (BlockState st : palette) paletteNbt.add(NbtUtils.writeBlockState(st));
 
-        NbtCompound region = new NbtCompound();
+        CompoundTag region = new CompoundTag();
         region.put("Position", vec(0, 0, 0));
         region.put("Size", vec(sx, sy, sz));
         region.put("BlockStatePalette", paletteNbt);
-        region.put("BlockStates", new NbtLongArray(LitematicBits.pack(values, bits)));
-        region.put("TileEntities", new NbtList());
-        region.put("Entities", new NbtList());
-        region.put("PendingBlockTicks", new NbtList());
-        region.put("PendingFluidTicks", new NbtList());
+        region.put("BlockStates", new LongArrayTag(LitematicBits.pack(values, bits)));
+        region.put("TileEntities", new ListTag());
+        region.put("Entities", new ListTag());
+        region.put("PendingBlockTicks", new ListTag());
+        region.put("PendingFluidTicks", new ListTag());
 
         long now = System.currentTimeMillis();
-        NbtCompound meta = new NbtCompound();
+        CompoundTag meta = new CompoundTag();
         meta.putString("Name", baseName);
         meta.putString("Author", author);
         meta.putString("Description", "Made with Curve Generator");
@@ -82,11 +81,11 @@ public final class LitematicExporter {
         meta.putLong("TimeModified", now);
         meta.put("EnclosingSize", vec(sx, sy, sz));
 
-        NbtCompound regions = new NbtCompound();
+        CompoundTag regions = new CompoundTag();
         regions.put(baseName, region);
 
-        NbtCompound root = new NbtCompound();
-        root.putInt("MinecraftDataVersion", SharedConstants.getGameVersion().getSaveVersion().getId());
+        CompoundTag root = new CompoundTag();
+        root.putInt("MinecraftDataVersion", SharedConstants.getCurrentVersion().dataVersion().version());
         root.putInt("Version", SCHEMATIC_VERSION);
         root.putInt("SubVersion", SUB_VERSION);
         root.put("Metadata", meta);
@@ -103,8 +102,8 @@ public final class LitematicExporter {
         return "curvegen_" + kind + "_" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
     }
 
-    private static NbtCompound vec(int x, int y, int z) {
-        NbtCompound c = new NbtCompound();
+    private static CompoundTag vec(int x, int y, int z) {
+        CompoundTag c = new CompoundTag();
         c.putInt("x", x); c.putInt("y", y); c.putInt("z", z);
         return c;
     }

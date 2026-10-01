@@ -3,18 +3,18 @@ package dev.curvegen.client.screen;
 import dev.curvegen.client.BlockChoices;
 import dev.curvegen.client.ColorIndex;
 import dev.curvegen.core.Pieces.Family;
-import net.minecraft.block.Block;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.item.ItemStack;
-import net.minecraft.text.Text;
-
 import java.util.EnumMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.IntConsumer;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.Block;
 
 /** Choose a colour; every piece type then uses the block whose texture is closest to it. */
 public class ColorPickerScreen extends Screen {
@@ -22,14 +22,14 @@ public class ColorPickerScreen extends Screen {
     private final IntConsumer onApply;
     private float hue, sat, val;
     private int dragging; // 0 none, 1 square, 2 hue bar
-    private TextFieldWidget hex;
+    private EditBox hex;
     private boolean updatingHex;
     private final Map<Family, Block> preview = new EnumMap<>(Family.class);
 
     private static final int SQ = 120;
 
     public ColorPickerScreen(Screen parent, int rgb, IntConsumer onApply) {
-        super(Text.literal("Match blocks to a colour"));
+        super(Component.literal("Match blocks to a colour"));
         this.parent = parent; this.onApply = onApply;
         float[] hsv = rgbToHsv(rgb);
         hue = hsv[0]; sat = hsv[1]; val = hsv[2];
@@ -41,9 +41,9 @@ public class ColorPickerScreen extends Screen {
 
     @Override
     protected void init() {
-        hex = new TextFieldWidget(textRenderer, sqX(), sqY() + SQ + 10, 80, 20, Text.literal("Hex colour"));
+        hex = new EditBox(font, sqX(), sqY() + SQ + 10, 80, 20, Component.literal("Hex colour"));
         hex.setMaxLength(7);
-        hex.setChangedListener(v -> {
+        hex.setResponder(v -> {
             if (updatingHex) return;
             String h = v.startsWith("#") ? v.substring(1) : v;
             if (h.length() == 6) try {
@@ -52,12 +52,12 @@ public class ColorPickerScreen extends Screen {
                 refreshPreview();
             } catch (NumberFormatException ignored) { }
         });
-        addDrawableChild(hex);
+        addRenderableWidget(hex);
         syncHex();
         int by = height - 28;
-        addDrawableChild(ButtonWidget.builder(Text.literal("Use these blocks"), b -> { onApply.accept(rgb()); close(); })
-                .dimensions(width / 2 - 124, by, 120, 20).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("Cancel"), b -> close()).dimensions(width / 2 + 4, by, 120, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Use these blocks"), b -> { onApply.accept(rgb()); onClose(); })
+                .bounds(width / 2 - 124, by, 120, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Cancel"), b -> onClose()).bounds(width / 2 + 4, by, 120, 20).build());
         refreshPreview();
     }
 
@@ -65,7 +65,7 @@ public class ColorPickerScreen extends Screen {
 
     private void syncHex() {
         updatingHex = true;
-        hex.setText(String.format(Locale.ROOT, "#%06X", rgb()));
+        hex.setValue(String.format(Locale.ROOT, "#%06X", rgb()));
         updatingHex = false;
     }
 
@@ -75,9 +75,9 @@ public class ColorPickerScreen extends Screen {
     }
 
     @Override
-    public void render(DrawContext ctx, int mx, int my, float delta) {
+    public void render(GuiGraphics ctx, int mx, int my, float delta) {
         super.render(ctx, mx, my, delta);
-        ctx.drawTextWithShadow(textRenderer, title, sqX(), 16, 0xFFFFFF);
+        ctx.drawString(font, title, sqX(), 16, 0xFFFFFFFF);
         int x0 = sqX(), y0 = sqY();
         // saturation → x, value → y: one vertical gradient per column
         for (int i = 0; i < SQ; i++) {
@@ -87,43 +87,45 @@ public class ColorPickerScreen extends Screen {
         int hx = hueX();
         for (int j = 0; j < SQ; j++) ctx.fill(hx, y0 + j, hx + 12, y0 + j + 1, 0xFF000000 | hsvToRgb(j / (float) SQ, 1f, 1f));
         int px = x0 + Math.round(sat * (SQ - 1)), py = y0 + Math.round((1 - val) * (SQ - 1));
-        ctx.drawBorder(px - 3, py - 3, 7, 7, 0xFFFFFFFF);
+        ctx.renderOutline(px - 3, py - 3, 7, 7, 0xFFFFFFFF);
         int hy = y0 + Math.round(hue * SQ);
         ctx.fill(hx - 2, hy - 1, hx + 14, hy + 1, 0xFFFFFFFF);
         ctx.fill(x0 + 86, y0 + SQ + 10, x0 + 106, y0 + SQ + 30, 0xFF000000 | rgb());
 
         int lx = hx + 30, ly = y0;
-        ctx.drawText(textRenderer, "Closest blocks", lx, ly, 0xC8CED6, false);
+        ctx.drawString(font, "Closest blocks", lx, ly, 0xFFC8CED6, false);
         ly += 14;
         for (Family f : BlockChoices.FAMILIES) {
             Block b = preview.get(f);
             if (b == null) continue;
             ctx.fill(lx, ly, lx + 18, ly + 18, 0xFF000000 | ColorIndex.of(b));
-            ctx.drawItem(new ItemStack(b), lx + 1, ly + 1);
-            ctx.drawText(textRenderer, BlockChoices.familyName(f), lx + 24, ly + 1, 0x9AA5B3, false);
-            ctx.drawText(textRenderer, textRenderer.trimToWidth(b.getName().getString(), width - lx - 30), lx + 24, ly + 10, 0xFFFFFF, false);
+            ctx.renderItem(new ItemStack(b), lx + 1, ly + 1);
+            ctx.drawString(font, BlockChoices.familyName(f), lx + 24, ly + 1, 0xFF9AA5B3, false);
+            ctx.drawString(font, font.plainSubstrByWidth(b.getName().getString(), width - lx - 30), lx + 24, ly + 10, 0xFFFFFFFF, false);
             ly += 22;
         }
     }
 
     @Override
-    public boolean mouseClicked(double mx, double my, int button) {
-        if (super.mouseClicked(mx, my, button)) return true;
+    public boolean mouseClicked(MouseButtonEvent event, boolean doubled) {
+        double mx = event.x(), my = event.y();
+        if (super.mouseClicked(event, doubled)) return true;
         if (inRect(mx, my, sqX(), sqY(), SQ, SQ)) { dragging = 1; pick(mx, my); return true; }
         if (inRect(mx, my, hueX() - 2, sqY(), 16, SQ)) { dragging = 2; pick(mx, my); return true; }
         return false;
     }
 
     @Override
-    public boolean mouseDragged(double mx, double my, int button, double dx, double dy) {
+    public boolean mouseDragged(MouseButtonEvent event, double dx, double dy) {
+        double mx = event.x(), my = event.y();
         if (dragging != 0) { pick(mx, my); return true; }
-        return super.mouseDragged(mx, my, button, dx, dy);
+        return super.mouseDragged(event, dx, dy);
     }
 
     @Override
-    public boolean mouseReleased(double mx, double my, int button) {
+    public boolean mouseReleased(MouseButtonEvent event) {
         if (dragging != 0) { dragging = 0; refreshPreview(); }
-        return super.mouseReleased(mx, my, button);
+        return super.mouseReleased(event);
     }
 
     private void pick(double mx, double my) {
@@ -168,5 +170,5 @@ public class ColorPickerScreen extends Screen {
     }
 
     @Override
-    public void close() { client.setScreen(parent); }
+    public void onClose() { minecraft.setScreen(parent); }
 }

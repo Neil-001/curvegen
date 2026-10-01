@@ -1,11 +1,11 @@
 package dev.curvegen.net;
 
 import dev.curvegen.CurveGen;
-import net.minecraft.network.PacketByteBuf;
-import net.minecraft.network.codec.PacketCodec;
-import net.minecraft.network.packet.CustomPayload;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.math.BlockPos;
+import net.minecraft.core.BlockPos;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.Identifier;
 
 /**
  * One batch of blocks to set, relative to an origin. States travel as raw block-state ids,
@@ -13,16 +13,16 @@ import net.minecraft.util.math.BlockPos;
  * 32 KiB limit for serverbound custom payloads.
  */
 public record PlaceBlocksPayload(BlockPos origin, int[] offsets, int[] states, boolean last, int total, boolean undo)
-        implements CustomPayload {
+        implements CustomPacketPayload {
 
     public static final int MAX_PER_BATCH = 2500;
-    public static final CustomPayload.Id<PlaceBlocksPayload> ID = new CustomPayload.Id<>(Identifier.of(CurveGen.MOD_ID, "place_blocks"));
-    public static final PacketCodec<PacketByteBuf, PlaceBlocksPayload> CODEC = PacketCodec.of(PlaceBlocksPayload::write, PlaceBlocksPayload::read);
+    public static final CustomPacketPayload.Type<PlaceBlocksPayload> ID = new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath(CurveGen.MOD_ID, "place_blocks"));
+    public static final StreamCodec<FriendlyByteBuf, PlaceBlocksPayload> CODEC = StreamCodec.ofMember(PlaceBlocksPayload::write, PlaceBlocksPayload::read);
 
     private static int zig(int v) { return (v << 1) ^ (v >> 31); }
     private static int unzig(int v) { return (v >>> 1) ^ -(v & 1); }
 
-    private void write(PacketByteBuf buf) {
+    private void write(FriendlyByteBuf buf) {
         buf.writeBlockPos(origin);
         buf.writeVarInt(states.length);
         for (int i = 0; i < states.length; i++) {
@@ -36,7 +36,7 @@ public record PlaceBlocksPayload(BlockPos origin, int[] offsets, int[] states, b
         buf.writeBoolean(undo);
     }
 
-    private static PlaceBlocksPayload read(PacketByteBuf buf) {
+    private static PlaceBlocksPayload read(FriendlyByteBuf buf) {
         BlockPos origin = buf.readBlockPos();
         int n = buf.readVarInt();
         if (n < 0 || n > MAX_PER_BATCH) throw new IllegalArgumentException("Too many blocks in one batch: " + n);
@@ -51,5 +51,5 @@ public record PlaceBlocksPayload(BlockPos origin, int[] offsets, int[] states, b
     }
 
     @Override
-    public Id<? extends CustomPayload> getId() { return ID; }
+    public Type<? extends CustomPacketPayload> type() { return ID; }
 }

@@ -2,12 +2,12 @@
 
 <!-- TODO: preview GIF -->
 
-A Fabric mod for Minecraft Java 1.21.1 that turns ellipses, equations and Bézier curves into blocks. It picks full blocks, slabs, stairs, trapdoors, fences, glass panes and walls to match the curve as closely as possible. You can then place the result in your world or export it as a Litematica schematic.
+A Fabric mod for Minecraft Java 1.21.11 that turns ellipses, equations and Bézier curves into blocks. It picks full blocks, slabs, stairs, trapdoors, fences, glass panes and walls to match the curve as closely as possible. You can then place the result in your world or export it as a Litematica schematic.
 
 ## Install
 
 <!-- TODO: add the Modrinth and CurseForge links on release. Also add the Modrinth URL as "homepage" in fabric.mod.json. -->
-Download the mod from Modrinth or CurseForge. Put the jar in your `mods` folder along with [Fabric API](https://modrinth.com/mod/fabric-api). You'll need Fabric Loader and Minecraft 1.21.1.
+Download the mod from Modrinth or CurseForge. Put the jar in your `mods` folder along with [Fabric API](https://modrinth.com/mod/fabric-api). You'll need Fabric Loader and Minecraft 1.21.11.
 
 ## Quick tour
 
@@ -34,7 +34,7 @@ You'll need JDK 21.
 ./gradlew test        # runs the tests for dev.curvegen.core
 ```
 
-On Windows, use `gradlew.bat`. The Minecraft, Yarn, Loader and Fabric API versions are in `gradle.properties`.
+On Windows, use `gradlew.bat`. The Minecraft, Loader and Fabric API versions are in `gradle.properties`.
 
 - `dev.curvegen.core` holds the shape maths and the solver. It has no Minecraft imports, so the tests run without the game. Keep it that way.
 - Run `./gradlew build` and `./gradlew test` before pushing.

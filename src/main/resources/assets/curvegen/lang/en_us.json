@@ -1,11 +1,11 @@
 {
-  "category.curvegen": "Curve Generator",
+  "key.category.curvegen.main": "Curve Generator",
   "key.curvegen.open": "Open curve generator",
   "key.curvegen.confirm": "Place shape (in placement mode)",
   "key.curvegen.cancel": "Cancel placement",
   "key.curvegen.rotate": "Rotate shape",
   "key.curvegen.raise": "Raise shape",
   "key.curvegen.lower": "Lower shape",
-  "key.curvegen.lock": "Lock or unlock shape position and direction",
+  "key.curvegen.lock": "Lock or unlock shape",
   "key.curvegen.undo": "Undo last placement"
 }
