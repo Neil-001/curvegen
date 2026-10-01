@@ -1,0 +1,78 @@
+name: Release
+
+# Publishes each selected */stable branch to Modrinth, CurseForge and GitHub releases.
+# The version comes from the branch's source. A branch whose version is already tagged is skipped.
+on:
+  workflow_dispatch:
+    inputs:
+      branches:
+        description: Branches to release, comma-separated, or "all" for every */stable branch
+        default: all
+      targets:
+        description: Sites to publish to. Narrow this to retry a release that failed part-way
+        default: modrinth,curseforge,github
+      dry_run:
+        description: Build and show what would be published, without publishing
+        type: boolean
+        default: false
+
+# Two runs must not release at the same time.
+concurrency:
+  group: release
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      branches: ${{ steps.plan.outputs.branches }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0   # every branch and tag
+
+      - name: Check the targets
+        env:
+          TARGETS: ${{ inputs.targets }}
+        run: |
+          for target in ${TARGETS//,/ }; do
+            case $target in
+              modrinth|curseforge|github) ;;
+              *) echo "::error::Unknown target \"$target\". Use modrinth, curseforge or github."; exit 1 ;;
+            esac
+          done
+
+      - id: plan
+        env:
+          BRANCHES: ${{ inputs.branches }}
+        run: |
+          plan=$(.github/scripts/release-plan.sh "$BRANCHES")
+          echo "branches=$plan" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Release plan"
+            jq -r 'if length == 0 then "Nothing to release. Every selected branch is already tagged."
+                   else .[] | "- `\(.branch)` as `\(.tag)`" end' <<< "$plan"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  release:
+    needs: plan
+    if: needs.plan.outputs.branches != '[]'
+    strategy:
+      fail-fast: false   # one branch failing doesn't stop the others
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.branches) }}
+    name: ${{ matrix.tag }}
+    permissions:
+      contents: write   # creates the tag and the GitHub release
+    uses: ./.github/workflows/release-branch.yml
+    with:
+      line: ${{ matrix.line }}
+      version: ${{ matrix.version }}
+      tag: ${{ matrix.tag }}
+      sha: ${{ matrix.sha }}
+      targets: ${{ inputs.targets }}
+      dry_run: ${{ inputs.dry_run }}
+    secrets: inherit
