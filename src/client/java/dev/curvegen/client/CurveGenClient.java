@@ -6,7 +6,7 @@ import dev.curvegen.core.ShapeSettings;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
-import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
+import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
 import net.fabricmc.fabric.api.resource.v1.ResourceLoader;
 import net.minecraft.client.KeyMapping;
@@ -58,7 +58,6 @@ public class CurveGenClient implements ClientModInitializer {
         // Block colours come from the active resource packs, so recompute them whenever packs change.
         ResourceLoader.get(PackType.CLIENT_RESOURCES).registerReloader(Identifier.fromNamespaceAndPath("curvegen", "block_colours"),
                 (ResourceManagerReloadListener) manager -> ColorIndex.clear());
-        // Deprecated, but unlike HudElementRegistry it still draws with the HUD hidden (F1), so the placement keys stay visible.
-        HudRenderCallback.EVENT.register((dc, tickCounter) -> Placement.renderHud(dc));
+        HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("curvegen", "placement"), (dc, tickCounter) -> Placement.renderHud(dc));
     }
 }

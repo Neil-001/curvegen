@@ -1,6 +1,5 @@
 package dev.curvegen.client.screen;
 
-import com.mojang.blaze3d.vertex.PoseStack;
 import dev.curvegen.client.BlockChoices;
 import dev.curvegen.client.CurveGenClient;
 import dev.curvegen.client.LitematicExporter;
@@ -21,7 +20,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map.Entry;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;

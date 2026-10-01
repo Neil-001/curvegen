@@ -42,7 +42,7 @@ public class CurveGen implements ModInitializer {
             for (int i = 0; i < payload.states().length; i++) {
                 BlockPos pos = payload.origin().offset(payload.offsets()[3 * i], payload.offsets()[3 * i + 1], payload.offsets()[3 * i + 2]);
                 BlockState state = Block.stateById(payload.states()[i]);
-                if (!world.isInWorldBounds(pos) || !world.hasChunkAt(pos)
+                if (!world.isInWorldBounds(pos) || !world.isLoaded(pos)
                         || !pos.closerThan(player.blockPosition(), MAX_DISTANCE)) { skipped++; continue; }
                 world.setBlock(pos, state, Block.UPDATE_ALL);
             }

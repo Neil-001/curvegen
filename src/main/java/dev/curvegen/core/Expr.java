@@ -17,6 +17,7 @@ public final class Expr {
     @FunctionalInterface public interface Fn { double eval(double x, double y); }
 
     public static final class ParseException extends Exception {
+        private static final long serialVersionUID = 1L;
         public ParseException(String msg) { super(msg); }
     }
 

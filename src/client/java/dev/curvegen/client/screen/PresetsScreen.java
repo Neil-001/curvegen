@@ -1,6 +1,5 @@
 package dev.curvegen.client.screen;
 
-import com.mojang.blaze3d.vertex.PoseStack;
 import dev.curvegen.client.BlockChoices;
 import dev.curvegen.client.CurveGenClient;
 import dev.curvegen.client.PresetStore.Preset;

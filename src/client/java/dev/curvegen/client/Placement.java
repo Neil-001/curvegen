@@ -11,7 +11,6 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.ShapeRenderer;
@@ -292,7 +291,6 @@ public final class Placement {
     }
 
     private static void send(List<BlockPos> pos, List<BlockState> states, boolean undo) {
-        Minecraft mc = Minecraft.getInstance();
         if (pos.isEmpty()) return;
         if (ClientPlayNetworking.canSend(PlaceBlocksPayload.ID)) {
             BlockPos origin = pos.get(0);

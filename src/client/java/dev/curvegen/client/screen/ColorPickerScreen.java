@@ -108,7 +108,7 @@ public class ColorPickerScreen extends Screen {
 
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean doubled) {
-        double mx = event.x(), my = event.y(); int button = event.button();
+        double mx = event.x(), my = event.y();
         if (super.mouseClicked(event, doubled)) return true;
         if (inRect(mx, my, sqX(), sqY(), SQ, SQ)) { dragging = 1; pick(mx, my); return true; }
         if (inRect(mx, my, hueX() - 2, sqY(), 16, SQ)) { dragging = 2; pick(mx, my); return true; }

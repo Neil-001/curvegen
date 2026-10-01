@@ -114,7 +114,7 @@ public class BlockPickerScreen extends Screen {
 
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean doubled) {
-        double mx = event.x(), my = event.y(); int button = event.button();
+        double mx = event.x(), my = event.y();
         if (super.mouseClicked(event, doubled)) return true;
         int cols = cols(), c = (int) ((mx - M) / CELL), r = (int) ((my - gridTop()) / CELL);
         if (mx < M || c >= cols || my < gridTop() || r >= visibleRows()) return false;
