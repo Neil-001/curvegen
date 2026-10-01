@@ -6,8 +6,7 @@ A Fabric mod for Minecraft Java 1.21.11 that turns ellipses, equations and Bézi
 
 ## Install
 
-<!-- TODO: add the Modrinth and CurseForge links on release. Also add the Modrinth URL as "homepage" in fabric.mod.json. -->
-Download the mod from Modrinth or CurseForge. Put the jar in your `mods` folder along with [Fabric API](https://modrinth.com/mod/fabric-api). You'll need Fabric Loader and Minecraft 1.21.11.
+Download the mod from [Modrinth](https://modrinth.com/mod/curvegen) or [CurseForge](https://www.curseforge.com/minecraft/mc-mods/curvegen). Put the jar in your `mods` folder along with [Fabric API](https://modrinth.com/mod/fabric-api). You'll need Fabric Loader and Minecraft 1.21.11.
 
 ## Quick tour
 
