@@ -1,8 +1,8 @@
 package dev.curvegen.client.screen;
 
-import dev.curvegen.client.Compat;
 import dev.curvegen.client.BlockChoices;
 import dev.curvegen.client.ColorIndex;
+import dev.curvegen.client.Compat;
 import dev.curvegen.core.Pieces.Family;
 import java.util.EnumMap;
 import java.util.Locale;

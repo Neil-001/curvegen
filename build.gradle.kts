@@ -56,9 +56,7 @@ tasks.processResources {
 }
 
 tasks.named<ProcessResources>("processClientResources") {
-    val mixin = hasMixin
-    inputs.property("mixin", mixin)
-    if (!mixin) exclude("curvegen.client.mixins.json")
+    if (!hasMixin) exclude("curvegen.client.mixins.json")
 }
 
 tasks.withType<JavaCompile>().configureEach {

@@ -1,8 +1,8 @@
 package dev.curvegen.client.screen;
 
 import dev.curvegen.CurveGen;
-import dev.curvegen.client.Compat;
 import dev.curvegen.client.BlockChoices;
+import dev.curvegen.client.Compat;
 import dev.curvegen.client.CurveGenClient;
 import dev.curvegen.client.LitematicExporter;
 import dev.curvegen.client.Placement;

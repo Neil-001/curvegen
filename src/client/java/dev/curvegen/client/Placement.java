@@ -2,6 +2,7 @@ package dev.curvegen.client;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
+import dev.curvegen.CurveGen;
 import dev.curvegen.core.Layout;
 import dev.curvegen.net.PlaceBlocksPayload;
 import java.util.ArrayDeque;
@@ -16,7 +17,6 @@ import net.minecraft.commands.arguments.blocks.BlockStateParser;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
-import dev.curvegen.CurveGen;
 import net.minecraft.world.level.EmptyBlockGetter;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;

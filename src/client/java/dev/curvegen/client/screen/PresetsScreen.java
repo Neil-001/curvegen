@@ -1,7 +1,7 @@
 package dev.curvegen.client.screen;
 
-import dev.curvegen.client.Compat;
 import dev.curvegen.client.BlockChoices;
+import dev.curvegen.client.Compat;
 import dev.curvegen.client.CurveGenClient;
 import dev.curvegen.client.PresetStore.Preset;
 import dev.curvegen.client.PresetStore;

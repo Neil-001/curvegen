@@ -2,8 +2,8 @@ package dev.curvegen.client.screen;
 
 import com.mojang.blaze3d.platform.NativeImage;
 import dev.curvegen.client.BlockChoices;
-import dev.curvegen.client.Compat;
 import dev.curvegen.client.ColorIndex;
+import dev.curvegen.client.Compat;
 import dev.curvegen.core.Pieces;
 import dev.curvegen.core.Silhouette;
 import dev.curvegen.core.Solver;
