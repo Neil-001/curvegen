@@ -712,7 +712,7 @@ public class CurveScreen extends Screen {
         for (Label l : labels) ctx.drawString(font, l.text, l.x, l.y, 0xFFC8CED6);
         for (Icon ic : icons) ctx.renderItem(ic.stack, ic.x, ic.y);
         int hintLimit = tab == Tab.BLOCKS || tab == Tab.COUNT ? height - 30 : presetRowY() - 4;
-        if (hint != null && hintY + 18 < hintLimit) ctx.drawWordWrap(font, Component.literal(hint), M, hintY, PANEL_W, 0xFF9AA5B3);
+        if (hint != null && hintY + 18 < hintLimit) ctx.drawWordWrap(font, Component.literal(hint), M, hintY, PANEL_W, 0xFF9AA5B3, false);
         if (tab == Tab.BEZIER && S.pts.size() > listVisible) {
             int h = listVisible * POINT_ROW - 2, bar = Math.max(6, h * listVisible / S.pts.size());
             int by = listTop + (h - bar) * pointScroll / Math.max(1, S.pts.size() - listVisible);
