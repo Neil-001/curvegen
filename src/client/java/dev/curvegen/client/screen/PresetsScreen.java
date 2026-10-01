@@ -186,7 +186,7 @@ public class PresetsScreen extends Screen {
         ctx.fill(x0 - 1, top - 1, x1 + 1, listBottom() + 1, 0x80000000);
         if (shown.isEmpty()) {
             String msg = query.isBlank() ? "No presets yet. Use Save preset in the generator to add one." : "No presets match your search.";
-            ctx.drawWordWrap(font, Component.literal(msg), x0 + 6, top + 6, listW() - 12, 0xFF9AA5B3);
+            ctx.drawWordWrap(font, Component.literal(msg), x0 + 6, top + 6, listW() - 12, 0xFF9AA5B3, false);
         }
         String tip = null;
         for (int i = scroll; i < shown.size() && i < scroll + visibleRows(); i++) {
@@ -227,13 +227,13 @@ public class PresetsScreen extends Screen {
         Preset target = hovered != null ? hovered : previewed;
         if (target == null) {
             ctx.drawWordWrap(font, Component.literal("Hover a preset to preview it, or select one and press Preview."),
-                    px0 + 8, py0 + 8, px1 - px0 - 16, 0xFF9AA5B3);
+                    px0 + 8, py0 + 8, px1 - px0 - 16, 0xFF9AA5B3, false);
         } else {
             Solver.Result r = resultFor(target);
             int infoH = 24;
             if (r == null) ctx.drawString(font, "Working…", px0 + 8, py0 + 8, 0xFF9AA5B3, false);
             else if (r.target().error != null)
-                ctx.drawWordWrap(font, Component.literal(r.target().error), px0 + 8, py0 + 8, px1 - px0 - 16, 0xFFFF8098);
+                ctx.drawWordWrap(font, Component.literal(r.target().error), px0 + 8, py0 + 8, px1 - px0 - 16, 0xFFFF8098, false);
             else {
                 if (textureFor != target || texture.id() == null) { texture.update(r, CurveScreen.colors, true, true, choiceFor(target)); textureFor = target; }
                 float aw = px1 - px0 - 12, ah = py1 - py0 - 12 - infoH;
