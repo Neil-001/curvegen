@@ -15,7 +15,7 @@ notes=$(awk -v heading="# $version" '
 	$0 == heading { found = 1; next }
 	found && /^# / { exit }
 	found { print }
-' "$file" | sed -e '/./,$!d' | tac | sed -e '/./,$!d' | tac)   # the seds trim blank lines at both ends
+' "$file" | sed '/./,$!d')   # sed drops leading blank lines, $(...) drops trailing ones
 
 [ -n "$notes" ] || { echo "::error::$file has no \"# $version\" section. Add one before releasing." >&2; exit 1; }
 echo "$notes"
