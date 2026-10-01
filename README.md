@@ -37,7 +37,7 @@ The [wiki](https://github.com/Neil-001/curvegen/wiki) covers the rest: placement
 
 You'll need JDK 21.
 
-This is the `1.21.x` branch. It builds one jar for each group of Minecraft versions in the table above, using [Stonecutter](https://stonecutter.kikugie.dev/). It gets bug fixes only. New features go on `main`.
+This is the `1.21.x/stable` branch. It builds one jar for each group of Minecraft versions in the table above, using [Stonecutter](https://stonecutter.kikugie.dev/). It gets bug fixes only. New features go on `main`.
 
 ```
 ./gradlew buildAndCollect      # builds and tests all six jars, and copies them into build/libs/
