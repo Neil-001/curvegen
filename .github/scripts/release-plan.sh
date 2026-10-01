@@ -16,7 +16,7 @@ if [ "$requested" = all ]; then
 	mapfile -t branches < <(git for-each-ref --format='%(refname:lstrip=3)' refs/remotes/origin | grep '/stable$' || true)
 	[ ${#branches[@]} -gt 0 ] || { echo "::error::No */stable branches found." >&2; exit 1; }
 else
-	IFS=, read -ra branches <<< "${requested// /}"
+	mapfile -t branches < <(tr ',' '\n' <<< "${requested// /}" | awk 'NF && !seen[$0]++')
 fi
 
 # The version is in stonecutter.properties.toml on multi-version branches and in gradle.properties on the rest.
@@ -29,7 +29,6 @@ read_version() {
 
 plan='[]'
 for branch in "${branches[@]}"; do
-	[ -n "$branch" ] || continue
 	case $branch in
 		*/stable) ;;
 		*) echo "::error::$branch is not a */stable branch. Only those release." >&2; exit 1 ;;

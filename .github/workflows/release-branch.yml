@@ -40,6 +40,25 @@ jobs:
     outputs:
       jars: ${{ steps.jars.outputs.jars }}
     steps:
+      # mc-publish skips a site whose token is empty and still passes, so fail here before anything is published.
+      - name: Check the tokens and project IDs
+        if: ${{ !inputs.dry_run }}
+        env:
+          TARGETS: ${{ inputs.targets }}
+          MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
+          CURSEFORGE_TOKEN: ${{ secrets.CURSEFORGE_TOKEN }}
+        run: |
+          missing=
+          case $TARGETS in *modrinth*)
+            [ -n "$MODRINTH_TOKEN" ] || missing+=" MODRINTH_TOKEN"
+            [ -n "$MODRINTH_ID" ] || missing+=" MODRINTH_PROJECT_ID"
+          esac
+          case $TARGETS in *curseforge*)
+            [ -n "$CURSEFORGE_TOKEN" ] || missing+=" CURSEFORGE_TOKEN"
+            [ -n "$CURSEFORGE_ID" ] || missing+=" CURSEFORGE_PROJECT_ID"
+          esac
+          [ -z "$missing" ] || { echo "::error::Not set in the repository's secrets and variables:$missing"; exit 1; }
+
       - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.sha }}
@@ -144,7 +163,6 @@ jobs:
           MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
           VERSION: ${{ matrix.jar.version }}
         run: |
-          [ -n "$MODRINTH_ID" ] || { echo "::error::The MODRINTH_PROJECT_ID variable is not set."; exit 1; }
           status=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: $MODRINTH_TOKEN" \
             "https://api.modrinth.com/v2/project/$MODRINTH_ID/version/$(jq -rn --arg v "$VERSION" '$v | @uri')")
           case $status in
@@ -164,7 +182,6 @@ jobs:
           version: ${{ matrix.jar.version }}
           changelog-file: dist/notes.md
           loaders: fabric
-          dependencies: fabric-api(required){modrinth:P7dR8mSH}
           java: 21
 
       - name: Publish to CurseForge
@@ -178,7 +195,6 @@ jobs:
           version: ${{ matrix.jar.version }}
           changelog-file: dist/notes.md
           loaders: fabric
-          dependencies: fabric-api(required){curseforge:306612}
           java: 21
 
   # Last, so the tag means every site has the release. One GitHub release holds all the branch's jars.
