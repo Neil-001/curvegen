@@ -2,12 +2,21 @@
 
 <!-- TODO: preview GIF -->
 
-A Fabric mod for Minecraft Java 1.21.11 that turns ellipses, equations and Bézier curves into blocks. It picks full blocks, slabs, stairs, trapdoors, fences, glass panes and walls to match the curve as closely as possible. You can then place the result in your world or export it as a Litematica schematic.
+A Fabric mod for Minecraft Java 1.21 to 1.21.11 that turns ellipses, equations and Bézier curves into blocks. It picks full blocks, slabs, stairs, trapdoors, fences, glass panes and walls to match the curve as closely as possible. You can then place the result in your world or export it as a Litematica schematic.
 
 ## Install
 
 <!-- TODO: add the Modrinth and CurseForge links on release. Also add the Modrinth URL as "homepage" in fabric.mod.json. -->
-Download the mod from Modrinth or CurseForge. Put the jar in your `mods` folder along with [Fabric API](https://modrinth.com/mod/fabric-api). You'll need Fabric Loader and Minecraft 1.21.11.
+Download the mod from Modrinth or CurseForge. Put the jar in your `mods` folder along with [Fabric API](https://modrinth.com/mod/fabric-api). You'll need Fabric Loader and any Minecraft version from 1.21 to 1.21.11. Pick the jar for your version:
+
+| Jar | Minecraft |
+|---|---|
+| `+mc1.21` | 1.21, 1.21.1 |
+| `+mc1.21.2` | 1.21.2, 1.21.3, 1.21.4 |
+| `+mc1.21.5` | 1.21.5 |
+| `+mc1.21.6` | 1.21.6, 1.21.7, 1.21.8 |
+| `+mc1.21.9` | 1.21.9, 1.21.10 |
+| `+mc1.21.11` | 1.21.11 |
 
 ## Quick tour
 
@@ -28,16 +37,20 @@ The [wiki](https://github.com/Neil-001/curvegen/wiki) covers the rest: placement
 
 You'll need JDK 21.
 
+This is the `1.21.x` branch. It builds one jar for each group of Minecraft versions in the table above, using [Stonecutter](https://stonecutter.kikugie.dev/). It gets bug fixes only. New features go on `main`.
+
 ```
-./gradlew build       # builds the jar into build/libs/
-./gradlew runClient   # starts a dev client with the mod
-./gradlew test        # runs the tests for dev.curvegen.core
+./gradlew buildAndCollect      # builds and tests all six jars, and copies them into build/libs/
+./gradlew :1.21.5:build        # builds and tests one of them
+./gradlew :1.21.5:runClient    # starts a dev client on that version
 ```
 
-On Windows, use `gradlew.bat`. The Minecraft, Loader and Fabric API versions are in `gradle.properties`.
+On Windows, use `gradlew.bat`. The version groups and their Fabric API versions are in `stonecutter.properties.toml`.
+
+The source in `src/` is the 1.21.11 code. Code for other versions sits next to it in `//? if` comments, which Stonecutter switches on when it builds them. To edit with another version's code switched on, run its "Set active project" task, for example `./gradlew "Set active project to 1.21.5"`. Run `./gradlew "Reset active project"` before you commit.
 
 - `dev.curvegen.core` holds the shape maths and the solver. It has no Minecraft imports, so the tests run without the game. Keep it that way.
-- Run `./gradlew build` and `./gradlew test` before pushing.
+- Run `./gradlew build` before pushing. It builds and tests every version.
 
 ---
 

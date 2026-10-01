@@ -9,8 +9,6 @@ import java.util.Map;
 import java.util.Optional;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.block.model.BakedQuad;
-import net.minecraft.client.renderer.block.model.BlockModelPart;
-import net.minecraft.client.renderer.block.model.BlockStateModel;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -45,21 +43,34 @@ public final class ColorIndex {
         BlockState state = block.defaultBlockState();
         Minecraft mc = Minecraft.getInstance();
         try {
-            BlockStateModel model = mc.getBlockRenderer().getBlockModel(state);
+            var model = mc.getBlockRenderer().getBlockModel(state);
             Direction face = top ? Direction.UP : Direction.NORTH;
-            List<BlockModelPart> parts = model.collectParts(RandomSource.create(42L));
             List<BakedQuad> quads = new ArrayList<>();
-            for (BlockModelPart part : parts) quads.addAll(part.getQuads(face));
+            //? if >=1.21.5 {
+            var parts = model.collectParts(RandomSource.create(42L));
+            for (var part : parts) quads.addAll(part.getQuads(face));
             if (quads.isEmpty())
-                for (BlockModelPart part : parts)
+                for (var part : parts)
                     for (BakedQuad q : part.getQuads(null)) if (q.direction() == face) quads.add(q);
+            //?} else {
+            /*quads.addAll(model.getQuads(state, face, RandomSource.create(42L)));
+            if (quads.isEmpty())
+                for (BakedQuad q : model.getQuads(state, null, RandomSource.create(42L))) if (q.getDirection() == face) quads.add(q);
+            *///?}
             double r = 0, g = 0, b = 0, w = 0;
             for (BakedQuad q : quads) {
-                int[] avg = average(q.sprite());
+                //? if >=1.21.5 {
+                TextureAtlasSprite sprite = q.sprite();
+                int tintIndex = q.tintIndex();
+                //?} else {
+                /*TextureAtlasSprite sprite = q.getSprite();
+                int tintIndex = q.getTintIndex();
+                *///?}
+                int[] avg = average(sprite);
                 if (avg == null) continue;
                 int rr = avg[0], gg = avg[1], bb = avg[2];
                 if (q.isTinted()) {
-                    int tint = tint(state, q.tintIndex());
+                    int tint = tint(state, tintIndex);
                     if (tint != -1) { rr = rr * ((tint >> 16) & 0xFF) / 255; gg = gg * ((tint >> 8) & 0xFF) / 255; bb = bb * (tint & 0xFF) / 255; }
                 }
                 r += rr * (double) avg[3]; g += gg * (double) avg[3]; b += bb * (double) avg[3]; w += avg[3];
@@ -67,7 +78,10 @@ public final class ColorIndex {
             if (w > 0) return ((int) (r / w) << 16) | ((int) (g / w) << 8) | (int) (b / w);
 
             // No quads on that face (unusual models): fall back to the particle texture.
+            //? if >=1.21.5 {
             int[] p = average(model.particleIcon());
+            //?} else
+            /*int[] p = average(model.getParticleIcon());*/
             if (p != null) {
                 int rr = p[0], gg = p[1], bb = p[2];
                 int tint = tint(state, 0);
@@ -101,7 +115,7 @@ public final class ColorIndex {
             long r = 0, g = 0, b = 0, w = 0;
             for (int y = 0; y < img.getHeight(); y++)
                 for (int x = 0; x < img.getWidth(); x++) {
-                    int argb = img.getPixel(x, y);
+                    int argb = Compat.getPixel(img, x, y);
                     int a = argb >>> 24;
                     if (a < 16) continue;
                     r += (long) ((argb >> 16) & 0xFF) * a; g += (long) ((argb >> 8) & 0xFF) * a; b += (long) (argb & 0xFF) * a; w += a;

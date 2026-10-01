@@ -1,5 +1,7 @@
 package dev.curvegen.client.screen;
 
+import dev.curvegen.CurveGen;
+import dev.curvegen.client.Compat;
 import dev.curvegen.client.BlockChoices;
 import dev.curvegen.client.CurveGenClient;
 import dev.curvegen.client.LitematicExporter;
@@ -37,14 +39,14 @@ import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.input.InputWithModifiers;
-import net.minecraft.client.input.MouseButtonEvent;
-import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
-import net.minecraft.server.permissions.Permissions;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
+//? if >=1.21.9 {
+import net.minecraft.client.input.InputWithModifiers;
+import net.minecraft.client.input.MouseButtonEvent;
+//?}
 
 public class CurveScreen extends Screen {
     private enum Tab { ELLIPSE, EQUATION, BEZIER, BLOCKS, COUNT }
@@ -154,8 +156,14 @@ public class CurveScreen extends Screen {
             if (bgap > 2) bgap--;
         }
         int x = M;
+        // Before 1.21.11 the initial value is looked up in the values, so the values have to be set first.
+        //? if >=1.21.11 {
         CycleButton<Boolean> orient = CycleButton.builder((Boolean v) -> Component.literal(v ? "Flat" : "Upright"), S.floor)
                 .withValues(List.of(false, true)).displayOnlyValue()
+        //?} else {
+        /*CycleButton<Boolean> orient = CycleButton.builder((Boolean v) -> Component.literal(v ? "Flat" : "Upright"))
+                .withValues(List.of(false, true)).withInitialValue(S.floor).displayOnlyValue()
+        *///?}
                 .create(x, by, orientText + bpad, 20, Component.literal("Build"), (b, v) -> setFloor(v));
         orient.setTooltip(Tooltip.create(Component.literal("Upright builds a wall, drawn from the side. Flat builds a floor, drawn from above.")));
         reverse.put(orient, () -> setFloor(!S.floor));
@@ -539,7 +547,7 @@ public class CurveScreen extends Screen {
             ctx.fill(x1 + 1, top, x1 + 3, bottom, 0x30FFFFFF);
             ctx.fill(x1 + 1, by, x1 + 3, by + bar, 0xA0FFFFFF);
         }
-        if (tip != null) ctx.setTooltipForNextFrame(font, Component.literal(tip), mx, my);
+        if (tip != null) Compat.tooltip(ctx, font, Component.literal(tip), mx, my);
     }
 
     /** A 14-pixel piece icon painted exactly like the preview: same colours, same silhouette outline. */
@@ -572,10 +580,16 @@ public class CurveScreen extends Screen {
             this.up = up; this.action = action;
         }
 
+        //? if >=1.21.9 {
         @Override public void onPress(InputWithModifiers input) { action.run(); }
+        //?} else
+        /*@Override public void onPress() { action.run(); }*/
 
         @Override
+        //? if >=1.21.11 {
         protected void renderContents(GuiGraphics ctx, int mouseX, int mouseY, float delta) {
+        //?} else
+        /*protected void renderWidget(GuiGraphics ctx, int mouseX, int mouseY, float delta) {*/
             int x = getX(), y = getY();
             ctx.fill(x, y, x + width, y + height, !active ? 0xFF22262C : isHovered() ? 0xFF55606E : 0xFF3A424D);
             int c = active ? 0xFFE4E9EF : 0xFF4E5560, cx = x + width / 2, cy = y + height / 2;
@@ -632,7 +646,10 @@ public class CurveScreen extends Screen {
     /** A button that steps through options: click for the next one, right-click for the previous one. */
     private <T> CycleButton<T> cycler(List<T> values, T initial, Function<T, Component> names,
                                               int x, int y, int w, String label, Consumer<T> onChange) {
+        //? if >=1.21.11 {
         CycleButton<T> b = CycleButton.builder(names, initial).withValues(values)
+        //?} else
+        /*CycleButton<T> b = CycleButton.builder(names).withValues(values).withInitialValue(initial)*/
                 .create(x, y, w, 20, Component.literal(label), (btn, v) -> onChange.accept(v));
         reverse.put(b, () -> {
             T prev = values.get((values.indexOf(b.getValue()) - 1 + values.size()) % values.size());
@@ -712,7 +729,7 @@ public class CurveScreen extends Screen {
         for (Label l : labels) ctx.drawString(font, l.text, l.x, l.y, 0xFFC8CED6);
         for (Icon ic : icons) ctx.renderItem(ic.stack, ic.x, ic.y);
         int hintLimit = tab == Tab.BLOCKS || tab == Tab.COUNT ? height - 30 : presetRowY() - 4;
-        if (hint != null && hintY + 18 < hintLimit) ctx.drawWordWrap(font, Component.literal(hint), M, hintY, PANEL_W, 0xFF9AA5B3);
+        if (hint != null && hintY + 18 < hintLimit) Compat.wordWrap(ctx, font, Component.literal(hint), M, hintY, PANEL_W, 0xFF9AA5B3);
         if (tab == Tab.BEZIER && S.pts.size() > listVisible) {
             int h = listVisible * POINT_ROW - 2, bar = Math.max(6, h * listVisible / S.pts.size());
             int by = listTop + (h - bar) * pointScroll / Math.max(1, S.pts.size() - listVisible);
@@ -726,18 +743,12 @@ public class CurveScreen extends Screen {
         ctx.fill(x0, y0, x1, y1, 0xFF15181D);
         ctx.enableScissor(x0, y0, x1, y1);
         if (result != null && preview.id() != null) {
-            var m = ctx.pose();
-            m.pushMatrix();
-            m.translate(panX, panY);
-            float s = zoom / preview.sub;
-            m.scale(s, s);
-            ctx.blit(RenderPipelines.GUI_TEXTURED, preview.id(), 0, 0, 0f, 0f, preview.width, preview.height, preview.width, preview.height);
-            m.popMatrix();
+            Compat.drawTexture(ctx, preview.id(), preview.width, preview.height, panX, panY, zoom / preview.sub);
             drawHover(ctx, mouseX, mouseY);
             if (S.gen == Gen.BEZIER && tab == Tab.BEZIER) drawHandles(ctx);
         }
         ctx.disableScissor();
-        ctx.renderOutline(x0 - 1, y0 - 1, x1 - x0 + 2, y1 - y0 + 2, 0xFF3A424D);
+        Compat.outline(ctx, x0 - 1, y0 - 1, x1 - x0 + 2, y1 - y0 + 2, 0xFF3A424D);
 
         // status line across the top of the canvas
         String line; int color = 0xFFDDE3EA;
@@ -772,7 +783,7 @@ public class CurveScreen extends Screen {
         int[] c = cellAt(mx, my);
         if (c == null) return;
         int sx = Math.round(panX + c[0] * zoom), sy = Math.round(panY + (result.ny() - 1 - c[1]) * zoom), sz = Math.max(2, Math.round(zoom));
-        ctx.renderOutline(sx, sy, sz, sz, 0xFF6EA0FF);
+        Compat.outline(ctx, sx, sy, sz, sz, 0xFF6EA0FF);
         int p = result.at(c[0], c[1]);
         String txt = "Column " + (c[0] + 1) + ", row " + (c[1] + 1) + ": " + Pieces.NAME[p]
                 + (p != Pieces.EMPTY ? " (" + BlockChoices.blockFor(p).getName().getString() + ")" : "");
@@ -820,8 +831,11 @@ public class CurveScreen extends Screen {
 
     // ---------- input ----------
     @Override
+    //? if >=1.21.9 {
     public boolean mouseClicked(MouseButtonEvent event, boolean doubled) {
         double mx = event.x(), my = event.y(); int button = event.button();
+    //?} else
+    /*public boolean mouseClicked(double mx, double my, int button) {*/
         if (button == 1)
             for (var e : reverse.entrySet()) {
                 AbstractWidget w = e.getKey();
@@ -831,7 +845,10 @@ public class CurveScreen extends Screen {
                     return true;
                 }
             }
+        //? if >=1.21.9 {
         if (super.mouseClicked(event, doubled)) return true;
+        //?} else
+        /*if (super.mouseClicked(mx, my, button)) return true;*/
         boolean inCanvas = mx >= cx0() && mx < cx1() && my >= cy0() && my < cy1();
         if (!inCanvas || result == null) return false;
         setFocused(null);
@@ -846,8 +863,11 @@ public class CurveScreen extends Screen {
     }
 
     @Override
+    //? if >=1.21.9 {
     public boolean mouseDragged(MouseButtonEvent event, double dx, double dy) {
         double mx = event.x(), my = event.y();
+    //?} else
+    /*public boolean mouseDragged(double mx, double my, int button, double dx, double dy) {*/
         if (dragPoint >= 0 && result != null) {
             double bx = (mx - panX) / zoom, by = result.ny() - (my - panY) / zoom;
             bx = Math.max(0, Math.min(result.nx(), bx));
@@ -859,13 +879,22 @@ public class CurveScreen extends Screen {
             return true;
         }
         if (panning) { panX += (float) dx; panY += (float) dy; return true; }
+        //? if >=1.21.9 {
         return super.mouseDragged(event, dx, dy);
+        //?} else
+        /*return super.mouseDragged(mx, my, button, dx, dy);*/
     }
 
     @Override
+    //? if >=1.21.9 {
     public boolean mouseReleased(MouseButtonEvent event) {
+    //?} else
+    /*public boolean mouseReleased(double mx, double my, int button) {*/
         dragPoint = -1; panning = false;
+        //? if >=1.21.9 {
         return super.mouseReleased(event);
+        //?} else
+        /*return super.mouseReleased(mx, my, button);*/
     }
 
     @Override
@@ -900,7 +929,7 @@ public class CurveScreen extends Screen {
         if (!ready()) return;
         Layout layout = Layout.of(result);
         if (layout.isEmpty()) { flash("The shape is empty, so there's nothing to place."); return; }
-        if (minecraft.player != null && !minecraft.player.permissions().hasPermission(Permissions.COMMANDS_GAMEMASTER))
+        if (minecraft.player != null && !CurveGen.canPlace(minecraft.player))
             minecraft.player.displayClientMessage(Component.literal("Note: you'll need operator permissions to confirm placement. Export works for everyone."), false);
         Placement.start(layout, S.depth, S.overwrite, S.carve, S.floor);
         onClose();

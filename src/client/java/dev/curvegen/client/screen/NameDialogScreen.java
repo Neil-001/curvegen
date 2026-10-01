@@ -9,9 +9,11 @@ import net.minecraft.client.gui.components.CycleButton;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.input.KeyEvent;
 import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
+//? if >=1.21.9 {
+import net.minecraft.client.input.KeyEvent;
+//?}
 
 /** A small dialog on top of the previous screen: a name field, an optional on/off option, and confirm or cancel. */
 public class NameDialogScreen extends Screen {
@@ -86,17 +88,30 @@ public class NameDialogScreen extends Screen {
     }
 
     @Override
+    //? if >=1.21.9 {
     public boolean keyPressed(KeyEvent event) {
         int key = event.key();
+    //?} else
+    /*public boolean keyPressed(int key, int scan, int mods) {*/
         if (key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_KP_ENTER) { submit(); return true; }
+        //? if >=1.21.9 {
         return super.keyPressed(event);
+        //?} else
+        /*return super.keyPressed(key, scan, mods);*/
     }
 
     @Override
     public void render(GuiGraphics ctx, int mx, int my, float delta) {
-        parent.renderBackground(ctx, -1, -1, delta);   // the screen underneath, not interactive
+        // The screen underneath, not interactive, with the dialog above everything it drew, items included.
+        //? if >=1.21.6 {
+        parent.renderBackground(ctx, -1, -1, delta);
         parent.render(ctx, -1, -1, delta);
-        ctx.nextStratum();   // above everything the parent drew, items included
+        ctx.nextStratum();
+        //?} else {
+        /*parent.render(ctx, -1, -1, delta);   // draws its own background before 1.21.6
+        ctx.pose().pushPose();
+        ctx.pose().translate(0, 0, 400);
+        *///?}
         ctx.fill(0, 0, width, height, 0xA0000000);
         int x = x0(), y = y0();
         ctx.fill(x - 1, y - 1, x + W + 1, y + h() + 1, 0xFF5A6472);
@@ -105,6 +120,8 @@ public class NameDialogScreen extends Screen {
         if (state != null && state.note() != null)
             ctx.drawString(font, font.plainSubstrByWidth(state.note(), W - 20), x + 10, noteY(), state.allowed() ? 0xFFE0C07A : 0xFFFF8098, false);
         for (var d : children()) if (d instanceof net.minecraft.client.gui.components.Renderable dr) dr.render(ctx, mx, my, delta);
+        //? if <1.21.6
+        /*ctx.pose().popPose();*/
     }
 
     @Override

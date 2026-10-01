@@ -1,14 +1,35 @@
-# Curve Generator (Fabric mod, Minecraft Java 1.21.11)
+# Curve Generator (Fabric mod, Minecraft Java 1.21 to 1.21.11)
 
 An in-game tool that turns ellipses, equation plots and Bézier curves into full blocks, slabs, stairs, trapdoors, fences, glass panes and walls. The player previews the result, then places it with a hologram (operator permission needed) or exports it as a Litematica schematic.
 
 ## Commands
 
-- `./gradlew build` builds the jar into `build/libs/` and runs the tests.
-- `./gradlew runClient` starts a dev client with the mod.
-- `./gradlew test` runs the JUnit tests for the pure-Java core.
+- `./gradlew build` builds and tests all six jars. `./gradlew buildAndCollect` also copies them into `build/libs/`.
+- `./gradlew :1.21.5:build`, `:1.21.5:test` or `:1.21.5:runClient` work on one version. Don't run `runClient` without a version: it would start six clients.
 
-Needs JDK 21. Versions are in `gradle.properties`. Loom stays on 1.14.x, because newer Loom needs JDK 25 to run Gradle. The code uses Mojang's official mappings, so class and method names match the ones Minecraft uses (`Level`, `BlockState`, `GuiGraphics`), not Yarn's. Run build and test after every change.
+Needs JDK 21. Loom stays on 1.14.x, because newer Loom needs JDK 25 to run Gradle. The code uses Mojang's official mappings, so class and method names match the ones Minecraft uses (`Level`, `BlockState`, `GuiGraphics`), not Yarn's. Run build and test after every change.
+
+## Versions (this is the `1.21.x` branch)
+
+This branch is for bug fixes only. New features go on `main`, which supports a single version.
+
+[Stonecutter](https://stonecutter.kikugie.dev/) builds one jar per group of Minecraft versions that share the APIs the mod uses. Each jar is named after, and compiled against, the oldest version in its group, with the oldest Fabric API for it. The groups are in `settings.gradle.kts` and `stonecutter.properties.toml`:
+
+| Node | Runs on | What changed at this point |
+|---|---|---|
+| `1.21` | 1.21, 1.21.1 | |
+| `1.21.2` | 1.21.2 to 1.21.4 | `NativeImage` is ARGB, `blit` takes a render type |
+| `1.21.5` | 1.21.5 | block models, `DynamicTexture` |
+| `1.21.6` | 1.21.6 to 1.21.8 | GUI rendering (2D pose stack, strata, deferred tooltips), HUD registry |
+| `1.21.9` | 1.21.9, 1.21.10 | input events, key categories, no Fabric world render events |
+| `1.21.11` | 1.21.11 | permission sets, `Identifier`, render types, `CycleButton` builder |
+
+- `src/` holds the 1.21.11 code. Code for other versions sits in `//? if <condition> {` comments next to it. Always commit with 1.21.11 active (`./gradlew "Reset active project"`).
+- Put a version difference in `Compat` if more than one place needs it. Otherwise write the condition where the code is.
+- Classes that only exist in some versions are written with their full name inside the condition, or imported inside a conditional import block, so the other versions still compile.
+- `Identifier` is replaced by `ResourceLocation` before 1.21.11 (see `stonecutter.gradle.kts`).
+- A jar must behave the same on every version in its group. A method the jar calls can be renamed inside a group even though the source compiles on both ends: `GuiGraphics.drawWordWrap` was, in 1.21.4, which is why `Compat.wordWrap` exists. After changing Minecraft-facing code, build the jar against the other versions of each group (add them to `versions(...)` temporarily) and check that the classes come out byte for byte the same.
+- Only the `1.21.9` jar has a mixin, `LevelRendererMixin`, because Fabric API has no world render event there. `build.gradle.kts` leaves the mixin config out of the other jars.
 
 ## Layout
 
@@ -24,9 +45,11 @@ Loom's `splitEnvironmentSourceSets()` splits the code into `src/main` (common) a
   - `PresetData`: preset capture and apply, default names, and the starting examples.
   - `LitematicBits`: Litematica's packed long array.
   - `Silhouette`: piece pixels and outlines, shared by the preview and the Count tab icons.
-- `dev/curvegen/CurveGen.java` and `net/PlaceBlocksPayload.java` are the common entrypoint and the placement packet from client to server. The server checks the gamemaster permission level (`Permissions.COMMANDS_GAMEMASTER`).
+- `dev/curvegen/CurveGen.java` and `net/PlaceBlocksPayload.java` are the common entrypoint and the placement packet from client to server. The server checks operator level 2 through `CurveGen.canPlace`.
 - `dev/curvegen/client/`:
   - `CurveGenClient`: keybinds (G opens the screen) and render hooks.
+  - `Compat`: drawing, tooltip, texture and pixel calls that differ between Minecraft versions.
+  - `mixin/LevelRendererMixin`: draws the hologram on 1.21.9 and 1.21.10.
   - `BlockChoices`: the block chosen for each piece family, candidate lists, and the mapping from piece to `BlockState` for upright and flat builds.
   - `ColorIndex`: average texture colours for the face you'll see, matched in CIELAB.
   - `Placement`: placement mode, hologram, Replace and Carve, undo, and the `/setblock` fallback.
@@ -74,4 +97,4 @@ Loom's `splitEnvironmentSourceSets()` splits the code into `src/main` (common) a
 
 - Client-to-server custom payloads must stay under 32 KiB, so placement sends 2,500 blocks per batch.
 - The `/setblock` fallback sends 40 commands per tick.
-- `NativeImage.getPixel` and `setPixel` take ARGB in 1.21.11 (1.21.1 used ABGR).
+- `NativeImage` colours are ABGR before 1.21.2 and ARGB from then on. `Compat.getPixel`, `setPixel` and `fill` always use ARGB.

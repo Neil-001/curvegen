@@ -1,5 +1,6 @@
 package dev.curvegen.client.screen;
 
+import dev.curvegen.client.Compat;
 import dev.curvegen.client.BlockChoices;
 import dev.curvegen.client.ColorIndex;
 import dev.curvegen.core.Pieces.Family;
@@ -13,11 +14,13 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.CycleButton;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
+//? if >=1.21.9 {
+import net.minecraft.client.input.MouseButtonEvent;
+//?}
 
 /** Pick the block used for one piece type. */
 public class BlockPickerScreen extends Screen {
@@ -53,8 +56,10 @@ public class BlockPickerScreen extends Screen {
         search.setResponder(v -> { query = v; scroll = 0; refilter(); });
         addRenderableWidget(search);
         setInitialFocus(search);
-        addRenderableWidget(CycleButton.<Sort>builder(s -> Component.literal(s == Sort.NAME ? "Name" : "Closest colour"), sort)
-                .withValues(Sort.values())
+        //? if >=1.21.11 {
+        addRenderableWidget(CycleButton.<Sort>builder(s -> Component.literal(s == Sort.NAME ? "Name" : "Closest colour"), sort).withValues(Sort.values())
+        //?} else
+        /*addRenderableWidget(CycleButton.<Sort>builder(s -> Component.literal(s == Sort.NAME ? "Name" : "Closest colour")).withValues(Sort.values()).withInitialValue(sort)*/
                 .create(M + 186, 24, 140, 20, Component.literal("Sort"), (b, v) -> { sort = v; refilter(); }));
         addRenderableWidget(Button.builder(Component.literal("Cancel"), b -> onClose()).bounds(width - M - 80, height - 26, 80, 20).build());
         refilter();
@@ -97,7 +102,7 @@ public class BlockPickerScreen extends Screen {
             int rgb = ColorIndex.of(b);
             ctx.fill(x, y, x + CELL - 2, y + CELL - 2, 0xFF000000 | rgb);
             ctx.fill(x + 1, y + 1, x + CELL - 3, y + CELL - 3, 0xC0202428);
-            if (b == current) ctx.renderOutline(x - 1, y - 1, CELL, CELL, 0xFFFFB84D);
+            if (b == current) Compat.outline(ctx, x - 1, y - 1, CELL, CELL, 0xFFFFB84D);
             boolean over = mx >= x && mx < x + CELL - 2 && my >= y && my < y + CELL - 2;
             if (over) { ctx.fill(x, y, x + CELL - 2, y + CELL - 2, 0x40FFFFFF); hovered = b; }
             ctx.renderItem(new ItemStack(b), x + 1, y + 1);
@@ -109,13 +114,19 @@ public class BlockPickerScreen extends Screen {
             ctx.fill(width - 4, by, width - 2, by + bar, 0x80FFFFFF);
         }
         if (hovered != null)
-            ctx.setTooltipForNextFrame(font, Component.literal(hovered.getName().getString() + "  #" + String.format("%06X", ColorIndex.of(hovered))), mx, my);
+            Compat.tooltip(ctx, font, Component.literal(hovered.getName().getString() + "  #" + String.format("%06X", ColorIndex.of(hovered))), mx, my);
     }
 
     @Override
+    //? if >=1.21.9 {
     public boolean mouseClicked(MouseButtonEvent event, boolean doubled) {
         double mx = event.x(), my = event.y();
+    //?} else
+    /*public boolean mouseClicked(double mx, double my, int button) {*/
+        //? if >=1.21.9 {
         if (super.mouseClicked(event, doubled)) return true;
+        //?} else
+        /*if (super.mouseClicked(mx, my, button)) return true;*/
         int cols = cols(), c = (int) ((mx - M) / CELL), r = (int) ((my - gridTop()) / CELL);
         if (mx < M || c >= cols || my < gridTop() || r >= visibleRows()) return false;
         int n = (r + scroll) * cols + c;
