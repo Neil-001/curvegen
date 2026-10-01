@@ -9,7 +9,7 @@ An in-game tool that turns ellipses, equation plots and Bézier curves into full
 
 Needs JDK 21. Loom stays on 1.14.x, because newer Loom needs JDK 25 to run Gradle. The code uses Mojang's official mappings, so class and method names match the ones Minecraft uses (`Level`, `BlockState`, `GuiGraphics`), not Yarn's. Run build and test after every change.
 
-## Versions (this is the `1.21.x` branch)
+## Versions (this is the `1.21.x/stable` branch)
 
 This branch is for bug fixes only. New features go on `main`, which supports a single version.
 
