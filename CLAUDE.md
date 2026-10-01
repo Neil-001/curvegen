@@ -75,3 +75,31 @@ Loom's `splitEnvironmentSourceSets()` splits the code into `src/main` (common) a
 - Client-to-server custom payloads must stay under 32 KiB, so placement sends 2,500 blocks per batch.
 - The `/setblock` fallback sends 40 commands per tick.
 - `NativeImage.getPixel` and `setPixel` take ARGB in 1.21.11 (1.21.1 used ABGR).
+
+## Releasing
+
+Only `*/stable` branches release. `main` never does. The `Release` workflow (`.github/workflows/release.yml`) runs from `main` and publishes each branch to Modrinth, CurseForge and GitHub releases.
+
+1. On the stable branch, open a PR that bumps `mod.version` in `stonecutter.properties.toml` and adds a `# <version>` section at the top of `CHANGELOG.md`. A suffix sets the release type: `1.1.0-beta.1` is a beta, `1.1.0-alpha.1` an alpha.
+2. After it merges, run `gh workflow run release.yml -f dry_run=true` and read the run's summary. It lists the jars and the notes.
+3. Run `gh workflow run release.yml` to publish.
+
+The workflow tags each release `<version>+mc<line>`, such as `1.1.0+mc1.21.x`. It skips a branch whose tag exists, so the default `branches=all` only releases branches with a new version. It creates the tag last, after every site has the release.
+
+If a site fails, re-run the failed jobs. A re-run skips versions already on Modrinth, and a job that failed hasn't finished its CurseForge upload. Don't start a fresh run with CurseForge in `targets` after a partial release, because CurseForge has no duplicate check. To publish to fewer sites, pass `-f targets=curseforge,github`.
+
+**Release notes.** The `CHANGELOG.md` section goes to all three sites as written. Start with a short paragraph that says what the release changes for players. Then list the merged PRs under `## Features` and `## Fixes`, one bullet each, ending in the PR number. Rewrite PR titles so a player understands them, and leave out changes players can't see (CI, refactors, docs).
+
+```
+# 1.1.0
+
+Curve Generator 1.1.0 adds spirals and fixes two wall bugs.
+
+## Features
+- Spirals have their own tab (#21)
+
+## Fixes
+- Walls under a slab no longer show a post (#19)
+```
+
+The Modrinth and CurseForge project IDs are the repository variables `MODRINTH_PROJECT_ID` and `CURSEFORGE_PROJECT_ID`. The tokens are the secrets `MODRINTH_TOKEN` and `CURSEFORGE_TOKEN`.

@@ -1,0 +1,206 @@
+name: Release branch
+
+# Releases one branch. Called by release.yml, once per branch.
+on:
+  workflow_call:
+    inputs:
+      line:
+        description: The Minecraft line the branch covers, such as 1.21.x
+        type: string
+        required: true
+      version:
+        description: The mod version read from the branch's source
+        type: string
+        required: true
+      tag:
+        type: string
+        required: true
+      sha:
+        description: The commit to build and tag
+        type: string
+        required: true
+      targets:
+        type: string
+        required: true
+      dry_run:
+        type: boolean
+        required: true
+
+permissions:
+  contents: read
+
+env:
+  MODRINTH_ID: ${{ vars.MODRINTH_PROJECT_ID }}
+  CURSEFORGE_ID: ${{ vars.CURSEFORGE_PROJECT_ID }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      jars: ${{ steps.jars.outputs.jars }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.sha }}
+          fetch-depth: 0   # the tags, to find the previous release
+
+      # The release scripts live on the branch this workflow runs from, not the one being released.
+      - uses: actions/checkout@v7
+        with:
+          path: .release-tools
+          sparse-checkout: .github/scripts
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      - run: ./gradlew build
+
+      # A single-version branch has one jar in build/libs. A Stonecutter branch has one per version under versions/.
+      - name: Collect the jars
+        id: jars
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          shopt -s nullglob
+          mkdir dist
+          jars='[]'
+          for jar in build/libs/*.jar versions/*/build/libs/*.jar; do
+            case $jar in *-dev.jar|*-sources.jar|*-javadoc.jar) continue ;; esac
+            jar_version=$(unzip -p "$jar" fabric.mod.json | jq -r .version)
+            case $jar_version in
+              "$VERSION"|"$VERSION"+*) ;;
+              *) echo "::error::$jar has version $jar_version, expected $VERSION."; exit 1 ;;
+            esac
+            cp "$jar" dist/
+            jars=$(jq -c --arg file "$(basename "$jar")" --arg version "$jar_version" '. + [{file: $file, version: $version}]' <<< "$jars")
+          done
+          [ "$jars" != '[]' ] || { echo "::error::The build produced no jars."; exit 1; }
+          echo "jars=$jars" >> "$GITHUB_OUTPUT"
+
+      # The same notes go to all three sites. GitHub also gets a link comparing against the branch's previous release.
+      - name: Write the release notes
+        env:
+          VERSION: ${{ inputs.version }}
+          LINE: ${{ inputs.line }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          .release-tools/.github/scripts/release-notes.sh "$VERSION" > dist/notes.md
+          cp dist/notes.md dist/notes-github.md
+          if previous=$(git describe --tags --abbrev=0 --match "*+mc$LINE" 2>/dev/null); then
+            printf '\n**Full Changelog**: %s/%s/compare/%s...%s\n' "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$previous" "$TAG" >> dist/notes-github.md
+          fi
+
+      - name: Summarise
+        env:
+          TAG: ${{ inputs.tag }}
+          TARGETS: ${{ inputs.targets }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          JARS: ${{ steps.jars.outputs.jars }}
+        run: |
+          {
+            if [ "$DRY_RUN" = true ]; then echo "### $TAG (dry run, nothing published)"; else echo "### $TAG"; fi
+            echo "Targets: $TARGETS"
+            echo
+            jq -r '.[] | "- `\(.file)` as version `\(.version)`"' <<< "$JARS"
+            echo
+            echo "#### Release notes"
+            cat dist/notes-github.md
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-${{ inputs.line }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
+
+  # Modrinth and CurseForge list one version per jar, because each jar runs on different Minecraft versions.
+  publish:
+    needs: build
+    if: ${{ !inputs.dry_run && (contains(inputs.targets, 'modrinth') || contains(inputs.targets, 'curseforge')) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        jar: ${{ fromJSON(needs.build.outputs.jars) }}
+    name: publish ${{ matrix.jar.version }}
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-${{ inputs.line }}
+          path: dist
+
+      # Lets a failed run be retried without uploading the same version to Modrinth twice.
+      - name: Check Modrinth for this version
+        id: modrinth
+        if: contains(inputs.targets, 'modrinth')
+        env:
+          MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
+          VERSION: ${{ matrix.jar.version }}
+        run: |
+          [ -n "$MODRINTH_ID" ] || { echo "::error::The MODRINTH_PROJECT_ID variable is not set."; exit 1; }
+          status=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: $MODRINTH_TOKEN" \
+            "https://api.modrinth.com/v2/project/$MODRINTH_ID/version/$(jq -rn --arg v "$VERSION" '$v | @uri')")
+          case $status in
+            200) echo "::notice::$VERSION is already on Modrinth, skipping it there."; echo "exists=true" >> "$GITHUB_OUTPUT" ;;
+            404) echo "exists=false" >> "$GITHUB_OUTPUT" ;;
+            *) echo "::error::Modrinth answered $status when checking for $VERSION."; exit 1 ;;
+          esac
+
+      - name: Publish to Modrinth
+        if: contains(inputs.targets, 'modrinth') && steps.modrinth.outputs.exists == 'false'
+        uses: Kir-Antipov/mc-publish@v3.3
+        with:
+          modrinth-id: ${{ env.MODRINTH_ID }}
+          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
+          files: dist/${{ matrix.jar.file }}
+          name: Curve Generator ${{ matrix.jar.version }}
+          version: ${{ matrix.jar.version }}
+          changelog-file: dist/notes.md
+          loaders: fabric
+          dependencies: fabric-api(required){modrinth:P7dR8mSH}
+          java: 21
+
+      - name: Publish to CurseForge
+        if: contains(inputs.targets, 'curseforge')
+        uses: Kir-Antipov/mc-publish@v3.3
+        with:
+          curseforge-id: ${{ env.CURSEFORGE_ID }}
+          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
+          files: dist/${{ matrix.jar.file }}
+          name: Curve Generator ${{ matrix.jar.version }}
+          version: ${{ matrix.jar.version }}
+          changelog-file: dist/notes.md
+          loaders: fabric
+          dependencies: fabric-api(required){curseforge:306612}
+          java: 21
+
+  # Last, so the tag means every site has the release. One GitHub release holds all the branch's jars.
+  github:
+    needs: [build, publish]
+    if: ${{ always() && needs.build.result == 'success' && (needs.publish.result == 'success' || needs.publish.result == 'skipped') && !inputs.dry_run && contains(inputs.targets, 'github') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-${{ inputs.line }}
+          path: dist
+
+      - uses: Kir-Antipov/mc-publish@v3.3
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-tag: ${{ inputs.tag }}
+          github-commitish: ${{ inputs.sha }}
+          files: dist/*.jar
+          name: Curve Generator ${{ inputs.version }} for Minecraft ${{ inputs.line }}
+          version: ${{ inputs.tag }}
+          changelog-file: dist/notes-github.md
