@@ -3,6 +3,7 @@ package dev.curvegen.client.screen;
 import com.mojang.blaze3d.platform.NativeImage;
 import dev.curvegen.client.BlockChoices;
 import dev.curvegen.client.ColorIndex;
+import dev.curvegen.client.Compat;
 import dev.curvegen.core.Pieces;
 import dev.curvegen.core.Silhouette;
 import dev.curvegen.core.Solver;
@@ -40,12 +41,12 @@ public final class PreviewTexture implements AutoCloseable {
         if (tex == null || width != w || height != h) {
             close();
             id = Identifier.fromNamespaceAndPath("curvegen", "preview_" + nextId++);
-            tex = new DynamicTexture(id::toString, new NativeImage(w, h, false));
+            tex = Compat.texture(id, new NativeImage(w, h, false));
             Minecraft.getInstance().getTextureManager().register(id, tex);
             width = w; height = h;
         }
         NativeImage img = tex.getPixels();
-        img.fillRect(0, 0, w, h, BG);
+        Compat.fill(img, BG);
 
         for (int j = 0; j < r.ny(); j++)
             for (int i = 0; i < r.nx(); i++) {
@@ -56,7 +57,7 @@ public final class PreviewTexture implements AutoCloseable {
                 boolean[] in = shape(p), border = sub >= 8 ? Silhouette.outline(in, sub) : null;
                 for (int y = 0; y < sub; y++)
                     for (int x = 0; x < sub; x++)
-                        if (in[y * sub + x]) img.setPixel(ox + x, oy + y, border != null && border[y * sub + x] ? edge : rgb);
+                        if (in[y * sub + x]) Compat.setPixel(img, ox + x, oy + y, border != null && border[y * sub + x] ? edge : rgb);
             }
 
         if (grid && sub >= 4) {
@@ -114,7 +115,7 @@ public final class PreviewTexture implements AutoCloseable {
                 int px = (int) Math.floor(x1 + (x2 - x1) * u), py = (int) Math.floor(y1 + (y2 - y1) * u);
                 for (int a = 0; a < thick; a++) for (int b = 0; b < thick; b++) {
                     int xx = px + a - thick / 2, yy = py + b - thick / 2;
-                    if (xx >= 0 && yy >= 0 && xx < width && yy < height) img.setPixel(xx, yy, CURVE);
+                    if (xx >= 0 && yy >= 0 && xx < width && yy < height) Compat.setPixel(img, xx, yy, CURVE);
                 }
             }
             run += len;
@@ -128,12 +129,12 @@ public final class PreviewTexture implements AutoCloseable {
 
     private void blend(NativeImage img, int x, int y, int argb) {
         if (x < 0 || y < 0 || x >= width || y >= height) return;
-        int dst = img.getPixel(x, y);
+        int dst = Compat.getPixel(img, x, y);
         float a = (argb >>> 24) / 255f;
         int sr = (argb >> 16) & 0xFF, sg = (argb >> 8) & 0xFF, sb = argb & 0xFF;
         int dr = (dst >> 16) & 0xFF, dg = (dst >> 8) & 0xFF, db = dst & 0xFF;
         int r = (int) (sr * a + dr * (1 - a)), g = (int) (sg * a + dg * (1 - a)), b = (int) (sb * a + db * (1 - a));
-        img.setPixel(x, y, 0xFF000000 | (r << 16) | (g << 8) | b);
+        Compat.setPixel(img, x, y, 0xFF000000 | (r << 16) | (g << 8) | b);
     }
 
     @Override

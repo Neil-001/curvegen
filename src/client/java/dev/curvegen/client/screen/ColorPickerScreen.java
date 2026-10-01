@@ -2,6 +2,7 @@ package dev.curvegen.client.screen;
 
 import dev.curvegen.client.BlockChoices;
 import dev.curvegen.client.ColorIndex;
+import dev.curvegen.client.Compat;
 import dev.curvegen.core.Pieces.Family;
 import java.util.EnumMap;
 import java.util.Locale;
@@ -11,10 +12,12 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
+//? if >=1.21.9 {
+import net.minecraft.client.input.MouseButtonEvent;
+//?}
 
 /** Choose a colour; every piece type then uses the block whose texture is closest to it. */
 public class ColorPickerScreen extends Screen {
@@ -87,7 +90,7 @@ public class ColorPickerScreen extends Screen {
         int hx = hueX();
         for (int j = 0; j < SQ; j++) ctx.fill(hx, y0 + j, hx + 12, y0 + j + 1, 0xFF000000 | hsvToRgb(j / (float) SQ, 1f, 1f));
         int px = x0 + Math.round(sat * (SQ - 1)), py = y0 + Math.round((1 - val) * (SQ - 1));
-        ctx.renderOutline(px - 3, py - 3, 7, 7, 0xFFFFFFFF);
+        Compat.outline(ctx, px - 3, py - 3, 7, 7, 0xFFFFFFFF);
         int hy = y0 + Math.round(hue * SQ);
         ctx.fill(hx - 2, hy - 1, hx + 14, hy + 1, 0xFFFFFFFF);
         ctx.fill(x0 + 86, y0 + SQ + 10, x0 + 106, y0 + SQ + 30, 0xFF000000 | rgb());
@@ -107,25 +110,43 @@ public class ColorPickerScreen extends Screen {
     }
 
     @Override
+    //? if >=1.21.9 {
     public boolean mouseClicked(MouseButtonEvent event, boolean doubled) {
         double mx = event.x(), my = event.y();
+    //?} else
+    //public boolean mouseClicked(double mx, double my, int button) {
+        //? if >=1.21.9 {
         if (super.mouseClicked(event, doubled)) return true;
+        //?} else
+        //if (super.mouseClicked(mx, my, button)) return true;
         if (inRect(mx, my, sqX(), sqY(), SQ, SQ)) { dragging = 1; pick(mx, my); return true; }
         if (inRect(mx, my, hueX() - 2, sqY(), 16, SQ)) { dragging = 2; pick(mx, my); return true; }
         return false;
     }
 
     @Override
+    //? if >=1.21.9 {
     public boolean mouseDragged(MouseButtonEvent event, double dx, double dy) {
         double mx = event.x(), my = event.y();
+    //?} else
+    //public boolean mouseDragged(double mx, double my, int button, double dx, double dy) {
         if (dragging != 0) { pick(mx, my); return true; }
+        //? if >=1.21.9 {
         return super.mouseDragged(event, dx, dy);
+        //?} else
+        //return super.mouseDragged(mx, my, button, dx, dy);
     }
 
     @Override
+    //? if >=1.21.9 {
     public boolean mouseReleased(MouseButtonEvent event) {
+    //?} else
+    //public boolean mouseReleased(double mx, double my, int button) {
         if (dragging != 0) { dragging = 0; refreshPreview(); }
+        //? if >=1.21.9 {
         return super.mouseReleased(event);
+        //?} else
+        //return super.mouseReleased(mx, my, button);
     }
 
     private void pick(double mx, double my) {

@@ -9,7 +9,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.server.permissions.Permissions;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import org.slf4j.Logger;
@@ -25,6 +25,14 @@ public class CurveGen implements ModInitializer {
     /** How far from the player a placement may reach. */
     public static final int MAX_DISTANCE = 512;
 
+    /** Placing needs the same permission as /setblock: gamemaster, which is operator level 2. */
+    public static boolean canPlace(Player player) {
+        //? if >=1.21.11 {
+        return player.permissions().hasPermission(net.minecraft.server.permissions.Permissions.COMMANDS_GAMEMASTER);
+        //?} else
+        //return player.hasPermissions(2);
+    }
+
     @Override
     public void onInitialize() {
         PayloadTypeRegistry.playC2S().register(PlaceBlocksPayload.ID, PlaceBlocksPayload.CODEC);
@@ -32,12 +40,15 @@ public class CurveGen implements ModInitializer {
         // Fabric runs play payload handlers on the server thread.
         ServerPlayNetworking.registerGlobalReceiver(PlaceBlocksPayload.ID, (payload, context) -> {
             ServerPlayer player = context.player();
-            if (!player.permissions().hasPermission(Permissions.COMMANDS_GAMEMASTER)) {
+            if (!canPlace(player)) {
                 if (payload.last())
                     player.displayClientMessage(Component.literal("Curve Generator: placing needs operator permissions (level 2). You can still export to Litematica.").withStyle(ChatFormatting.RED), false);
                 return;
             }
+            //? if >=1.21.6 {
             ServerLevel world = player.level();
+            //?} else
+            //ServerLevel world = player.serverLevel();
             int skipped = 0;
             for (int i = 0; i < payload.states().length; i++) {
                 BlockPos pos = payload.origin().offset(payload.offsets()[3 * i], payload.offsets()[3 * i + 1], payload.offsets()[3 * i + 2]);

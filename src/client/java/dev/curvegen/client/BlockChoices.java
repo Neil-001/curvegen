@@ -125,7 +125,10 @@ public final class BlockChoices {
         PresetData.applyBlocks(blocks, s, (f, id) -> {
             Identifier key = Identifier.tryParse(id);
             if (key == null || !BuiltInRegistries.BLOCK.containsKey(key)) return;
+            //? if >=1.21.2 {
             Block b = BuiltInRegistries.BLOCK.getValue(key);
+            //?} else
+            /*Block b = BuiltInRegistries.BLOCK.get(key);*/
             if (fits(b, f)) choice.put(f, b);
         });
         s.fullConnects = connects(choice.get(Family.FULL));

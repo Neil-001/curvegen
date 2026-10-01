@@ -85,7 +85,10 @@ public final class LitematicExporter {
         regions.put(baseName, region);
 
         CompoundTag root = new CompoundTag();
+        //? if >=1.21.6 {
         root.putInt("MinecraftDataVersion", SharedConstants.getCurrentVersion().dataVersion().version());
+        //?} else
+        //root.putInt("MinecraftDataVersion", SharedConstants.getCurrentVersion().getDataVersion().getVersion());
         root.putInt("Version", SCHEMATIC_VERSION);
         root.putInt("SubVersion", SUB_VERSION);
         root.put("Metadata", meta);

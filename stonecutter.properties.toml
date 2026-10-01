@@ -1,0 +1,27 @@
+mod.version = "1.0.0"
+deps.fabric_loader = "0.19.5"
+
+# mc_compat is the Minecraft range in fabric.mod.json. fabric_api is the oldest release line the jar must run on.
+["1.21"]
+mod.mc_compat = ">=1.21 <=1.21.1"
+deps.fabric_api = "0.102.0+1.21"
+
+["1.21.2"]
+mod.mc_compat = ">=1.21.2 <=1.21.4"
+deps.fabric_api = "0.106.1+1.21.2"
+
+["1.21.5"]
+mod.mc_compat = "1.21.5"
+deps.fabric_api = "0.128.2+1.21.5"
+
+["1.21.6"]
+mod.mc_compat = ">=1.21.6 <=1.21.8"
+deps.fabric_api = "0.128.2+1.21.6"
+
+["1.21.9"]
+mod.mc_compat = ">=1.21.9 <=1.21.10"
+deps.fabric_api = "0.134.1+1.21.9"
+
+["1.21.11"]
+mod.mc_compat = "1.21.11"
+deps.fabric_api = "0.141.6+1.21.11"
