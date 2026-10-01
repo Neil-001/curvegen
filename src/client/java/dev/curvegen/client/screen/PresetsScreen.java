@@ -266,11 +266,11 @@ public class PresetsScreen extends Screen {
     public boolean mouseClicked(MouseButtonEvent event, boolean doubled) {
         double mx = event.x(), my = event.y(); int button = event.button();
     //?} else
-    /*public boolean mouseClicked(double mx, double my, int button) {*/
+    //public boolean mouseClicked(double mx, double my, int button) {
         //? if >=1.21.9 {
         if (super.mouseClicked(event, doubled)) return true;
         //?} else
-        /*if (super.mouseClicked(mx, my, button)) return true;*/
+        //if (super.mouseClicked(mx, my, button)) return true;
         int row = rowAt(mx, my);
         if (row < 0 || button != 0) return false;
         Preset p = shown.get(row);
@@ -302,12 +302,12 @@ public class PresetsScreen extends Screen {
     public boolean keyPressed(KeyEvent event) {
         int key = event.key();
     //?} else
-    /*public boolean keyPressed(int key, int scan, int mods) {*/
+    //public boolean keyPressed(int key, int scan, int mods) {
         if ((key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_KP_ENTER) && selected != null) { load(selected); return true; }
         //? if >=1.21.9 {
         return super.keyPressed(event);
         //?} else
-        /*return super.keyPressed(key, scan, mods);*/
+        //return super.keyPressed(key, scan, mods);
     }
 
     private void rename(Preset p) {

@@ -18,7 +18,7 @@ loom {
         }
     }
     runConfigs.all {
-        runDir = "../../run"   // one run directory for every version
+        runDir = "../../run/${sc.current.version}"   // worlds saved by a newer version don't open in an older one
     }
 }
 

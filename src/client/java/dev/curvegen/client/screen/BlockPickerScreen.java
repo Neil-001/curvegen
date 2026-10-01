@@ -59,7 +59,7 @@ public class BlockPickerScreen extends Screen {
         //? if >=1.21.11 {
         addRenderableWidget(CycleButton.<Sort>builder(s -> Component.literal(s == Sort.NAME ? "Name" : "Closest colour"), sort).withValues(Sort.values())
         //?} else
-        /*addRenderableWidget(CycleButton.<Sort>builder(s -> Component.literal(s == Sort.NAME ? "Name" : "Closest colour")).withValues(Sort.values()).withInitialValue(sort)*/
+        //addRenderableWidget(CycleButton.<Sort>builder(s -> Component.literal(s == Sort.NAME ? "Name" : "Closest colour")).withValues(Sort.values()).withInitialValue(sort)
                 .create(M + 186, 24, 140, 20, Component.literal("Sort"), (b, v) -> { sort = v; refilter(); }));
         addRenderableWidget(Button.builder(Component.literal("Cancel"), b -> onClose()).bounds(width - M - 80, height - 26, 80, 20).build());
         refilter();
@@ -122,11 +122,11 @@ public class BlockPickerScreen extends Screen {
     public boolean mouseClicked(MouseButtonEvent event, boolean doubled) {
         double mx = event.x(), my = event.y();
     //?} else
-    /*public boolean mouseClicked(double mx, double my, int button) {*/
+    //public boolean mouseClicked(double mx, double my, int button) {
         //? if >=1.21.9 {
         if (super.mouseClicked(event, doubled)) return true;
         //?} else
-        /*if (super.mouseClicked(mx, my, button)) return true;*/
+        //if (super.mouseClicked(mx, my, button)) return true;
         int cols = cols(), c = (int) ((mx - M) / CELL), r = (int) ((my - gridTop()) / CELL);
         if (mx < M || c >= cols || my < gridTop() || r >= visibleRows()) return false;
         int n = (r + scroll) * cols + c;

@@ -92,12 +92,12 @@ public class NameDialogScreen extends Screen {
     public boolean keyPressed(KeyEvent event) {
         int key = event.key();
     //?} else
-    /*public boolean keyPressed(int key, int scan, int mods) {*/
+    //public boolean keyPressed(int key, int scan, int mods) {
         if (key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_KP_ENTER) { submit(); return true; }
         //? if >=1.21.9 {
         return super.keyPressed(event);
         //?} else
-        /*return super.keyPressed(key, scan, mods);*/
+        //return super.keyPressed(key, scan, mods);
     }
 
     @Override
@@ -121,7 +121,7 @@ public class NameDialogScreen extends Screen {
             ctx.drawString(font, font.plainSubstrByWidth(state.note(), W - 20), x + 10, noteY(), state.allowed() ? 0xFFE0C07A : 0xFFFF8098, false);
         for (var d : children()) if (d instanceof net.minecraft.client.gui.components.Renderable dr) dr.render(ctx, mx, my, delta);
         //? if <1.21.6
-        /*ctx.pose().popPose();*/
+        //ctx.pose().popPose();
     }
 
     @Override

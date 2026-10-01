@@ -114,11 +114,11 @@ public class ColorPickerScreen extends Screen {
     public boolean mouseClicked(MouseButtonEvent event, boolean doubled) {
         double mx = event.x(), my = event.y();
     //?} else
-    /*public boolean mouseClicked(double mx, double my, int button) {*/
+    //public boolean mouseClicked(double mx, double my, int button) {
         //? if >=1.21.9 {
         if (super.mouseClicked(event, doubled)) return true;
         //?} else
-        /*if (super.mouseClicked(mx, my, button)) return true;*/
+        //if (super.mouseClicked(mx, my, button)) return true;
         if (inRect(mx, my, sqX(), sqY(), SQ, SQ)) { dragging = 1; pick(mx, my); return true; }
         if (inRect(mx, my, hueX() - 2, sqY(), 16, SQ)) { dragging = 2; pick(mx, my); return true; }
         return false;
@@ -129,24 +129,24 @@ public class ColorPickerScreen extends Screen {
     public boolean mouseDragged(MouseButtonEvent event, double dx, double dy) {
         double mx = event.x(), my = event.y();
     //?} else
-    /*public boolean mouseDragged(double mx, double my, int button, double dx, double dy) {*/
+    //public boolean mouseDragged(double mx, double my, int button, double dx, double dy) {
         if (dragging != 0) { pick(mx, my); return true; }
         //? if >=1.21.9 {
         return super.mouseDragged(event, dx, dy);
         //?} else
-        /*return super.mouseDragged(mx, my, button, dx, dy);*/
+        //return super.mouseDragged(mx, my, button, dx, dy);
     }
 
     @Override
     //? if >=1.21.9 {
     public boolean mouseReleased(MouseButtonEvent event) {
     //?} else
-    /*public boolean mouseReleased(double mx, double my, int button) {*/
+    //public boolean mouseReleased(double mx, double my, int button) {
         if (dragging != 0) { dragging = 0; refreshPreview(); }
         //? if >=1.21.9 {
         return super.mouseReleased(event);
         //?} else
-        /*return super.mouseReleased(mx, my, button);*/
+        //return super.mouseReleased(mx, my, button);
     }
 
     private void pick(double mx, double my) {

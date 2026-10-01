@@ -55,7 +55,7 @@ public final class Compat {
         //? if >=1.21.6 {
         ctx.setTooltipForNextFrame(font, text, x, y);
         //?} else
-        /*ctx.renderTooltip(font, text, x, y);*/
+        //ctx.renderTooltip(font, text, x, y);
     }
 
     public static DynamicTexture texture(Identifier id, NativeImage image) {

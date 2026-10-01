@@ -30,7 +30,7 @@ public class CurveGen implements ModInitializer {
         //? if >=1.21.11 {
         return player.permissions().hasPermission(net.minecraft.server.permissions.Permissions.COMMANDS_GAMEMASTER);
         //?} else
-        /*return player.hasPermissions(2);*/
+        //return player.hasPermissions(2);
     }
 
     @Override
@@ -48,7 +48,7 @@ public class CurveGen implements ModInitializer {
             //? if >=1.21.6 {
             ServerLevel world = player.level();
             //?} else
-            /*ServerLevel world = player.serverLevel();*/
+            //ServerLevel world = player.serverLevel();
             int skipped = 0;
             for (int i = 0; i < payload.states().length; i++) {
                 BlockPos pos = payload.origin().offset(payload.offsets()[3 * i], payload.offsets()[3 * i + 1], payload.offsets()[3 * i + 2]);

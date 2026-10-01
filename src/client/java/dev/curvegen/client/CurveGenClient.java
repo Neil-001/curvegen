@@ -20,7 +20,7 @@ public class CurveGenClient implements ClientModInitializer {
     //? if >=1.21.9 {
     private static final KeyMapping.Category CAT = KeyMapping.Category.register(Identifier.fromNamespaceAndPath("curvegen", "main"));
     //?} else
-    /*private static final String CAT = "key.category.curvegen.main";*/
+    //private static final String CAT = "key.category.curvegen.main";
     public static KeyMapping OPEN, CONFIRM, CANCEL, ROTATE, RAISE, LOWER, LOCK, UNDO;
 
     private static KeyMapping key(String name, int code) {
@@ -83,12 +83,12 @@ public class CurveGenClient implements ClientModInitializer {
 
     // 1.21.5 deprecates HudRenderCallback, but the replacement it offers exists only in that one version.
     //? if >=1.21.5 <1.21.6
-    /*@SuppressWarnings("deprecation")*/
+    //@SuppressWarnings("deprecation")
     private static void registerHud() {
         //? if >=1.21.6 {
         net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry.addLast(
                 Identifier.fromNamespaceAndPath("curvegen", "placement"), (dc, tickCounter) -> Placement.renderHud(dc));
         //?} else
-        /*net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback.EVENT.register((dc, tickCounter) -> Placement.renderHud(dc));*/
+        //net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback.EVENT.register((dc, tickCounter) -> Placement.renderHud(dc));
     }
 }

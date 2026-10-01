@@ -583,13 +583,13 @@ public class CurveScreen extends Screen {
         //? if >=1.21.9 {
         @Override public void onPress(InputWithModifiers input) { action.run(); }
         //?} else
-        /*@Override public void onPress() { action.run(); }*/
+        //@Override public void onPress() { action.run(); }
 
         @Override
         //? if >=1.21.11 {
         protected void renderContents(GuiGraphics ctx, int mouseX, int mouseY, float delta) {
         //?} else
-        /*protected void renderWidget(GuiGraphics ctx, int mouseX, int mouseY, float delta) {*/
+        //protected void renderWidget(GuiGraphics ctx, int mouseX, int mouseY, float delta) {
             int x = getX(), y = getY();
             ctx.fill(x, y, x + width, y + height, !active ? 0xFF22262C : isHovered() ? 0xFF55606E : 0xFF3A424D);
             int c = active ? 0xFFE4E9EF : 0xFF4E5560, cx = x + width / 2, cy = y + height / 2;
@@ -649,7 +649,7 @@ public class CurveScreen extends Screen {
         //? if >=1.21.11 {
         CycleButton<T> b = CycleButton.builder(names, initial).withValues(values)
         //?} else
-        /*CycleButton<T> b = CycleButton.builder(names).withValues(values).withInitialValue(initial)*/
+        //CycleButton<T> b = CycleButton.builder(names).withValues(values).withInitialValue(initial)
                 .create(x, y, w, 20, Component.literal(label), (btn, v) -> onChange.accept(v));
         reverse.put(b, () -> {
             T prev = values.get((values.indexOf(b.getValue()) - 1 + values.size()) % values.size());
@@ -835,7 +835,7 @@ public class CurveScreen extends Screen {
     public boolean mouseClicked(MouseButtonEvent event, boolean doubled) {
         double mx = event.x(), my = event.y(); int button = event.button();
     //?} else
-    /*public boolean mouseClicked(double mx, double my, int button) {*/
+    //public boolean mouseClicked(double mx, double my, int button) {
         if (button == 1)
             for (var e : reverse.entrySet()) {
                 AbstractWidget w = e.getKey();
@@ -848,7 +848,7 @@ public class CurveScreen extends Screen {
         //? if >=1.21.9 {
         if (super.mouseClicked(event, doubled)) return true;
         //?} else
-        /*if (super.mouseClicked(mx, my, button)) return true;*/
+        //if (super.mouseClicked(mx, my, button)) return true;
         boolean inCanvas = mx >= cx0() && mx < cx1() && my >= cy0() && my < cy1();
         if (!inCanvas || result == null) return false;
         setFocused(null);
@@ -867,7 +867,7 @@ public class CurveScreen extends Screen {
     public boolean mouseDragged(MouseButtonEvent event, double dx, double dy) {
         double mx = event.x(), my = event.y();
     //?} else
-    /*public boolean mouseDragged(double mx, double my, int button, double dx, double dy) {*/
+    //public boolean mouseDragged(double mx, double my, int button, double dx, double dy) {
         if (dragPoint >= 0 && result != null) {
             double bx = (mx - panX) / zoom, by = result.ny() - (my - panY) / zoom;
             bx = Math.max(0, Math.min(result.nx(), bx));
@@ -882,19 +882,19 @@ public class CurveScreen extends Screen {
         //? if >=1.21.9 {
         return super.mouseDragged(event, dx, dy);
         //?} else
-        /*return super.mouseDragged(mx, my, button, dx, dy);*/
+        //return super.mouseDragged(mx, my, button, dx, dy);
     }
 
     @Override
     //? if >=1.21.9 {
     public boolean mouseReleased(MouseButtonEvent event) {
     //?} else
-    /*public boolean mouseReleased(double mx, double my, int button) {*/
+    //public boolean mouseReleased(double mx, double my, int button) {
         dragPoint = -1; panning = false;
         //? if >=1.21.9 {
         return super.mouseReleased(event);
         //?} else
-        /*return super.mouseReleased(mx, my, button);*/
+        //return super.mouseReleased(mx, my, button);
     }
 
     @Override
