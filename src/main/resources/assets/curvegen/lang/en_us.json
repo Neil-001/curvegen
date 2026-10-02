@@ -4,8 +4,14 @@
   "key.curvegen.confirm": "Place shape (in placement mode)",
   "key.curvegen.cancel": "Cancel placement",
   "key.curvegen.rotate": "Rotate shape",
-  "key.curvegen.raise": "Raise shape",
-  "key.curvegen.lower": "Lower shape",
+  "key.curvegen.forward": "Move shape the way you're looking",
+  "key.curvegen.back": "Move shape back towards you",
+  "key.curvegen.down": "Move shape down",
+  "key.curvegen.up": "Move shape up",
+  "key.curvegen.north": "Move shape north",
+  "key.curvegen.south": "Move shape south",
+  "key.curvegen.west": "Move shape west",
+  "key.curvegen.east": "Move shape east",
   "key.curvegen.lock": "Lock or unlock shape",
   "key.curvegen.undo": "Undo last placement"
 }
