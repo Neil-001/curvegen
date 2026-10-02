@@ -42,7 +42,9 @@ public final class Placement {
     private static final int COMMANDS_PER_TICK = 40;
 
     private static Layout layout;
-    private static int depth = 1, rotation = 0, yOffset = 0;
+    private static int depth = 1, rotation = 0;
+    /** How far the player has moved the shape from the block they're aiming at. */
+    private static BlockPos nudge = BlockPos.ZERO;
     private static boolean active, overwrite = true, carve = false, floor = false;
     /** Carve offsets (relative to the anchor) for the current facing. */
     private static List<BlockPos> carveOffsets = List.of();
@@ -67,7 +69,7 @@ public final class Placement {
 
     public static void start(Layout l, int d, boolean overwriteBlocks, boolean carveSpace, boolean flat) {
         layout = l; depth = Math.max(1, d); overwrite = overwriteBlocks; carve = carveSpace; floor = flat;
-        rotation = 0; yOffset = 0; lockedAnchor = null; lockedFacing = null; cachedFacing = null; viewAnchor = null; active = true;
+        rotation = 0; nudge = BlockPos.ZERO; lockedAnchor = null; lockedFacing = null; cachedFacing = null; viewAnchor = null; active = true;
     }
 
     /** Where the shape may put a block when "Replace" is off: air and things like grass, water or snow layers. */
@@ -80,7 +82,14 @@ public final class Placement {
     }
 
     public static void rotate() { rotation = (rotation + 1) & 3; }
-    public static void raise(int dy) { yOffset += dy; }
+    public static void move(Direction d) { nudge = nudge.relative(d); }
+    /** Moves one block along whichever of the six directions the player is looking closest to, or the opposite way. */
+    public static void moveWithView(boolean forwards) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null) return;
+        Direction d = mc.player.getNearestViewDirection();
+        move(forwards ? d : d.getOpposite());
+    }
     /** Freezes (or releases) both where the shape is and which way it faces. R still rotates it while locked. */
     public static void toggleLock() {
         Minecraft mc = Minecraft.getInstance();
@@ -167,7 +176,7 @@ public final class Placement {
         Direction f = facing(mc);
         if (f != cachedFacing) rebuild(f);
         BlockPos base = lockedAnchor != null ? lockedAnchor : baseTarget(mc);
-        anchor = base == null ? null : base.above(yOffset);
+        anchor = base == null ? null : base.offset(nudge);
         if (anchor != null && mc.level != null && (!anchor.equals(viewAnchor) || viewFacing != cachedFacing || ++viewAge >= 10))
             refreshView(mc);
     }
@@ -236,7 +245,7 @@ public final class Placement {
         if (carve) what += ", " + toBreak.size() + " to clear (shown in red)";
         lines.add(Component.literal(what).withStyle(ChatFormatting.WHITE));
         lines.add(Component.literal(key(CurveGenClient.CONFIRM) + " place, " + key(CurveGenClient.ROTATE) + " rotate, "
-                + key(CurveGenClient.RAISE) + "/" + key(CurveGenClient.LOWER) + " move up or down, "
+                + key(CurveGenClient.FORWARD) + "/" + key(CurveGenClient.BACK) + " move forwards or back, "
                 + key(CurveGenClient.LOCK) + (lockedAnchor != null ? " unlock (follow your view again)" : " lock position and direction") + ", "
                 + key(CurveGenClient.CANCEL) + " cancel").withStyle(ChatFormatting.GRAY));
         if (entries.size() > HOLOGRAM_LIMIT) lines.add(Component.literal("Large shape: only its outline is previewed.").withStyle(ChatFormatting.YELLOW));
