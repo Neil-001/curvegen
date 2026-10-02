@@ -10,6 +10,7 @@ import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
 import net.fabricmc.fabric.api.resource.v1.ResourceLoader;
 import net.minecraft.client.KeyMapping;
+import net.minecraft.core.Direction;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.packs.PackType;
 import net.minecraft.server.packs.resources.ResourceManagerReloadListener;
@@ -20,7 +21,9 @@ public class CurveGenClient implements ClientModInitializer {
     public static final ShapeSettings SETTINGS = new ShapeSettings();
 
     private static final KeyMapping.Category CAT = KeyMapping.Category.register(Identifier.fromNamespaceAndPath("curvegen", "main"));
-    public static KeyMapping OPEN, CONFIRM, CANCEL, ROTATE, RAISE, LOWER, LOCK, UNDO;
+    public static KeyMapping OPEN, CONFIRM, CANCEL, ROTATE, FORWARD, BACK, LOCK, UNDO;
+    /** Moves along one world axis each, in {@link Direction} order. Unbound until the player assigns them. */
+    private static final KeyMapping[] MOVE = new KeyMapping[6];
 
     private static KeyMapping key(String name, int code) {
         return KeyBindingHelper.registerKeyBinding(new KeyMapping("key.curvegen." + name, InputConstants.Type.KEYSYM, code, CAT));
@@ -32,8 +35,9 @@ public class CurveGenClient implements ClientModInitializer {
         CONFIRM = key("confirm", GLFW.GLFW_KEY_ENTER);
         CANCEL = key("cancel", GLFW.GLFW_KEY_BACKSPACE);
         ROTATE = key("rotate", GLFW.GLFW_KEY_R);
-        RAISE = key("raise", GLFW.GLFW_KEY_PAGE_UP);
-        LOWER = key("lower", GLFW.GLFW_KEY_PAGE_DOWN);
+        FORWARD = key("forward", GLFW.GLFW_KEY_PAGE_UP);
+        BACK = key("back", GLFW.GLFW_KEY_PAGE_DOWN);
+        for (Direction d : Direction.values()) MOVE[d.ordinal()] = key(d.getName(), GLFW.GLFW_KEY_UNKNOWN);
         LOCK = key("lock", GLFW.GLFW_KEY_K);
         UNDO = key("undo", GLFW.GLFW_KEY_Z);
 
@@ -44,13 +48,16 @@ public class CurveGenClient implements ClientModInitializer {
                 while (CONFIRM.consumeClick()) Placement.confirm();
                 while (CANCEL.consumeClick()) Placement.cancel();
                 while (ROTATE.consumeClick()) Placement.rotate();
-                while (RAISE.consumeClick()) Placement.raise(1);
-                while (LOWER.consumeClick()) Placement.raise(-1);
+                while (FORWARD.consumeClick()) Placement.moveWithView(true);
+                while (BACK.consumeClick()) Placement.moveWithView(false);
+                for (Direction d : Direction.values())
+                    while (MOVE[d.ordinal()].consumeClick()) Placement.move(d);
                 while (LOCK.consumeClick()) Placement.toggleLock();
             } else {
                 // Drain presses so they don't fire later when placement starts.
                 while (CONFIRM.consumeClick() || CANCEL.consumeClick() || ROTATE.consumeClick()
-                        || RAISE.consumeClick() || LOWER.consumeClick() || LOCK.consumeClick()) { }
+                        || FORWARD.consumeClick() || BACK.consumeClick() || LOCK.consumeClick()) { }
+                for (KeyMapping k : MOVE) while (k.consumeClick()) { }
             }
             Placement.tick(mc);
         });
