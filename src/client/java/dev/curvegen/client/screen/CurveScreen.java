@@ -102,7 +102,7 @@ public class CurveScreen extends Screen {
 
     @Override
     protected void init() {
-        labels.clear(); icons.clear(); pointFields.clear(); reverse.clear(); spinners.clear(); hint = null; qHField = null; qLWField = null; bLWField = null; eqShape = null;
+        labels.clear(); icons.clear(); pointFields.clear(); reverse.clear(); spinners.clear(); countRows = null; hint = null; qHField = null; qLWField = null; bLWField = null; eqShape = null;
 
         // Top bar: tabs on the left, view options on the right, each button as wide as its text needs.
         String[] names = {"Ellipse", "Equation", "Bézier", "Blocks", "Count"};
@@ -447,7 +447,15 @@ public class CurveScreen extends Screen {
     // ---------- block count (the web version's "Materials") ----------
     private int countScroll, countContentH;
 
-    private record CountRow(boolean header, String text, int count, int state, boolean dim, String tip) {}
+    /** One line of the list, with its texts already cut to fit. */
+    private record CountRow(boolean header, String text, String count, int countW, int state, boolean dim, String tip) {}
+    /** The rows last built, and the result and depth they were built for. Every other input rebuilds the widgets, which clears them. */
+    private List<CountRow> countRows;
+    private Solver.Result countResult;
+    private int countDepth;
+    private static final int ICON = 14;
+    /** Each piece's icon as rectangles, filled in on first use. */
+    private static final int[][][] ICON_RECTS = new int[Pieces.COUNT][][];
 
     /** The states of a family that the current orientation can produce, in list order. */
     private List<Integer> statesFor(Family f, boolean floor) {
@@ -483,7 +491,9 @@ public class CurveScreen extends Screen {
 
     /** Grouped by piece type, then one row per state. States that look the same (and are named the same) share a row. */
     private List<CountRow> countRows() {
+        if (countRows != null && countResult == result && countDepth == S.depth) return countRows;
         List<CountRow> rows = new ArrayList<>();
+        countRows = rows; countResult = result; countDepth = S.depth;
         if (result == null || result.target().error != null) return rows;
         boolean floor = result.floor();
         int mult = Math.max(1, S.depth);
@@ -494,11 +504,19 @@ public class CurveScreen extends Screen {
             for (int[] m : merged.values()) total += m[1];
             boolean unused = floor && (f == Family.SLAB || f == Family.STAIRS);
             String blockName = BlockChoices.CHOICE.get(f).getName().getString();
-            rows.add(new CountRow(true, BlockChoices.familyName(f) + (unused ? " (not used flat)" : S.allows(f) ? "" : " (off)"),
-                    total, -1, unused || !S.allows(f), blockName));
-            for (var e : merged.entrySet())
-                rows.add(new CountRow(false, e.getKey(), e.getValue()[1], e.getValue()[0], e.getValue()[1] == 0,
-                        Pieces.NAME[e.getValue()[0]] + ": " + blockName));
+            String n = String.valueOf(total);
+            int nw = tw(n);
+            String title = BlockChoices.familyName(f) + (unused ? " (not used flat)" : S.allows(f) ? "" : " (off)");
+            rows.add(new CountRow(true, font.plainSubstrByWidth(title, PANEL_W - nw - 6), n, nw, -1, unused || !S.allows(f), blockName));
+            for (var e : merged.entrySet()) {
+                int st = e.getValue()[0], count = e.getValue()[1];
+                n = String.valueOf(count);
+                nw = tw(n);
+                String name = e.getKey();
+                int room = PANEL_W - 20 - nw - 6;
+                if (tw(name) > room) name = font.plainSubstrByWidth(name, room - tw("…")) + "…";
+                rows.add(new CountRow(false, name, n, nw, st, count == 0, Pieces.NAME[st] + ": " + blockName + " ×" + count));
+            }
         }
         return rows;
     }
@@ -509,27 +527,23 @@ public class CurveScreen extends Screen {
         int y = top - countScroll;
         String tip = null;
         for (CountRow r : countRows()) {
-            String n = String.valueOf(r.count);
-            int nw = tw(n);
+            if (r.header) y += 4;
+            int h = r.header ? 14 : 17;
+            if (y + h <= top || y >= bottom) { y += h; continue; }   // scrolled out of view
             if (r.header) {
-                y += 4;
                 int c = r.dim ? 0xFF808A96 : 0xFFE4E9EF;
-                ctx.drawString(font, font.plainSubstrByWidth(r.text, PANEL_W - nw - 6), x0, y, c, false);
-                ctx.drawString(font, n, x1 - nw, y, c, false);
+                ctx.drawString(font, r.text, x0, y, c, false);
+                ctx.drawString(font, r.count, x1 - r.countW, y, c, false);
                 ctx.fill(x0, y + 10, x1, y + 11, 0x40FFFFFF);
                 if (my >= y && my < y + 11 && mx >= x0 && mx < x1 && my >= top && my < bottom) tip = r.tip;
-                y += 14;
             } else {
                 drawIcon(ctx, r.state, x0 + 1, y + 1, r.dim);
                 int c = r.dim ? 0xFF5C6470 : 0xFFC8CED6;
-                String name = r.text;
-                int room = PANEL_W - 20 - nw - 6;
-                if (tw(name) > room) name = font.plainSubstrByWidth(name, room - tw("…")) + "…";
-                ctx.drawString(font, name, x0 + 20, y + 4, c, false);
-                ctx.drawString(font, n, x1 - nw, y + 4, r.dim ? 0xFF5C6470 : 0xFFFFFFFF, false);
-                if (my >= y && my < y + 16 && mx >= x0 && mx < x1 && my >= top && my < bottom) tip = r.tip + " ×" + r.count;
-                y += 17;
+                ctx.drawString(font, r.text, x0 + 20, y + 4, c, false);
+                ctx.drawString(font, r.count, x1 - r.countW, y + 4, r.dim ? 0xFF5C6470 : 0xFFFFFFFF, false);
+                if (my >= y && my < y + 16 && mx >= x0 && mx < x1 && my >= top && my < bottom) tip = r.tip;
             }
+            y += h;
         }
         countContentH = y + countScroll - top;
         ctx.disableScissor();
@@ -544,15 +558,13 @@ public class CurveScreen extends Screen {
 
     /** A 14-pixel piece icon painted exactly like the preview: same colours, same silhouette outline. */
     private void drawIcon(GuiGraphics ctx, int p, int x, int y, boolean dim) {
-        int size = 14;
-        ctx.fill(x - 1, y - 1, x + size + 1, y + size + 1, 0x40FFFFFF);
-        ctx.fill(x, y, x + size, y + size, PreviewTexture.BG);
-        boolean[] in = Silhouette.of(p, size), edge = Silhouette.outline(in, size);
+        ctx.fill(x - 1, y - 1, x + ICON + 1, y + ICON + 1, 0x40FFFFFF);
+        ctx.fill(x, y, x + ICON, y + ICON, PreviewTexture.BG);
+        int[][] rects = ICON_RECTS[p];
+        if (rects == null) rects = ICON_RECTS[p] = Silhouette.rects(p, ICON);
         int fill = PreviewTexture.colorFor(p, colors), dark = PreviewTexture.darken(fill, 0.55f);
         if (dim) { fill = (fill & 0xFFFFFF) | 0x58000000; dark = (dark & 0xFFFFFF) | 0x58000000; }
-        for (int py = 0; py < size; py++)
-            for (int px = 0; px < size; px++)
-                if (in[py * size + px]) ctx.fill(x + px, y + py, x + px + 1, y + py + 1, edge[py * size + px] ? dark : fill);
+        for (int[] r : rects) ctx.fill(x + r[0], y + r[1], x + r[2], y + r[3], r[4] == 1 ? dark : fill);
     }
 
     // ---------- widgets ----------

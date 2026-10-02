@@ -1,5 +1,8 @@
 package dev.curvegen.core;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /** A piece drawn at a given pixel size, and the pixels on its outline. Shared by the preview and the Count tab icons. */
 public final class Silhouette {
     private Silhouette() {}
@@ -33,5 +36,26 @@ public final class Silhouette {
                 e[y * size + x] = edge;
             }
         return e;
+    }
+
+    /**
+     * The same picture as {@link #of} and {@link #outline}, as rectangles that don't overlap: {x0, y0, x1, y1, edge}
+     * each, with edge 1 for outline pixels. Far fewer shapes to draw than one per pixel.
+     */
+    public static int[][] rects(int piece, int size) {
+        boolean[] in = of(piece, size), edge = outline(in, size);
+        List<int[]> out = new ArrayList<>();
+        for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; ) {
+                int k = y * size + x, x0 = x;
+                if (!in[k]) { x++; continue; }
+                while (x < size && in[y * size + x] && edge[y * size + x] == edge[k]) x++;
+                int e = edge[k] ? 1 : 0, x1 = x;
+                int[] above = null;                 // a run directly above with the same span and kind grows down instead
+                for (int[] r : out) if (r[3] == y && r[0] == x0 && r[2] == x1 && r[4] == e) above = r;
+                if (above != null) above[3]++;
+                else out.add(new int[]{x0, y, x1, y + 1, e});
+            }
+        return out.toArray(new int[0][]);
     }
 }
