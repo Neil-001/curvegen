@@ -52,4 +52,29 @@ class SilhouetteTest {
                     assertEquals(Pieces.MASK[p][(15 - y) * 16 + x] == 1, in[y * 16 + x], Pieces.NAME[p] + " pixel " + x + "," + y);
         }
     }
+
+    /** The Count tab draws rectangles instead of single pixels. They must paint the very same picture. */
+    @Test
+    void rectsPaintTheSamePixels() {
+        for (int size : new int[]{8, 12, 14, 16}) {
+            int pixels = 0, rects = 0;
+            for (int p = 1; p < Pieces.COUNT; p++) {
+                boolean[] in = Silhouette.of(p, size), edge = Silhouette.outline(in, size);
+                int[] painted = new int[size * size];   // 0 empty, 1 fill, 2 outline
+                for (int[] r : Silhouette.rects(p, size)) {
+                    rects++;
+                    for (int y = r[1]; y < r[3]; y++)
+                        for (int x = r[0]; x < r[2]; x++) {
+                            assertEquals(0, painted[y * size + x], Pieces.NAME[p] + " is painted twice at " + x + "," + y);
+                            painted[y * size + x] = 1 + r[4];
+                        }
+                }
+                for (int k = 0; k < in.length; k++) {
+                    assertEquals(in[k] ? edge[k] ? 2 : 1 : 0, painted[k], Pieces.NAME[p] + " at " + size + ", pixel " + k);
+                    if (in[k]) pixels++;
+                }
+            }
+            if (size == 14) assertTrue(rects * 10 < pixels, "at " + size + ": " + rects + " rectangles for " + pixels + " pixels");
+        }
+    }
 }
