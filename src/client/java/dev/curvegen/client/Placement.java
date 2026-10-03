@@ -30,6 +30,7 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.FallingBlock;
 import net.minecraft.world.level.block.LiquidBlock;
+import net.minecraft.world.level.block.SnowLayerBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.FogType;
 import net.minecraft.world.phys.AABB;
@@ -175,19 +176,20 @@ public final class Placement {
 
     /** Works out what placing right now would actually do, given the blocks already in the world. */
     private static void refreshView(Minecraft mc) {
+        boolean drawn = entries.size() <= HOLOGRAM_LIMIT;   // the split is only for drawing the boxes
         List<Entry> place = new ArrayList<>(), wet = new ArrayList<>(), dry = new ArrayList<>();
         for (Entry e : entries) {
             BlockPos p = anchor.offset(e.dx, e.dy, e.dz);
             if (!overwrite && !free(mc.level.getBlockState(p))) continue;
             place.add(e);
-            (underWater(mc, p) ? wet : dry).add(e);
+            if (drawn) (underWater(mc, p) ? wet : dry).add(e);
         }
         List<BlockPos> brk = new ArrayList<>(), brkWet = new ArrayList<>(), brkDry = new ArrayList<>();
         for (BlockPos o : carveOffsets) {
             BlockPos p = anchor.offset(o);
             if (mc.level.getBlockState(p).isAir()) continue;
             brk.add(o);
-            (underWater(mc, p) ? brkWet : brkDry).add(o);
+            if (drawn) (underWater(mc, p) ? brkWet : brkDry).add(o);
         }
         toPlace = place; toBreak = brk;
         placeWet = wet; placeDry = dry; breakWet = brkWet; breakDry = brkDry;
@@ -331,7 +333,8 @@ public final class Placement {
     /** Whether a block could break or fall when a block beside it changes: anything that isn't a plain full block. */
     private static boolean needsSupport(Minecraft mc, BlockPos p, BlockState state) {
         if (state.isAir() || state.getBlock() instanceof LiquidBlock) return false;
-        return state.getBlock() instanceof FallingBlock || !state.isCollisionShapeFullBlock(mc.level, p);
+        return state.getBlock() instanceof FallingBlock || state.getBlock() instanceof SnowLayerBlock   // eight layers make a full block
+                || !state.isCollisionShapeFullBlock(mc.level, p);
     }
 
     /**
@@ -394,7 +397,8 @@ public final class Placement {
             // The server doesn't have the mod: fall back to /setblock, which also needs operator rights.
             for (int i = 0; i < pos.size(); i++) {
                 BlockPos p = pos.get(i);
-                // Undo uses strict mode, which sets the block without block updates, like the server-side handler does.
+                // Undo uses strict mode, which sets the block without block updates, as the server-side handler does first.
+                // Commands can't run the handler's second step, so blocks around the restored ones keep their state.
                 commandQueue.add("setblock " + p.getX() + " " + p.getY() + " " + p.getZ() + " "
                         + BlockStateParser.serialize(states.get(i)) + (undo ? " strict" : ""));
             }
