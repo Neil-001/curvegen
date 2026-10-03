@@ -76,6 +76,7 @@ The shared code is in the root `src/` folder: `src/main` (common), `src/client` 
 
 - Client-to-server custom payloads must stay under 32 KiB, so placement sends 2,500 blocks per batch.
 - The `/setblock` fallback sends 40 commands per tick.
+- Undo puts blocks back without block updates (`UPDATE_KNOWN_SHAPE` on the server, `strict` in the `/setblock` fallback), so a block restored before its support doesn't break again. Placement also records nearby blocks that need support, and undo restores the ones that are gone. Items those blocks dropped are not removed.
 - `NativeImage.getPixel` and `setPixel` take ARGB.
 
 ## Releasing
