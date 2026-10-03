@@ -3,34 +3,39 @@ package dev.curvegen.client;
 import com.mojang.blaze3d.platform.InputConstants;
 import dev.curvegen.client.screen.CurveScreen;
 import dev.curvegen.core.ShapeSettings;
-import net.fabricmc.api.ClientModInitializer;
-import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
-import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
-import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
-import net.fabricmc.fabric.api.resource.v1.ResourceLoader;
+import java.util.ArrayList;
+import java.util.List;
 import net.minecraft.client.KeyMapping;
+import net.minecraft.client.Minecraft;
 import net.minecraft.core.Direction;
 import net.minecraft.resources.Identifier;
-import net.minecraft.server.packs.PackType;
-import net.minecraft.server.packs.resources.ResourceManagerReloadListener;
 import org.lwjgl.glfw.GLFW;
 
-public class CurveGenClient implements ClientModInitializer {
+/** The client side that doesn't depend on the mod loader. The loader's client entrypoint, in {@code dev.curvegen.client.fabric}, hooks it up. */
+public final class CurveGenClient {
+    private CurveGenClient() {}
+
     /** Shape settings live for the whole session, so reopening the screen picks up where you left off. */
     public static final ShapeSettings SETTINGS = new ShapeSettings();
+
+    public static ClientPlatform platform;
 
     private static final KeyMapping.Category CAT = KeyMapping.Category.register(Identifier.fromNamespaceAndPath("curvegen", "main"));
     public static KeyMapping OPEN, CONFIRM, CANCEL, ROTATE, FORWARD, BACK, LOCK, UNDO;
     /** Moves along one world axis each, in {@link Direction} order. Unbound until the player assigns them. */
     private static final KeyMapping[] MOVE = new KeyMapping[6];
+    /** Every key, in the order the Controls screen lists them. */
+    private static final List<KeyMapping> KEYS = new ArrayList<>();
 
     private static KeyMapping key(String name, int code) {
-        return KeyBindingHelper.registerKeyBinding(new KeyMapping("key.curvegen." + name, InputConstants.Type.KEYSYM, code, CAT));
+        KeyMapping k = new KeyMapping("key.curvegen." + name, InputConstants.Type.KEYSYM, code, CAT);
+        KEYS.add(k);
+        return k;
     }
 
-    @Override
-    public void onInitializeClient() {
+    /** Creates the keys and returns them for the loader to register. */
+    public static List<KeyMapping> init(ClientPlatform loader) {
+        platform = loader;
         OPEN = key("open", GLFW.GLFW_KEY_G);
         CONFIRM = key("confirm", GLFW.GLFW_KEY_ENTER);
         CANCEL = key("cancel", GLFW.GLFW_KEY_BACKSPACE);
@@ -40,31 +45,28 @@ public class CurveGenClient implements ClientModInitializer {
         for (Direction d : Direction.values()) MOVE[d.ordinal()] = key(d.getName(), GLFW.GLFW_KEY_UNKNOWN);
         LOCK = key("lock", GLFW.GLFW_KEY_K);
         UNDO = key("undo", GLFW.GLFW_KEY_Z);
+        return KEYS;
+    }
 
-        ClientTickEvents.END_CLIENT_TICK.register(mc -> {
-            while (OPEN.consumeClick()) mc.setScreen(new CurveScreen());
-            while (UNDO.consumeClick()) Placement.undo();
-            if (Placement.isActive()) {
-                while (CONFIRM.consumeClick()) Placement.confirm();
-                while (CANCEL.consumeClick()) Placement.cancel();
-                while (ROTATE.consumeClick()) Placement.rotate();
-                while (FORWARD.consumeClick()) Placement.moveWithView(true);
-                while (BACK.consumeClick()) Placement.moveWithView(false);
-                for (Direction d : Direction.values())
-                    while (MOVE[d.ordinal()].consumeClick()) Placement.move(d);
-                while (LOCK.consumeClick()) Placement.toggleLock();
-            } else {
-                // Drain presses so they don't fire later when placement starts.
-                while (CONFIRM.consumeClick() || CANCEL.consumeClick() || ROTATE.consumeClick()
-                        || FORWARD.consumeClick() || BACK.consumeClick() || LOCK.consumeClick()) { }
-                for (KeyMapping k : MOVE) while (k.consumeClick()) { }
-            }
-            Placement.tick(mc);
-        });
-        WorldRenderEvents.END_MAIN.register(Placement::render);
-        // Block colours come from the active resource packs, so recompute them whenever packs change.
-        ResourceLoader.get(PackType.CLIENT_RESOURCES).registerReloader(Identifier.fromNamespaceAndPath("curvegen", "block_colours"),
-                (ResourceManagerReloadListener) manager -> ColorIndex.clear());
-        HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("curvegen", "placement"), (dc, tickCounter) -> Placement.renderHud(dc));
+    /** Call at the end of every client tick. */
+    public static void tick(Minecraft mc) {
+        while (OPEN.consumeClick()) mc.setScreen(new CurveScreen());
+        while (UNDO.consumeClick()) Placement.undo();
+        if (Placement.isActive()) {
+            while (CONFIRM.consumeClick()) Placement.confirm();
+            while (CANCEL.consumeClick()) Placement.cancel();
+            while (ROTATE.consumeClick()) Placement.rotate();
+            while (FORWARD.consumeClick()) Placement.moveWithView(true);
+            while (BACK.consumeClick()) Placement.moveWithView(false);
+            for (Direction d : Direction.values())
+                while (MOVE[d.ordinal()].consumeClick()) Placement.move(d);
+            while (LOCK.consumeClick()) Placement.toggleLock();
+        } else {
+            // Drain presses so they don't fire later when placement starts.
+            while (CONFIRM.consumeClick() || CANCEL.consumeClick() || ROTATE.consumeClick()
+                    || FORWARD.consumeClick() || BACK.consumeClick() || LOCK.consumeClick()) { }
+            for (KeyMapping k : MOVE) while (k.consumeClick()) { }
+        }
+        Placement.tick(mc);
     }
 }

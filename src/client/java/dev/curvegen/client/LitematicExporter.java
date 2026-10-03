@@ -11,7 +11,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.SharedConstants;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
@@ -91,7 +90,7 @@ public final class LitematicExporter {
         root.put("Metadata", meta);
         root.put("Regions", regions);
 
-        Path dir = FabricLoader.getInstance().getGameDir().resolve("schematics");
+        Path dir = CurveGenClient.platform.gameDir().resolve("schematics");
         Files.createDirectories(dir);
         Path file = dir.resolve(baseName + ".litematic");
         NbtIo.writeCompressed(root, file);

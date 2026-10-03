@@ -7,8 +7,6 @@ import dev.curvegen.net.PlaceBlocksPayload;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -183,11 +181,10 @@ public final class Placement {
 
     // ---------- rendering ----------
 
-    public static void render(WorldRenderContext ctx) {
+    /** Draws the hologram. {@code ms} is the world's pose stack and {@code cam} the camera position. */
+    public static void render(PoseStack ms, Vec3 cam) {
         if (!active || anchor == null || entries.isEmpty() || !anchor.equals(viewAnchor)) return;
         Minecraft mc = Minecraft.getInstance();
-        PoseStack ms = ctx.matrices();
-        Vec3 cam = ctx.worldState().cameraRenderState.pos;
         MultiBufferSource.BufferSource imm = mc.renderBuffers().bufferSource();
         ms.pushPose();
         ms.translate(anchor.getX() - cam.x, anchor.getY() - cam.y, anchor.getZ() - cam.z);
@@ -301,7 +298,7 @@ public final class Placement {
 
     private static void send(List<BlockPos> pos, List<BlockState> states, boolean undo) {
         if (pos.isEmpty()) return;
-        if (ClientPlayNetworking.canSend(PlaceBlocksPayload.ID)) {
+        if (CurveGenClient.platform.canSendToServer()) {
             BlockPos origin = pos.get(0);
             int n = pos.size();
             for (int start = 0; start < n; start += PlaceBlocksPayload.MAX_PER_BATCH) {
@@ -314,7 +311,7 @@ public final class Placement {
                     off[3 * (i - start) + 2] = p.getZ() - origin.getZ();
                     st[i - start] = Block.getId(states.get(i));
                 }
-                ClientPlayNetworking.send(new PlaceBlocksPayload(origin, off, st, end == n, n, undo));
+                CurveGenClient.platform.sendToServer(new PlaceBlocksPayload(origin, off, st, end == n, n, undo));
             }
         } else {
             // The server doesn't have the mod: fall back to /setblock, which also needs operator rights.

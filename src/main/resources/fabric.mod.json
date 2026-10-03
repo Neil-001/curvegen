@@ -14,8 +14,8 @@
   "icon": "assets/curvegen/icon.png",
   "environment": "*",
   "entrypoints": {
-    "main": ["dev.curvegen.CurveGen"],
-    "client": ["dev.curvegen.client.CurveGenClient"]
+    "main": ["dev.curvegen.fabric.CurveGenFabric"],
+    "client": ["dev.curvegen.client.fabric.CurveGenFabricClient"]
   },
   "depends": {
     "fabricloader": ">=0.17.0",
