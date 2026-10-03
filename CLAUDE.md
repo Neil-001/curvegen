@@ -1,110 +1,79 @@
-# Curve Generator (Fabric and NeoForge mod, Minecraft Java 26.2)
+# Curve Generator
 
-An in-game tool that turns ellipses, equation plots and Bézier curves into full blocks, slabs, stairs, trapdoors, fences, glass panes and walls. The player previews the result, then places it with a hologram (operator permission needed) or exports it as a Litematica schematic.
+A Fabric and NeoForge mod for Minecraft Java 26.2. It turns ellipses, equations and Bézier curves into blocks, with a preview, operator-only placement and Litematica export.
 
 ## Commands
 
-- `./gradlew build` builds both jars, into `fabric/build/libs/` and `neoforge/build/libs/`, and runs the tests.
-- `./gradlew :fabric:runClient` and `./gradlew :neoforge:runClient` start a dev client with the mod. `runServer` works the same way.
-- `./gradlew :fabric:test` runs the JUnit tests for the pure-Java core. They live in the Fabric project only, because they don't depend on the loader.
+Needs JDK 25. Versions are in `gradle.properties`. Run build and test after every change.
 
-Needs JDK 25. Versions are in `gradle.properties`. Minecraft isn't obfuscated from 26.1 on, so the build has no mappings and the code uses Minecraft's own names (`Level`, `BlockState`, `GuiGraphicsExtractor`). Each loader's jar runs on 26.2 only. The Fabric jar is compiled against the first Fabric API built after 26.2 was released, and the NeoForge jar against the first stable NeoForge for 26.2. CI also compiles each against a newer one. The last commit that builds for 26.1 to 26.1.2 is `c09bdf6`. Run build and test after every change.
+- `./gradlew build` builds both jars in `fabric/build/libs/` and `neoforge/build/libs/` and runs the tests.
+- `./gradlew :fabric:test` runs the pure-Java core's JUnit tests. Only Fabric hosts them, since they're loader-independent.
+- `./gradlew :fabric:runClient` or `./gradlew :neoforge:runClient` starts a dev client. Use `runServer` for a server.
 
-## Layout
+Both jars target 26.2 only. Minecraft is unobfuscated, so use its own names without mappings. Builds use the minimum supported Fabric API and NeoForge versions; CI also compiles against newer ones.
 
-The shared code is in the root `src/` folder: `src/main` (common), `src/client` (client-only) and `src/test`. The `fabric/` and `neoforge/` projects each compile it together with their own entrypoints and metadata. Fabric keeps the two source sets apart with Loom's `splitEnvironmentSourceSets()`. NeoForge puts both in one jar, so common code must still never touch a client class.
+## Layout and boundaries
 
-- `dev/curvegen/core/` is pure Java with **no Minecraft imports**. Keep it that way, because the tests cover it.
-  - `Pieces`: every piece state as a 16×16 silhouette. Holds indices, rectangles, masks, mirror maps (`MX`, `MY`), sturdy faces, colours and names.
-  - `Target`: the ideal shape on a grid. Contains the ellipse, equation (marching squares plus bisection) and Bézier builders, and the carve regions.
-  - `Solver`: picks a piece for each cell, including fence, pane and wall connections, symmetry and hollowing.
-  - `Expr`: the Desmos-style equation parser. It compiles to lambdas, with no `eval`.
-  - `ShapeSettings`: all user settings. The solver runs on a worker thread from a `copy()`.
-  - `Layout`: the solved grid trimmed to non-empty cells, plus carve cells.
-  - `PresetData`: preset capture and apply, default names, and the starting examples.
-  - `LitematicBits`: Litematica's packed long array.
-  - `Silhouette`: piece pixels and outlines, shared by the preview and the Count tab icons.
-- `dev/curvegen/CurveGen.java` and `net/PlaceBlocksPayload.java` are the server-side placement handler and the placement packet from client to server. The server checks the gamemaster permission level (`Permissions.COMMANDS_GAMEMASTER`).
-- `fabric/src/` and `neoforge/src/` hold each loader's entrypoints (`dev/curvegen/fabric`, `dev/curvegen/client/fabric`, `dev/curvegen/neoforge`, `dev/curvegen/client/neoforge`) and its metadata file. They are the only code that may use that loader's classes. Everything else reaches the loader through `ClientPlatform`. A change to what the mod needs from the loader goes into both.
-- `dev/curvegen/client/`:
-  - `CurveGenClient`: the keys (G opens the screen) and what they do each tick.
-  - `ClientPlatform`: what the client needs from the mod loader: sending the placement packet, and the config and game folders.
-  - `BlockChoices`: the block chosen for each piece family, candidate lists, and the mapping from piece to `BlockState` for upright and flat builds.
-  - `ColorIndex`: average texture colours for the face you'll see, matched in CIELAB.
-  - `Placement`: placement mode, hologram, Replace and Carve, undo, and the `/setblock` fallback. The hologram is submitted to the frame's `SubmitNodeCollector`, which each loader hands over in its own event, and the game draws it later in the frame. The boxes go into the after-terrain phase so they draw over water and glass, and `filledBox` leaves out the faces turned away from the camera, because 26.2's filled-box render type doesn't cull them. Boxes across a water surface from the camera are submitted the normal way instead, which draws them before the water, so they show through it.
-  - `LitematicExporter`: writes the `.litematic` file.
-  - `PresetStore`: reads and writes one JSON file per preset in `config/curvegen/presets/`, replacing each file atomically.
-- `dev/curvegen/client/screen/`:
-  - `CurveScreen`: the main UI.
-  - `PreviewTexture`: renders a solved grid into a dynamic texture.
-  - `BlockPickerScreen`, `ColorPickerScreen`, `PresetsScreen`, `NameDialogScreen`.
+Both loaders compile the shared `src/main` and `src/client` code with their own entrypoints and metadata. Fabric also compiles `src/test`. Fabric splits common and client source sets with Loom's `splitEnvironmentSourceSets()`; NeoForge combines them in one jar. Common code must never touch client classes.
 
-## How the solver works
+- `dev/curvegen/core/` must have no Minecraft imports. `Pieces` defines the 16×16 states, masks, mirrors and sturdy faces; `Target` builds the shapes and carve regions; `Solver` selects pieces. `Expr` compiles Desmos-style equations to lambdas without `eval`. Run the solver on a worker thread with a `ShapeSettings.copy()`. `Silhouette` shares piece pixels and outlines between the preview and Count icons.
+- Only `fabric/src/` and `neoforge/src/` may import their loader's classes. Shared client code uses `ClientPlatform`; changes to that contract must go into both loaders.
+- `CurveGen.java` handles server placement through `net/PlaceBlocksPayload.java` and checks `Permissions.COMMANDS_GAMEMASTER`.
+- In `dev/curvegen/client/`, `BlockChoices` maps pieces to block states for each orientation; `ColorIndex` matches face texture colours in CIELAB; `Placement` handles the hologram, Replace, Carve, undo and `/setblock`. `PresetStore` atomically replaces one JSON file per preset in `config/curvegen/presets/`.
+- `client/screen/CurveScreen` is the main UI; `PreviewTexture` draws the solved grid into a dynamic texture.
 
-1. **Target.** A builder marks each cell empty, full or mixed. For a mixed cell, it samples 16×16 pixels (Minecraft's own grid) and stores the pixel error of every piece state in `errTab`.
-2. **First guess.** Each cell gets its lowest-error allowed piece. Fences, panes and walls start as type tokens (`FENCE`, `PANE`, `WALL`, `F_FENCE`, `F_PANE`, `F_WALL`). Their neighbours decide their exact state. The first guess assumes they connect wherever a neighbour will hold something.
-3. **Refinement.** The solver re-picks each cell given its neighbours' current pieces, and repeats until nothing improves. A change can reshape the side neighbours (their connections). Upright, it can also reshape the row below (wall side heights). Flat, it can reshape the cells above and below. The affected sets in `Solver` must include all of these, or a refinement step can make the result worse.
-4. **Symmetry.** The solver works on one quarter of an ellipse and mirrors it (`MX`, `MY`), so ellipses are exactly symmetric. Cells on a mirror axis only get self-symmetric pieces.
-5. **Hollowing.** Thin ellipses lose full blocks with no exposed face. Hollowing never removes a block a connector attaches to. Upright, it also keeps any block that a wall below takes its height from.
+## Solver
 
-**State indices.** Upright states are 0–55 (walls are 20–55, encoding left side ×3, right side ×3, covered and post). Flat-only states are 56–105. Grids are `byte[]`, so indices must stay below 128.
+1. `Target` marks cells empty, full or mixed. Mixed cells sample 16×16 pixels and store each state's pixel error in `errTab`.
+2. Each cell starts with its lowest-error allowed piece. Fence, pane and wall tokens get their states from neighbours, initially assuming every supporting neighbour connects.
+3. Refinement re-picks cells until nothing improves. `Solver`'s affected sets must include side neighbours, the row below for upright wall heights, and rows above and below for flat connections. Otherwise a step can worsen the result.
+4. Ellipses solve one quarter and mirror it with `MX` and `MY`. Axis cells require self-symmetric pieces.
+5. Hollowing removes unexposed full blocks from thin ellipses. Keep connector supports and, upright, blocks that determine a wall's height below.
 
-**Orientation.** Upright builds are drawn from the side. Flat builds are drawn from above, with the drawing's top pointing away from the player. From above, slabs, stairs and closed trapdoors look like full blocks, so flat builds don't use them. Colours come from a block's side face for upright builds and its top face for flat ones.
+Upright states are 0 to 55, with walls at 20 to 55 encoding three heights per side, covered and post. Flat-only states are 56 to 105. Grids use `byte[]`, so indices must stay below 128.
 
-## Minecraft rules the code follows
+Upright builds show the side face; flat builds show the top, with the drawing's top pointing away from the player. Match colours to that face. Flat builds exclude slabs, stairs and closed trapdoors because they look like full blocks from above.
 
-`ConnectionRulesTest` covers these.
+## Minecraft rules
 
-- **Connections.** Fences join only fences. Panes and walls join each other. All three attach to sturdy full faces: full blocks, a stair's tall side, and an open trapdoor's panel. They never attach to slabs, closed trapdoors, or blocks where `Block.isExceptionForConnection` is true (leaves, pumpkins, shulker boxes). `ShapeSettings.fullConnects` models that last case.
-- **Wall sides (upright).** A side is tall when the block above covers that side's test region, taken from the bottom row of the block above.
-- **Wall posts (upright), depth 1.** A wall has a post unless it's straight (both sides connected). A straight wall keeps its post only if the block above covers its centre and the sides aren't both tall.
-- **Wall posts (upright), depth over 1.** The front and back walls connect on one side only, so they always have a post, and that's the post visible from the side.
-- **Walls (flat).** A straight wall (exactly two opposite sides) has no post. Lower layers have tall sides, and the top layer has low sides.
-- **Stairs.** `FACING` is the side of the tall back.
-- **Open trapdoors.** The panel lies against the side *opposite* `FACING`.
+`ConnectionRulesTest` covers these:
+
+- Fences join only fences; panes and walls join each other. All attach to sturdy full faces, including a stair's tall side and an open trapdoor's panel. They don't attach to slabs, closed trapdoors or `Block.isExceptionForConnection` blocks such as leaves, pumpkins and shulker boxes. `ShapeSettings.fullConnects` models that exception.
+- An upright wall side is tall when the bottom row of the block above covers its test region.
+- At depth 1, an upright wall has a post unless both sides connect. A straight wall keeps its post only if the block above covers its centre and the sides aren't both tall.
+- At depth over 1, the front and back walls connect on only one side, so the visible upright wall always has a post.
+- Flat walls have no post with exactly two opposite connections. Lower layers have tall sides; the top layer has low sides.
+- A stair's `FACING` points to its tall back. An open trapdoor's panel is opposite `FACING`.
 
 ## Conventions
 
-- Grey out controls that don't apply, with a tooltip saying why. Don't hide them.
-- Use `cycler(...)` or `toggle(...)` for anything that steps through options, so right-click steps backwards. Use `spin(...)` for number fields.
-- Size buttons from their text (`tw(...)` and the fitting loops in `CurveScreen.init`). Nothing may overlap at 427 px wide (1280×720, GUI scale 3). New controls take space from existing ones rather than widening the UI.
-- UI copy is plain and in sentence case, with no jargon.
-- A visual fix must not change anything else. Prove it, for example with a pixel comparison across all pieces like `SilhouetteTest`.
-- New core logic gets tests. Change the reference numbers in `SolverRegressionTest` only on purpose.
+- Grey out inapplicable controls with a tooltip explaining why. Don't hide them.
+- Use `cycler(...)` or `toggle(...)` for options so right-click steps backwards, and `spin(...)` for numbers.
+- Size buttons with `tw(...)` and the fitting loops in `CurveScreen.init`. Nothing may overlap at 427 px wide, as in 1280×720 at GUI scale 3. New controls must take space from existing ones.
+- Use plain, sentence case UI copy without jargon.
+- Visual fixes must preserve other behaviour. Prove it, for example by comparing pixels across all pieces as in `SilhouetteTest`.
+- Test new core logic. Change `SolverRegressionTest` reference numbers only on purpose.
 
-## Limits
+## Placement and rendering
 
-- Client-to-server custom payloads must stay under 32 KiB, so placement sends 2,500 blocks per batch.
-- The `/setblock` fallback sends 40 commands per tick.
-- Undo first puts blocks back without block updates, so a block restored before its support doesn't break again. The server then updates the neighbours of every restored block once the last batch is in. The `/setblock` fallback uses `strict` for the first step and can't do the second, so there the blocks around an undone placement keep their state. Placement also records nearby blocks that need support, and undo restores the ones that are gone, even if their support has been removed since. Items those blocks dropped are not removed.
+- Keep custom payloads under 32 KiB. Placement sends 2,500 blocks per batch; the `/setblock` fallback sends 40 commands per tick.
+- Undo restores blocks without updates, then the server updates every restored block's neighbours after the last batch. This prevents blocks breaking before their supports return. The fallback uses `strict` but can't update neighbours afterward, so surrounding blocks keep their state.
+- Placement records nearby blocks that need support. Undo restores missing ones even if their support has since gone; it doesn't remove dropped items.
+- Each loader passes the frame's `SubmitNodeCollector` to `Placement`. Submit hologram boxes after terrain to draw over water and glass, except boxes across a water surface from the camera, which go through normal submission to show through the water. `filledBox` must omit faces turned away from the camera because 26.2's filled-box render type doesn't cull them.
 - `NativeImage.getPixel` and `setPixel` take ARGB.
 
 ## Releasing
 
-Only `*/stable` branches release. `main` never does. `26.1/stable` covers 26.1 to 26.1.2 with Fabric and NeoForge. The `Release` workflow (`.github/workflows/release.yml`) runs from `main` and publishes each branch to Modrinth, CurseForge and GitHub releases. It builds the two-loader branches with Java 25 and the older Fabric branches with Java 21. It reads each jar's loader and Minecraft range from its metadata.
+Only `*/stable` branches release. Run `.github/workflows/release.yml` from `main` to publish to Modrinth, CurseForge and GitHub. It builds two-loader branches with Java 25 and older Fabric branches with Java 21, and reads loader and Minecraft ranges from jar metadata.
 
-Two-loader jars get distinct published versions, such as `1.0.0+mc26.1-fabric` and `1.0.0+mc26.1-neoforge`. GitHub gets both jars in one release.
-
-1. On the stable branch, open a PR that bumps `mod_version` in `gradle.properties` and adds a `# <version>` section at the top of `CHANGELOG.md`. On a Stonecutter branch, bump `mod.version` in `stonecutter.properties.toml` instead. A suffix sets the release type: `1.1.0-beta.1` is a beta, `1.1.0-alpha.1` an alpha.
-2. After it merges, run `gh workflow run release.yml -f dry_run=true` and read the run's summary. It lists the jars and the notes.
+1. On the stable branch, open a PR bumping `mod_version` in `gradle.properties` and adding `# <version>` at the top of `CHANGELOG.md`. Stonecutter branches use `mod.version` in `stonecutter.properties.toml`. Use `-beta.1` or `-alpha.1` suffixes for prereleases.
+2. After merge, run `gh workflow run release.yml -f dry_run=true` and check the summary's jars and notes.
 3. Run `gh workflow run release.yml` to publish.
 
-The workflow tags each release `<version>+mc<line>`, such as `1.1.0+mc1.21.x`. It skips a branch whose tag exists, so the default `branches=all` only releases branches with a new version. It creates the tag last, after every site has the release.
+Tags use `<version>+mc<line>`, such as `1.1.0+mc1.21.x`. The default `branches=all` skips existing tags. The workflow creates the tag last, after publishing. Two-loader versions have distinct identifiers such as `1.0.0+mc26.1-fabric` and `1.0.0+mc26.1-neoforge`; GitHub holds both jars in one release.
 
-If a site fails, re-run the failed jobs. A re-run skips versions already on Modrinth. CurseForge has no such check, so first look on CurseForge for the jar of each failed job, and re-run only if it isn't there. For the same reason, don't start a fresh run with CurseForge in `targets` after a partial release. To publish to fewer sites, pass `-f targets=curseforge,github`.
+After a partial failure, re-run failed jobs. Modrinth skips existing versions; CurseForge doesn't. Check CurseForge for each failed job's jar before retrying, and retry only if it's absent. Don't start a fresh run with CurseForge in `targets` after a partial release. To limit sites, pass `-f targets=curseforge,github`, for example.
 
-**Release notes.** The `CHANGELOG.md` section goes to all three sites as written. Start with a short paragraph that says what the release changes for players. Then list the merged PRs under `## Features` and `## Fixes`, one bullet each, ending in the PR number. Rewrite PR titles so a player understands them, and leave out changes players can't see (CI, refactors, docs).
+The `CHANGELOG.md` section goes to all three sites as written. Start with a short paragraph about what changes for players. List merged PRs under `## Features` and `## Fixes`, one bullet per PR ending in `(#21)`, for example. Rewrite titles for players and omit CI, refactors and docs.
 
-```
-# 1.1.0
-
-Curve Generator 1.1.0 adds spirals and fixes two wall bugs.
-
-## Features
-- Spirals have their own tab (#21)
-
-## Fixes
-- Walls under a slab no longer show a post (#19)
-```
-
-The Modrinth and CurseForge project IDs are the repository variables `MODRINTH_PROJECT_ID` and `CURSEFORGE_PROJECT_ID`. The tokens are the secrets `MODRINTH_TOKEN` and `CURSEFORGE_TOKEN`.
+Project IDs are repository variables `MODRINTH_PROJECT_ID` and `CURSEFORGE_PROJECT_ID`; tokens are secrets `MODRINTH_TOKEN` and `CURSEFORGE_TOKEN`.
