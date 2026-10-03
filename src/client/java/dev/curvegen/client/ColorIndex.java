@@ -57,11 +57,12 @@ public final class ColorIndex {
                     for (BakedQuad q : part.getQuads(null)) if (q.direction() == face) quads.add(q);
             double r = 0, g = 0, b = 0, w = 0;
             for (BakedQuad q : quads) {
-                int[] avg = average(q.materialInfo().sprite());
+                BakedQuad.MaterialInfo material = q.materialInfo();
+                int[] avg = average(material.sprite());
                 if (avg == null) continue;
                 int rr = avg[0], gg = avg[1], bb = avg[2];
-                if (q.materialInfo().isTinted()) {
-                    int tint = tint(state, q.materialInfo().tintIndex());
+                if (material.isTinted()) {
+                    int tint = tint(state, material.tintIndex());
                     if (tint != -1) { rr = rr * ((tint >> 16) & 0xFF) / 255; gg = gg * ((tint >> 8) & 0xFF) / 255; bb = bb * (tint & 0xFF) / 255; }
                 }
                 r += rr * (double) avg[3]; g += gg * (double) avg[3]; b += bb * (double) avg[3]; w += avg[3];

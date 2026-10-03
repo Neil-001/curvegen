@@ -6,7 +6,7 @@ A Fabric mod for Minecraft Java 26.1 that turns ellipses, equations and Bézier 
 
 ## Install
 
-Download the mod from [Modrinth](https://modrinth.com/mod/curvegen) or [CurseForge](https://www.curseforge.com/minecraft/mc-mods/curvegen). Put the jar in your `mods` folder along with [Fabric API](https://modrinth.com/mod/fabric-api). You'll need Fabric Loader. Jars exist for Minecraft 1.21 to 1.21.11, built from the `1.21.x/stable` branch. This branch targets 26.1 to 26.1.2, which isn't released yet.
+Download the mod from [Modrinth](https://modrinth.com/mod/curvegen) or [CurseForge](https://www.curseforge.com/minecraft/mc-mods/curvegen). Put the jar in your `mods` folder along with [Fabric API](https://modrinth.com/mod/fabric-api). You'll need Fabric Loader. Jars exist for Minecraft 1.21 to 1.21.11, built from the `1.21.x/stable` branch. This branch targets 26.1 to 26.1.2 and has no release yet.
 
 ## Quick tour
 
