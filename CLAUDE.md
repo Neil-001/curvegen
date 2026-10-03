@@ -24,9 +24,11 @@ Loom's `splitEnvironmentSourceSets()` splits the code into `src/main` (common) a
   - `PresetData`: preset capture and apply, default names, and the starting examples.
   - `LitematicBits`: Litematica's packed long array.
   - `Silhouette`: piece pixels and outlines, shared by the preview and the Count tab icons.
-- `dev/curvegen/CurveGen.java` and `net/PlaceBlocksPayload.java` are the common entrypoint and the placement packet from client to server. The server checks the gamemaster permission level (`Permissions.COMMANDS_GAMEMASTER`).
+- `dev/curvegen/CurveGen.java` and `net/PlaceBlocksPayload.java` are the server-side placement handler and the placement packet from client to server. The server checks the gamemaster permission level (`Permissions.COMMANDS_GAMEMASTER`).
+- `dev/curvegen/fabric/` and `dev/curvegen/client/fabric/` hold the Fabric entrypoints. They are the only code that may use Fabric Loader or Fabric API. Everything else reaches the mod loader through `ClientPlatform`, so another loader only needs its own pair of entrypoints.
 - `dev/curvegen/client/`:
-  - `CurveGenClient`: keybinds (G opens the screen) and render hooks.
+  - `CurveGenClient`: the keys (G opens the screen) and what they do each tick.
+  - `ClientPlatform`: what the client needs from the mod loader: sending the placement packet, and the config and game folders.
   - `BlockChoices`: the block chosen for each piece family, candidate lists, and the mapping from piece to `BlockState` for upright and flat builds.
   - `ColorIndex`: average texture colours for the face you'll see, matched in CIELAB.
   - `Placement`: placement mode, hologram, Replace and Carve, undo, and the `/setblock` fallback.

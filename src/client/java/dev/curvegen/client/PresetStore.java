@@ -6,7 +6,6 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonParser;
 import dev.curvegen.core.PresetData;
 import dev.curvegen.core.ShapeSettings;
-import net.fabricmc.loader.api.FabricLoader;
 
 import java.io.IOException;
 import java.io.Writer;
@@ -50,7 +49,7 @@ public final class PresetStore {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
     private static List<Preset> presets;
 
-    public static Path dir() { return FabricLoader.getInstance().getConfigDir().resolve("curvegen").resolve("presets"); }
+    public static Path dir() { return CurveGenClient.platform.configDir().resolve("curvegen").resolve("presets"); }
 
     private static List<Preset> all() {
         if (presets != null) return presets;
