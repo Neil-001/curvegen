@@ -2,11 +2,11 @@
 
 <!-- TODO: preview GIF -->
 
-A Fabric mod for Minecraft Java 26.1 that turns ellipses, equations and Bézier curves into blocks. It picks full blocks, slabs, stairs, trapdoors, fences, glass panes and walls to match the curve as closely as possible. You can then place the result in your world or export it as a Litematica schematic.
+A Fabric and NeoForge mod for Minecraft Java 26.1 that turns ellipses, equations and Bézier curves into blocks. It picks full blocks, slabs, stairs, trapdoors, fences, glass panes and walls to match the curve as closely as possible. You can then place the result in your world or export it as a Litematica schematic.
 
 ## Install
 
-Download the mod from [Modrinth](https://modrinth.com/mod/curvegen) or [CurseForge](https://www.curseforge.com/minecraft/mc-mods/curvegen). Put the jar in your `mods` folder along with [Fabric API](https://modrinth.com/mod/fabric-api). You'll need Fabric Loader. Jars exist for Minecraft 1.21 to 1.21.11, built from the `1.21.x/stable` branch. This branch targets 26.1 to 26.1.2 and has no release yet.
+Download the mod from [Modrinth](https://modrinth.com/mod/curvegen) or [CurseForge](https://www.curseforge.com/minecraft/mc-mods/curvegen). Put the jar in your `mods` folder along with [Fabric API](https://modrinth.com/mod/fabric-api). You'll need Fabric Loader. Jars exist for Minecraft 1.21 to 1.21.11, built from the `1.21.x/stable` branch. This branch targets 26.1 to 26.1.2, for Fabric and NeoForge, and has no release yet.
 
 ## Quick tour
 
@@ -28,15 +28,16 @@ The [wiki](https://github.com/Neil-001/curvegen/wiki) covers the rest: placement
 You'll need JDK 25.
 
 ```
-./gradlew build       # builds the jar into build/libs/
-./gradlew runClient   # starts a dev client with the mod
-./gradlew test        # runs the tests for dev.curvegen.core
+./gradlew build                 # builds both jars and runs the tests
+./gradlew :fabric:runClient     # starts a Fabric dev client with the mod
+./gradlew :neoforge:runClient   # starts a NeoForge dev client with the mod
 ```
 
-On Windows, use `gradlew.bat`. The Minecraft, Loader and Fabric API versions are in `gradle.properties`.
+On Windows, use `gradlew.bat`. The jars end up in `fabric/build/libs/` and `neoforge/build/libs/`. The Minecraft, Fabric and NeoForge versions are in `gradle.properties`.
 
+- The shared code is in `src/`. `fabric/` and `neoforge/` each hold only that loader's entrypoints and metadata.
 - `dev.curvegen.core` holds the shape maths and the solver. It has no Minecraft imports, so the tests run without the game. Keep it that way.
-- Run `./gradlew build` and `./gradlew test` before pushing.
+- Run `./gradlew build` before pushing.
 
 ---
 

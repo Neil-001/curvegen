@@ -12,7 +12,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** What both sides share. The mod loader's entrypoint, in {@code dev.curvegen.fabric}, hooks it up. */
+/** What both sides share. The mod loader's entrypoint, in {@code dev.curvegen.fabric} or {@code dev.curvegen.neoforge}, hooks it up. */
 public final class CurveGen {
     private CurveGen() {}
 

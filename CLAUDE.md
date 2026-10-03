@@ -1,18 +1,18 @@
-# Curve Generator (Fabric mod, Minecraft Java 26.1)
+# Curve Generator (Fabric and NeoForge mod, Minecraft Java 26.1)
 
 An in-game tool that turns ellipses, equation plots and Bézier curves into full blocks, slabs, stairs, trapdoors, fences, glass panes and walls. The player previews the result, then places it with a hologram (operator permission needed) or exports it as a Litematica schematic.
 
 ## Commands
 
-- `./gradlew build` builds the jar into `build/libs/` and runs the tests.
-- `./gradlew runClient` starts a dev client with the mod.
-- `./gradlew test` runs the JUnit tests for the pure-Java core.
+- `./gradlew build` builds both jars, into `fabric/build/libs/` and `neoforge/build/libs/`, and runs the tests.
+- `./gradlew :fabric:runClient` and `./gradlew :neoforge:runClient` start a dev client with the mod. `runServer` works the same way.
+- `./gradlew :fabric:test` runs the JUnit tests for the pure-Java core. They live in the Fabric project only, because they don't depend on the loader.
 
-Needs JDK 25. Versions are in `gradle.properties`. Minecraft 26.1 isn't obfuscated, so the build has no mappings and the code uses Minecraft's own names (`Level`, `BlockState`, `GuiGraphicsExtractor`). The one jar runs on 26.1, 26.1.1 and 26.1.2, whose APIs are identical. It is compiled against 26.1 and the last Fabric API built for 26.1, which is the oldest one any of the three versions would use. Run build and test after every change.
+Needs JDK 25. Versions are in `gradle.properties`. Minecraft 26.1 isn't obfuscated, so the build has no mappings and the code uses Minecraft's own names (`Level`, `BlockState`, `GuiGraphicsExtractor`). Each loader's jar runs on 26.1, 26.1.1 and 26.1.2, whose Minecraft APIs are identical. The Fabric jar is compiled against 26.1 and the last Fabric API built for 26.1, which is the oldest one any of the three versions would use. The NeoForge jar is compiled against the first stable NeoForge, which is for 26.1.2, because 26.1 and 26.1.1 only have betas. CI also compiles each jar against the other end of its range. Run build and test after every change.
 
 ## Layout
 
-Loom's `splitEnvironmentSourceSets()` splits the code into `src/main` (common) and `src/client` (client-only).
+The shared code is in the root `src/` folder: `src/main` (common), `src/client` (client-only) and `src/test`. The `fabric/` and `neoforge/` projects each compile it together with their own entrypoints and metadata. Fabric keeps the two source sets apart with Loom's `splitEnvironmentSourceSets()`. NeoForge puts both in one jar, so common code must still never touch a client class.
 
 - `dev/curvegen/core/` is pure Java with **no Minecraft imports**. Keep it that way, because the tests cover it.
   - `Pieces`: every piece state as a 16×16 silhouette. Holds indices, rectangles, masks, mirror maps (`MX`, `MY`), sturdy faces, colours and names.
@@ -25,7 +25,7 @@ Loom's `splitEnvironmentSourceSets()` splits the code into `src/main` (common) a
   - `LitematicBits`: Litematica's packed long array.
   - `Silhouette`: piece pixels and outlines, shared by the preview and the Count tab icons.
 - `dev/curvegen/CurveGen.java` and `net/PlaceBlocksPayload.java` are the server-side placement handler and the placement packet from client to server. The server checks the gamemaster permission level (`Permissions.COMMANDS_GAMEMASTER`).
-- `dev/curvegen/fabric/` and `dev/curvegen/client/fabric/` hold the Fabric entrypoints. They are the only code that may use Fabric Loader or Fabric API. Everything else reaches the mod loader through `ClientPlatform`, so another loader only needs its own pair of entrypoints.
+- `fabric/src/` and `neoforge/src/` hold each loader's entrypoints (`dev/curvegen/fabric`, `dev/curvegen/client/fabric`, `dev/curvegen/neoforge`, `dev/curvegen/client/neoforge`) and its metadata file. They are the only code that may use that loader's classes. Everything else reaches the loader through `ClientPlatform`. A change to what the mod needs from the loader goes into both.
 - `dev/curvegen/client/`:
   - `CurveGenClient`: the keys (G opens the screen) and what they do each tick.
   - `ClientPlatform`: what the client needs from the mod loader: sending the placement packet, and the config and game folders.
@@ -80,7 +80,7 @@ Loom's `splitEnvironmentSourceSets()` splits the code into `src/main` (common) a
 
 ## Releasing
 
-Only `*/stable` branches release. `main` never does. The `Release` workflow (`.github/workflows/release.yml`) runs from `main` and publishes each branch to Modrinth, CurseForge and GitHub releases.
+Only `*/stable` branches release. `main` never does. The release workflow still expects the single-loader layout of `1.21.x/stable`: jars in `build/libs/` with a `fabric.mod.json`, published as Fabric. It needs updating before a 26.x stable branch with two loaders can release. The `Release` workflow (`.github/workflows/release.yml`) runs from `main` and publishes each branch to Modrinth, CurseForge and GitHub releases.
 
 1. On the stable branch, open a PR that bumps `mod.version` in `stonecutter.properties.toml` and adds a `# <version>` section at the top of `CHANGELOG.md`. A suffix sets the release type: `1.1.0-beta.1` is a beta, `1.1.0-alpha.1` an alpha.
 2. After it merges, run `gh workflow run release.yml -f dry_run=true` and read the run's summary. It lists the jars and the notes.

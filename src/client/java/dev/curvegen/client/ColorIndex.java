@@ -42,6 +42,9 @@ public final class ColorIndex {
 
     public static void clear() { SIDE.clear(); TOP.clear(); TEXTURES.clear(); }
 
+    // NeoForge deprecates the model methods that take no world, in favour of its own that need a world and a position.
+    // These colours are worked out without a world, and Fabric only has the plain methods.
+    @SuppressWarnings("deprecation")
     private static int compute(Block block, boolean top) {
         BlockState state = block.defaultBlockState();
         Minecraft mc = Minecraft.getInstance();

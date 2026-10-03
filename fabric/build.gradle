@@ -1,0 +1,60 @@
+plugins {
+	id 'net.fabricmc.fabric-loom' version '1.18.2'
+}
+
+repositories {
+	mavenCentral()
+}
+
+loom {
+	splitEnvironmentSourceSets()
+	mods {
+		"curvegen" {
+			sourceSet sourceSets.main
+			sourceSet sourceSets.client
+		}
+	}
+	runs {
+		client { runDir = '../run/fabric' }
+		server { runDir = '../run/fabric-server' }
+	}
+}
+
+// The shared code, next to this project's own Fabric entrypoints.
+sourceSets {
+	main {
+		java.srcDir rootProject.file('src/main/java')
+		resources.srcDir rootProject.file('src/main/resources')
+	}
+	client {
+		java.srcDir rootProject.file('src/client/java')
+	}
+	test {
+		java.srcDir rootProject.file('src/test/java')
+	}
+}
+
+dependencies {
+	minecraft "com.mojang:minecraft:${project.minecraft_version}"
+	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+
+	// Tests cover the pure-Java core (dev.curvegen.core) and don't need Minecraft running.
+	testImplementation "org.junit.jupiter:junit-jupiter:5.10.3"
+	testRuntimeOnly "org.junit.platform:junit-platform-launcher"
+}
+
+test {
+	useJUnitPlatform()
+	testLogging {
+		events "failed"
+		exceptionFormat = "full"
+	}
+}
+
+processResources {
+	inputs.property "version", project.version
+	filesMatching("fabric.mod.json") {
+		expand "version": project.version
+	}
+}

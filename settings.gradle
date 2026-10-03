@@ -10,3 +10,7 @@ pluginManagement {
 }
 
 rootProject.name = 'curvegen'
+
+// The shared code is in the root src/ folder. Each loader's project compiles it together with its own entrypoints.
+include 'fabric'
+include 'neoforge'
