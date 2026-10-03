@@ -9,7 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.ShapeRenderer;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
@@ -229,7 +229,7 @@ public final class Placement {
         for (int i = 0; i < 12; i += 3) vc.addVertex(pose, xyz[i], xyz[i + 1], xyz[i + 2]).setColor(color);
     }
 
-    public static void renderHud(GuiGraphics dc) {
+    public static void renderHud(GuiGraphicsExtractor dc) {
         if (!active) return;
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null) return;
@@ -251,7 +251,7 @@ public final class Placement {
         int y = 6;
         for (Component t : lines) {
             dc.fill(4, y - 2, 8 + tr.width(t), y + 10, 0x90000000);
-            dc.drawString(tr, t, 6, y, 0xFFFFFFFF);
+            dc.text(tr, t, 6, y, 0xFFFFFFFF);
             y += 13;
         }
     }
@@ -326,8 +326,9 @@ public final class Placement {
         }
     }
 
-    private static void say(Component t) {
+    /** Shows a message from the mod itself in chat. */
+    public static void say(Component t) {
         Minecraft mc = Minecraft.getInstance();
-        if (mc.player != null) mc.player.displayClientMessage(t, false);
+        if (mc.player != null) mc.gui.getChat().addClientSystemMessage(t);
     }
 }

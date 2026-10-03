@@ -28,7 +28,7 @@ public final class CurveGen {
     public static void place(ServerPlayer player, PlaceBlocksPayload payload) {
         if (!player.permissions().hasPermission(Permissions.COMMANDS_GAMEMASTER)) {
             if (payload.last())
-                player.displayClientMessage(Component.literal("Curve Generator: placing needs operator permissions (level 2). You can still export to Litematica.").withStyle(ChatFormatting.RED), false);
+                player.sendSystemMessage(Component.literal("Curve Generator: placing needs operator permissions (level 2). You can still export to Litematica.").withStyle(ChatFormatting.RED));
             return;
         }
         ServerLevel world = player.level();
@@ -42,7 +42,7 @@ public final class CurveGen {
         }
         if (payload.last()) {
             String what = payload.undo() ? "Undid the last placement" : "Placed " + payload.total() + " blocks";
-            player.displayClientMessage(Component.literal("Curve Generator: " + what + (skipped > 0 ? " (" + skipped + " outside loaded chunks or build height were skipped in the last batch)" : "") + "."), false);
+            player.sendSystemMessage(Component.literal("Curve Generator: " + what + (skipped > 0 ? " (" + skipped + " outside loaded chunks or build height were skipped in the last batch)" : "") + "."));
         }
     }
 }

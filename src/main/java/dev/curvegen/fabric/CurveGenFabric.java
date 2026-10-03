@@ -10,7 +10,7 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 public class CurveGenFabric implements ModInitializer {
     @Override
     public void onInitialize() {
-        PayloadTypeRegistry.playC2S().register(PlaceBlocksPayload.ID, PlaceBlocksPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(PlaceBlocksPayload.ID, PlaceBlocksPayload.CODEC);
         // Fabric runs play payload handlers on the server thread.
         ServerPlayNetworking.registerGlobalReceiver(PlaceBlocksPayload.ID, (payload, context) -> CurveGen.place(context.player(), payload));
     }

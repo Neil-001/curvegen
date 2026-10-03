@@ -8,7 +8,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Consumer;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.CycleButton;
 import net.minecraft.client.gui.components.EditBox;
@@ -78,11 +78,11 @@ public class BlockPickerScreen extends Screen {
     private int visibleRows() { return Math.max(1, (gridBottom() - gridTop()) / CELL); }
 
     @Override
-    public void render(GuiGraphics ctx, int mx, int my, float delta) {
-        super.render(ctx, mx, my, delta);
-        ctx.drawString(font, title, M, 8, 0xFFFFFFFF);
+    public void extractRenderState(GuiGraphicsExtractor ctx, int mx, int my, float delta) {
+        super.extractRenderState(ctx, mx, my, delta);
+        ctx.text(font, title, M, 8, 0xFFFFFFFF);
         String info = shown.size() + " of " + all.size() + " blocks";
-        ctx.drawString(font, info, width - M - font.width(info), 30, 0xFF9AA5B3, false);
+        ctx.text(font, info, width - M - font.width(info), 30, 0xFF9AA5B3, false);
 
         int cols = cols(), top = gridTop();
         Block current = BlockChoices.CHOICE.get(family);
@@ -97,12 +97,12 @@ public class BlockPickerScreen extends Screen {
             int rgb = ColorIndex.of(b);
             ctx.fill(x, y, x + CELL - 2, y + CELL - 2, 0xFF000000 | rgb);
             ctx.fill(x + 1, y + 1, x + CELL - 3, y + CELL - 3, 0xC0202428);
-            if (b == current) ctx.renderOutline(x - 1, y - 1, CELL, CELL, 0xFFFFB84D);
+            if (b == current) ctx.outline(x - 1, y - 1, CELL, CELL, 0xFFFFB84D);
             boolean over = mx >= x && mx < x + CELL - 2 && my >= y && my < y + CELL - 2;
             if (over) { ctx.fill(x, y, x + CELL - 2, y + CELL - 2, 0x40FFFFFF); hovered = b; }
-            ctx.renderItem(new ItemStack(b), x + 1, y + 1);
+            ctx.item(new ItemStack(b), x + 1, y + 1);
         }
-        if (shown.isEmpty()) ctx.drawString(font, "No blocks match your search.", M, top + 4, 0xFF9AA5B3, false);
+        if (shown.isEmpty()) ctx.text(font, "No blocks match your search.", M, top + 4, 0xFF9AA5B3, false);
         if (maxScroll > 0) {
             int h = gridBottom() - top, bar = Math.max(10, h * visibleRows() / (maxScroll + visibleRows()));
             int by = top + (h - bar) * scroll / maxScroll;
