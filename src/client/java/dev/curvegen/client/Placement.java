@@ -6,7 +6,12 @@ import dev.curvegen.core.Layout;
 import dev.curvegen.net.PlaceBlocksPayload;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Predicate;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -18,11 +23,16 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.permissions.Permissions;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.util.ARGB;
 import net.minecraft.world.level.EmptyBlockGetter;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.FallingBlock;
+import net.minecraft.world.level.block.LiquidBlock;
+import net.minecraft.world.level.block.SnowLayerBlock;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.material.FogType;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
@@ -49,6 +59,9 @@ public final class Placement {
     /** Refreshed a few times a second: which offsets would really change the world right now. */
     private static List<Entry> toPlace = List.of();
     private static List<BlockPos> toBreak = List.of();
+    /** The same two lists, split by whether the spot is under water. The hologram draws each half at a different time. */
+    private static List<Entry> placeWet = List.of(), placeDry = List.of();
+    private static List<BlockPos> breakWet = List.of(), breakDry = List.of();
     private static BlockPos viewAnchor;
     private static Direction viewFacing;
     private static int viewAge;
@@ -61,6 +74,13 @@ public final class Placement {
 
     private static List<BlockPos> undoPositions;
     private static List<BlockState> undoStates;
+    /**
+     * Blocks next to the last placement that could break because of it, such as a torch on a carved wall or sand above
+     * a carved hole. Undo puts back the ones that are gone.
+     */
+    private static Map<BlockPos, BlockState> undoNearby = Map.of();
+    /** A cap on that list, so a placement beside a huge field of plants stays cheap. */
+    private static final int NEARBY_LIMIT = 20000;
     private static final ArrayDeque<String> commandQueue = new ArrayDeque<>();
 
     public static boolean isActive() { return active; }
@@ -156,15 +176,27 @@ public final class Placement {
 
     /** Works out what placing right now would actually do, given the blocks already in the world. */
     private static void refreshView(Minecraft mc) {
-        List<Entry> place = new ArrayList<>();
-        for (Entry e : entries)
-            if (overwrite || free(mc.level.getBlockState(anchor.offset(e.dx, e.dy, e.dz)))) place.add(e);
-        List<BlockPos> brk = new ArrayList<>();
-        for (BlockPos o : carveOffsets)
-            if (!mc.level.getBlockState(anchor.offset(o)).isAir()) brk.add(o);
+        boolean drawn = entries.size() <= HOLOGRAM_LIMIT;   // the split is only for drawing the boxes
+        List<Entry> place = new ArrayList<>(), wet = new ArrayList<>(), dry = new ArrayList<>();
+        for (Entry e : entries) {
+            BlockPos p = anchor.offset(e.dx, e.dy, e.dz);
+            if (!overwrite && !free(mc.level.getBlockState(p))) continue;
+            place.add(e);
+            if (drawn) (underWater(mc, p) ? wet : dry).add(e);
+        }
+        List<BlockPos> brk = new ArrayList<>(), brkWet = new ArrayList<>(), brkDry = new ArrayList<>();
+        for (BlockPos o : carveOffsets) {
+            BlockPos p = anchor.offset(o);
+            if (mc.level.getBlockState(p).isAir()) continue;
+            brk.add(o);
+            if (drawn) (underWater(mc, p) ? brkWet : brkDry).add(o);
+        }
         toPlace = place; toBreak = brk;
+        placeWet = wet; placeDry = dry; breakWet = brkWet; breakDry = brkDry;
         viewAnchor = anchor; viewFacing = cachedFacing; viewAge = 0;
     }
+
+    private static boolean underWater(Minecraft mc, BlockPos p) { return mc.level.getFluidState(p).is(FluidTags.WATER); }
 
     public static void tick(Minecraft mc) {
         if (mc.player != null && mc.getConnection() != null)
@@ -181,8 +213,13 @@ public final class Placement {
 
     // ---------- rendering ----------
 
-    /** Draws the hologram. {@code ms} is the world's pose stack and {@code cam} the camera position. */
-    public static void render(PoseStack ms, Vec3 cam) {
+    /**
+     * Draws the hologram. {@code ms} is the world's pose stack and {@code cam} the camera position. Each loader calls
+     * this twice a frame: once before the game draws water and other translucent blocks, and once after. Boxes on the
+     * far side of a water surface are drawn before it, so they show through it. The rest are drawn after it, so they
+     * draw over water behind them.
+     */
+    public static void render(PoseStack ms, Vec3 cam, boolean afterWater) {
         if (!active || anchor == null || entries.isEmpty() || !anchor.equals(viewAnchor)) return;
         Minecraft mc = Minecraft.getInstance();
         MultiBufferSource.BufferSource imm = mc.renderBuffers().bufferSource();
@@ -190,27 +227,32 @@ public final class Placement {
         ms.translate(anchor.getX() - cam.x, anchor.getY() - cam.y, anchor.getZ() - cam.z);
 
         if (entries.size() <= HOLOGRAM_LIMIT) {
+            boolean camWet = mc.gameRenderer.getMainCamera().getFluidInCamera() == FogType.WATER;
+            boolean wet = camWet == afterWater;   // which half is on the camera's side decides which one this pass draws
             VertexConsumer fill = imm.getBuffer(RenderTypes.debugFilledBox());
             PoseStack.Pose pose = ms.last();
-            for (Entry e : toPlace) {
+            for (Entry e : wet ? placeWet : placeDry) {
                 int color = ARGB.colorFromFloat(0.45f, e.r, e.g, e.b);
                 for (AABB b : e.boxes)
                     filledBox(pose, fill, e.dx + b.minX, e.dy + b.minY, e.dz + b.minZ, e.dx + b.maxX, e.dy + b.maxY, e.dz + b.maxZ, color);
             }
             if (toBreak.size() <= HOLOGRAM_LIMIT) {
+                // Blocks carving will remove, in red. Slightly larger than the block, or a full block would hide its own box.
                 int red = ARGB.colorFromFloat(0.28f, 1f, 0.2f, 0.25f);
-                for (BlockPos o : toBreak)   // blocks carving will remove, in red
-                    filledBox(pose, fill, o.getX() + .02, o.getY() + .02, o.getZ() + .02, o.getX() + .98, o.getY() + .98, o.getZ() + .98, red);
+                for (BlockPos o : wet ? breakWet : breakDry)
+                    filledBox(pose, fill, o.getX() - .005, o.getY() - .005, o.getZ() - .005, o.getX() + 1.005, o.getY() + 1.005, o.getZ() + 1.005, red);
             }
             imm.endBatch(RenderTypes.debugFilledBox());
         }
-        VertexConsumer lines = imm.getBuffer(RenderTypes.lines());
-        float width = mc.getWindow().getAppropriateLineWidth();
-        AABB bounds = new AABB(minDx, minDy, minDz, maxDx + 1, maxDy + 1, maxDz + 1);
-        ShapeRenderer.renderShape(ms, lines, Shapes.create(bounds), 0, 0, 0, ARGB.colorFromFloat(0.9f, 1f, 1f, 1f), width);
-        ShapeRenderer.renderShape(ms, lines, Shapes.create(new AABB(0, 0, 0, 1, 1, 1).inflate(0.02)), 0, 0, 0,
-                ARGB.colorFromFloat(1f, 1f, 0.3f, 0.45f), width);   // the anchor block
-        imm.endBatch(RenderTypes.lines());
+        if (afterWater) {
+            VertexConsumer lines = imm.getBuffer(RenderTypes.lines());
+            float width = mc.getWindow().getAppropriateLineWidth();
+            AABB bounds = new AABB(minDx, minDy, minDz, maxDx + 1, maxDy + 1, maxDz + 1);
+            ShapeRenderer.renderShape(ms, lines, Shapes.create(bounds), 0, 0, 0, ARGB.colorFromFloat(0.9f, 1f, 1f, 1f), width);
+            ShapeRenderer.renderShape(ms, lines, Shapes.create(new AABB(0, 0, 0, 1, 1, 1).inflate(0.02)), 0, 0, 0,
+                    ARGB.colorFromFloat(1f, 1f, 0.3f, 0.45f), width);   // the anchor block
+            imm.endBatch(RenderTypes.lines());
+        }
         ms.popPose();
     }
 
@@ -283,17 +325,55 @@ public final class Placement {
         }
         if (pos.isEmpty()) { say(Component.literal("Nothing to change here: every spot is already taken and Replace is off.")); return; }
         undoPositions = pos; undoStates = old;
+        undoNearby = dependents(mc, pos);
         send(pos, states, false);
         active = false;
     }
 
+    /** Whether a block could break or fall when a block beside it changes: anything that isn't a plain full block. */
+    private static boolean needsSupport(Minecraft mc, BlockPos p, BlockState state) {
+        if (state.isAir() || state.getBlock() instanceof LiquidBlock) return false;
+        return state.getBlock() instanceof FallingBlock || state.getBlock() instanceof SnowLayerBlock   // eight layers make a full block
+                || !state.isCollisionShapeFullBlock(mc.level, p);
+    }
+
+    /**
+     * The blocks around {@code changed} that need support, with their current states. From each one it also follows
+     * the column up and down, for stacks such as sand, sugar cane and vines.
+     */
+    private static Map<BlockPos, BlockState> dependents(Minecraft mc, List<BlockPos> changed) {
+        Set<BlockPos> inPlacement = new HashSet<>(changed);
+        Map<BlockPos, BlockState> found = new LinkedHashMap<>();
+        Predicate<BlockPos> add = p -> {
+            if (found.size() >= NEARBY_LIMIT || inPlacement.contains(p) || found.containsKey(p)) return false;
+            BlockState state = mc.level.getBlockState(p);
+            if (!needsSupport(mc, p, state)) return false;
+            found.put(p, state);
+            return true;
+        };
+        for (BlockPos c : changed)
+            for (Direction d : Direction.values()) {
+                BlockPos first = c.relative(d);
+                if (!add.test(first)) continue;
+                for (Direction column : d.getAxis() == Direction.Axis.Y ? new Direction[]{d} : new Direction[]{Direction.UP, Direction.DOWN}) {
+                    BlockPos p = first.relative(column);
+                    for (int i = 0; i < 64 && add.test(p); i++) p = p.relative(column);
+                }
+            }
+        return found;
+    }
+
     public static void undo() {
-        if (undoPositions == null) { say(Component.literal("Nothing to undo.")); return; }
-        // Restore in reverse, so blocks come back in the opposite order they were changed.
-        java.util.Collections.reverse(undoPositions);
-        java.util.Collections.reverse(undoStates);
-        send(undoPositions, undoStates, true);
-        undoPositions = null; undoStates = null;
+        Minecraft mc = Minecraft.getInstance();
+        if (undoPositions == null || mc.level == null) { say(Component.literal("Nothing to undo.")); return; }
+        List<BlockPos> pos = new ArrayList<>(undoPositions);
+        List<BlockState> states = new ArrayList<>(undoStates);
+        // A nearby block is only put back if its spot is empty now, so anything built there since is left alone.
+        undoNearby.forEach((p, state) -> {
+            if (free(mc.level.getBlockState(p))) { pos.add(p); states.add(state); }
+        });
+        send(pos, states, true);
+        undoPositions = null; undoStates = null; undoNearby = Map.of();
     }
 
     private static void send(List<BlockPos> pos, List<BlockState> states, boolean undo) {
@@ -317,8 +397,10 @@ public final class Placement {
             // The server doesn't have the mod: fall back to /setblock, which also needs operator rights.
             for (int i = 0; i < pos.size(); i++) {
                 BlockPos p = pos.get(i);
+                // Undo uses strict mode, which sets the block without block updates, as the server-side handler does first.
+                // Commands can't run the handler's second step, so blocks around the restored ones keep their state.
                 commandQueue.add("setblock " + p.getX() + " " + p.getY() + " " + p.getZ() + " "
-                        + BlockStateParser.serialize(states.get(i)));
+                        + BlockStateParser.serialize(states.get(i)) + (undo ? " strict" : ""));
             }
             int seconds = (int) Math.ceil(pos.size() / (COMMANDS_PER_TICK * 20.0));
             say(Component.literal("This server doesn't have Curve Generator, so " + (undo ? "undo" : "placement")

@@ -43,9 +43,12 @@ public final class CurveGenNeoForgeClient implements ClientPlatform {
                     if (!Minecraft.getInstance().options.hideGui) Placement.renderHud(graphics);
                 }));
         NeoForge.EVENT_BUS.addListener(ClientTickEvent.Post.class, event -> CurveGenClient.tick(Minecraft.getInstance()));
-        // The last stage of the main pass, where Fabric's END_MAIN also runs.
+        // The hologram draws in two passes, either side of translucent terrain. See Placement.render. The second is
+        // the last stage of the main pass, where Fabric's END_MAIN also runs.
+        NeoForge.EVENT_BUS.addListener(RenderLevelStageEvent.AfterTranslucentFeatures.class,
+                event -> Placement.render(event.getPoseStack(), event.getLevelRenderState().cameraRenderState.pos, false));
         NeoForge.EVENT_BUS.addListener(RenderLevelStageEvent.AfterTranslucentParticles.class,
-                event -> Placement.render(event.getPoseStack(), event.getLevelRenderState().cameraRenderState.pos));
+                event -> Placement.render(event.getPoseStack(), event.getLevelRenderState().cameraRenderState.pos, true));
     }
 
     @Override public boolean canSendToServer() {

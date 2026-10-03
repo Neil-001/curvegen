@@ -31,7 +31,7 @@ The shared code is in the root `src/` folder: `src/main` (common), `src/client` 
   - `ClientPlatform`: what the client needs from the mod loader: sending the placement packet, and the config and game folders.
   - `BlockChoices`: the block chosen for each piece family, candidate lists, and the mapping from piece to `BlockState` for upright and flat builds.
   - `ColorIndex`: average texture colours for the face you'll see, matched in CIELAB.
-  - `Placement`: placement mode, hologram, Replace and Carve, undo, and the `/setblock` fallback.
+  - `Placement`: placement mode, hologram, Replace and Carve, undo, and the `/setblock` fallback. Each loader calls `render` twice a frame, before and after the game draws water, so hologram boxes on the far side of a water surface show through it.
   - `LitematicExporter`: writes the `.litematic` file.
   - `PresetStore`: reads and writes one JSON file per preset in `config/curvegen/presets/`, replacing each file atomically.
 - `dev/curvegen/client/screen/`:
@@ -76,6 +76,7 @@ The shared code is in the root `src/` folder: `src/main` (common), `src/client` 
 
 - Client-to-server custom payloads must stay under 32 KiB, so placement sends 2,500 blocks per batch.
 - The `/setblock` fallback sends 40 commands per tick.
+- Undo first puts blocks back without block updates, so a block restored before its support doesn't break again. The server then updates the neighbours of every restored block once the last batch is in. The `/setblock` fallback uses `strict` for the first step and can't do the second, so there the blocks around an undone placement keep their state. Placement also records nearby blocks that need support, and undo restores the ones that are gone, even if their support has been removed since. Items those blocks dropped are not removed.
 - `NativeImage.getPixel` and `setPixel` take ARGB.
 
 ## Releasing
