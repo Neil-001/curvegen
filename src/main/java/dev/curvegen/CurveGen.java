@@ -42,6 +42,7 @@ public final class CurveGen {
         // Undo first puts every block back exactly as it was, without block updates. With them, a block restored before
         // the one it stands on or hangs from would break again. The updates run once the last batch is in.
         int flags = payload.undo() ? Block.UPDATE_CLIENTS | Block.UPDATE_SKIP_ALL_SIDEEFFECTS : Block.UPDATE_ALL;
+        if (!payload.undo()) RESTORED.remove(player.getUUID());   // drops the list of an undo that never finished
         List<BlockPos> restored = payload.undo() ? RESTORED.computeIfAbsent(player.getUUID(), id -> new ArrayList<>()) : null;
         int skipped = 0;
         for (int i = 0; i < payload.states().length; i++) {
@@ -59,7 +60,9 @@ public final class CurveGen {
             for (BlockPos pos : restored) {
                 BlockState state = world.getBlockState(pos);
                 world.updateNeighborsAt(pos, state.getBlock());
+                state.updateIndirectNeighbourShapes(world, pos, Block.UPDATE_ALL);
                 state.updateNeighbourShapes(world, pos, Block.UPDATE_ALL);
+                state.updateIndirectNeighbourShapes(world, pos, Block.UPDATE_ALL);
             }
         }
         if (payload.last()) {
