@@ -3,7 +3,7 @@ package dev.curvegen.client.screen;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.CycleButton;
 import net.minecraft.client.gui.components.EditBox;
@@ -93,22 +93,22 @@ public class NameDialogScreen extends Screen {
     }
 
     @Override
-    public void render(GuiGraphics ctx, int mx, int my, float delta) {
-        parent.renderBackground(ctx, -1, -1, delta);   // the screen underneath, not interactive
-        parent.render(ctx, -1, -1, delta);
+    public void extractRenderState(GuiGraphicsExtractor ctx, int mx, int my, float delta) {
+        parent.extractBackground(ctx, -1, -1, delta);   // the screen underneath, not interactive
+        parent.extractRenderState(ctx, -1, -1, delta);
         ctx.nextStratum();   // above everything the parent drew, items included
         ctx.fill(0, 0, width, height, 0xA0000000);
         int x = x0(), y = y0();
         ctx.fill(x - 1, y - 1, x + W + 1, y + h() + 1, 0xFF5A6472);
         ctx.fill(x, y, x + W, y + h(), 0xFF1F252C);
-        ctx.drawString(font, title, x + 10, y + 9, 0xFFFFFFFF);
+        ctx.text(font, title, x + 10, y + 9, 0xFFFFFFFF);
         if (state != null && state.note() != null)
-            ctx.drawString(font, font.plainSubstrByWidth(state.note(), W - 20), x + 10, noteY(), state.allowed() ? 0xFFE0C07A : 0xFFFF8098, false);
-        for (var d : children()) if (d instanceof net.minecraft.client.gui.components.Renderable dr) dr.render(ctx, mx, my, delta);
+            ctx.text(font, font.plainSubstrByWidth(state.note(), W - 20), x + 10, noteY(), state.allowed() ? 0xFFE0C07A : 0xFFFF8098, false);
+        for (var d : children()) if (d instanceof net.minecraft.client.gui.components.Renderable dr) dr.extractRenderState(ctx, mx, my, delta);
     }
 
     @Override
-    public void renderBackground(GuiGraphics ctx, int mx, int my, float delta) { }   // the parent already drew one
+    public void extractBackground(GuiGraphicsExtractor ctx, int mx, int my, float delta) { }   // the parent already drew one
 
     @Override
     public void onClose() { minecraft.setScreen(parent); }

@@ -28,7 +28,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.DoubleSupplier;
 import java.util.function.Function;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.AbstractButton;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
@@ -521,7 +521,7 @@ public class CurveScreen extends Screen {
         return rows;
     }
 
-    private void drawCount(GuiGraphics ctx, int mx, int my) {
+    private void drawCount(GuiGraphicsExtractor ctx, int mx, int my) {
         int top = top(), bottom = height - 30, x0 = M, x1 = M + PANEL_W;
         ctx.enableScissor(x0, top, x1 + 4, bottom);
         int y = top - countScroll;
@@ -532,15 +532,15 @@ public class CurveScreen extends Screen {
             if (y + h <= top || y >= bottom) { y += h; continue; }   // scrolled out of view
             if (r.header) {
                 int c = r.dim ? 0xFF808A96 : 0xFFE4E9EF;
-                ctx.drawString(font, r.text, x0, y, c, false);
-                ctx.drawString(font, r.count, x1 - r.countW, y, c, false);
+                ctx.text(font, r.text, x0, y, c, false);
+                ctx.text(font, r.count, x1 - r.countW, y, c, false);
                 ctx.fill(x0, y + 10, x1, y + 11, 0x40FFFFFF);
                 if (my >= y && my < y + 11 && mx >= x0 && mx < x1 && my >= top && my < bottom) tip = r.tip;
             } else {
                 drawIcon(ctx, r.state, x0 + 1, y + 1, r.dim);
                 int c = r.dim ? 0xFF5C6470 : 0xFFC8CED6;
-                ctx.drawString(font, r.text, x0 + 20, y + 4, c, false);
-                ctx.drawString(font, r.count, x1 - r.countW, y + 4, r.dim ? 0xFF5C6470 : 0xFFFFFFFF, false);
+                ctx.text(font, r.text, x0 + 20, y + 4, c, false);
+                ctx.text(font, r.count, x1 - r.countW, y + 4, r.dim ? 0xFF5C6470 : 0xFFFFFFFF, false);
                 if (my >= y && my < y + 16 && mx >= x0 && mx < x1 && my >= top && my < bottom) tip = r.tip;
             }
             y += h;
@@ -557,7 +557,7 @@ public class CurveScreen extends Screen {
     }
 
     /** A 14-pixel piece icon painted exactly like the preview: same colours, same silhouette outline. */
-    private void drawIcon(GuiGraphics ctx, int p, int x, int y, boolean dim) {
+    private void drawIcon(GuiGraphicsExtractor ctx, int p, int x, int y, boolean dim) {
         ctx.fill(x - 1, y - 1, x + ICON + 1, y + ICON + 1, 0x40FFFFFF);
         ctx.fill(x, y, x + ICON, y + ICON, PreviewTexture.BG);
         int[][] rects = ICON_RECTS[p];
@@ -587,7 +587,7 @@ public class CurveScreen extends Screen {
         @Override public void onPress(InputWithModifiers input) { action.run(); }
 
         @Override
-        protected void renderContents(GuiGraphics ctx, int mouseX, int mouseY, float delta) {
+        protected void extractContents(GuiGraphicsExtractor ctx, int mouseX, int mouseY, float delta) {
             int x = getX(), y = getY();
             ctx.fill(x, y, x + width, y + height, !active ? 0xFF22262C : isHovered() ? 0xFF55606E : 0xFF3A424D);
             int c = active ? 0xFFE4E9EF : 0xFF4E5560, cx = x + width / 2, cy = y + height / 2;
@@ -717,14 +717,14 @@ public class CurveScreen extends Screen {
 
     // ---------- rendering ----------
     @Override
-    public void render(GuiGraphics ctx, int mouseX, int mouseY, float delta) {
+    public void extractRenderState(GuiGraphicsExtractor ctx, int mouseX, int mouseY, float delta) {
         poll();
         for (Spinner sp : spinners) refresh(sp);
-        super.render(ctx, mouseX, mouseY, delta);
-        for (Label l : labels) ctx.drawString(font, l.text, l.x, l.y, 0xFFC8CED6);
-        for (Icon ic : icons) ctx.renderItem(ic.stack, ic.x, ic.y);
+        super.extractRenderState(ctx, mouseX, mouseY, delta);
+        for (Label l : labels) ctx.text(font, l.text, l.x, l.y, 0xFFC8CED6);
+        for (Icon ic : icons) ctx.item(ic.stack, ic.x, ic.y);
         int hintLimit = tab == Tab.BLOCKS || tab == Tab.COUNT ? height - 30 : presetRowY() - 4;
-        if (hint != null && hintY + 18 < hintLimit) ctx.drawWordWrap(font, Component.literal(hint), M, hintY, PANEL_W, 0xFF9AA5B3, false);
+        if (hint != null && hintY + 18 < hintLimit) ctx.textWithWordWrap(font, Component.literal(hint), M, hintY, PANEL_W, 0xFF9AA5B3, false);
         if (tab == Tab.BEZIER && S.pts.size() > listVisible) {
             int h = listVisible * POINT_ROW - 2, bar = Math.max(6, h * listVisible / S.pts.size());
             int by = listTop + (h - bar) * pointScroll / Math.max(1, S.pts.size() - listVisible);
@@ -749,7 +749,7 @@ public class CurveScreen extends Screen {
             if (S.gen == Gen.BEZIER && tab == Tab.BEZIER) drawHandles(ctx);
         }
         ctx.disableScissor();
-        ctx.renderOutline(x0 - 1, y0 - 1, x1 - x0 + 2, y1 - y0 + 2, 0xFF3A424D);
+        ctx.outline(x0 - 1, y0 - 1, x1 - x0 + 2, y1 - y0 + 2, 0xFF3A424D);
 
         // status line across the top of the canvas
         String line; int color = 0xFFDDE3EA;
@@ -764,12 +764,12 @@ public class CurveScreen extends Screen {
         }
         if (status != null && System.currentTimeMillis() < statusUntil) { line = status; color = 0xFFFFE08A; }
         ctx.fill(x0, y0, x1, y0 + 12, 0xB0000000);
-        ctx.drawString(font, font.plainSubstrByWidth(line, x1 - x0 - 6), x0 + 3, y0 + 2, color, false);
+        ctx.text(font, font.plainSubstrByWidth(line, x1 - x0 - 6), x0 + 3, y0 + 2, color, false);
     }
 
     @Override
-    public void renderBackground(GuiGraphics ctx, int mouseX, int mouseY, float delta) {
-        super.renderBackground(ctx, mouseX, mouseY, delta);
+    public void extractBackground(GuiGraphicsExtractor ctx, int mouseX, int mouseY, float delta) {
+        super.extractBackground(ctx, mouseX, mouseY, delta);
         ctx.fill(0, 0, width, height, 0x80101317);
     }
 
@@ -780,11 +780,11 @@ public class CurveScreen extends Screen {
         return new int[]{i, result.ny() - 1 - jr};
     }
 
-    private void drawHover(GuiGraphics ctx, int mx, int my) {
+    private void drawHover(GuiGraphicsExtractor ctx, int mx, int my) {
         int[] c = cellAt(mx, my);
         if (c == null) return;
         int sx = Math.round(panX + c[0] * zoom), sy = Math.round(panY + (result.ny() - 1 - c[1]) * zoom), sz = Math.max(2, Math.round(zoom));
-        ctx.renderOutline(sx, sy, sz, sz, 0xFF6EA0FF);
+        ctx.outline(sx, sy, sz, sz, 0xFF6EA0FF);
         int p = result.at(c[0], c[1]);
         String txt = "Column " + (c[0] + 1) + ", row " + (c[1] + 1) + ": " + Pieces.NAME[p]
                 + (p != Pieces.EMPTY ? " (" + BlockChoices.blockFor(p).getName().getString() + ")" : "");
@@ -794,7 +794,7 @@ public class CurveScreen extends Screen {
         }
         int y = cy1() - 12;
         ctx.fill(cx0(), y, cx1(), cy1(), 0xB0000000);
-        ctx.drawString(font, font.plainSubstrByWidth(txt, cx1() - cx0() - 6), cx0() + 3, y + 2, 0xFFDDE3EA, false);
+        ctx.text(font, font.plainSubstrByWidth(txt, cx1() - cx0() - 6), cx0() + 3, y + 2, 0xFFDDE3EA, false);
     }
 
     private float[] handleScreen(int k) {
@@ -802,7 +802,7 @@ public class CurveScreen extends Screen {
         return new float[]{panX + (float) p[0] * zoom, panY + (float) (result.ny() - p[1]) * zoom};
     }
 
-    private void drawHandles(GuiGraphics ctx) {
+    private void drawHandles(GuiGraphicsExtractor ctx) {
         float[] prev = null;
         for (int k = 0; k < S.pts.size(); k++) {
             float[] h = handleScreen(k);
@@ -815,11 +815,11 @@ public class CurveScreen extends Screen {
             ctx.fill(x - 5, y - 5, x + 6, y + 6, 0xFFFFFFFF);
             ctx.fill(x - 4, y - 4, x + 5, y + 5, k == dragPoint ? 0xFFFFB84D : 0xFF3F7BE0);
             String n = String.valueOf(k + 1);
-            ctx.drawString(font, n, x - font.width(n) / 2 + 1, y - 3, 0xFFFFFFFF, false);
+            ctx.text(font, n, x - font.width(n) / 2 + 1, y - 3, 0xFFFFFFFF, false);
         }
     }
 
-    private void dashedLine(GuiGraphics ctx, float x1, float y1, float x2, float y2) {
+    private void dashedLine(GuiGraphicsExtractor ctx, float x1, float y1, float x2, float y2) {
         float len = (float) Math.hypot(x2 - x1, y2 - y1);
         int steps = (int) (len / 3);
         for (int q = 0; q <= steps; q++) {
@@ -913,7 +913,7 @@ public class CurveScreen extends Screen {
         Layout layout = Layout.of(result);
         if (layout.isEmpty()) { flash("The shape is empty, so there's nothing to place."); return; }
         if (minecraft.player != null && !minecraft.player.permissions().hasPermission(Permissions.COMMANDS_GAMEMASTER))
-            minecraft.player.displayClientMessage(Component.literal("Note: you'll need operator permissions to confirm placement. Export works for everyone."), false);
+            Placement.say(Component.literal("Note: you'll need operator permissions to confirm placement. Export works for everyone."));
         Placement.start(layout, S.depth, S.overwrite, S.carve, S.floor);
         onClose();
     }
@@ -927,7 +927,7 @@ public class CurveScreen extends Screen {
             String author = minecraft.player != null ? minecraft.player.getName().getString() : "Curve Generator";
             Path file = LitematicExporter.export(layout, S.depth, S.floor, LitematicExporter.defaultName(kind) + (S.floor ? "_floor" : ""), author);
             flash("Exported to schematics/" + file.getFileName());
-            if (minecraft.player != null) minecraft.player.displayClientMessage(Component.literal("Curve Generator: exported to schematics/" + file.getFileName()), false);
+            Placement.say(Component.literal("Curve Generator: exported to schematics/" + file.getFileName()));
         } catch (Exception e) {
             flash("Export failed: " + e.getMessage());
         }

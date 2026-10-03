@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Future;
 import java.util.function.BiConsumer;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.CycleButton;
 import net.minecraft.client.gui.components.EditBox;
@@ -167,7 +167,7 @@ public class PresetsScreen extends Screen {
     private int iconX(int k) { return listX() + listW() - 4 - (3 - k) * (ICON + 2); }
 
     @Override
-    public void render(GuiGraphics ctx, int mx, int my, float delta) {
+    public void extractRenderState(GuiGraphicsExtractor ctx, int mx, int my, float delta) {
         int hr = rowAt(mx, my);
         hovered = hr >= 0 ? shown.get(hr) : null;
         previewButton.active = selected != null;
@@ -178,15 +178,15 @@ public class PresetsScreen extends Screen {
         blocksButton.setTooltip(Tooltip.create(Component.literal(selected == null ? "Select a preset first."
                 : hasBlocks ? "Also load the preset's block for each piece type, and whether it's used."
                 : "This preset was saved without blocks.")));
-        super.render(ctx, mx, my, delta);
-        ctx.drawString(font, title, listX(), 10, 0xFFFFFFFF);
+        super.extractRenderState(ctx, mx, my, delta);
+        ctx.text(font, title, listX(), 10, 0xFFFFFFFF);
 
         // list
         int x0 = listX(), x1 = x0 + listW(), top = listTop();
         ctx.fill(x0 - 1, top - 1, x1 + 1, listBottom() + 1, 0x80000000);
         if (shown.isEmpty()) {
             String msg = query.isBlank() ? "No presets yet. Use Save preset in the generator to add one." : "No presets match your search.";
-            ctx.drawWordWrap(font, Component.literal(msg), x0 + 6, top + 6, listW() - 12, 0xFF9AA5B3, false);
+            ctx.textWithWordWrap(font, Component.literal(msg), x0 + 6, top + 6, listW() - 12, 0xFF9AA5B3, false);
         }
         String tip = null;
         for (int i = scroll; i < shown.size() && i < scroll + visibleRows(); i++) {
@@ -198,7 +198,7 @@ public class PresetsScreen extends Screen {
             int room = listW() - 8 - (icons || p.pinned ? 3 * (ICON + 2) + 4 : 0);
             String name = p.name;
             if (font.width(name) > room) name = font.plainSubstrByWidth(name, room - font.width("…")) + "…";
-            ctx.drawString(font, name, x0 + 5, y + 6, 0xFFE4E9EF, false);
+            ctx.text(font, name, x0 + 5, y + 6, 0xFFE4E9EF, false);
             int iy = y + (ROW - ICON) / 2;
             if (icons) {
                 int over = iconAt(i, mx, my);
@@ -223,17 +223,17 @@ public class PresetsScreen extends Screen {
         // preview
         int px0 = pvX0(), py0 = pvY0(), px1 = pvX1(), py1 = pvY1();
         ctx.fill(px0, py0, px1, py1, 0xFF15181D);
-        ctx.renderOutline(px0 - 1, py0 - 1, px1 - px0 + 2, py1 - py0 + 2, 0xFF3A424D);
+        ctx.outline(px0 - 1, py0 - 1, px1 - px0 + 2, py1 - py0 + 2, 0xFF3A424D);
         Preset target = hovered != null ? hovered : previewed;
         if (target == null) {
-            ctx.drawWordWrap(font, Component.literal("Hover a preset to preview it, or select one and press Preview."),
+            ctx.textWithWordWrap(font, Component.literal("Hover a preset to preview it, or select one and press Preview."),
                     px0 + 8, py0 + 8, px1 - px0 - 16, 0xFF9AA5B3, false);
         } else {
             Solver.Result r = resultFor(target);
             int infoH = 24;
-            if (r == null) ctx.drawString(font, "Working…", px0 + 8, py0 + 8, 0xFF9AA5B3, false);
+            if (r == null) ctx.text(font, "Working…", px0 + 8, py0 + 8, 0xFF9AA5B3, false);
             else if (r.target().error != null)
-                ctx.drawWordWrap(font, Component.literal(r.target().error), px0 + 8, py0 + 8, px1 - px0 - 16, 0xFFFF8098, false);
+                ctx.textWithWordWrap(font, Component.literal(r.target().error), px0 + 8, py0 + 8, px1 - px0 - 16, 0xFFFF8098, false);
             else {
                 if (textureFor != target || texture.id() == null) { texture.update(r, CurveScreen.colors, true, true, choiceFor(target)); textureFor = target; }
                 float aw = px1 - px0 - 12, ah = py1 - py0 - 12 - infoH;
@@ -250,14 +250,14 @@ public class PresetsScreen extends Screen {
                 ctx.disableScissor();
             }
             ctx.fill(px0, py1 - infoH, px1, py1, 0xB0000000);
-            ctx.drawString(font, font.plainSubstrByWidth(target.name, px1 - px0 - 12), px0 + 6, py1 - infoH + 3, 0xFFFFFFFF, false);
+            ctx.text(font, font.plainSubstrByWidth(target.name, px1 - px0 - 12), px0 + 6, py1 - infoH + 3, 0xFFFFFFFF, false);
             String desc = PresetData.defaultName(settingsFor(target), gen);
-            ctx.drawString(font, font.plainSubstrByWidth(desc, px1 - px0 - 12), px0 + 6, py1 - infoH + 13, 0xFF9AA5B3, false);
+            ctx.text(font, font.plainSubstrByWidth(desc, px1 - px0 - 12), px0 + 6, py1 - infoH + 13, 0xFF9AA5B3, false);
         }
         if (tip != null) ctx.setTooltipForNextFrame(font, Component.literal(tip), mx, my);
     }
 
-    private static void drawArt(GuiGraphics ctx, String[] art, int x, int y, int color) {
+    private static void drawArt(GuiGraphicsExtractor ctx, String[] art, int x, int y, int color) {
         int ox = x + (ICON - 9) / 2, oy = y + (ICON - 9) / 2;
         for (int r = 0; r < art.length; r++)
             for (int c = 0; c < art[r].length(); c++)

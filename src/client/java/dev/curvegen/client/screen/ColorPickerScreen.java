@@ -7,7 +7,7 @@ import java.util.EnumMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.IntConsumer;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
@@ -75,9 +75,9 @@ public class ColorPickerScreen extends Screen {
     }
 
     @Override
-    public void render(GuiGraphics ctx, int mx, int my, float delta) {
-        super.render(ctx, mx, my, delta);
-        ctx.drawString(font, title, sqX(), 16, 0xFFFFFFFF);
+    public void extractRenderState(GuiGraphicsExtractor ctx, int mx, int my, float delta) {
+        super.extractRenderState(ctx, mx, my, delta);
+        ctx.text(font, title, sqX(), 16, 0xFFFFFFFF);
         int x0 = sqX(), y0 = sqY();
         // saturation → x, value → y: one vertical gradient per column
         for (int i = 0; i < SQ; i++) {
@@ -87,21 +87,21 @@ public class ColorPickerScreen extends Screen {
         int hx = hueX();
         for (int j = 0; j < SQ; j++) ctx.fill(hx, y0 + j, hx + 12, y0 + j + 1, 0xFF000000 | hsvToRgb(j / (float) SQ, 1f, 1f));
         int px = x0 + Math.round(sat * (SQ - 1)), py = y0 + Math.round((1 - val) * (SQ - 1));
-        ctx.renderOutline(px - 3, py - 3, 7, 7, 0xFFFFFFFF);
+        ctx.outline(px - 3, py - 3, 7, 7, 0xFFFFFFFF);
         int hy = y0 + Math.round(hue * SQ);
         ctx.fill(hx - 2, hy - 1, hx + 14, hy + 1, 0xFFFFFFFF);
         ctx.fill(x0 + 86, y0 + SQ + 10, x0 + 106, y0 + SQ + 30, 0xFF000000 | rgb());
 
         int lx = hx + 30, ly = y0;
-        ctx.drawString(font, "Closest blocks", lx, ly, 0xFFC8CED6, false);
+        ctx.text(font, "Closest blocks", lx, ly, 0xFFC8CED6, false);
         ly += 14;
         for (Family f : BlockChoices.FAMILIES) {
             Block b = preview.get(f);
             if (b == null) continue;
             ctx.fill(lx, ly, lx + 18, ly + 18, 0xFF000000 | ColorIndex.of(b));
-            ctx.renderItem(new ItemStack(b), lx + 1, ly + 1);
-            ctx.drawString(font, BlockChoices.familyName(f), lx + 24, ly + 1, 0xFF9AA5B3, false);
-            ctx.drawString(font, font.plainSubstrByWidth(b.getName().getString(), width - lx - 30), lx + 24, ly + 10, 0xFFFFFFFF, false);
+            ctx.item(new ItemStack(b), lx + 1, ly + 1);
+            ctx.text(font, BlockChoices.familyName(f), lx + 24, ly + 1, 0xFF9AA5B3, false);
+            ctx.text(font, font.plainSubstrByWidth(b.getName().getString(), width - lx - 30), lx + 24, ly + 10, 0xFFFFFFFF, false);
             ly += 22;
         }
     }

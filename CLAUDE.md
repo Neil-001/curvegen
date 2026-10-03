@@ -1,4 +1,4 @@
-# Curve Generator (Fabric mod, Minecraft Java 1.21.11)
+# Curve Generator (Fabric mod, Minecraft Java 26.1)
 
 An in-game tool that turns ellipses, equation plots and Bézier curves into full blocks, slabs, stairs, trapdoors, fences, glass panes and walls. The player previews the result, then places it with a hologram (operator permission needed) or exports it as a Litematica schematic.
 
@@ -8,7 +8,7 @@ An in-game tool that turns ellipses, equation plots and Bézier curves into full
 - `./gradlew runClient` starts a dev client with the mod.
 - `./gradlew test` runs the JUnit tests for the pure-Java core.
 
-Needs JDK 21. Versions are in `gradle.properties`. Loom stays on 1.14.x, because newer Loom needs JDK 25 to run Gradle. The code uses Mojang's official mappings, so class and method names match the ones Minecraft uses (`Level`, `BlockState`, `GuiGraphics`), not Yarn's. Run build and test after every change.
+Needs JDK 25. Versions are in `gradle.properties`. Minecraft 26.1 isn't obfuscated, so the build has no mappings and the code uses Minecraft's own names (`Level`, `BlockState`, `GuiGraphicsExtractor`). The one jar runs on 26.1, 26.1.1 and 26.1.2, whose APIs are identical. It is compiled against 26.1 and the last Fabric API built for 26.1, which is the oldest one any of the three versions would use. Run build and test after every change.
 
 ## Layout
 
@@ -76,7 +76,7 @@ Loom's `splitEnvironmentSourceSets()` splits the code into `src/main` (common) a
 
 - Client-to-server custom payloads must stay under 32 KiB, so placement sends 2,500 blocks per batch.
 - The `/setblock` fallback sends 40 commands per tick.
-- `NativeImage.getPixel` and `setPixel` take ARGB in 1.21.11 (1.21.1 used ABGR).
+- `NativeImage.getPixel` and `setPixel` take ARGB.
 
 ## Releasing
 
