@@ -21,7 +21,7 @@ import net.neoforged.neoforge.client.event.AddClientReloadListenersEvent;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.RegisterGuiLayersEvent;
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
-import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
+import net.neoforged.neoforge.client.event.SubmitCustomGeometryEvent;
 import net.neoforged.neoforge.client.network.ClientPacketDistributor;
 import net.neoforged.neoforge.common.NeoForge;
 
@@ -40,15 +40,11 @@ public final class CurveGenNeoForgeClient implements ClientPlatform {
         // NeoForge draws modded layers even with the HUD hidden (F1). Fabric doesn't, so this checks for it.
         modBus.addListener(RegisterGuiLayersEvent.class, event -> event.registerAboveAll(
                 Identifier.fromNamespaceAndPath("curvegen", "placement"), (graphics, delta) -> {
-                    if (!Minecraft.getInstance().options.hideGui) Placement.renderHud(graphics);
+                    if (!Minecraft.getInstance().gui.hud.isHidden()) Placement.renderHud(graphics);
                 }));
         NeoForge.EVENT_BUS.addListener(ClientTickEvent.Post.class, event -> CurveGenClient.tick(Minecraft.getInstance()));
-        // The hologram draws in two passes, either side of translucent terrain. See Placement.render. The second is
-        // the last stage of the main pass, where Fabric's END_MAIN also runs.
-        NeoForge.EVENT_BUS.addListener(RenderLevelStageEvent.AfterTranslucentFeatures.class,
-                event -> Placement.render(event.getPoseStack(), event.getLevelRenderState().cameraRenderState.pos, false));
-        NeoForge.EVENT_BUS.addListener(RenderLevelStageEvent.AfterTranslucentParticles.class,
-                event -> Placement.render(event.getPoseStack(), event.getLevelRenderState().cameraRenderState.pos, true));
+        NeoForge.EVENT_BUS.addListener(SubmitCustomGeometryEvent.class,
+                event -> Placement.render(event.getSubmitNodeCollector(), event.getPoseStack(), event.getLevelRenderState().cameraRenderState.pos));
     }
 
     @Override public boolean canSendToServer() {

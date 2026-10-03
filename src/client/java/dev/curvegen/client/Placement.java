@@ -15,8 +15,9 @@ import java.util.function.Predicate;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.ShapeRenderer;
+import net.minecraft.client.renderer.SubmitNodeCollector;
+import net.minecraft.client.renderer.SubmitNodeStorage;
+import net.minecraft.client.renderer.feature.CustomFeatureRenderer;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.commands.arguments.blocks.BlockStateParser;
 import net.minecraft.core.BlockPos;
@@ -214,57 +215,66 @@ public final class Placement {
     // ---------- rendering ----------
 
     /**
-     * Draws the hologram. {@code ms} is the world's pose stack and {@code cam} the camera position. Each loader calls
-     * this twice a frame: once before the game draws water and other translucent blocks, and once after. Boxes on the
-     * far side of a water surface are drawn before it, so they show through it. The rest are drawn after it, so they
-     * draw over water behind them.
+     * Submits the hologram for this frame. {@code ms} is the world's pose stack and {@code cam} the camera position.
+     * The game draws the submitted boxes later in the frame, so they only capture this frame's lists.
      */
-    public static void render(PoseStack ms, Vec3 cam, boolean afterWater) {
+    public static void render(SubmitNodeCollector out, PoseStack ms, Vec3 cam) {
         if (!active || anchor == null || entries.isEmpty() || !anchor.equals(viewAnchor)) return;
-        Minecraft mc = Minecraft.getInstance();
-        MultiBufferSource.BufferSource imm = mc.renderBuffers().bufferSource();
+        // The camera, in the hologram's own coordinates.
+        double cx = cam.x - anchor.getX(), cy = cam.y - anchor.getY(), cz = cam.z - anchor.getZ();
         ms.pushPose();
-        ms.translate(anchor.getX() - cam.x, anchor.getY() - cam.y, anchor.getZ() - cam.z);
+        ms.translate(-cx, -cy, -cz);
 
         if (entries.size() <= HOLOGRAM_LIMIT) {
-            boolean camWet = mc.gameRenderer.getMainCamera().getFluidInCamera() == FogType.WATER;
-            boolean wet = camWet == afterWater;   // which half is on the camera's side decides which one this pass draws
-            VertexConsumer fill = imm.getBuffer(RenderTypes.debugFilledBox());
-            PoseStack.Pose pose = ms.last();
-            for (Entry e : wet ? placeWet : placeDry) {
-                int color = ARGB.colorFromFloat(0.45f, e.r, e.g, e.b);
-                for (AABB b : e.boxes)
-                    filledBox(pose, fill, e.dx + b.minX, e.dy + b.minY, e.dz + b.minZ, e.dx + b.maxX, e.dy + b.maxY, e.dz + b.maxZ, color);
-            }
-            if (toBreak.size() <= HOLOGRAM_LIMIT) {
-                // Blocks carving will remove, in red. Slightly larger than the block, or a full block would hide its own box.
-                int red = ARGB.colorFromFloat(0.28f, 1f, 0.2f, 0.25f);
-                for (BlockPos o : wet ? breakWet : breakDry)
-                    filledBox(pose, fill, o.getX() - .005, o.getY() - .005, o.getZ() - .005, o.getX() + 1.005, o.getY() + 1.005, o.getZ() + 1.005, red);
-            }
-            imm.endBatch(RenderTypes.debugFilledBox());
+            // Water is drawn between the two phases. Boxes on the camera's side of the surface go after it, so they
+            // draw over water behind them. Boxes on the far side go before it, so they show through the surface.
+            boolean clear = toBreak.size() <= HOLOGRAM_LIMIT;
+            boolean camWet = Minecraft.getInstance().gameRenderer.mainCamera().getFluidInCamera() == FogType.WATER;
+            submitBoxes(out, ms, camWet ? placeWet : placeDry, !clear ? List.of() : camWet ? breakWet : breakDry, true, cx, cy, cz);
+            submitBoxes(out, ms, camWet ? placeDry : placeWet, !clear ? List.of() : camWet ? breakDry : breakWet, false, cx, cy, cz);
         }
-        if (afterWater) {
-            VertexConsumer lines = imm.getBuffer(RenderTypes.lines());
-            float width = mc.getWindow().getAppropriateLineWidth();
-            AABB bounds = new AABB(minDx, minDy, minDz, maxDx + 1, maxDy + 1, maxDz + 1);
-            ShapeRenderer.renderShape(ms, lines, Shapes.create(bounds), 0, 0, 0, ARGB.colorFromFloat(0.9f, 1f, 1f, 1f), width);
-            ShapeRenderer.renderShape(ms, lines, Shapes.create(new AABB(0, 0, 0, 1, 1, 1).inflate(0.02)), 0, 0, 0,
-                    ARGB.colorFromFloat(1f, 1f, 0.3f, 0.45f), width);   // the anchor block
-            imm.endBatch(RenderTypes.lines());
-        }
+        float width = Minecraft.getInstance().getWindow().getAppropriateLineWidth();
+        AABB bounds = new AABB(minDx, minDy, minDz, maxDx + 1, maxDy + 1, maxDz + 1);
+        out.submitShapeOutline(ms, Shapes.create(bounds), RenderTypes.lines(), ARGB.colorFromFloat(0.9f, 1f, 1f, 1f), width, true);
+        out.submitShapeOutline(ms, Shapes.create(new AABB(0, 0, 0, 1, 1, 1).inflate(0.02)), RenderTypes.lines(),
+                ARGB.colorFromFloat(1f, 1f, 0.3f, 0.45f), width, true);   // the anchor block
         ms.popPose();
     }
 
-    /** The six faces of a box as quads, each wound to face outwards so back faces are culled. */
-    private static void filledBox(PoseStack.Pose pose, VertexConsumer vc, double x0, double y0, double z0, double x1, double y1, double z1, int color) {
+    private static void submitBoxes(SubmitNodeCollector out, PoseStack ms, List<Entry> place, List<BlockPos> clear, boolean afterWater,
+                                    double cx, double cy, double cz) {
+        if (place.isEmpty() && clear.isEmpty()) return;
+        SubmitNodeCollector.CustomGeometryRenderer boxes = (pose, fill) -> {
+            for (Entry e : place) {
+                int color = ARGB.colorFromFloat(0.45f, e.r, e.g, e.b);
+                for (AABB b : e.boxes)
+                    filledBox(pose, fill, e.dx + b.minX, e.dy + b.minY, e.dz + b.minZ, e.dx + b.maxX, e.dy + b.maxY, e.dz + b.maxZ, color, cx, cy, cz);
+            }
+            // Blocks carving will remove, in red. Slightly larger than the block, or a full block would hide its own box.
+            int red = ARGB.colorFromFloat(0.28f, 1f, 0.2f, 0.25f);
+            for (BlockPos o : clear)
+                filledBox(pose, fill, o.getX() - .005, o.getY() - .005, o.getZ() - .005, o.getX() + 1.005, o.getY() + 1.005, o.getZ() + 1.005, red, cx, cy, cz);
+        };
+        // submitCustomGeometry draws before translucent terrain. The after-terrain phase is only reachable on the game's
+        // own collector, so a collector from another mod gets everything before the water.
+        if (afterWater && out instanceof SubmitNodeStorage storage)
+            storage.order(0).afterTerrain.submit(new CustomFeatureRenderer.Submit(ms.last().copy(), RenderTypes.debugFilledBox(), boxes));
+        else out.submitCustomGeometry(ms, RenderTypes.debugFilledBox(), boxes);
+    }
+
+    /**
+     * The faces of a box that the camera at (cx, cy, cz) can see. The filled-box render type no longer culls back faces,
+     * and drawing them too would blend every box twice.
+     */
+    private static void filledBox(PoseStack.Pose pose, VertexConsumer vc, double x0, double y0, double z0, double x1, double y1, double z1,
+                                  int color, double cx, double cy, double cz) {
         float a = (float) x0, b = (float) y0, c = (float) z0, d = (float) x1, e = (float) y1, f = (float) z1;
-        quad(pose, vc, color, a, b, c, d, b, c, d, b, f, a, b, f);   // down
-        quad(pose, vc, color, a, e, c, a, e, f, d, e, f, d, e, c);   // up
-        quad(pose, vc, color, a, b, c, a, e, c, d, e, c, d, b, c);   // north
-        quad(pose, vc, color, a, b, f, d, b, f, d, e, f, a, e, f);   // south
-        quad(pose, vc, color, a, b, c, a, b, f, a, e, f, a, e, c);   // west
-        quad(pose, vc, color, d, b, c, d, e, c, d, e, f, d, b, f);   // east
+        if (cy < y0) quad(pose, vc, color, a, b, c, d, b, c, d, b, f, a, b, f);   // down
+        if (cy > y1) quad(pose, vc, color, a, e, c, a, e, f, d, e, f, d, e, c);   // up
+        if (cz < z0) quad(pose, vc, color, a, b, c, a, e, c, d, e, c, d, b, c);   // north
+        if (cz > z1) quad(pose, vc, color, a, b, f, d, b, f, d, e, f, a, e, f);   // south
+        if (cx < x0) quad(pose, vc, color, a, b, c, a, b, f, a, e, f, a, e, c);   // west
+        if (cx > x1) quad(pose, vc, color, d, b, c, d, e, c, d, e, f, d, b, f);   // east
     }
 
     private static void quad(PoseStack.Pose pose, VertexConsumer vc, int color, float... xyz) {
@@ -411,6 +421,6 @@ public final class Placement {
     /** Shows a message from the mod itself in chat, and lets the narrator read it. */
     public static void say(Component t) {
         Minecraft mc = Minecraft.getInstance();
-        if (mc.player != null) mc.getChatListener().handleSystemMessage(t, false);
+        if (mc.player != null) mc.gui.chatListener().handleSystemMessage(t, false);
     }
 }

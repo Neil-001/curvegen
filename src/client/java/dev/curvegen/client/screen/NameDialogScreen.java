@@ -81,7 +81,7 @@ public class NameDialogScreen extends Screen {
 
     private void submit() {
         if (!state.allowed()) return;
-        minecraft.setScreen(parent);
+        minecraft.gui.setScreen(parent);
         onConfirm.accept(field.getValue().trim(), option);
     }
 
@@ -111,5 +111,5 @@ public class NameDialogScreen extends Screen {
     public void extractBackground(GuiGraphicsExtractor ctx, int mx, int my, float delta) { }   // the parent already drew one
 
     @Override
-    public void onClose() { minecraft.setScreen(parent); }
+    public void onClose() { minecraft.gui.setScreen(parent); }
 }
