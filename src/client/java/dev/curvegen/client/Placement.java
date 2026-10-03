@@ -10,8 +10,7 @@ import java.util.List;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.ShapeRenderer;
+import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.commands.arguments.blocks.BlockStateParser;
 import net.minecraft.core.BlockPos;
@@ -181,36 +180,34 @@ public final class Placement {
 
     // ---------- rendering ----------
 
-    /** Draws the hologram. {@code ms} is the world's pose stack and {@code cam} the camera position. */
-    public static void render(PoseStack ms, Vec3 cam) {
+    /**
+     * Submits the hologram for this frame. {@code ms} is the world's pose stack and {@code cam} the camera position.
+     * The game draws the submitted boxes later in the frame, so they only capture this frame's lists.
+     */
+    public static void render(SubmitNodeCollector out, PoseStack ms, Vec3 cam) {
         if (!active || anchor == null || entries.isEmpty() || !anchor.equals(viewAnchor)) return;
-        Minecraft mc = Minecraft.getInstance();
-        MultiBufferSource.BufferSource imm = mc.renderBuffers().bufferSource();
         ms.pushPose();
         ms.translate(anchor.getX() - cam.x, anchor.getY() - cam.y, anchor.getZ() - cam.z);
 
         if (entries.size() <= HOLOGRAM_LIMIT) {
-            VertexConsumer fill = imm.getBuffer(RenderTypes.debugFilledBox());
-            PoseStack.Pose pose = ms.last();
-            for (Entry e : toPlace) {
-                int color = ARGB.colorFromFloat(0.45f, e.r, e.g, e.b);
-                for (AABB b : e.boxes)
-                    filledBox(pose, fill, e.dx + b.minX, e.dy + b.minY, e.dz + b.minZ, e.dx + b.maxX, e.dy + b.maxY, e.dz + b.maxZ, color);
-            }
-            if (toBreak.size() <= HOLOGRAM_LIMIT) {
+            List<Entry> place = toPlace;
+            List<BlockPos> clear = toBreak.size() <= HOLOGRAM_LIMIT ? toBreak : List.of();
+            out.submitCustomGeometry(ms, RenderTypes.debugFilledBox(), (pose, fill) -> {
+                for (Entry e : place) {
+                    int color = ARGB.colorFromFloat(0.45f, e.r, e.g, e.b);
+                    for (AABB b : e.boxes)
+                        filledBox(pose, fill, e.dx + b.minX, e.dy + b.minY, e.dz + b.minZ, e.dx + b.maxX, e.dy + b.maxY, e.dz + b.maxZ, color);
+                }
                 int red = ARGB.colorFromFloat(0.28f, 1f, 0.2f, 0.25f);
-                for (BlockPos o : toBreak)   // blocks carving will remove, in red
+                for (BlockPos o : clear)   // blocks carving will remove, in red
                     filledBox(pose, fill, o.getX() + .02, o.getY() + .02, o.getZ() + .02, o.getX() + .98, o.getY() + .98, o.getZ() + .98, red);
-            }
-            imm.endBatch(RenderTypes.debugFilledBox());
+            });
         }
-        VertexConsumer lines = imm.getBuffer(RenderTypes.lines());
-        float width = mc.getWindow().getAppropriateLineWidth();
+        float width = Minecraft.getInstance().getWindow().getAppropriateLineWidth();
         AABB bounds = new AABB(minDx, minDy, minDz, maxDx + 1, maxDy + 1, maxDz + 1);
-        ShapeRenderer.renderShape(ms, lines, Shapes.create(bounds), 0, 0, 0, ARGB.colorFromFloat(0.9f, 1f, 1f, 1f), width);
-        ShapeRenderer.renderShape(ms, lines, Shapes.create(new AABB(0, 0, 0, 1, 1, 1).inflate(0.02)), 0, 0, 0,
-                ARGB.colorFromFloat(1f, 1f, 0.3f, 0.45f), width);   // the anchor block
-        imm.endBatch(RenderTypes.lines());
+        out.submitShapeOutline(ms, Shapes.create(bounds), RenderTypes.lines(), ARGB.colorFromFloat(0.9f, 1f, 1f, 1f), width, true);
+        out.submitShapeOutline(ms, Shapes.create(new AABB(0, 0, 0, 1, 1, 1).inflate(0.02)), RenderTypes.lines(),
+                ARGB.colorFromFloat(1f, 1f, 0.3f, 0.45f), width, true);   // the anchor block
         ms.popPose();
     }
 
@@ -329,6 +326,6 @@ public final class Placement {
     /** Shows a message from the mod itself in chat, and lets the narrator read it. */
     public static void say(Component t) {
         Minecraft mc = Minecraft.getInstance();
-        if (mc.player != null) mc.getChatListener().handleSystemMessage(t, false);
+        if (mc.player != null) mc.gui.chatListener().handleSystemMessage(t, false);
     }
 }

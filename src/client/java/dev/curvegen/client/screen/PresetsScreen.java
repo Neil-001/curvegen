@@ -109,7 +109,7 @@ public class PresetsScreen extends Screen {
     }
 
     private void load(Preset p) {
-        minecraft.setScreen(parent);
+        minecraft.gui.setScreen(parent);
         onLoad.accept(p, withBlocks(p));
     }
 
@@ -303,7 +303,7 @@ public class PresetsScreen extends Screen {
     }
 
     private void rename(Preset p) {
-        minecraft.setScreen(new NameDialogScreen(this, "Rename preset", p.name, name -> {
+        minecraft.gui.setScreen(new NameDialogScreen(this, "Rename preset", p.name, name -> {
             if (name.isEmpty()) return new NameDialogScreen.Check(false, "Rename", "Type a name for the preset.");
             Preset other = PresetStore.find(gen, name);
             if (other != null && other != p) return new NameDialogScreen.Check(false, "Rename", "Another preset already has this name.");
@@ -312,7 +312,7 @@ public class PresetsScreen extends Screen {
     }
 
     private void delete(Preset p) {
-        minecraft.setScreen(new ConfirmScreen(yes -> {
+        minecraft.gui.setScreen(new ConfirmScreen(yes -> {
             if (yes) {
                 PresetStore.delete(p);
                 if (selected == p) selected = null;
@@ -320,7 +320,7 @@ public class PresetsScreen extends Screen {
                 results.keySet().removeIf(k -> k.preset() == p);
                 refilter();
             }
-            minecraft.setScreen(this);
+            minecraft.gui.setScreen(this);
         }, Component.literal("Are you sure?"),
                 Component.literal("Delete the preset \"" + p.name + "\"? This can't be undone."),
                 Component.literal("Delete"), CommonComponents.GUI_CANCEL));
@@ -334,7 +334,7 @@ public class PresetsScreen extends Screen {
     }
 
     @Override
-    public void onClose() { minecraft.setScreen(parent); }
+    public void onClose() { minecraft.gui.setScreen(parent); }
 
     @Override
     public boolean isPauseScreen() { return parent.isPauseScreen(); }
