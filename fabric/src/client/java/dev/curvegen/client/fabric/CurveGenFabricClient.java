@@ -14,6 +14,7 @@ import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
 import net.fabricmc.fabric.api.resource.v1.ResourceLoader;
 import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.client.KeyMapping;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.packs.PackType;
 import net.minecraft.server.packs.resources.ResourceManagerReloadListener;
@@ -22,6 +23,7 @@ import net.minecraft.server.packs.resources.ResourceManagerReloadListener;
 public class CurveGenFabricClient implements ClientModInitializer, ClientPlatform {
     @Override
     public void onInitializeClient() {
+        KeyMapping.Category.register(CurveGenClient.CATEGORY.id());
         CurveGenClient.init(this).forEach(KeyMappingHelper::registerKeyMapping);
         ClientTickEvents.END_CLIENT_TICK.register(CurveGenClient::tick);
         LevelRenderEvents.END_MAIN.register(ctx -> Placement.render(ctx.poseStack(), ctx.levelState().cameraRenderState.pos));

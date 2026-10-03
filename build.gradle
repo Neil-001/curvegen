@@ -1,58 +1,20 @@
-plugins {
-	id 'net.fabricmc.fabric-loom' version '1.18.2'
-}
+// Settings both loader projects share. The plugins and dependencies are in fabric/ and neoforge/.
+subprojects {
+	version = rootProject.mod_version
+	group = rootProject.maven_group
 
-version = project.mod_version
-group = project.maven_group
+	plugins.withId('java') {
+		base {
+			archivesName = "${rootProject.archives_base_name}-${project.name}"
+		}
 
-base {
-	archivesName = project.archives_base_name
-}
+		tasks.withType(JavaCompile).configureEach {
+			it.options.release = 25
+		}
 
-repositories {
-	mavenCentral()
-}
-
-loom {
-	splitEnvironmentSourceSets()
-	mods {
-		"curvegen" {
-			sourceSet sourceSets.main
-			sourceSet sourceSets.client
+		java {
+			sourceCompatibility = JavaVersion.VERSION_25
+			targetCompatibility = JavaVersion.VERSION_25
 		}
 	}
-}
-
-dependencies {
-	minecraft "com.mojang:minecraft:${project.minecraft_version}"
-	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
-	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
-
-	// Tests cover the pure-Java core (dev.curvegen.core) and don't need Minecraft running.
-	testImplementation "org.junit.jupiter:junit-jupiter:5.10.3"
-	testRuntimeOnly "org.junit.platform:junit-platform-launcher"
-}
-
-test {
-	useJUnitPlatform()
-	testLogging {
-		events "failed"
-		exceptionFormat = "full"
-	}
-}
-
-processResources {
-	inputs.property "version", project.version
-	filesMatching("fabric.mod.json") {
-		expand "version": project.version
-	}
-}
-
-tasks.withType(JavaCompile).configureEach {
-	it.options.release = 25
-}
-
-java {
-	sourceCompatibility = JavaVersion.VERSION_25
-	targetCompatibility = JavaVersion.VERSION_25
 }

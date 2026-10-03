@@ -1,0 +1,40 @@
+plugins {
+	id 'net.neoforged.moddev' version '2.0.148'
+}
+
+neoForge {
+	version = project.neoforge_version
+	runs {
+		client {
+			client()
+			gameDirectory = rootProject.file('run/neoforge')
+		}
+		server {
+			server()
+			programArgument '--nogui'
+			gameDirectory = rootProject.file('run/neoforge-server')
+		}
+	}
+	mods {
+		"curvegen" {
+			sourceSet sourceSets.main
+		}
+	}
+}
+
+// The shared code, next to this project's own NeoForge entrypoints. NeoForge has no separate client source set,
+// so the client code goes into the same jar.
+sourceSets {
+	main {
+		java.srcDir rootProject.file('src/main/java')
+		java.srcDir rootProject.file('src/client/java')
+		resources.srcDir rootProject.file('src/main/resources')
+	}
+}
+
+processResources {
+	inputs.property "version", project.version
+	filesMatching("META-INF/neoforge.mods.toml") {
+		expand "version": project.version
+	}
+}

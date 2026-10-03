@@ -1,0 +1,27 @@
+modLoader = "javafml"
+loaderVersion = "[4,)"
+license = "MIT"
+issueTrackerURL = "https://github.com/Neil-001/curvegen/issues"
+
+[[mods]]
+modId = "curvegen"
+version = "${version}"
+displayName = "Curve Generator"
+displayURL = "https://modrinth.com/mod/curvegen"
+logoFile = "assets/curvegen/icon.png"
+authors = "Neil C."
+description = '''Turn ellipses, equations and Bézier curves into full blocks, slabs, stairs, trapdoors, fences, glass panes and walls, then place them with a hologram or export them to Litematica.'''
+
+[[dependencies.curvegen]]
+modId = "neoforge"
+type = "required"
+versionRange = "[26.1.0.19-beta,)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.curvegen]]
+modId = "minecraft"
+type = "required"
+versionRange = "[26.1,26.1.2]"
+ordering = "NONE"
+side = "BOTH"

@@ -11,7 +11,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.resources.Identifier;
 import org.lwjgl.glfw.GLFW;
 
-/** The client side that doesn't depend on the mod loader. The loader's client entrypoint, in {@code dev.curvegen.client.fabric}, hooks it up. */
+/** The client side that doesn't depend on the mod loader. The loader's client entrypoint, in {@code dev.curvegen.client.fabric} or {@code dev.curvegen.client.neoforge}, hooks it up. */
 public final class CurveGenClient {
     private CurveGenClient() {}
 
@@ -20,7 +20,8 @@ public final class CurveGenClient {
 
     public static ClientPlatform platform;
 
-    private static final KeyMapping.Category CAT = KeyMapping.Category.register(Identifier.fromNamespaceAndPath("curvegen", "main"));
+    /** The heading for the keys in the Controls screen. Each loader registers it in its own way. */
+    public static final KeyMapping.Category CATEGORY = new KeyMapping.Category(Identifier.fromNamespaceAndPath("curvegen", "main"));
     public static KeyMapping OPEN, CONFIRM, CANCEL, ROTATE, FORWARD, BACK, LOCK, UNDO;
     /** Moves along one world axis each, in {@link Direction} order. Unbound until the player assigns them. */
     private static final KeyMapping[] MOVE = new KeyMapping[6];
@@ -28,12 +29,12 @@ public final class CurveGenClient {
     private static final List<KeyMapping> KEYS = new ArrayList<>();
 
     private static KeyMapping key(String name, int code) {
-        KeyMapping k = new KeyMapping("key.curvegen." + name, InputConstants.Type.KEYSYM, code, CAT);
+        KeyMapping k = new KeyMapping("key.curvegen." + name, InputConstants.Type.KEYSYM, code, CATEGORY);
         KEYS.add(k);
         return k;
     }
 
-    /** Creates the keys and returns them for the loader to register. */
+    /** Creates the keys and returns them for the loader to register, after it has registered {@link #CATEGORY}. */
     public static List<KeyMapping> init(ClientPlatform loader) {
         platform = loader;
         OPEN = key("open", GLFW.GLFW_KEY_G);
