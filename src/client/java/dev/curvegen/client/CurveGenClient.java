@@ -51,7 +51,7 @@ public final class CurveGenClient {
 
     /** Call at the end of every client tick. */
     public static void tick(Minecraft mc) {
-        while (OPEN.consumeClick()) mc.setScreen(new CurveScreen());
+        while (OPEN.consumeClick()) mc.gui.setScreen(new CurveScreen());
         while (UNDO.consumeClick()) Placement.undo();
         if (Placement.isActive()) {
             while (CONFIRM.consumeClick()) Placement.confirm();
