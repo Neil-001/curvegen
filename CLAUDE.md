@@ -8,7 +8,7 @@ An in-game tool that turns ellipses, equation plots and Bézier curves into full
 - `./gradlew :fabric:runClient` and `./gradlew :neoforge:runClient` start a dev client with the mod. `runServer` works the same way.
 - `./gradlew :fabric:test` runs the JUnit tests for the pure-Java core. They live in the Fabric project only, because they don't depend on the loader.
 
-Needs JDK 25. Versions are in `gradle.properties`. Minecraft isn't obfuscated from 26.1 on, so the build has no mappings and the code uses Minecraft's own names (`Level`, `BlockState`, `GuiGraphicsExtractor`). Each loader's jar runs on 26.2 only. The Fabric jar is compiled against the first Fabric API built after 26.2 was released, and the NeoForge jar against the first stable NeoForge for 26.2. CI also compiles each against the newest. The last commit that builds for 26.1 to 26.1.2 is `49acdf6`. Run build and test after every change.
+Needs JDK 25. Versions are in `gradle.properties`. Minecraft isn't obfuscated from 26.1 on, so the build has no mappings and the code uses Minecraft's own names (`Level`, `BlockState`, `GuiGraphicsExtractor`). Each loader's jar runs on 26.2 only. The Fabric jar is compiled against the first Fabric API built after 26.2 was released, and the NeoForge jar against the first stable NeoForge for 26.2. CI also compiles each against a newer one. The last commit that builds for 26.1 to 26.1.2 is `49acdf6`. Run build and test after every change.
 
 ## Layout
 
@@ -31,7 +31,7 @@ The shared code is in the root `src/` folder: `src/main` (common), `src/client` 
   - `ClientPlatform`: what the client needs from the mod loader: sending the placement packet, and the config and game folders.
   - `BlockChoices`: the block chosen for each piece family, candidate lists, and the mapping from piece to `BlockState` for upright and flat builds.
   - `ColorIndex`: average texture colours for the face you'll see, matched in CIELAB.
-  - `Placement`: placement mode, hologram, Replace and Carve, undo, and the `/setblock` fallback. The hologram is submitted to the frame's `SubmitNodeCollector`, which each loader hands over in its own event, and the game draws it later in the frame.
+  - `Placement`: placement mode, hologram, Replace and Carve, undo, and the `/setblock` fallback. The hologram is submitted to the frame's `SubmitNodeCollector`, which each loader hands over in its own event, and the game draws it later in the frame. The boxes go into the after-terrain phase so they draw over water and glass, and `filledBox` leaves out the faces turned away from the camera, because 26.2's filled-box render type doesn't cull them.
   - `LitematicExporter`: writes the `.litematic` file.
   - `PresetStore`: reads and writes one JSON file per preset in `config/curvegen/presets/`, replacing each file atomically.
 - `dev/curvegen/client/screen/`:

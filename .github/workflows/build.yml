@@ -32,7 +32,7 @@ jobs:
       # Compiles both loaders' jars and runs the tests, including SolverRegressionTest.
       - run: ./gradlew build
 
-      # The build compiles against the oldest Fabric API and NeoForge the jars accept. This compiles against the newest.
+      # The build compiles against the oldest Fabric API and NeoForge the jars accept. This compiles against newer ones.
       - run: >
           ./gradlew :fabric:compileJava :fabric:compileClientJava :neoforge:compileJava
           -Pfabric_version=0.161.0+26.2 -Pneoforge_version=26.2.0.88
