@@ -196,7 +196,7 @@ public class CurveScreen extends Screen {
         save.setTooltip(Tooltip.create(Component.literal("Save this tab's shape settings under a name.")));
         addRenderableWidget(save);
         Button load = Button.builder(Component.literal("Load preset"),
-                b -> minecraft.setScreen(new PresetsScreen(this, S.gen, this::loadPreset))).bounds(M + w + 4, y, w, 20).build();
+                b -> minecraft.gui.setScreen(new PresetsScreen(this, S.gen, this::loadPreset))).bounds(M + w + 4, y, w, 20).build();
         load.setTooltip(Tooltip.create(Component.literal("Browse, preview and load saved shapes.")));
         addRenderableWidget(load);
     }
@@ -204,7 +204,7 @@ public class CurveScreen extends Screen {
     private void savePreset() {
         Gen g = S.gen;
         String suggestion = PresetStore.unique(g, PresetData.defaultName(S, g));
-        minecraft.setScreen(new NameDialogScreen(this, "Save preset", suggestion, name -> {
+        minecraft.gui.setScreen(new NameDialogScreen(this, "Save preset", suggestion, name -> {
             if (name.isEmpty()) return new NameDialogScreen.Check(false, "Save", "Type a name for the preset.");
             if (PresetStore.find(g, name) != null) return new NameDialogScreen.Check(true, "Replace", "A preset with this name exists. Saving replaces it.");
             return new NameDialogScreen.Check(true, "Save", null);
@@ -423,7 +423,7 @@ public class CurveScreen extends Screen {
             }
             Block block = BlockChoices.CHOICE.get(f);
             String name = font.plainSubstrByWidth(block.getName().getString(), PANEL_W - 54 - 8);
-            Button pick = Button.builder(Component.literal(name), b -> minecraft.setScreen(new BlockPickerScreen(this, f, chosen -> {
+            Button pick = Button.builder(Component.literal(name), b -> minecraft.gui.setScreen(new BlockPickerScreen(this, f, chosen -> {
                 BlockChoices.CHOICE.put(f, chosen);
                 S.fullConnects = BlockChoices.fullBlockConnects();
                 dirty = true; textureDirty = true;
@@ -433,7 +433,7 @@ public class CurveScreen extends Screen {
             addRenderableWidget(pick);
             icons.add(new Icon(M + 29, y + 2, new ItemStack(block)));
         }
-        addRenderableWidget(Button.builder(Component.literal("Match a colour…"), b -> minecraft.setScreen(
+        addRenderableWidget(Button.builder(Component.literal("Match a colour…"), b -> minecraft.gui.setScreen(
                 new ColorPickerScreen(this, BlockChoices.pickedColor >= 0 ? BlockChoices.pickedColor : 0x8E6B4A, rgb -> {
                     BlockChoices.autoSelect(rgb);
                     S.fullConnects = BlockChoices.fullBlockConnects();

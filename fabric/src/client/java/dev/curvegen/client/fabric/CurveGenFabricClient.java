@@ -26,7 +26,7 @@ public class CurveGenFabricClient implements ClientModInitializer, ClientPlatfor
         KeyMapping.Category.register(CurveGenClient.CATEGORY.id());
         CurveGenClient.init(this).forEach(KeyMappingHelper::registerKeyMapping);
         ClientTickEvents.END_CLIENT_TICK.register(CurveGenClient::tick);
-        LevelRenderEvents.END_MAIN.register(ctx -> Placement.render(ctx.poseStack(), ctx.levelState().cameraRenderState.pos));
+        LevelRenderEvents.COLLECT_SUBMITS.register(ctx -> Placement.render(ctx.submitNodeCollector(), ctx.poseStack(), ctx.levelState().cameraRenderState.pos));
         // Block colours come from the active resource packs, so recompute them whenever packs change.
         ResourceLoader.get(PackType.CLIENT_RESOURCES).registerReloadListener(Identifier.fromNamespaceAndPath("curvegen", "block_colours"),
                 (ResourceManagerReloadListener) manager -> ColorIndex.clear());
