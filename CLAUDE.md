@@ -8,7 +8,7 @@ An in-game tool that turns ellipses, equation plots and Bézier curves into full
 - `./gradlew runClient` starts a dev client with the mod.
 - `./gradlew test` runs the JUnit tests for the pure-Java core.
 
-Needs JDK 25. Versions are in `gradle.properties`. Minecraft 26.1 isn't obfuscated, so the build has no mappings and the code uses Minecraft's own names (`Level`, `BlockState`, `GuiGraphicsExtractor`). The one jar runs on 26.1, 26.1.1 and 26.1.2, whose APIs are identical. It is compiled against 26.1 and the oldest Fabric API for it. Run build and test after every change.
+Needs JDK 25. Versions are in `gradle.properties`. Minecraft 26.1 isn't obfuscated, so the build has no mappings and the code uses Minecraft's own names (`Level`, `BlockState`, `GuiGraphicsExtractor`). The one jar runs on 26.1, 26.1.1 and 26.1.2, whose APIs are identical. It is compiled against 26.1 and the last Fabric API built for 26.1, which is the oldest one any of the three versions would use. Run build and test after every change.
 
 ## Layout
 

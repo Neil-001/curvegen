@@ -326,9 +326,9 @@ public final class Placement {
         }
     }
 
-    /** Shows a message from the mod itself in chat. */
+    /** Shows a message from the mod itself in chat, and lets the narrator read it. */
     public static void say(Component t) {
         Minecraft mc = Minecraft.getInstance();
-        if (mc.player != null) mc.gui.getChat().addClientSystemMessage(t);
+        if (mc.player != null) mc.getChatListener().handleSystemMessage(t, false);
     }
 }
