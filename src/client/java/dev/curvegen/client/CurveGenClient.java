@@ -34,7 +34,7 @@ public final class CurveGenClient {
         return k;
     }
 
-    /** Creates the keys and returns them for the loader to register, after it has registered {@link #CATEGORY}. */
+    /** Creates the keys and returns them for the loader to register, along with {@link #CATEGORY}. */
     public static List<KeyMapping> init(ClientPlatform loader) {
         platform = loader;
         OPEN = key("open", GLFW.GLFW_KEY_G);
