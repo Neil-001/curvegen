@@ -23,6 +23,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.permissions.Permissions;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.util.ARGB;
 import net.minecraft.world.level.EmptyBlockGetter;
 import net.minecraft.world.level.block.Block;
@@ -30,6 +31,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.FallingBlock;
 import net.minecraft.world.level.block.LiquidBlock;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.material.FogType;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
@@ -56,6 +58,9 @@ public final class Placement {
     /** Refreshed a few times a second: which offsets would really change the world right now. */
     private static List<Entry> toPlace = List.of();
     private static List<BlockPos> toBreak = List.of();
+    /** The same two lists, split by whether the spot is under water. The hologram draws each half at a different time. */
+    private static List<Entry> placeWet = List.of(), placeDry = List.of();
+    private static List<BlockPos> breakWet = List.of(), breakDry = List.of();
     private static BlockPos viewAnchor;
     private static Direction viewFacing;
     private static int viewAge;
@@ -170,15 +175,26 @@ public final class Placement {
 
     /** Works out what placing right now would actually do, given the blocks already in the world. */
     private static void refreshView(Minecraft mc) {
-        List<Entry> place = new ArrayList<>();
-        for (Entry e : entries)
-            if (overwrite || free(mc.level.getBlockState(anchor.offset(e.dx, e.dy, e.dz)))) place.add(e);
-        List<BlockPos> brk = new ArrayList<>();
-        for (BlockPos o : carveOffsets)
-            if (!mc.level.getBlockState(anchor.offset(o)).isAir()) brk.add(o);
+        List<Entry> place = new ArrayList<>(), wet = new ArrayList<>(), dry = new ArrayList<>();
+        for (Entry e : entries) {
+            BlockPos p = anchor.offset(e.dx, e.dy, e.dz);
+            if (!overwrite && !free(mc.level.getBlockState(p))) continue;
+            place.add(e);
+            (underWater(mc, p) ? wet : dry).add(e);
+        }
+        List<BlockPos> brk = new ArrayList<>(), brkWet = new ArrayList<>(), brkDry = new ArrayList<>();
+        for (BlockPos o : carveOffsets) {
+            BlockPos p = anchor.offset(o);
+            if (mc.level.getBlockState(p).isAir()) continue;
+            brk.add(o);
+            (underWater(mc, p) ? brkWet : brkDry).add(o);
+        }
         toPlace = place; toBreak = brk;
+        placeWet = wet; placeDry = dry; breakWet = brkWet; breakDry = brkDry;
         viewAnchor = anchor; viewFacing = cachedFacing; viewAge = 0;
     }
+
+    private static boolean underWater(Minecraft mc, BlockPos p) { return mc.level.getFluidState(p).is(FluidTags.WATER); }
 
     public static void tick(Minecraft mc) {
         if (mc.player != null && mc.getConnection() != null)
@@ -195,8 +211,13 @@ public final class Placement {
 
     // ---------- rendering ----------
 
-    /** Draws the hologram. {@code ms} is the world's pose stack and {@code cam} the camera position. */
-    public static void render(PoseStack ms, Vec3 cam) {
+    /**
+     * Draws the hologram. {@code ms} is the world's pose stack and {@code cam} the camera position. Each loader calls
+     * this twice a frame: once before the game draws water and other translucent blocks, and once after. Boxes on the
+     * far side of a water surface are drawn before it, so they show through it. The rest are drawn after it, so they
+     * draw over water behind them.
+     */
+    public static void render(PoseStack ms, Vec3 cam, boolean afterWater) {
         if (!active || anchor == null || entries.isEmpty() || !anchor.equals(viewAnchor)) return;
         Minecraft mc = Minecraft.getInstance();
         MultiBufferSource.BufferSource imm = mc.renderBuffers().bufferSource();
@@ -204,27 +225,32 @@ public final class Placement {
         ms.translate(anchor.getX() - cam.x, anchor.getY() - cam.y, anchor.getZ() - cam.z);
 
         if (entries.size() <= HOLOGRAM_LIMIT) {
+            boolean camWet = mc.gameRenderer.getMainCamera().getFluidInCamera() == FogType.WATER;
+            boolean wet = camWet == afterWater;   // which half is on the camera's side decides which one this pass draws
             VertexConsumer fill = imm.getBuffer(RenderTypes.debugFilledBox());
             PoseStack.Pose pose = ms.last();
-            for (Entry e : toPlace) {
+            for (Entry e : wet ? placeWet : placeDry) {
                 int color = ARGB.colorFromFloat(0.45f, e.r, e.g, e.b);
                 for (AABB b : e.boxes)
                     filledBox(pose, fill, e.dx + b.minX, e.dy + b.minY, e.dz + b.minZ, e.dx + b.maxX, e.dy + b.maxY, e.dz + b.maxZ, color);
             }
             if (toBreak.size() <= HOLOGRAM_LIMIT) {
+                // Blocks carving will remove, in red. Slightly larger than the block, or a full block would hide its own box.
                 int red = ARGB.colorFromFloat(0.28f, 1f, 0.2f, 0.25f);
-                for (BlockPos o : toBreak)   // blocks carving will remove, in red
-                    filledBox(pose, fill, o.getX() + .02, o.getY() + .02, o.getZ() + .02, o.getX() + .98, o.getY() + .98, o.getZ() + .98, red);
+                for (BlockPos o : wet ? breakWet : breakDry)
+                    filledBox(pose, fill, o.getX() - .005, o.getY() - .005, o.getZ() - .005, o.getX() + 1.005, o.getY() + 1.005, o.getZ() + 1.005, red);
             }
             imm.endBatch(RenderTypes.debugFilledBox());
         }
-        VertexConsumer lines = imm.getBuffer(RenderTypes.lines());
-        float width = mc.getWindow().getAppropriateLineWidth();
-        AABB bounds = new AABB(minDx, minDy, minDz, maxDx + 1, maxDy + 1, maxDz + 1);
-        ShapeRenderer.renderShape(ms, lines, Shapes.create(bounds), 0, 0, 0, ARGB.colorFromFloat(0.9f, 1f, 1f, 1f), width);
-        ShapeRenderer.renderShape(ms, lines, Shapes.create(new AABB(0, 0, 0, 1, 1, 1).inflate(0.02)), 0, 0, 0,
-                ARGB.colorFromFloat(1f, 1f, 0.3f, 0.45f), width);   // the anchor block
-        imm.endBatch(RenderTypes.lines());
+        if (afterWater) {
+            VertexConsumer lines = imm.getBuffer(RenderTypes.lines());
+            float width = mc.getWindow().getAppropriateLineWidth();
+            AABB bounds = new AABB(minDx, minDy, minDz, maxDx + 1, maxDy + 1, maxDz + 1);
+            ShapeRenderer.renderShape(ms, lines, Shapes.create(bounds), 0, 0, 0, ARGB.colorFromFloat(0.9f, 1f, 1f, 1f), width);
+            ShapeRenderer.renderShape(ms, lines, Shapes.create(new AABB(0, 0, 0, 1, 1, 1).inflate(0.02)), 0, 0, 0,
+                    ARGB.colorFromFloat(1f, 1f, 0.3f, 0.45f), width);   // the anchor block
+            imm.endBatch(RenderTypes.lines());
+        }
         ms.popPose();
     }
 

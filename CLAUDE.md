@@ -31,7 +31,7 @@ The shared code is in the root `src/` folder: `src/main` (common), `src/client` 
   - `ClientPlatform`: what the client needs from the mod loader: sending the placement packet, and the config and game folders.
   - `BlockChoices`: the block chosen for each piece family, candidate lists, and the mapping from piece to `BlockState` for upright and flat builds.
   - `ColorIndex`: average texture colours for the face you'll see, matched in CIELAB.
-  - `Placement`: placement mode, hologram, Replace and Carve, undo, and the `/setblock` fallback.
+  - `Placement`: placement mode, hologram, Replace and Carve, undo, and the `/setblock` fallback. Each loader calls `render` twice a frame, before and after the game draws water, so hologram boxes on the far side of a water surface show through it.
   - `LitematicExporter`: writes the `.litematic` file.
   - `PresetStore`: reads and writes one JSON file per preset in `config/curvegen/presets/`, replacing each file atomically.
 - `dev/curvegen/client/screen/`:
