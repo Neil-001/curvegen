@@ -80,7 +80,7 @@ The shared code is in the root `src/` folder: `src/main` (common), `src/client` 
 
 ## Releasing
 
-Only `*/stable` branches release. `main` never does. The `Release` workflow (`.github/workflows/release.yml`) runs from `main` and publishes each branch to Modrinth, CurseForge and GitHub releases.
+Only `*/stable` branches release. `main` never does. The release workflow still expects the single-loader layout of `1.21.x/stable`: jars in `build/libs/` with a `fabric.mod.json`, published as Fabric. It needs updating before a 26.x stable branch with two loaders can release. The `Release` workflow (`.github/workflows/release.yml`) runs from `main` and publishes each branch to Modrinth, CurseForge and GitHub releases.
 
 1. On the stable branch, open a PR that bumps `mod.version` in `stonecutter.properties.toml` and adds a `# <version>` section at the top of `CHANGELOG.md`. A suffix sets the release type: `1.1.0-beta.1` is a beta, `1.1.0-alpha.1` an alpha.
 2. After it merges, run `gh workflow run release.yml -f dry_run=true` and read the run's summary. It lists the jars and the notes.

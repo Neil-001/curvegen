@@ -37,8 +37,11 @@ public final class CurveGenNeoForgeClient implements ClientPlatform {
         // Block colours come from the active resource packs, so recompute them whenever packs change.
         modBus.addListener(AddClientReloadListenersEvent.class, event -> event.addListener(
                 Identifier.fromNamespaceAndPath("curvegen", "block_colours"), (ResourceManagerReloadListener) manager -> ColorIndex.clear()));
+        // NeoForge draws modded layers even with the HUD hidden (F1). Fabric doesn't, so this checks for it.
         modBus.addListener(RegisterGuiLayersEvent.class, event -> event.registerAboveAll(
-                Identifier.fromNamespaceAndPath("curvegen", "placement"), (graphics, delta) -> Placement.renderHud(graphics)));
+                Identifier.fromNamespaceAndPath("curvegen", "placement"), (graphics, delta) -> {
+                    if (!Minecraft.getInstance().options.hideGui) Placement.renderHud(graphics);
+                }));
         NeoForge.EVENT_BUS.addListener(ClientTickEvent.Post.class, event -> CurveGenClient.tick(Minecraft.getInstance()));
         // The last stage of the main pass, where Fabric's END_MAIN also runs.
         NeoForge.EVENT_BUS.addListener(RenderLevelStageEvent.AfterTranslucentParticles.class,
