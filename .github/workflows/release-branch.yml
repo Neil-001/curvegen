@@ -70,35 +70,33 @@ jobs:
           path: .release-tools
           sparse-checkout: .github/scripts
 
+      - name: Choose the build JDK
+        id: java
+        run: |
+          if [ -d fabric ] && [ -d neoforge ]; then
+            echo "version=25" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=21" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
-          java-version: 21
+          java-version: ${{ steps.java.outputs.version }}
 
       - uses: gradle/actions/setup-gradle@v6
 
       - run: ./gradlew build
 
-      # A single-version branch has one jar in build/libs. A Stonecutter branch has one per version under versions/.
+      # Reads each loader's metadata and keeps the older single-loader and Stonecutter layouts working.
       - name: Collect the jars
         id: jars
         env:
           VERSION: ${{ inputs.version }}
+          LINE: ${{ inputs.line }}
+          JAVA: ${{ steps.java.outputs.version }}
         run: |
-          shopt -s nullglob
-          mkdir dist
-          jars='[]'
-          for jar in build/libs/*.jar versions/*/build/libs/*.jar; do
-            case $jar in *-dev.jar|*-sources.jar|*-javadoc.jar) continue ;; esac
-            jar_version=$(unzip -p "$jar" fabric.mod.json | jq -r .version)
-            case $jar_version in
-              "$VERSION"|"$VERSION"+*) ;;
-              *) echo "::error::$jar has version $jar_version, expected $VERSION."; exit 1 ;;
-            esac
-            cp "$jar" dist/
-            jars=$(jq -c --arg file "$(basename "$jar")" --arg version "$jar_version" '. + [{file: $file, version: $version}]' <<< "$jars")
-          done
-          [ "$jars" != '[]' ] || { echo "::error::The build produced no jars."; exit 1; }
+          jars=$(python3 .release-tools/.github/scripts/release-jars.py "$VERSION" "$LINE" "$JAVA")
           echo "jars=$jars" >> "$GITHUB_OUTPUT"
 
       # The same notes go to all three sites. GitHub also gets a link comparing against the branch's previous release.
@@ -125,7 +123,7 @@ jobs:
             if [ "$DRY_RUN" = true ]; then echo "### $TAG (dry run, nothing published)"; else echo "### $TAG"; fi
             echo "Targets: $TARGETS"
             echo
-            jq -r '.[] | "- `\(.file)` as version `\(.version)`"' <<< "$JARS"
+            jq -r '.[] | "- `\(.file)` as version `\(.version)` (\(.loader), Java \(.java), Minecraft `\(.minecraft)`)"' <<< "$JARS"
             echo
             echo "#### Release notes"
             cat dist/notes-github.md
@@ -138,7 +136,7 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  # Modrinth and CurseForge list one version per jar, because each jar runs on different Minecraft versions.
+  # Modrinth and CurseForge list one version per jar, with a distinct identifier for each loader and Minecraft line.
   publish:
     needs: build
     if: ${{ !inputs.dry_run && (contains(inputs.targets, 'modrinth') || contains(inputs.targets, 'curseforge')) }}
@@ -181,8 +179,10 @@ jobs:
           name: Curve Generator ${{ matrix.jar.version }}
           version: ${{ matrix.jar.version }}
           changelog-file: dist/notes.md
-          loaders: fabric
-          java: 21
+          loaders: ${{ matrix.jar.loader }}
+          java: ${{ matrix.jar.java }}
+          game-versions: ${{ matrix.jar.minecraft }}
+          game-version-filter: releases
 
       - name: Publish to CurseForge
         if: contains(inputs.targets, 'curseforge')
@@ -194,8 +194,10 @@ jobs:
           name: Curve Generator ${{ matrix.jar.version }}
           version: ${{ matrix.jar.version }}
           changelog-file: dist/notes.md
-          loaders: fabric
-          java: 21
+          loaders: ${{ matrix.jar.loader }}
+          java: ${{ matrix.jar.java }}
+          game-versions: ${{ matrix.jar.minecraft }}
+          game-version-filter: releases
 
   # Last, so the tag means every site has the release. One GitHub release holds all the branch's jars.
   github:
