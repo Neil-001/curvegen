@@ -147,12 +147,13 @@ public final class BlockChoices {
     // ---------- piece → BlockState ----------
 
     /**
+     * @param above the piece in the cell above
      * @param right world direction of the drawing's +x
      * @param forward upright: the direction the shape is extruded in (depth); flat: the direction of the drawing's +y
      * @param k layer, 0 … depth-1 (upright: front to back; flat: bottom to top)
      * @param floor whether the shape lies flat, drawn from above
      */
-    public static BlockState stateFor(int piece, Direction right, Direction forward, int k, int depth, boolean floor) {
+    public static BlockState stateFor(int piece, int above, Direction right, Direction forward, int k, int depth, boolean floor) {
         if (floor) return floorState(piece, right, forward, k, depth);
         BlockState s = blockFor(piece).defaultBlockState();
         Direction left = right.getOpposite();
@@ -175,7 +176,7 @@ public final class BlockChoices {
             case Pieces.SH_R -> s = with(s, ShelfBlock.FACING, left);
             default -> {
                 if (Pieces.FAMILY[piece] == Family.WALL) {
-                    s = wallState(s, piece, right, forward, k, depth);
+                    s = wallState(s, piece, above, right, forward, k, depth);
                 } else if (Pieces.isConnector(piece)) {
                     s = with(s, side(left), Pieces.connectsLeft(piece));
                     s = with(s, side(right), Pieces.connectsRight(piece));
@@ -239,12 +240,12 @@ public final class BlockChoices {
 
     /**
      * Wall sides come from the solver (left/right: none, low or tall). Walls in the layers in front and
-     * behind (depth) connect too, and the post follows the game's rule for the whole set of four sides.
+     * behind (depth) connect too, tall when the piece above covers them, and the post follows the game's rule for the whole set of four sides.
      */
-    private static BlockState wallState(BlockState s, int piece, Direction right, Direction forward, int k, int depth) {
+    private static BlockState wallState(BlockState s, int piece, int above, Direction right, Direction forward, int k, int depth) {
         int l = Pieces.wallLeft(piece), r = Pieces.wallRight(piece);
         boolean covered = Pieces.wallCovered(piece), front = k < depth - 1, back = k > 0;
-        WallSide depthShape = covered ? WallSide.TALL : WallSide.LOW;
+        WallSide depthShape = covered && Pieces.spansDepth(above) ? WallSide.TALL : WallSide.LOW;
         s = with(s, wallSide(right.getOpposite()), shape(l));
         s = with(s, wallSide(right), shape(r));
         s = with(s, wallSide(forward), front ? depthShape : WallSide.NONE);

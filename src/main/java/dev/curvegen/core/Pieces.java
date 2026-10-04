@@ -70,6 +70,12 @@ public final class Pieces {
         return covered && !(left == 2 && right == 2);
     }
 
+    /**
+     * Does this piece, above a wall more than one block deep, cover the wall's front and back sides as well as its
+     * centre? Chains and end rods are as thin from the side as from the front, so they reach the centre only.
+     */
+    public static boolean spansDepth(int s) { return FAMILY[s] != Family.CHAIN && FAMILY[s] != Family.ROD; }
+
     // ---------- floor connectors ----------
     public static final int LEFT = 1, RIGHT = 2, TOP = 4, BOTTOM_SIDE = 8;
     public static boolean isFloorConnector(int s) { return s >= F_FENCE && s < F_WALL + 16; }
