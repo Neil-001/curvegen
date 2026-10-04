@@ -155,6 +155,19 @@ public final class Solver {
                 if (!changed) break;
             }
         }
+        // Mirroring can leave a connector that looks exactly like a full block, such as a wall with two tall sides
+        // opposite one with two low sides. Use a full block there, unless that would change a neighbour's shape.
+        if (!floor)
+            for (int q = 0; q < N; q++) {
+                int v = grid[q];
+                if (!Pieces.isType(v) || Pieces.PIXELS[c.resolve(q)] != 256) continue;
+                int[] near = {q - 1, q + 1, q - nx};
+                int[] before = new int[3];
+                for (int k = 0; k < 3; k++) before[k] = near[k] >= 0 && near[k] < N ? c.resolve(near[k]) : 0;
+                grid[q] = Pieces.FULL;
+                for (int k = 0; k < 3; k++)
+                    if (near[k] >= 0 && near[k] < N && c.resolve(near[k]) != before[k]) { grid[q] = (byte) v; break; }
+            }
         double err = 0;
         for (int q = 0; q < N; q++) err += c.cellErr(q);
         err /= 256;
@@ -170,8 +183,9 @@ public final class Solver {
                     int below = at(solid, nx, ny, i, j - 1), above = at(solid, nx, ny, i, j + 1);
                     if (floor ? Pieces.isConnector(below) || Pieces.isConnector(above)          // attached from the front or back
                               : Pieces.FAMILY[below] == Pieces.Family.WALL) continue;           // a wall below takes its height from this block
-                    boolean exposed = !Pieces.STURDY[above][0] || !Pieces.STURDY[below][1]
-                            || !Pieces.STURDY[at(solid, nx, ny, i - 1, j)][3] || !Pieces.STURDY[at(solid, nx, ny, i + 1, j)][2];
+                    // Hidden when every neighbour fills the shared edge, whether or not it's a full face.
+                    boolean exposed = !Pieces.EDGE[above][0] || !Pieces.EDGE[below][1]
+                            || !Pieces.EDGE[at(solid, nx, ny, i - 1, j)][3] || !Pieces.EDGE[at(solid, nx, ny, i + 1, j)][2];
                     if (!exposed) out[j * nx + i] = Pieces.EMPTY;
                 }
         }

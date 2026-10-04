@@ -41,7 +41,9 @@ public final class Pieces {
     public static final int[] PIXELS = new int[COUNT];
     /** Bottom row of the silhouette as a 16-bit mask (bit x set when pixel x of row 0 is filled). */
     public static final int[] BOTTOM = new int[COUNT];
-    /** Full faces a fence, pane or wall can attach to: [state][0=bottom,1=top,2=left,3=right]. */
+    /** Edges the silhouette fills completely: [state][0=bottom,1=top,2=left,3=right]. */
+    public static final boolean[][] EDGE = new boolean[COUNT][4];
+    /** Full faces a fence, pane or wall can attach to, indexed like EDGE. Connectors offer none. */
     public static final boolean[][] STURDY = new boolean[COUNT][4];
 
     private static void def(int s, Family f, String name, int color, int mx, int my, int[]... rects) {
@@ -150,7 +152,8 @@ public final class Pieces {
                 if (MASK[s][k * 16] == 0) l = false;
                 if (MASK[s][k * 16 + 15] == 0) rr = false;
             }
-            STURDY[s] = isConnector(s) ? new boolean[4] : new boolean[]{b, t, l, rr};
+            EDGE[s] = new boolean[]{b, t, l, rr};
+            STURDY[s] = isConnector(s) ? new boolean[4] : EDGE[s];
         }
     }
 

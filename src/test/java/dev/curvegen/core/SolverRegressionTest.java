@@ -74,6 +74,43 @@ class SolverRegressionTest {
     }
 
     @Test
+    void thinEllipsesKeepNoHiddenBlocks() {
+        // A full block stays only if it shows, supports a connector beside it or sets the height of a wall below.
+        ShapeSettings s = new ShapeSettings();
+        for (int w : new int[]{7, 19, 31, 64})
+            for (int h : new int[]{5, 13, 19, 40}) {
+                s.eW = w; s.eH = h;
+                Solver.Result r = Solver.run(s);
+                int nx = r.nx(), ny = r.ny();
+                for (int j = 1; j < ny - 1; j++)
+                    for (int i = 1; i < nx - 1; i++) {
+                        if (r.at(i, j) != Pieces.FULL) continue;
+                        int below = r.at(i, j - 1), left = r.at(i - 1, j), right = r.at(i + 1, j);
+                        boolean needed = Pieces.isConnector(left) || Pieces.isConnector(right) || Pieces.FAMILY[below] == Pieces.Family.WALL;
+                        boolean hidden = Pieces.EDGE[r.at(i, j + 1)][0] && Pieces.EDGE[below][1] && Pieces.EDGE[left][3] && Pieces.EDGE[right][2];
+                        assertFalse(hidden && !needed, w + "x" + h + " hidden block at " + i + "," + j);
+                    }
+            }
+    }
+
+    @Test
+    void wallsThatLookLikeFullBlocksBecomeFullBlocks() {
+        // The default ellipse puts low walls in its top row. Their mirror images in the bottom row would be tall on
+        // both sides, which looks like a full block and needs another block above to stay tall.
+        Solver.Result r = Solver.run(new ShapeSettings());
+        int top = r.ny() - 2, walls = 0;
+        for (int i = 0; i < r.nx(); i++) {
+            if (Pieces.FAMILY[r.at(i, top)] != Pieces.Family.WALL) continue;
+            walls++;
+            assertEquals(Pieces.EMPTY, r.at(i, top - 1), "below the top wall at " + i);
+            assertEquals(Pieces.FULL, r.at(i, 1), "opposite the top wall at " + i);
+            assertEquals(Pieces.EMPTY, r.at(i, 2), "above the bottom block at " + i);
+        }
+        assertEquals(2, walls);
+        for (byte b : r.grid()) assertFalse(Pieces.isConnector(b) && Pieces.PIXELS[b] == 256, Pieces.NAME[b]);
+    }
+
+    @Test
     void asymptotesAndUndefinedRegions() {
         ShapeSettings s = new ShapeSettings();
         s.gen = ShapeSettings.Gen.EQUATION;
