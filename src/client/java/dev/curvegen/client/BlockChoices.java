@@ -21,6 +21,7 @@ import net.minecraft.world.level.block.FallingBlock;
 import net.minecraft.world.level.block.FenceBlock;
 import net.minecraft.world.level.block.GameMasterBlock;
 import net.minecraft.world.level.block.IronBarsBlock;
+import net.minecraft.world.level.block.ShelfBlock;
 import net.minecraft.world.level.block.SlabBlock;
 import net.minecraft.world.level.block.StairBlock;
 import net.minecraft.world.level.block.TrapDoorBlock;
@@ -38,7 +39,7 @@ import net.minecraft.world.level.block.state.properties.WallSide;
 public final class BlockChoices {
     private BlockChoices() {}
 
-    public static final Family[] FAMILIES = {Family.FULL, Family.SLAB, Family.STAIRS, Family.TRAPDOOR, Family.FENCE, Family.PANE, Family.WALL};
+    public static final Family[] FAMILIES = {Family.FULL, Family.SLAB, Family.STAIRS, Family.TRAPDOOR, Family.SHELF, Family.FENCE, Family.PANE, Family.WALL};
     public static final Map<Family, Block> CHOICE = new EnumMap<>(Family.class);
     /** Colour last picked with the colour picker, or -1. */
     public static int pickedColor = -1;
@@ -48,6 +49,7 @@ public final class BlockChoices {
         CHOICE.put(Family.SLAB, Blocks.STONE_BRICK_SLAB);
         CHOICE.put(Family.STAIRS, Blocks.STONE_BRICK_STAIRS);
         CHOICE.put(Family.TRAPDOOR, Blocks.SPRUCE_TRAPDOOR);
+        CHOICE.put(Family.SHELF, Blocks.SPRUCE_SHELF);
         CHOICE.put(Family.FENCE, Blocks.SPRUCE_FENCE);
         CHOICE.put(Family.PANE, Blocks.GLASS_PANE);
         CHOICE.put(Family.WALL, Blocks.STONE_BRICK_WALL);
@@ -56,7 +58,7 @@ public final class BlockChoices {
     public static String familyName(Family f) {
         return switch (f) {
             case FULL -> "Full blocks"; case SLAB -> "Slabs"; case STAIRS -> "Stairs";
-            case TRAPDOOR -> "Trapdoors"; case FENCE -> "Fences"; case PANE -> "Panes"; case WALL -> "Walls"; default -> "";
+            case TRAPDOOR -> "Trapdoors"; case SHELF -> "Shelves"; case FENCE -> "Fences"; case PANE -> "Panes"; case WALL -> "Walls"; default -> "";
         };
     }
 
@@ -82,6 +84,7 @@ public final class BlockChoices {
             case SLAB -> b instanceof SlabBlock;
             case STAIRS -> b instanceof StairBlock;
             case TRAPDOOR -> b instanceof TrapDoorBlock;
+            case SHELF -> b instanceof ShelfBlock;
             case FENCE -> b instanceof FenceBlock;
             case PANE -> b instanceof IronBarsBlock;
             case WALL -> b instanceof WallBlock;
@@ -158,6 +161,9 @@ public final class BlockChoices {
             // An open trapdoor lies against the side opposite its FACING.
             case Pieces.TD_L -> s = with(with(s, TrapDoorBlock.OPEN, true), TrapDoorBlock.FACING, right);
             case Pieces.TD_R -> s = with(with(s, TrapDoorBlock.OPEN, true), TrapDoorBlock.FACING, left);
+            // A shelf's panel is on the side opposite its FACING, like an open trapdoor's.
+            case Pieces.SH_L -> s = with(s, ShelfBlock.FACING, right);
+            case Pieces.SH_R -> s = with(s, ShelfBlock.FACING, left);
             default -> {
                 if (Pieces.FAMILY[piece] == Family.WALL) {
                     s = wallState(s, piece, right, forward, k, depth);
@@ -184,6 +190,11 @@ public final class BlockChoices {
             case Pieces.TD_R -> s = with(with(s, TrapDoorBlock.OPEN, true), TrapDoorBlock.FACING, left);
             case Pieces.F_TD_U -> s = with(with(s, TrapDoorBlock.OPEN, true), TrapDoorBlock.FACING, back);
             case Pieces.F_TD_D -> s = with(with(s, TrapDoorBlock.OPEN, true), TrapDoorBlock.FACING, forward);
+            // A shelf's panel is on the side opposite its FACING too.
+            case Pieces.F_SH_L -> s = with(s, ShelfBlock.FACING, right);
+            case Pieces.F_SH_R -> s = with(s, ShelfBlock.FACING, left);
+            case Pieces.F_SH_U -> s = with(s, ShelfBlock.FACING, back);
+            case Pieces.F_SH_D -> s = with(s, ShelfBlock.FACING, forward);
             default -> {
                 if (Pieces.isFloorConnector(piece)) {
                     int bits = Pieces.floorBits(piece);

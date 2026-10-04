@@ -23,6 +23,7 @@ public final class Solver {
         if (floor) {
             // From above, slabs, stairs and closed trapdoors all look like full blocks, so only these differ.
             if (s.trap) ids.addAll(List.of(Pieces.TD_L, Pieces.TD_R, Pieces.F_TD_U, Pieces.F_TD_D));
+            if (s.shelf) ids.addAll(List.of(Pieces.F_SH_L, Pieces.F_SH_R, Pieces.F_SH_U, Pieces.F_SH_D));
             if (s.fence) ids.add(Pieces.F_FENCE);
             if (s.pane) ids.add(Pieces.F_PANE);
             if (s.wall) ids.add(Pieces.F_WALL);
@@ -30,6 +31,8 @@ public final class Solver {
             if (s.slab) ids.addAll(List.of(Pieces.SLAB_B, Pieces.SLAB_T));
             if (s.stair) ids.addAll(List.of(Pieces.ST_UR, Pieces.ST_UL, Pieces.ST_DR, Pieces.ST_DL));
             if (s.trap) ids.addAll(List.of(Pieces.TD_B, Pieces.TD_T, Pieces.TD_L, Pieces.TD_R));
+            // From the side, a shelf facing the viewer or away looks like a full block, so only these differ.
+            if (s.shelf) ids.addAll(List.of(Pieces.SH_L, Pieces.SH_R));
             if (s.fence) ids.add(Pieces.FENCE);
             if (s.pane) ids.add(Pieces.PANE);
             if (s.wall) ids.add(Pieces.WALL);
@@ -121,7 +124,7 @@ public final class Solver {
                 int wallGuess = Pieces.wall(wl, wr, above != 0, deep || Pieces.wallPostRule(wl, wr, above != 0));
                 int best = 0, bestE = Integer.MAX_VALUE;
                 for (int cand : cands) {
-                    int st = cand == Pieces.WALL ? wallGuess : cand >= Pieces.F_FENCE ? cand + four : Pieces.isType(cand) ? cand + side : cand;
+                    int st = cand == Pieces.WALL ? wallGuess : !Pieces.isType(cand) ? cand : cand >= Pieces.F_FENCE ? cand + four : cand + side;
                     int e = t.errTab[idx][st];
                     if (e < bestE) { bestE = e; best = cand; }
                 }
