@@ -75,6 +75,24 @@ class ChainRodTest {
     }
 
     @Test
+    void coverOnlyTheCentreOfAWallBelow() {
+        // Upright, a chain or rod standing on a wall covers its post but not its sides, at any depth.
+        for (int p : new int[]{Pieces.CHAIN_V, Pieces.ROD_U, Pieces.ROD_D}) {
+            assertEquals(0x0180, Pieces.BOTTOM[p] & 0x0180, Pieces.NAME[p]);
+            assertNotEquals(0x01FF, Pieces.BOTTOM[p] & 0x01FF, Pieces.NAME[p]);
+            assertNotEquals(0xFF80, Pieces.BOTTOM[p] & 0xFF80, Pieces.NAME[p]);
+            assertFalse(Pieces.spansDepth(p), Pieces.NAME[p]);
+        }
+        for (int p : new int[]{Pieces.CHAIN_H, Pieces.ROD_L, Pieces.ROD_R}) assertEquals(0, Pieces.BOTTOM[p], Pieces.NAME[p]);
+        for (int p = 0; p < Pieces.CHAIN_H; p++) assertTrue(Pieces.spansDepth(p), Pieces.NAME[p]);
+
+        ShapeSettings s = thinLine("x = 2.5");
+        s.chain = true; s.pane = false;
+        Layout l = Layout.of(Solver.run(s));
+        for (Layout.Cell c : l.cells()) if (c.y() < l.height() - 1) assertEquals(Pieces.CHAIN_V, c.above(), "above row " + c.y());
+    }
+
+    @Test
     void ellipsesStaySymmetric() {
         ShapeSettings s = new ShapeSettings();
         s.chain = s.rod = true;

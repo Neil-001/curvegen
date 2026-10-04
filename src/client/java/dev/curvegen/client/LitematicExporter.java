@@ -46,8 +46,8 @@ public final class LitematicExporter {
         int total = 0;
         for (Layout.Cell c : layout.cells())
             for (int k = 0; k < d; k++) {
-                BlockState st = floor ? BlockChoices.stateFor(c.piece(), Direction.EAST, Direction.NORTH, k, d, true)
-                                      : BlockChoices.stateFor(c.piece(), Direction.EAST, Direction.SOUTH, k, d, false);
+                BlockState st = floor ? BlockChoices.stateFor(c.piece(), c.above(), Direction.EAST, Direction.NORTH, k, d, true)
+                                      : BlockChoices.stateFor(c.piece(), c.above(), Direction.EAST, Direction.SOUTH, k, d, false);
                 int wy = floor ? k : c.y(), wz = floor ? layout.height() - 1 - c.y() : k;
                 int id = index.computeIfAbsent(st, s -> { palette.add(s); return palette.size() - 1; });
                 values[(wy * sz + wz) * sx + c.x()] = id;
