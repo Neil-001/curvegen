@@ -1,6 +1,6 @@
 # Curve Generator
 
-A Fabric and NeoForge mod for Minecraft Java 26.2. It turns ellipses, equations and Bézier curves into blocks, with a preview, operator-only placement and Litematica export.
+A Fabric and NeoForge mod for Minecraft Java 26.3. It turns ellipses, equations and Bézier curves into blocks, with a preview, operator-only placement and Litematica export.
 
 ## Commands
 
@@ -10,7 +10,7 @@ Needs JDK 25. Versions are in `gradle.properties`. Run build and test after ever
 - `./gradlew :fabric:test` runs the pure-Java core's JUnit tests. Only Fabric hosts them, since they're loader-independent.
 - `./gradlew :fabric:runClient` or `./gradlew :neoforge:runClient` starts a dev client. Use `runServer` for a server.
 
-Both jars target 26.2 only. Minecraft is unobfuscated, so use its own names without mappings. Builds use the minimum supported Fabric API and NeoForge versions; CI also compiles against newer ones.
+Both jars target 26.3 only. Minecraft is unobfuscated, so use its own names without mappings. Builds use the minimum supported Fabric API and NeoForge versions; CI also compiles against newer ones.
 
 ## Layout and boundaries
 

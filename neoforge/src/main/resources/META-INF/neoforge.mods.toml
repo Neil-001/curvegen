@@ -15,13 +15,13 @@ description = '''Turn ellipses, equations and Bézier curves into full blocks, s
 [[dependencies.curvegen]]
 modId = "neoforge"
 type = "required"
-versionRange = "[26.2.0.57,)"
+versionRange = "[26.3.0.0-beta,)"
 ordering = "NONE"
 side = "BOTH"
 
 [[dependencies.curvegen]]
 modId = "minecraft"
 type = "required"
-versionRange = "[26.2]"
+versionRange = "[26.3]"
 ordering = "NONE"
 side = "BOTH"

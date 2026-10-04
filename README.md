@@ -2,11 +2,11 @@
 
 ![Curve Generator, spelled out in blocks. Below it, an ellipse, a sine wave, a heart and a Bézier curve, each built from blocks.](listing/media/banner.gif)
 
-A Fabric and NeoForge mod for Minecraft Java 26.2 that turns ellipses, equations and Bézier curves into blocks. It picks full blocks, slabs, stairs, trapdoors, fences, glass panes and walls to match the curve as closely as possible. You can then place the result in your world or export it as a Litematica schematic.
+A Fabric and NeoForge mod for Minecraft Java 26.3 that turns ellipses, equations and Bézier curves into blocks. It picks full blocks, slabs, stairs, trapdoors, fences, glass panes and walls to match the curve as closely as possible. You can then place the result in your world or export it as a Litematica schematic.
 
 ## Install
 
-Download the mod from [Modrinth](https://modrinth.com/mod/curvegen) or [CurseForge](https://www.curseforge.com/minecraft/mc-mods/curvegen). Put the jar in your `mods` folder along with [Fabric API](https://modrinth.com/mod/fabric-api). You'll need Fabric Loader. Jars exist for Minecraft 1.21 to 1.21.11, built from the `1.21.x/stable` branch. This branch targets 26.2, for Fabric and NeoForge, and has no release yet.
+Download the mod from [Modrinth](https://modrinth.com/mod/curvegen) or [CurseForge](https://www.curseforge.com/minecraft/mc-mods/curvegen). Put the jar in your `mods` folder along with [Fabric API](https://modrinth.com/mod/fabric-api). You'll need Fabric Loader. Jars exist for Minecraft 1.21 to 1.21.11, built from the `1.21.x/stable` branch. This branch targets 26.3, for Fabric and NeoForge, and has no release yet.
 
 ## Quick tour
 

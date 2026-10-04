@@ -38,7 +38,7 @@ jobs:
       # The build compiles against the oldest Fabric API and NeoForge the jars accept. This compiles against newer ones.
       - run: >
           ./gradlew :fabric:compileJava :fabric:compileClientJava :neoforge:compileJava
-          -Pfabric_version=0.161.0+26.2 -Pneoforge_version=26.2.0.88
+          -Pfabric_version=0.161.0+26.3 -Pneoforge_version=26.3.0.48-beta
 
       - if: failure()
         uses: actions/upload-artifact@v7

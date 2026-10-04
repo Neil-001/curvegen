@@ -1,5 +1,6 @@
 package dev.curvegen.client.screen;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import dev.curvegen.client.BlockChoices;
 import dev.curvegen.client.CurveGenClient;
 import dev.curvegen.client.PresetStore.Preset;
@@ -27,7 +28,6 @@ import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.level.block.Block;
-import org.lwjgl.glfw.GLFW;
 
 /** Every saved preset for one shape tab, with search, a live preview, and pin / rename / delete. */
 public class PresetsScreen extends Screen {
@@ -270,7 +270,7 @@ public class PresetsScreen extends Screen {
         double mx = event.x(), my = event.y(); int button = event.button();
         if (super.mouseClicked(event, doubled)) return true;
         int row = rowAt(mx, my);
-        if (row < 0 || button != 0) return false;
+        if (row < 0 || button != InputConstants.MOUSE_BUTTON_LEFT) return false;
         Preset p = shown.get(row);
         switch (iconAt(row, mx, my)) {
             case 0 -> { PresetStore.togglePin(p); selected = p; refilter(); return true; }
@@ -297,8 +297,7 @@ public class PresetsScreen extends Screen {
 
     @Override
     public boolean keyPressed(KeyEvent event) {
-        int key = event.key();
-        if ((key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_KP_ENTER) && selected != null) { load(selected); return true; }
+        if (event.isConfirmation() && selected != null) { load(selected); return true; }
         return super.keyPressed(event);
     }
 
