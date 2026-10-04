@@ -2,6 +2,10 @@
 
 Curve Generator 1.2.0 brings the mod to Minecraft 26.3 with Fabric and NeoForge.
 
+## Features
+
+- Support for Minecraft 26.3 (#29)
+
 # 1.1.0
 
 Curve Generator 1.1.0 brings the mod to Minecraft 26.2 with Fabric and NeoForge. It adds more ways to move the placement preview, fixes Carve and undo, and removes stray blocks inside thin ellipses.
