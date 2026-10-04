@@ -10,7 +10,7 @@
 
 </center>
 
-Curve Generator turns ellipses, equations and Bézier curves into blocks. For every cell along the curve it picks the full block, slab, stair, trapdoor, fence, glass pane or wall that matches the curve most closely, so a circle looks rounder than one built from full blocks alone.
+Curve Generator turns ellipses, equations and Bézier curves into blocks. For every cell along the curve it picks the full block, slab, stair, trapdoor, shelf, fence, glass pane or wall that matches the curve most closely, so a circle looks rounder than one built from full blocks alone.
 
 <center>
 
@@ -43,9 +43,9 @@ You see the result in a preview before anything is built. Then you place it in y
 
 <center>
 
-<img alt="A full block, slab, stair, trapdoor, fence, glass pane and wall, seen from the side." width="100%" src="https://raw.githubusercontent.com/Neil-001/curvegen/main/listing/media/pieces.png">
+<img alt="A full block, slab, stair, trapdoor, shelf, fence, glass pane and wall, seen from the side." width="100%" src="https://raw.githubusercontent.com/Neil-001/curvegen/main/listing/media/pieces.png">
 
-*The pieces it chooses from: full block, slab, stair, trapdoor, fence, glass pane and wall.*
+*The pieces it chooses from: full block, slab, stair, trapdoor, shelf, fence, glass pane and wall.*
 
 </center>
 

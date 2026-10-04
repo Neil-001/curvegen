@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Pins the solver's results for the default shapes. If a change moves these numbers, it changed what gets built:
- * make sure that's intended, then update them. (Walls-off numbers also match the web version.)
+ * make sure that's intended, then update them. (Walls-off, shelves-off numbers also match the web version.)
  */
 class SolverRegressionTest {
     private static final double EPS = 1e-3;
@@ -16,6 +16,7 @@ class SolverRegressionTest {
     @Test
     void uprightEllipses() {
         ShapeSettings s = new ShapeSettings();
+        s.shelf = false;
         double[] withWalls = {8.2813, 8.2031, 18.4844, 15.5000, 18.1094};
         double[] withoutWalls = {8.2813, 8.2813, 18.5938, 15.5156, 18.1094};
         ShapeSettings.EllipseMode[] modes = ShapeSettings.EllipseMode.values();
@@ -33,6 +34,7 @@ class SolverRegressionTest {
     @Test
     void flatEllipses() {
         ShapeSettings s = new ShapeSettings();
+        s.shelf = false;
         s.floor = true;
         double[] expected = {13.5000, 13.5000, 26.0625, 24.5156, 29.7969};
         ShapeSettings.EllipseMode[] modes = ShapeSettings.EllipseMode.values();
@@ -45,6 +47,7 @@ class SolverRegressionTest {
     @Test
     void equationAndBezier() {
         ShapeSettings s = new ShapeSettings();
+        s.shelf = false;
         s.gen = ShapeSettings.Gen.EQUATION;
         Solver.Result r = Solver.run(s);
         assertEquals(48, r.nx());
@@ -55,6 +58,28 @@ class SolverRegressionTest {
         assertEquals(12.2695, err(s), EPS);
         s.bMode = ShapeSettings.BzMode.FILLED;
         assertEquals(9.4492, err(s), EPS);
+    }
+
+    @Test
+    void shelves() {
+        ShapeSettings s = new ShapeSettings();
+        double[] upright = {8.2813, 8.2031, 18.3906, 15.5000, 18.1094}, flat = {12.5625, 12.5625, 22.7500, 21.5469, 24.3906};
+        ShapeSettings.EllipseMode[] modes = ShapeSettings.EllipseMode.values();
+        for (int k = 0; k < modes.length; k++) {
+            s.eMode = modes[k];
+            s.floor = false;
+            assertEquals(upright[k], err(s), EPS, "upright " + modes[k]);
+            s.floor = true;
+            assertEquals(flat[k], err(s), EPS, "flat " + modes[k]);
+        }
+        // Upright, a shelf's panel is on the left or right. Flat, it can be on any of the four sides.
+        s.floor = false; s.eMode = ShapeSettings.EllipseMode.OUTWARDS;
+        int[] counts = Solver.run(s).counts();
+        assertTrue(counts[Pieces.SH_L] > 0 && counts[Pieces.SH_L] == counts[Pieces.SH_R], "upright shelves");
+        s.floor = true; s.eMode = ShapeSettings.EllipseMode.FILLED;
+        counts = Solver.run(s).counts();
+        assertTrue(counts[Pieces.F_SH_L] > 0 && counts[Pieces.F_SH_L] == counts[Pieces.F_SH_R], "flat shelves, left and right");
+        assertTrue(counts[Pieces.F_SH_U] > 0 && counts[Pieces.F_SH_U] == counts[Pieces.F_SH_D], "flat shelves, top and bottom");
     }
 
     @Test
