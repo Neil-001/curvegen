@@ -155,7 +155,7 @@ public final class Placement {
         for (Layout.Cell c : layout.cells())
             for (int k = 0; k < depth; k++) {
                 BlockPos o = offset(c.x(), c.y(), k, right, forward);
-                BlockState st = BlockChoices.stateFor(c.piece(), right, forward, k, depth, floor);
+                BlockState st = BlockChoices.stateFor(c.piece(), c.above(), right, forward, k, depth, floor);
                 List<AABB> boxes = out.size() < HOLOGRAM_LIMIT
                         ? st.getShape(EmptyBlockGetter.INSTANCE, BlockPos.ZERO).toAabbs() : List.of();
                 int rgb = ColorIndex.of(st.getBlock(), floor);
