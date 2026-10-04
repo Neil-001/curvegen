@@ -6,13 +6,13 @@ import java.util.List;
 /**
  * Every piece state the solver can place, as a 16×16 silhouette in the drawing (x right, y up).
  *
- * Upright shapes are seen from the side: all states below F_TD_U. Fence and pane states are base, +1 connected
+ * Upright shapes are seen from the side: all states below F_TD_U, plus SH_L and SH_R. Fence and pane states are base, +1 connected
  * left, +2 right, +3 both. Side walls are WALL + ((left*3 + right)*2 + covered)*2 + post, with left/right
  * 0 none, 1 low, 2 tall, and covered meaning the block above covers the wall's centre.
  *
  * Flat shapes (floors) are seen from above, with the drawing's "up" pointing away from the player. Only states that
- * look different from a full block from above are used: EMPTY, FULL, TD_L, TD_R, F_TD_U, F_TD_D, and floor fences,
- * panes and walls, which connect in four directions: base + (left 1 | right 2 | top 4 | bottom 8).
+ * look different from a full block from above are used: EMPTY, FULL, TD_L, TD_R, F_TD_U, F_TD_D, the F_SH shelves,
+ * and floor fences, panes and walls, which connect in four directions: base + (left 1 | right 2 | top 4 | bottom 8).
  */
 public final class Pieces {
     private Pieces() {}
@@ -24,10 +24,11 @@ public final class Pieces {
             PANE = 16, PANE_L = 17, PANE_R = 18, PANE_LR = 19,
             WALL = 20,
             F_TD_U = 56, F_TD_D = 57,
-            F_FENCE = 58, F_PANE = 74, F_WALL = 90;
-    public static final int COUNT = 106;
+            F_FENCE = 58, F_PANE = 74, F_WALL = 90,
+            SH_L = 106, SH_R = 107, F_SH_L = 108, F_SH_R = 109, F_SH_U = 110, F_SH_D = 111;
+    public static final int COUNT = 112;
 
-    public enum Family { AIR, FULL, SLAB, STAIRS, TRAPDOOR, FENCE, PANE, WALL }
+    public enum Family { AIR, FULL, SLAB, STAIRS, TRAPDOOR, SHELF, FENCE, PANE, WALL }
 
     public static final Family[] FAMILY = new Family[COUNT];
     public static final String[] NAME = new String[COUNT];
@@ -66,7 +67,7 @@ public final class Pieces {
 
     // ---------- floor connectors ----------
     public static final int LEFT = 1, RIGHT = 2, TOP = 4, BOTTOM_SIDE = 8;
-    public static boolean isFloorConnector(int s) { return s >= F_FENCE && s < COUNT; }
+    public static boolean isFloorConnector(int s) { return s >= F_FENCE && s < F_WALL + 16; }
     public static int floorBits(int s) { return (s - F_FENCE) & 15; }
     /** A floor wall is straight (and so has no post) when it connects on exactly two opposite sides. */
     public static boolean floorWallPost(int bits) { return bits != (LEFT | RIGHT) && bits != (TOP | BOTTOM_SIDE); }
@@ -134,6 +135,14 @@ public final class Pieces {
             def(F_WALL + bits, Family.WALL, "Wall (from above), " + conn + (hasPost ? "" : ", no post"), 0x6a6f8c + 0x0c0c0c * n,
                     F_WALL + mx, F_WALL + my, arms(hasPost ? new int[]{4, 4, 12, 12} : null, bits, 5, 11));
         }
+
+        // A shelf is a panel 3 thick with a lip 2 deep along its top and bottom. From above it's a strip 5 deep.
+        def(SH_L, Family.SHELF, "Shelf, on left side", 0xc98f5a, SH_R, SH_L, new int[]{0, 0, 3, 16}, new int[]{3, 0, 5, 4}, new int[]{3, 12, 5, 16});
+        def(SH_R, Family.SHELF, "Shelf, on right side", 0x8a5a33, SH_L, SH_R, new int[]{13, 0, 16, 16}, new int[]{11, 0, 13, 4}, new int[]{11, 12, 13, 16});
+        def(F_SH_L, Family.SHELF, "Shelf, on left side", 0xc98f5a, F_SH_R, F_SH_L, new int[]{0, 0, 5, 16});
+        def(F_SH_R, Family.SHELF, "Shelf, on right side", 0x8a5a33, F_SH_L, F_SH_R, new int[]{11, 0, 16, 16});
+        def(F_SH_U, Family.SHELF, "Shelf, on top side", 0xe0b98a, F_SH_U, F_SH_D, new int[]{0, 11, 16, 16});
+        def(F_SH_D, Family.SHELF, "Shelf, on bottom side", 0x6b4226, F_SH_D, F_SH_U, new int[]{0, 0, 16, 5});
 
         for (int s = 0; s < COUNT; s++) {
             for (int[] r : RECTS[s])

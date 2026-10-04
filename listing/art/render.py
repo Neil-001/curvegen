@@ -369,9 +369,10 @@ def shapes():
 
 def families():
     """One piece from each family at six times preview size, in the preview's piece colours: full block, slab,
-    stairs, trapdoor, fence, glass pane, wall."""
+    stairs, trapdoor, shelf, fence, glass pane, wall."""
     wall = next(s for s, p in enumerate(PIECES) if p and p["name"] == "Wall, left low, right low, with post")
-    picks = [1, 2, 4, 8, 15, 17, wall]
+    shelf = next(s for s, p in enumerate(PIECES) if p and p["family"] == "SHELF")
+    picks = [1, 2, 4, 8, shelf, 15, 17, wall]
     tile, gap, pad = 96, 76, 40
     img = Image.new("RGB", (pad * 2 + len(picks) * tile + (len(picks) - 1) * gap, pad * 2 + tile), BG)
     for n, p in enumerate(picks):

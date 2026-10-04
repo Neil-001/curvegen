@@ -32,20 +32,21 @@ Both loaders compile the shared `src/main` and `src/client` code with their own 
 5. In hollow shapes, refinement adds a penalty for a connector whose silhouette is a full block, such as a wall with two tall sides mirrored from one with two low sides. The block above would have to stay to keep it tall. Keep the rule as a cost, not a filter, or refinement can cycle.
 6. Hollowing removes unexposed full blocks from thin ellipses. A block is unexposed when every neighbour's silhouette fills the shared edge, so `Pieces.EDGE` decides this rather than `STURDY`. Keep connector supports and, upright, blocks that determine a wall's height below.
 
-Upright states are 0 to 55, with walls at 20 to 55 encoding three heights per side, covered and post. Flat-only states are 56 to 105. Grids use `byte[]`, so indices must stay below 128.
+Upright states are 0 to 55, with walls at 20 to 55 encoding three heights per side, covered and post. Flat-only states are 56 to 105. Shelves follow: 106 and 107 upright, 108 to 111 flat. Grids use `byte[]`, so indices must stay below 128.
 
-Upright builds show the side face; flat builds show the top, with the drawing's top pointing away from the player. Match colours to that face. Flat builds exclude slabs, stairs and closed trapdoors because they look like full blocks from above.
+Upright builds show the side face; flat builds show the top, with the drawing's top pointing away from the player. Match colours to that face. Flat builds exclude slabs, stairs and closed trapdoors because they look like full blocks from above. Upright builds exclude shelves facing towards or away from the viewer for the same reason.
 
 ## Minecraft rules
 
 `ConnectionRulesTest` covers these:
 
-- Fences join only fences; panes and walls join each other. All attach to sturdy full faces, including a stair's tall side and an open trapdoor's panel. They don't attach to slabs, closed trapdoors or `Block.isExceptionForConnection` blocks such as leaves, pumpkins and shulker boxes. `ShapeSettings.fullConnects` models that exception.
+- Fences join only fences; panes and walls join each other. All attach to sturdy full faces, including a stair's tall side, an open trapdoor's panel and a shelf's panel. They don't attach to slabs, closed trapdoors or `Block.isExceptionForConnection` blocks such as leaves, pumpkins and shulker boxes. `ShapeSettings.fullConnects` models that exception.
 - An upright wall side is tall when the bottom row of the block above covers its test region.
 - At depth 1, an upright wall has a post unless both sides connect. A straight wall keeps its post only if the block above covers its centre and the sides aren't both tall.
 - At depth over 1, the front and back walls connect on only one side, so the visible upright wall always has a post.
 - Flat walls have no post with exactly two opposite connections. Lower layers have tall sides; the top layer has low sides.
-- A stair's `FACING` points to its tall back. An open trapdoor's panel is opposite `FACING`.
+- A stair's `FACING` points to its tall back. An open trapdoor's panel is opposite `FACING`, and so is a shelf's.
+- A shelf is a panel 3 pixels thick with lips 2 deep and 4 tall along its top and bottom. Only the panel's back is a sturdy face.
 
 ## Conventions
 
