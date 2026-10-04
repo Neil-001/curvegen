@@ -17,6 +17,8 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.EmptyBlockGetter;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.ChainBlock;
+import net.minecraft.world.level.block.EndRodBlock;
 import net.minecraft.world.level.block.FallingBlock;
 import net.minecraft.world.level.block.FenceBlock;
 import net.minecraft.world.level.block.GameMasterBlock;
@@ -39,7 +41,8 @@ import net.minecraft.world.level.block.state.properties.WallSide;
 public final class BlockChoices {
     private BlockChoices() {}
 
-    public static final Family[] FAMILIES = {Family.FULL, Family.SLAB, Family.STAIRS, Family.TRAPDOOR, Family.SHELF, Family.FENCE, Family.PANE, Family.WALL};
+    public static final Family[] FAMILIES = {Family.FULL, Family.SLAB, Family.STAIRS, Family.TRAPDOOR, Family.SHELF, Family.FENCE, Family.PANE, Family.WALL,
+            Family.CHAIN, Family.ROD};
     public static final Map<Family, Block> CHOICE = new EnumMap<>(Family.class);
     /** Colour last picked with the colour picker, or -1. */
     public static int pickedColor = -1;
@@ -53,12 +56,15 @@ public final class BlockChoices {
         CHOICE.put(Family.FENCE, Blocks.SPRUCE_FENCE);
         CHOICE.put(Family.PANE, Blocks.GLASS_PANE);
         CHOICE.put(Family.WALL, Blocks.STONE_BRICK_WALL);
+        CHOICE.put(Family.CHAIN, Blocks.IRON_CHAIN);
+        CHOICE.put(Family.ROD, Blocks.END_ROD);
     }
 
     public static String familyName(Family f) {
         return switch (f) {
             case FULL -> "Full blocks"; case SLAB -> "Slabs"; case STAIRS -> "Stairs";
-            case TRAPDOOR -> "Trapdoors"; case SHELF -> "Shelves"; case FENCE -> "Fences"; case PANE -> "Panes"; case WALL -> "Walls"; default -> "";
+            case TRAPDOOR -> "Trapdoors"; case SHELF -> "Shelves"; case FENCE -> "Fences"; case PANE -> "Panes"; case WALL -> "Walls";
+            case CHAIN -> "Chains"; case ROD -> "End rods"; default -> "";
         };
     }
 
@@ -88,6 +94,8 @@ public final class BlockChoices {
             case FENCE -> b instanceof FenceBlock;
             case PANE -> b instanceof IronBarsBlock;
             case WALL -> b instanceof WallBlock;
+            case CHAIN -> b instanceof ChainBlock;
+            case ROD -> b instanceof EndRodBlock;
             default -> false;
         };
     }
@@ -149,6 +157,7 @@ public final class BlockChoices {
         BlockState s = blockFor(piece).defaultBlockState();
         Direction left = right.getOpposite();
         switch (piece) {
+            case Pieces.CHAIN_H, Pieces.CHAIN_V, Pieces.ROD_U, Pieces.ROD_D, Pieces.ROD_L, Pieces.ROD_R -> s = lineState(s, piece, right, Direction.UP);
             case Pieces.SLAB_B -> s = with(s, SlabBlock.TYPE, SlabType.BOTTOM);
             case Pieces.SLAB_T -> s = with(s, SlabBlock.TYPE, SlabType.TOP);
             // A stair's FACING is the side its tall back is on.
@@ -185,6 +194,7 @@ public final class BlockChoices {
         BlockState s = blockFor(piece).defaultBlockState();
         Direction left = right.getOpposite(), back = forward.getOpposite();
         switch (piece) {
+            case Pieces.CHAIN_H, Pieces.CHAIN_V, Pieces.ROD_U, Pieces.ROD_D, Pieces.ROD_L, Pieces.ROD_R -> s = lineState(s, piece, right, forward);
             // An open trapdoor lies against the side opposite its FACING.
             case Pieces.TD_L -> s = with(with(s, TrapDoorBlock.OPEN, true), TrapDoorBlock.FACING, right);
             case Pieces.TD_R -> s = with(with(s, TrapDoorBlock.OPEN, true), TrapDoorBlock.FACING, left);
@@ -213,6 +223,18 @@ public final class BlockChoices {
         s = with(s, BlockStateProperties.WATERLOGGED, false);
         if (s.hasProperty(BlockStateProperties.PERSISTENT)) s = s.setValue(BlockStateProperties.PERSISTENT, true);
         return s;
+    }
+
+    /** A chain along, or an end rod pointing along, the drawing's +x (right) or +y (up). A rod's FACING is the way it points. */
+    private static BlockState lineState(BlockState s, int piece, Direction right, Direction up) {
+        return switch (piece) {
+            case Pieces.CHAIN_H -> with(s, BlockStateProperties.AXIS, right.getAxis());
+            case Pieces.CHAIN_V -> with(s, BlockStateProperties.AXIS, up.getAxis());
+            case Pieces.ROD_U -> with(s, BlockStateProperties.FACING, up);
+            case Pieces.ROD_D -> with(s, BlockStateProperties.FACING, up.getOpposite());
+            case Pieces.ROD_L -> with(s, BlockStateProperties.FACING, right.getOpposite());
+            default -> with(s, BlockStateProperties.FACING, right);
+        };
     }
 
     /**

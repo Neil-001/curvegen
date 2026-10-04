@@ -480,6 +480,8 @@ public class CurveScreen extends Screen {
                     if (possible || result.counts()[st] > 0) out.add(st);
                 }
             }
+            case CHAIN -> { out.add(Pieces.CHAIN_H); out.add(Pieces.CHAIN_V); }
+            case ROD -> { for (int st = Pieces.ROD_U; st <= Pieces.ROD_R; st++) out.add(st); }
             default -> { }
         }
         return out;

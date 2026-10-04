@@ -32,7 +32,7 @@ Both loaders compile the shared `src/main` and `src/client` code with their own 
 5. In hollow shapes, refinement adds a penalty for a connector whose silhouette is a full block, such as a wall with two tall sides mirrored from one with two low sides. The block above would have to stay to keep it tall. Keep the rule as a cost, not a filter, or refinement can cycle.
 6. Hollowing removes unexposed full blocks from thin ellipses. A block is unexposed when every neighbour's silhouette fills the shared edge, so `Pieces.EDGE` decides this rather than `STURDY`. Keep connector supports and, upright, blocks that determine a wall's height below.
 
-Upright states are 0 to 55, with walls at 20 to 55 encoding three heights per side, covered and post. Flat-only states are 56 to 105. Shelves follow: 106 and 107 upright, 108 to 111 flat. Grids use `byte[]`, so indices must stay below 128.
+Upright states are 0 to 55, with walls at 20 to 55 encoding three heights per side, covered and post. Flat-only states are 56 to 105. Shelves follow: 106 and 107 upright, 108 to 111 flat. Chain and end rod states, 112 to 117, serve both orientations: a chain runs across or up the drawing and a rod points one of four ways. Neither connects to anything or uses the end-on view. Grids use `byte[]`, so indices must stay below 128.
 
 Upright builds show the side face; flat builds show the top, with the drawing's top pointing away from the player. Match colours to that face. Flat builds exclude slabs, stairs and closed trapdoors because they look like full blocks from above. Upright builds exclude shelves facing towards or away from the viewer for the same reason.
 

@@ -37,6 +37,8 @@ public final class Solver {
             if (s.pane) ids.add(Pieces.PANE);
             if (s.wall) ids.add(Pieces.WALL);
         }
+        if (s.chain) ids.addAll(List.of(Pieces.CHAIN_H, Pieces.CHAIN_V));
+        if (s.rod) ids.addAll(List.of(Pieces.ROD_U, Pieces.ROD_D, Pieces.ROD_L, Pieces.ROD_R));
         int[] cAll = ids.stream().mapToInt(Integer::intValue).toArray();
         int[] cX = ids.stream().mapToInt(Integer::intValue).filter(p -> Pieces.MX[p] == p).toArray();
         int[] cY = ids.stream().mapToInt(Integer::intValue).filter(p -> Pieces.MY[p] == p).toArray();
