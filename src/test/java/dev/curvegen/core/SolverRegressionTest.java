@@ -16,7 +16,7 @@ class SolverRegressionTest {
     @Test
     void uprightEllipses() {
         ShapeSettings s = new ShapeSettings();
-        double[] withWalls = {8.2031, 8.2031, 18.4844, 15.5000, 18.1094};
+        double[] withWalls = {8.2813, 8.2031, 18.4844, 15.5000, 18.1094};
         double[] withoutWalls = {8.2813, 8.2813, 18.5938, 15.5156, 18.1094};
         ShapeSettings.EllipseMode[] modes = ShapeSettings.EllipseMode.values();
         for (int k = 0; k < modes.length; k++) {
@@ -94,20 +94,40 @@ class SolverRegressionTest {
     }
 
     @Test
-    void wallsThatLookLikeFullBlocksBecomeFullBlocks() {
-        // The default ellipse puts low walls in its top row. Their mirror images in the bottom row would be tall on
-        // both sides, which looks like a full block and needs another block above to stay tall.
+    void thinEllipsesMirrorTopToBottomWithoutFullLookingConnectors() {
+        // A low wall fits the default ellipse's top row, but its mirror image in the bottom row would be tall on both
+        // sides: it looks like a full block and needs another block above to stay tall. Neither row may use it.
+        boolean[][] pieceSets = {   // slab, stair, trap, fence, pane, wall
+                {true, true, true, true, true, true}, {false, false, false, false, false, true},
+                {false, false, false, false, true, true}, {true, false, true, true, true, true}};
+        int walls = 0;
+        for (boolean[] set : pieceSets)
+            for (boolean fullConnects : new boolean[]{true, false})
+                for (int depth : new int[]{1, 3})
+                    for (int w = 3; w <= 64; w += 2)
+                        for (int h : new int[]{3, 4, 5, 13, 19, 40}) {
+                            ShapeSettings s = new ShapeSettings();
+                            s.slab = set[0]; s.stair = set[1]; s.trap = set[2]; s.fence = set[3]; s.pane = set[4]; s.wall = set[5];
+                            s.fullConnects = fullConnects; s.depth = depth; s.eW = w; s.eH = h;
+                            Solver.Result r = Solver.run(s);
+                            for (int j = 0; j < r.ny(); j++)
+                                for (int i = 0; i < r.nx(); i++) {
+                                    int p = r.at(i, j);
+                                    String where = w + "x" + h + " depth " + depth + " at " + i + "," + j + ": " + Pieces.NAME[p];
+                                    assertFalse(Pieces.isConnector(p) && Pieces.PIXELS[p] == 256, where);
+                                    assertEquals(Pieces.FAMILY[p], Pieces.FAMILY[r.at(i, r.ny() - 1 - j)], where);
+                                    if (Pieces.FAMILY[p] == Pieces.Family.WALL) walls++;
+                                }
+                        }
+        assertTrue(walls > 1000, "only " + walls + " walls checked");
+
         Solver.Result r = Solver.run(new ShapeSettings());
-        int top = r.ny() - 2, walls = 0;
-        for (int i = 0; i < r.nx(); i++) {
-            if (Pieces.FAMILY[r.at(i, top)] != Pieces.Family.WALL) continue;
-            walls++;
-            assertEquals(Pieces.EMPTY, r.at(i, top - 1), "below the top wall at " + i);
-            assertEquals(Pieces.FULL, r.at(i, 1), "opposite the top wall at " + i);
-            assertEquals(Pieces.EMPTY, r.at(i, 2), "above the bottom block at " + i);
+        for (int i = 13; i <= 19; i++) {
+            assertEquals(Pieces.FULL, r.at(i, 1), "bottom row at " + i);
+            assertEquals(Pieces.FULL, r.at(i, r.ny() - 2), "top row at " + i);
+            assertEquals(Pieces.EMPTY, r.at(i, 2), "above the bottom row at " + i);
+            assertEquals(Pieces.EMPTY, r.at(i, r.ny() - 3), "below the top row at " + i);
         }
-        assertEquals(2, walls);
-        for (byte b : r.grid()) assertFalse(Pieces.isConnector(b) && Pieces.PIXELS[b] == 256, Pieces.NAME[b]);
     }
 
     @Test

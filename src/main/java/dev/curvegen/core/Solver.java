@@ -81,6 +81,15 @@ public final class Solver {
                 int st = resolve(idx), k = t.kind[idx];
                 return k == 0 ? Pieces.PIXELS[st] : k == 1 ? 256 - Pieces.PIXELS[st] : t.errTab[idx][st];
             }
+            /**
+             * What refinement minimises: the pixel error, plus in hollow shapes a penalty that outweighs any error for
+             * a connector that looks exactly like a full block, such as a wall with two tall sides mirrored from one
+             * with two low sides. The block above such a wall would have to stay to keep it tall.
+             */
+            int cost(int idx) {
+                int st = resolve(idx);
+                return cellErr(idx) + (t.hollow && Pieces.isConnector(st) && Pieces.PIXELS[st] == 256 ? 1 << 16 : 0);
+            }
         }
         Ctx c = new Ctx();
 
@@ -141,12 +150,12 @@ public final class Solver {
                 boolean changed = false;
                 for (Orbit o : orbs) {
                     int cur = grid[o.idx], bestE = 0, best = cur;
-                    for (int q : o.aff) bestE += c.cellErr(q);
+                    for (int q : o.aff) bestE += c.cost(q);
                     for (int cand : o.cands) {
                         if (cand == cur) continue;
                         setOrbit(grid, nx, o.cells, cand);
                         int e = 0;
-                        for (int q : o.aff) e += c.cellErr(q);
+                        for (int q : o.aff) e += c.cost(q);
                         if (e < bestE) { bestE = e; best = cand; }
                     }
                     setOrbit(grid, nx, o.cells, best);
@@ -155,19 +164,6 @@ public final class Solver {
                 if (!changed) break;
             }
         }
-        // Mirroring can leave a connector that looks exactly like a full block, such as a wall with two tall sides
-        // opposite one with two low sides. Use a full block there, unless that would change a neighbour's shape.
-        if (!floor)
-            for (int q = 0; q < N; q++) {
-                int v = grid[q];
-                if (!Pieces.isType(v) || Pieces.PIXELS[c.resolve(q)] != 256) continue;
-                int[] near = {q - 1, q + 1, q - nx};
-                int[] before = new int[3];
-                for (int k = 0; k < 3; k++) before[k] = near[k] >= 0 && near[k] < N ? c.resolve(near[k]) : 0;
-                grid[q] = Pieces.FULL;
-                for (int k = 0; k < 3; k++)
-                    if (near[k] >= 0 && near[k] < N && c.resolve(near[k]) != before[k]) { grid[q] = (byte) v; break; }
-            }
         double err = 0;
         for (int q = 0; q < N; q++) err += c.cellErr(q);
         err /= 256;
