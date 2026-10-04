@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Draws the listing artwork in listing/media from the mod's own solver.
+"""Draws the listing artwork in listing/media, and the mod's icon, from the mod's own solver.
 
     python3 listing/art/render.py
 
@@ -399,6 +399,18 @@ def divider():
     save(out, "divider.png")
 
 
+def icon():
+    """The mod's icon: a Bézier curve shaped like a bass clef."""
+    pts = [(7, 10), (3, 9.5), (3.5, 18.5), (15.5, 17.5), (15.5, 6.5), (9.5, 3.5), (4, 2)]
+    scene = solve(gen="BEZIER", bW=16, bH=16, bLW=1.4, pts=" ".join(f"{x},{y}" for x, y in pts))
+    img = Image.new("RGB", (16 * CELL, 16 * CELL), BG)
+    pieces(img, scene, 0, 0)
+    grid(img)
+    curve(img, scene, 0, 0, 3)
+    rounded(img, 44).save(os.path.join(ROOT, "src/main/resources/assets/curvegen/icon.png"), optimize=True)
+    print("icon.png", img.size)
+
+
 if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
     banner()
@@ -406,4 +418,5 @@ if __name__ == "__main__":
     shapes()
     families()
     divider()
+    icon()
     SOLVER.stdin.close()
