@@ -38,7 +38,8 @@ class SilhouetteTest {
     @Test
     void rectangularPiecesLookExactlyTheSame() {
         int[] rects = {Pieces.FULL, Pieces.SLAB_B, Pieces.SLAB_T, Pieces.TD_B, Pieces.TD_T, Pieces.TD_L, Pieces.TD_R,
-                Pieces.F_TD_U, Pieces.F_TD_D, Pieces.PANE, Pieces.PANE_L, Pieces.PANE_R, Pieces.PANE_LR, Pieces.FENCE};
+                Pieces.F_TD_U, Pieces.F_TD_D, Pieces.PANE, Pieces.PANE_L, Pieces.PANE_R, Pieces.PANE_LR, Pieces.FENCE,
+                Pieces.F_SH_L, Pieces.F_SH_R, Pieces.F_SH_U, Pieces.F_SH_D};
         for (int p : rects)
             for (int size : new int[]{8, 12, 14, 16}) assertEquals(0, extraPixels(p, size), Pieces.NAME[p] + " at " + size);
     }

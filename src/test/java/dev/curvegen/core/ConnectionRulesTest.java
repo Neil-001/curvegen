@@ -49,8 +49,9 @@ class ConnectionRulesTest {
                 for (int i = 0; i < nx; i++) {
                     int st = r.at(i, j);
                     // Flat builds only use pieces that look different from above; upright builds never use flat states.
-                    boolean flatState = st >= Pieces.F_TD_U;
-                    boolean uprightOnly = (st >= Pieces.SLAB_B && st <= Pieces.TD_T) || (st >= Pieces.FENCE && st < Pieces.F_TD_U);
+                    boolean uprightShelf = st == Pieces.SH_L || st == Pieces.SH_R;
+                    boolean flatState = st >= Pieces.F_TD_U && !uprightShelf;
+                    boolean uprightOnly = (st >= Pieces.SLAB_B && st <= Pieces.TD_T) || (st >= Pieces.FENCE && st < Pieces.F_TD_U) || uprightShelf;
                     assertFalse(c.floor ? uprightOnly : flatState, "wrong orientation: " + Pieces.NAME[st]);
                     if (!Pieces.isConnector(st)) continue;
                     checked++;
@@ -109,6 +110,21 @@ class ConnectionRulesTest {
         assertTrue(Pieces.joins(Pieces.Family.WALL, Pieces.Family.PANE));
         assertFalse(Pieces.joins(Pieces.Family.FENCE, Pieces.Family.PANE));
         assertFalse(Pieces.joins(Pieces.Family.FENCE, Pieces.Family.WALL));
+    }
+
+    @Test
+    void shelvesOfferOnlyTheirPanel() {
+        // Faces are bottom, top, left, right. A shelf's lips don't fill the faces beside its panel.
+        assertArrayEquals(new boolean[]{false, false, true, false}, Pieces.STURDY[Pieces.SH_L]);
+        assertArrayEquals(new boolean[]{false, false, false, true}, Pieces.STURDY[Pieces.SH_R]);
+        assertArrayEquals(new boolean[]{false, false, true, false}, Pieces.STURDY[Pieces.F_SH_L]);
+        assertArrayEquals(new boolean[]{false, false, false, true}, Pieces.STURDY[Pieces.F_SH_R]);
+        assertArrayEquals(new boolean[]{false, true, false, false}, Pieces.STURDY[Pieces.F_SH_U]);
+        assertArrayEquals(new boolean[]{true, false, false, false}, Pieces.STURDY[Pieces.F_SH_D]);
+        // The shelf above a wall reaches 5 pixels in, short of the 9 a tall side needs.
+        assertNotEquals(0x01FF, Pieces.BOTTOM[Pieces.SH_L] & 0x01FF);
+        assertNotEquals(0xFF80, Pieces.BOTTOM[Pieces.SH_R] & 0xFF80);
+        for (int s = Pieces.SH_L; s <= Pieces.F_SH_D; s++) assertFalse(Pieces.isConnector(s) || Pieces.isFloorConnector(s), Pieces.NAME[s]);
     }
 
     @Test

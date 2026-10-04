@@ -95,6 +95,8 @@ public class ColorPickerScreen extends Screen {
         int lx = hx + 30, ly = y0;
         ctx.text(font, "Closest blocks", lx, ly, 0xFFC8CED6, false);
         ly += 14;
+        // On short screens the rows close up to stay clear of the buttons below.
+        int pitch = Math.min(22, (height - 32 - ly) / BlockChoices.FAMILIES.length);
         for (Family f : BlockChoices.FAMILIES) {
             Block b = preview.get(f);
             if (b == null) continue;
@@ -102,7 +104,7 @@ public class ColorPickerScreen extends Screen {
             ctx.item(new ItemStack(b), lx + 1, ly + 1);
             ctx.text(font, BlockChoices.familyName(f), lx + 24, ly + 1, 0xFF9AA5B3, false);
             ctx.text(font, font.plainSubstrByWidth(b.getName().getString(), width - lx - 30), lx + 24, ly + 10, 0xFFFFFFFF, false);
-            ly += 22;
+            ly += pitch;
         }
     }
 

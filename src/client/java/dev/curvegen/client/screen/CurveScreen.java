@@ -405,15 +405,17 @@ public class CurveScreen extends Screen {
     }
 
     private void initBlocks() {
+        // On short screens the rows close up, so the last one stays clear of the buttons along the bottom.
+        int rows = BlockChoices.FAMILIES.length + 1, pitch = Math.min(ROW, (height - 30 - top()) / rows), h = Math.min(20, pitch - 1);
         for (int k = 0; k < BlockChoices.FAMILIES.length; k++) {
             Family f = BlockChoices.FAMILIES[k];
-            int y = row(k);
+            int y = top() + k * pitch;
             if (f == Family.FULL) {
-                labels.add(new Label(M + 4, y + 6, "Use"));
+                labels.add(new Label(M + 4, y + (h - 8) / 2, "Use"));
             } else {
                 boolean on = S.allows(f);
                 Button use = Button.builder(Component.literal(on ? "Use" : "Off"), b -> { S.allow(f, !S.allows(f)); dirty = true; rebuildWidgets(); })
-                        .bounds(M, y, 26, 20).build();
+                        .bounds(M, y, 26, h).build();
                 if (S.floor && (f == Family.SLAB || f == Family.STAIRS)) {
                     use.active = false;
                     use.setTooltip(Tooltip.create(Component.literal("From above, " + BlockChoices.familyName(f).toLowerCase(java.util.Locale.ROOT)
@@ -428,10 +430,10 @@ public class CurveScreen extends Screen {
                 S.fullConnects = BlockChoices.fullBlockConnects();
                 dirty = true; textureDirty = true;
                 rebuildWidgets();
-            }))).bounds(M + 48, y, PANEL_W - 48, 20).build();
+            }))).bounds(M + 48, y, PANEL_W - 48, h).build();
             pick.setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.literal(BlockChoices.familyName(f) + ": " + block.getName().getString())));
             addRenderableWidget(pick);
-            icons.add(new Icon(M + 29, y + 2, new ItemStack(block)));
+            icons.add(new Icon(M + 29, y + (h - 16) / 2, new ItemStack(block)));
         }
         addRenderableWidget(Button.builder(Component.literal("Match a colour…"), b -> minecraft.gui.setScreen(
                 new ColorPickerScreen(this, BlockChoices.pickedColor >= 0 ? BlockChoices.pickedColor : 0x8E6B4A, rgb -> {
@@ -439,9 +441,9 @@ public class CurveScreen extends Screen {
                     S.fullConnects = BlockChoices.fullBlockConnects();
                     dirty = true; textureDirty = true;
                     rebuildWidgets();
-                }))).bounds(M, row(BlockChoices.FAMILIES.length), PANEL_W, 20).build());
+                }))).bounds(M, top() + (rows - 1) * pitch, PANEL_W, h).build());
         hint = "Choose a block per piece type, or match them all to one colour.";
-        hintY = row(BlockChoices.FAMILIES.length + 1) + 2;
+        hintY = top() + rows * pitch + 2;
     }
 
     // ---------- block count (the web version's "Materials") ----------
@@ -466,6 +468,8 @@ public class CurveScreen extends Screen {
             case STAIRS -> { if (!floor) for (int st = Pieces.ST_UR; st <= Pieces.ST_DL; st++) out.add(st); }
             case TRAPDOOR -> out.addAll(floor ? List.of(Pieces.TD_L, Pieces.TD_R, Pieces.F_TD_U, Pieces.F_TD_D)
                                               : List.of(Pieces.TD_B, Pieces.TD_T, Pieces.TD_L, Pieces.TD_R));
+            case SHELF -> out.addAll(floor ? List.of(Pieces.F_SH_L, Pieces.F_SH_R, Pieces.F_SH_U, Pieces.F_SH_D)
+                                           : List.of(Pieces.SH_L, Pieces.SH_R));
             case FENCE -> { int b = floor ? Pieces.F_FENCE : Pieces.FENCE; for (int k = 0; k < (floor ? 16 : 4); k++) out.add(b + k); }
             case PANE -> { int b = floor ? Pieces.F_PANE : Pieces.PANE; for (int k = 0; k < (floor ? 16 : 4); k++) out.add(b + k); }
             case WALL -> {
