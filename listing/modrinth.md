@@ -54,6 +54,7 @@ You see the result in a preview before anything is built. Then you place it in y
 - Placing needs operator permissions, the same as `/setblock`. In singleplayer, cheats must be on. Exporting works anywhere.
 - The mod runs on the client. A server doesn't need it. If the server has it too, large builds place faster.
 - It follows Minecraft's connection rules, so fences, panes and walls join in the preview the same way they join in the world.
+- Chains and end rods are there for thin lines. They start switched off; turn them on in the **Blocks** tab.
 - Presets save a shape with its block choices.
 - Resource packs and modded blocks work. Colour matching reads the textures you have loaded.
 - You can rebind every key under Options → Controls → Key Binds → Curve Generator.

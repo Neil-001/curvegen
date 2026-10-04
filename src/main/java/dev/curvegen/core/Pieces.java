@@ -13,6 +13,9 @@ import java.util.List;
  * Flat shapes (floors) are seen from above, with the drawing's "up" pointing away from the player. Only states that
  * look different from a full block from above are used: EMPTY, FULL, TD_L, TD_R, F_TD_U, F_TD_D, the F_SH shelves,
  * and floor fences, panes and walls, which connect in four directions: base + (left 1 | right 2 | top 4 | bottom 8).
+ *
+ * Chains and end rods lying in the drawing look the same in both orientations, so both share the states from CHAIN_H.
+ * End-on they are only a dot, which isn't used.
  */
 public final class Pieces {
     private Pieces() {}
@@ -25,10 +28,12 @@ public final class Pieces {
             WALL = 20,
             F_TD_U = 56, F_TD_D = 57,
             F_FENCE = 58, F_PANE = 74, F_WALL = 90,
-            SH_L = 106, SH_R = 107, F_SH_L = 108, F_SH_R = 109, F_SH_U = 110, F_SH_D = 111;
-    public static final int COUNT = 112;
+            SH_L = 106, SH_R = 107, F_SH_L = 108, F_SH_R = 109, F_SH_U = 110, F_SH_D = 111,
+            CHAIN_H = 112, CHAIN_V = 113,
+            ROD_U = 114, ROD_D = 115, ROD_L = 116, ROD_R = 117;
+    public static final int COUNT = 118;
 
-    public enum Family { AIR, FULL, SLAB, STAIRS, TRAPDOOR, SHELF, FENCE, PANE, WALL }
+    public enum Family { AIR, FULL, SLAB, STAIRS, TRAPDOOR, SHELF, FENCE, PANE, WALL, CHAIN, ROD }
 
     public static final Family[] FAMILY = new Family[COUNT];
     public static final String[] NAME = new String[COUNT];
@@ -143,6 +148,15 @@ public final class Pieces {
         def(F_SH_R, Family.SHELF, "Shelf, on right side", 0x8a5a33, F_SH_L, F_SH_R, new int[]{11, 0, 16, 16});
         def(F_SH_U, Family.SHELF, "Shelf, on top side", 0xe0b98a, F_SH_U, F_SH_D, new int[]{0, 11, 16, 16});
         def(F_SH_D, Family.SHELF, "Shelf, on bottom side", 0x6b4226, F_SH_D, F_SH_U, new int[]{0, 0, 16, 5});
+
+        // ---- chains and end rods (either view) ----
+        // A chain's two crossed strips are 3 wide but turned 45°, so it looks 2 wide. A rod points away from its plate.
+        def(CHAIN_H, Family.CHAIN, "Chain, left to right", 0xc75b8e, CHAIN_H, CHAIN_H, new int[]{0, 7, 16, 9});
+        def(CHAIN_V, Family.CHAIN, "Chain, top to bottom", 0x8f3a63, CHAIN_V, CHAIN_V, new int[]{7, 0, 9, 16});
+        def(ROD_U, Family.ROD, "End rod, pointing up", 0xf5ecd0, ROD_U, ROD_D, new int[]{6, 0, 10, 1}, new int[]{7, 1, 9, 16});
+        def(ROD_D, Family.ROD, "End rod, pointing down", 0xd9cfae, ROD_D, ROD_U, new int[]{6, 15, 10, 16}, new int[]{7, 0, 9, 15});
+        def(ROD_L, Family.ROD, "End rod, pointing left", 0xbfb48f, ROD_R, ROD_L, new int[]{15, 6, 16, 10}, new int[]{0, 7, 15, 9});
+        def(ROD_R, Family.ROD, "End rod, pointing right", 0xa39873, ROD_L, ROD_R, new int[]{0, 6, 1, 10}, new int[]{1, 7, 16, 9});
 
         for (int s = 0; s < COUNT; s++) {
             for (int[] r : RECTS[s])
