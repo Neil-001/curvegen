@@ -16,8 +16,6 @@ Curve Generator turns ellipses, equations and Bézier curves into blocks. For ev
 
 <img alt="Two stone brick circles with the true circle drawn over them. The one made of full blocks has stepped edges. The one with slabs, stairs and walls follows the circle more closely." width="100%" src="https://raw.githubusercontent.com/Neil-001/curvegen/main/listing/media/compare.png">
 
-*A 17-block circle from full blocks alone, and with slabs, stairs and walls.*
-
 </center>
 
 You see the result in a preview before anything is built. Then you place it in your world, or export it as a Litematica schematic.
@@ -61,14 +59,6 @@ You see the result in a preview before anything is built. Then you place it in y
 - You can rebind every key under Options → Controls → Key Binds → Curve Generator.
 
 The [wiki](https://github.com/Neil-001/curvegen/wiki) covers placement keys, Replace and Carve, presets and exporting.
-
-## Requirements
-
-- Minecraft Java 1.21 to 1.21.11
-- Fabric Loader
-- [Fabric API](https://modrinth.com/mod/fabric-api)
-
-Source and issues are on [GitHub](https://github.com/Neil-001/curvegen). The licence is MIT.
 
 <center>
 <img alt="" width="100%" src="https://raw.githubusercontent.com/Neil-001/curvegen/main/listing/media/divider.png">
