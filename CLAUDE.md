@@ -28,7 +28,8 @@ Both loaders compile the shared `src/main` and `src/client` code with their own 
 2. Each cell starts with its lowest-error allowed piece. Fence, pane and wall tokens get their states from neighbours, initially assuming every supporting neighbour connects.
 3. Refinement re-picks cells until nothing improves. `Solver`'s affected sets must include side neighbours, the row below for upright wall heights, and rows above and below for flat connections. Otherwise a step can worsen the result.
 4. Ellipses solve one quarter and mirror it with `MX` and `MY`. Axis cells require self-symmetric pieces.
-5. Hollowing removes unexposed full blocks from thin ellipses. Keep connector supports and, upright, blocks that determine a wall's height below.
+5. In hollow shapes, refinement adds a penalty for a connector whose silhouette is a full block, such as a wall with two tall sides mirrored from one with two low sides. The block above would have to stay to keep it tall. Keep the rule as a cost, not a filter, or refinement can cycle.
+6. Hollowing removes unexposed full blocks from thin ellipses. A block is unexposed when every neighbour's silhouette fills the shared edge, so `Pieces.EDGE` decides this rather than `STURDY`. Keep connector supports and, upright, blocks that determine a wall's height below.
 
 Upright states are 0 to 55, with walls at 20 to 55 encoding three heights per side, covered and post. Flat-only states are 56 to 105. Grids use `byte[]`, so indices must stay below 128.
 

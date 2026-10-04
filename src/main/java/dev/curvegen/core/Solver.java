@@ -81,6 +81,15 @@ public final class Solver {
                 int st = resolve(idx), k = t.kind[idx];
                 return k == 0 ? Pieces.PIXELS[st] : k == 1 ? 256 - Pieces.PIXELS[st] : t.errTab[idx][st];
             }
+            /**
+             * What refinement minimises: the pixel error, plus in hollow shapes a penalty that outweighs any error for
+             * a connector that looks exactly like a full block, such as a wall with two tall sides mirrored from one
+             * with two low sides. The block above such a wall would have to stay to keep it tall.
+             */
+            int cost(int idx) {
+                int st = resolve(idx);
+                return cellErr(idx) + (t.hollow && Pieces.isConnector(st) && Pieces.PIXELS[st] == 256 ? 1 << 16 : 0);
+            }
         }
         Ctx c = new Ctx();
 
@@ -141,12 +150,12 @@ public final class Solver {
                 boolean changed = false;
                 for (Orbit o : orbs) {
                     int cur = grid[o.idx], bestE = 0, best = cur;
-                    for (int q : o.aff) bestE += c.cellErr(q);
+                    for (int q : o.aff) bestE += c.cost(q);
                     for (int cand : o.cands) {
                         if (cand == cur) continue;
                         setOrbit(grid, nx, o.cells, cand);
                         int e = 0;
-                        for (int q : o.aff) e += c.cellErr(q);
+                        for (int q : o.aff) e += c.cost(q);
                         if (e < bestE) { bestE = e; best = cand; }
                     }
                     setOrbit(grid, nx, o.cells, best);
@@ -170,8 +179,9 @@ public final class Solver {
                     int below = at(solid, nx, ny, i, j - 1), above = at(solid, nx, ny, i, j + 1);
                     if (floor ? Pieces.isConnector(below) || Pieces.isConnector(above)          // attached from the front or back
                               : Pieces.FAMILY[below] == Pieces.Family.WALL) continue;           // a wall below takes its height from this block
-                    boolean exposed = !Pieces.STURDY[above][0] || !Pieces.STURDY[below][1]
-                            || !Pieces.STURDY[at(solid, nx, ny, i - 1, j)][3] || !Pieces.STURDY[at(solid, nx, ny, i + 1, j)][2];
+                    // Hidden when every neighbour fills the shared edge, whether or not it's a full face.
+                    boolean exposed = !Pieces.EDGE[above][0] || !Pieces.EDGE[below][1]
+                            || !Pieces.EDGE[at(solid, nx, ny, i - 1, j)][3] || !Pieces.EDGE[at(solid, nx, ny, i + 1, j)][2];
                     if (!exposed) out[j * nx + i] = Pieces.EMPTY;
                 }
         }
