@@ -11,7 +11,6 @@ import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.network.chat.Component;
-import org.lwjgl.glfw.GLFW;
 
 /** A small dialog on top of the previous screen: a name field, an optional on/off option, and confirm or cancel. */
 public class NameDialogScreen extends Screen {
@@ -87,8 +86,7 @@ public class NameDialogScreen extends Screen {
 
     @Override
     public boolean keyPressed(KeyEvent event) {
-        int key = event.key();
-        if (key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_KP_ENTER) { submit(); return true; }
+        if (event.isConfirmation()) { submit(); return true; }
         return super.keyPressed(event);
     }
 

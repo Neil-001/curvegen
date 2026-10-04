@@ -1,5 +1,6 @@
 package dev.curvegen.client.screen;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import dev.curvegen.client.BlockChoices;
 import dev.curvegen.client.CurveGenClient;
 import dev.curvegen.client.LitematicExporter;
@@ -834,7 +835,7 @@ public class CurveScreen extends Screen {
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean doubled) {
         double mx = event.x(), my = event.y(); int button = event.button();
-        if (button == 1)
+        if (button == InputConstants.MOUSE_BUTTON_RIGHT)
             for (var e : reverse.entrySet()) {
                 AbstractWidget w = e.getKey();
                 if (w.active && w.visible && w.isMouseOver(mx, my)) {
@@ -847,13 +848,13 @@ public class CurveScreen extends Screen {
         boolean inCanvas = mx >= cx0() && mx < cx1() && my >= cy0() && my < cy1();
         if (!inCanvas || result == null) return false;
         setFocused(null);
-        if (button == 0 && S.gen == Gen.BEZIER && tab == Tab.BEZIER) {
+        if (button == InputConstants.MOUSE_BUTTON_LEFT && S.gen == Gen.BEZIER && tab == Tab.BEZIER) {
             for (int k = S.pts.size() - 1; k >= 0; k--) {
                 float[] h = handleScreen(k);
                 if (Math.abs(mx - h[0]) <= 6 && Math.abs(my - h[1]) <= 6) { dragPoint = k; return true; }
             }
         }
-        if (button == 1 || button == 2 || button == 0) { panning = true; return true; }
+        if (button == InputConstants.MOUSE_BUTTON_RIGHT || button == InputConstants.MOUSE_BUTTON_MIDDLE || button == InputConstants.MOUSE_BUTTON_LEFT) { panning = true; return true; }
         return false;
     }
 

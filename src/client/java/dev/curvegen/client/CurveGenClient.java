@@ -9,7 +9,6 @@ import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.Direction;
 import net.minecraft.resources.Identifier;
-import org.lwjgl.glfw.GLFW;
 
 /** The client side that doesn't depend on the mod loader. The loader's client entrypoint, in {@code dev.curvegen.client.fabric} or {@code dev.curvegen.client.neoforge}, hooks it up. */
 public final class CurveGenClient {
@@ -29,7 +28,7 @@ public final class CurveGenClient {
     private static final List<KeyMapping> KEYS = new ArrayList<>();
 
     private static KeyMapping key(String name, int code) {
-        KeyMapping k = new KeyMapping("key.curvegen." + name, InputConstants.Type.KEYSYM, code, CATEGORY);
+        KeyMapping k = new KeyMapping("key.curvegen." + name, InputConstants.Type.KEYBOARD, code, CATEGORY);
         KEYS.add(k);
         return k;
     }
@@ -37,15 +36,15 @@ public final class CurveGenClient {
     /** Creates the keys and returns them for the loader to register, along with {@link #CATEGORY}. */
     public static List<KeyMapping> init(ClientPlatform loader) {
         platform = loader;
-        OPEN = key("open", GLFW.GLFW_KEY_G);
-        CONFIRM = key("confirm", GLFW.GLFW_KEY_ENTER);
-        CANCEL = key("cancel", GLFW.GLFW_KEY_BACKSPACE);
-        ROTATE = key("rotate", GLFW.GLFW_KEY_R);
-        FORWARD = key("forward", GLFW.GLFW_KEY_PAGE_UP);
-        BACK = key("back", GLFW.GLFW_KEY_PAGE_DOWN);
-        for (Direction d : Direction.values()) MOVE[d.ordinal()] = key(d.getName(), GLFW.GLFW_KEY_UNKNOWN);
-        LOCK = key("lock", GLFW.GLFW_KEY_K);
-        UNDO = key("undo", GLFW.GLFW_KEY_Z);
+        OPEN = key("open", InputConstants.KEY_G);
+        CONFIRM = key("confirm", InputConstants.KEY_RETURN);
+        CANCEL = key("cancel", InputConstants.KEY_BACKSPACE);
+        ROTATE = key("rotate", InputConstants.KEY_R);
+        FORWARD = key("forward", InputConstants.KEY_PAGEUP);
+        BACK = key("back", InputConstants.KEY_PAGEDOWN);
+        for (Direction d : Direction.values()) MOVE[d.ordinal()] = key(d.getName(), InputConstants.UNKNOWN.getValue());
+        LOCK = key("lock", InputConstants.KEY_K);
+        UNDO = key("undo", InputConstants.KEY_Z);
         return KEYS;
     }
 
