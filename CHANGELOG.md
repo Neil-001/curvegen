@@ -1,3 +1,7 @@
+# 1.2.0
+
+Curve Generator 1.2.0 runs on Minecraft 26.1 to 26.1.2 with Fabric and NeoForge.
+
 # 1.1.0
 
 Curve Generator 1.1.0 runs on Minecraft 26.1 to 26.1.2 with Fabric and NeoForge. It adds a new bass clef icon and fixes Carve previews, holograms at water surfaces and undo for blocks that need support.
