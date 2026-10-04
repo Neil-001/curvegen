@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Draws the listing artwork in listing/media from the mod's own solver.
+"""Draws the listing artwork in listing/media, and the mod's icon, from the mod's own solver.
 
     python3 listing/art/render.py
 
@@ -208,14 +208,24 @@ def curve(img, scene, ox, oy, width=2):
                     ox + segs[k + 2] * CELL, oy + (ny - segs[k + 3]) * CELL], fill=CURVE, width=width)
 
 
+HANDLE = (0x3F, 0x7B, 0xE0)
+
+
 def handles(img, scene, ox, oy, pts):
-    """Numbered Bézier handles, joined by a thin line."""
+    """Numbered Bézier handles joined by dotted lines, as CurveScreen draws them, at twice the size."""
     d, ny = ImageDraw.Draw(img), scene["ny"]
-    at = [(ox + x * CELL, oy + (ny - y) * CELL) for x, y in pts]
-    d.line(at, fill=DIM, width=1)
+    at = [(round(ox + x * CELL), round(oy + (ny - y) * CELL)) for x, y in pts]
+    for (x1, y1), (x2, y2) in zip(at, at[1:]):
+        steps = int(math.hypot(x2 - x1, y2 - y1) / 6)
+        for q in range(steps + 1):
+            if q // 2 % 2 == 1:
+                continue
+            x, y = round(x1 + (x2 - x1) * q / max(1, steps)), round(y1 + (y2 - y1) * q / max(1, steps))
+            d.rectangle([x - 1, y - 1, x + 1, y + 1], fill=AXIS)
     for n, (x, y) in enumerate(at, 1):
-        d.ellipse([x - 9, y - 9, x + 9, y + 9], fill=TEXT, outline=BG, width=2)
-        d.text((x, y), str(n), font=font(13), fill=BG, anchor="mm")
+        d.rectangle([x - 10, y - 10, x + 11, y + 11], fill=(255, 255, 255))
+        d.rectangle([x - 8, y - 8, x + 9, y + 9], fill=HANDLE)
+        d.text((x + 1, y), str(n), font=font(15), fill=(255, 255, 255), anchor="mm")
 
 
 def paper(scene, cells_w, cells_h, texture=None, pts=None):
@@ -399,6 +409,21 @@ def divider():
     save(out, "divider.png")
 
 
+def icon():
+    """The mod's icon: a Bézier curve shaped like a bass clef, with its handles, and full blocks for the two dots."""
+    pts = [(7.5, 10.5), (3.5, 10), (4, 19), (16, 18), (16, 7), (10, 4), (4.5, 2.5)]
+    scene = solve(gen="BEZIER", bW=20, bH=20, bLW=1.4, pts=" ".join(f"{x},{y}" for x, y in pts))
+    for i, j in ((16, 14), (16, 11)):
+        scene["grid"][j * 20 + i] = 1
+    img = Image.new("RGB", (20 * CELL, 20 * CELL), BG)
+    pieces(img, scene, 0, 0)
+    grid(img)
+    curve(img, scene, 0, 0, 3)
+    handles(img, scene, 0, 0, pts)
+    rounded(img, 56).save(os.path.join(ROOT, "src/main/resources/assets/curvegen/icon.png"), optimize=True)
+    print("icon.png", img.size)
+
+
 if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
     banner()
@@ -406,4 +431,5 @@ if __name__ == "__main__":
     shapes()
     families()
     divider()
+    icon()
     SOLVER.stdin.close()

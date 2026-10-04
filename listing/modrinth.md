@@ -29,7 +29,7 @@ You see the result in a preview before anything is built. Then you place it in y
 </center>
 
 <center>
-<img alt="" width="100%" src="https://raw.githubusercontent.com/Neil-001/curvegen/main/listing/media/divider.png">
+<img alt="A wave built from blocks." width="100%" src="https://raw.githubusercontent.com/Neil-001/curvegen/main/listing/media/divider.png">
 </center>
 
 ## How to use it
@@ -61,5 +61,5 @@ You see the result in a preview before anything is built. Then you place it in y
 The [wiki](https://github.com/Neil-001/curvegen/wiki) covers placement keys, Replace and Carve, presets and exporting.
 
 <center>
-<img alt="" width="100%" src="https://raw.githubusercontent.com/Neil-001/curvegen/main/listing/media/divider.png">
+<img alt="A wave built from blocks." width="100%" src="https://raw.githubusercontent.com/Neil-001/curvegen/main/listing/media/divider.png">
 </center>
