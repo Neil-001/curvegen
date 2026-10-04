@@ -89,6 +89,19 @@ class PresetDataTest {
     }
 
     @Test
+    void presetsOlderThanShelvesDontGainThem() {
+        ShapeSettings s = new ShapeSettings();
+        Map<String, String> old = PresetData.captureBlocks(s, f -> "test:" + f.name().toLowerCase());
+        old.remove("shelf"); old.remove("shelfUsed");
+        ShapeSettings t = new ShapeSettings();
+        Map<Pieces.Family, String> blocks = new EnumMap<>(Pieces.Family.class);
+        PresetData.applyBlocks(old, t, blocks::put);
+        assertFalse(t.shelf);
+        assertTrue(t.trap && t.wall);
+        assertFalse(blocks.containsKey(Pieces.Family.SHELF), "the shelf block keeps the current choice");
+    }
+
+    @Test
     void examplesMatchTheOldExampleButton() {
         assertEquals(7, PresetData.examples().size());
         String[] names = {"Sine wave", "Parabolic arch", "Catenary arch", "Gothic arch", "Circle", "Heart", "Tangent"};

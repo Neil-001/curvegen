@@ -277,7 +277,7 @@ def wordmark():
     with open(path, "w") as out:
         for y in range(img.height):
             out.write("".join("1" if img.getpixel((x, y)) > 127 else "0" for x in range(img.width)) + "\n")
-    return solve(stencil=path, trap="false", fence="false", pane="false")
+    return solve(stencil=path, trap="false", shelf="false", fence="false", pane="false")
 
 
 def banner_frame(name, scene, label, pts=None):
@@ -347,9 +347,9 @@ def banner():
 def compare():
     """A filled 17-block circle in stone bricks: full blocks only, then with slabs, stairs and walls."""
     tex = stone_bricks()
-    off = dict(slab="false", stair="false", trap="false", fence="false", pane="false", wall="false")
+    off = dict(slab="false", stair="false", trap="false", shelf="false", fence="false", pane="false", wall="false")
     cards = []
-    for settings in (off, dict(trap="false", fence="false", pane="false")):
+    for settings in (off, dict(trap="false", shelf="false", fence="false", pane="false")):
         scene = solve(eW=17, eH=17, eMode="FILLED", **settings)
         cards.append(scaled(paper(scene, 21, 21, tex), 2))
         print(f"  mismatch {scene['err']:.1f} blocks²")
@@ -386,7 +386,7 @@ def divider():
     """A cosine wave of pieces on a transparent strip, to separate sections. The right half is the left half mirrored,
     because the solver doesn't promise a symmetric answer for equations."""
     scene = solve(gen="EQUATION", src="y = 0.72cos(x)", xmin="-5pi", xmax="5pi", ymin=-1, ymax=1, qW=80, qLock="false", qH=5,
-                  trap="false", fence="false", pane="false", wall="false")
+                  trap="false", shelf="false", fence="false", pane="false", wall="false")
     img = Image.new("RGB", (80 * CELL, 5 * CELL), BG)
     pieces(img, scene, 0, 0)
     half = img.crop((0, 0, img.width // 2, img.height))
@@ -403,7 +403,7 @@ def divider():
 def icon():
     """The mod's icon: a Bézier curve shaped like a bass clef."""
     pts = [(7, 10), (3, 9.5), (3.5, 18.5), (15.5, 17.5), (15.5, 6.5), (9.5, 3.5), (4, 2)]
-    scene = solve(gen="BEZIER", bW=16, bH=16, bLW=1.4, pts=" ".join(f"{x},{y}" for x, y in pts))
+    scene = solve(gen="BEZIER", bW=16, bH=16, bLW=1.4, shelf="false", pts=" ".join(f"{x},{y}" for x, y in pts))
     img = Image.new("RGB", (16 * CELL, 16 * CELL), BG)
     pieces(img, scene, 0, 0)
     grid(img)
