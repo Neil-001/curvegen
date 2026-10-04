@@ -1,0 +1,30 @@
+<p style="text-align: center;"><img src="https://raw.githubusercontent.com/Neil-001/curvegen/main/listing/media/banner.gif" alt="Curve Generator, spelled out in blocks. Below it, an ellipse, a sine wave, a heart and a Bézier curve, each built from blocks." width="100%" /></p>
+<p style="text-align: center;"><a href="https://fabricmc.net/"><img src="https://cdn.jsdelivr.net/npm/@intergrav/devins-badges@3/assets/cozy/supported/fabric_64h.png" alt="Supported on Fabric" height="48" /></a> <a href="https://neoforged.net/"><img src="https://cdn.jsdelivr.net/npm/@intergrav/devins-badges@3/assets/cozy/supported/neoforge_64h.png" alt="Supported on NeoForge" height="48" /></a> <a href="https://www.curseforge.com/minecraft/mc-mods/fabric-api"><img src="https://cdn.jsdelivr.net/npm/@intergrav/devins-badges@3/assets/cozy/requires/fabric-api_64h.png" alt="Requires Fabric API" height="48" /></a> <a href="https://github.com/Neil-001/curvegen/wiki"><img src="https://cdn.jsdelivr.net/npm/@intergrav/devins-badges@3/assets/cozy/documentation/generic_64h.png" alt="Read the wiki" height="48" /></a> <a href="https://github.com/Neil-001/curvegen"><img src="https://cdn.jsdelivr.net/npm/@intergrav/devins-badges@3/assets/cozy/available/github_64h.png" alt="Source on GitHub" height="48" /></a></p>
+<p>Curve Generator turns ellipses, equations and Bézier curves into blocks. For every cell along the curve it picks the full block, slab, stair, trapdoor, fence, glass pane or wall that matches the curve most closely, so a circle looks rounder than one built from full blocks alone.</p>
+<p style="text-align: center;"><img src="https://raw.githubusercontent.com/Neil-001/curvegen/main/listing/media/compare.png" alt="Two stone brick circles with the true circle drawn over them. The one made of full blocks has stepped edges. The one with slabs, stairs and walls follows the circle more closely." width="100%" /></p>
+<p>You see the result in a preview before anything is built. Then you place it in your world, or export it as a Litematica schematic.</p>
+<p style="text-align: center;"><img src="https://raw.githubusercontent.com/Neil-001/curvegen/main/listing/media/shapes.png" alt="Three previews: a thin ellipse, the area under a parabola, and a filled Bézier curve with four numbered handles." width="100%" /></p>
+<p style="text-align: center;"><em>The preview on the Ellipse, Equation and Bézier tabs. The pink line is the true curve.</em></p>
+<p style="text-align: center;"><img src="https://raw.githubusercontent.com/Neil-001/curvegen/main/listing/media/divider.png" alt="" width="100%" /></p>
+<h2>How to use it</h2>
+<ol>
+<li>Press <strong>G</strong> to open the generator.</li>
+<li>Pick a tab: <strong>Ellipse</strong>, <strong>Equation</strong> or <strong>Bézier</strong>. Equations use Desmos-style syntax, like <code>y = 2sin(x)</code>, <code>x^2 + y^2 = 16</code> or <code>y &lt; 9 - x^2/4</code>. On the Bézier tab, drag the numbered handles in the preview.</li>
+<li>On the <strong>Blocks</strong> tab, choose a block for each piece type, or use <strong>Match a colour…</strong> to pick blocks whose textures are closest to a colour.</li>
+<li>Choose <strong>Upright</strong> to build it like a wall or <strong>Flat</strong> to build it like a floor.</li>
+<li>Check the <strong>Count</strong> tab to see how many of each block you'll need.</li>
+<li>Press <strong>Place</strong> to position a hologram in the world, then press Enter to build it. Or press <strong>Export</strong> to save a <code>.litematic</code> file.</li>
+</ol>
+<p style="text-align: center;"><img src="https://raw.githubusercontent.com/Neil-001/curvegen/main/listing/media/pieces.png" alt="A full block, slab, stair, trapdoor, fence, glass pane and wall, seen from the side." width="100%" /></p>
+<p style="text-align: center;"><em>The pieces it chooses from: full block, slab, stair, trapdoor, fence, glass pane and wall.</em></p>
+<h2>Good to know</h2>
+<ul>
+<li>Placing needs operator permissions, the same as <code>/setblock</code>. In singleplayer, cheats must be on. Exporting works anywhere.</li>
+<li>The mod runs on the client. A server doesn't need it. If the server has it too, large builds place faster.</li>
+<li>It follows Minecraft's connection rules, so fences, panes and walls join in the preview the same way they join in the world.</li>
+<li>Presets save a shape with its block choices.</li>
+<li>Resource packs and modded blocks work. Colour matching reads the textures you have loaded.</li>
+<li>You can rebind every key under Options → Controls → Key Binds → Curve Generator.</li>
+</ul>
+<p>The <a href="https://github.com/Neil-001/curvegen/wiki">wiki</a> covers placement keys, Replace and Carve, presets and exporting.</p>
+<p style="text-align: center;"><img src="https://raw.githubusercontent.com/Neil-001/curvegen/main/listing/media/divider.png" alt="" width="100%" /></p>

@@ -1,6 +1,6 @@
 # Curve Generator
 
-<!-- TODO: preview GIF -->
+![Curve Generator, spelled out in blocks. Below it, an ellipse, a sine wave, a heart and a Bézier curve, each built from blocks.](listing/media/banner.gif)
 
 A Fabric and NeoForge mod for Minecraft Java 26.2 that turns ellipses, equations and Bézier curves into blocks. It picks full blocks, slabs, stairs, trapdoors, fences, glass panes and walls to match the curve as closely as possible. You can then place the result in your world or export it as a Litematica schematic.
 

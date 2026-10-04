@@ -21,6 +21,7 @@ Both loaders compile the shared `src/main` and `src/client` code with their own 
 - `CurveGen.java` handles server placement through `net/PlaceBlocksPayload.java` and checks `Permissions.COMMANDS_GAMEMASTER`.
 - In `dev/curvegen/client/`, `BlockChoices` maps pieces to block states for each orientation; `ColorIndex` matches face texture colours in CIELAB; `Placement` handles the hologram, Replace, Carve, undo and `/setblock`. `PresetStore` atomically replaces one JSON file per preset in `config/curvegen/presets/`.
 - `client/screen/CurveScreen` is the main UI; `PreviewTexture` draws the solved grid into a dynamic texture.
+- `listing/` holds the Modrinth and CurseForge descriptions, which must say the same thing, and their artwork. `listing/art/render.py` redraws the artwork from the solver.
 
 ## Solver
 
