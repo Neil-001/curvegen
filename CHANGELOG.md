@@ -1,3 +1,12 @@
+# 1.3.0
+
+Curve Generator 1.3.0 adds shelves, chains and end rods as block choices for curves on Fabric and NeoForge.
+
+## Features
+
+- Use shelves to build curves (#33)
+- Include chains and end rods in curves with optional block choices (#35)
+
 # 1.2.0
 
 Curve Generator 1.2.0 brings the mod to Minecraft 26.2 with Fabric and NeoForge. It adds more ways to move the placement preview, fixes Carve and undo, and removes stray blocks inside thin ellipses.
