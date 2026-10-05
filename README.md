@@ -12,7 +12,7 @@ Download the mod from [Modrinth](https://modrinth.com/mod/curvegen) or [CurseFor
 
 1. Press **G** to open the generator.
 2. Pick a tab: **Ellipse**, **Equation** or **Bézier**. Equations use Desmos-style syntax, like `y = 2sin(x)`, `x^2 + y^2 = 16` or `y < 9 - x^2/4`. On the Bézier tab, drag the numbered handles in the preview.
-3. On the **Blocks** tab, choose a block for each piece type, or use **Match a colour…** to pick blocks whose textures are closest to a colour.
+3. On the **Blocks** tab, choose a block for each piece type, or use **Match a colour…** to pick blocks whose textures are closest to a colour. Chains and end rods start switched off; press **Off** beside them to use them for thin lines.
 4. Choose **Upright** to build it like a wall or **Flat** to build it like a floor.
 5. Check the **Count** tab to see how many of each block you'll need.
 6. Press **Place** to position a hologram in the world, then press Enter to build it. Or press **Export** to save a `.litematic` file.

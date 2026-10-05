@@ -92,18 +92,18 @@ public class ColorPickerScreen extends Screen {
         ctx.fill(hx - 2, hy - 1, hx + 14, hy + 1, 0xFFFFFFFF);
         ctx.fill(x0 + 86, y0 + SQ + 10, x0 + 106, y0 + SQ + 30, 0xFF000000 | rgb());
 
-        int lx = hx + 30, ly = y0;
+        int lx = hx + 30, ly = 16;   // level with the title, so every piece type fits on a short screen
         ctx.text(font, "Closest blocks", lx, ly, 0xFFC8CED6, false);
         ly += 14;
-        // On short screens the rows close up to stay clear of the buttons below.
-        int pitch = Math.min(22, (height - 32 - ly) / BlockChoices.FAMILIES.length);
+        // On a short screen the rows close up so that the last one stays above the buttons.
+        int pitch = Math.min(22, (height - 30 - ly) / BlockChoices.FAMILIES.length), h = Math.min(18, pitch - 1);
         for (Family f : BlockChoices.FAMILIES) {
             Block b = preview.get(f);
             if (b == null) continue;
-            ctx.fill(lx, ly, lx + 18, ly + 18, 0xFF000000 | ColorIndex.of(b));
-            ctx.item(new ItemStack(b), lx + 1, ly + 1);
-            ctx.text(font, BlockChoices.familyName(f), lx + 24, ly + 1, 0xFF9AA5B3, false);
-            ctx.text(font, font.plainSubstrByWidth(b.getName().getString(), width - lx - 30), lx + 24, ly + 10, 0xFFFFFFFF, false);
+            ctx.fill(lx, ly, lx + 18, ly + h, 0xFF000000 | ColorIndex.of(b));
+            ctx.item(new ItemStack(b), lx + 1, ly + (h - 16) / 2);
+            ctx.text(font, BlockChoices.familyName(f), lx + 24, ly + h / 2 - 8, 0xFF9AA5B3, false);
+            ctx.text(font, font.plainSubstrByWidth(b.getName().getString(), width - lx - 30), lx + 24, ly + h / 2 + 1, 0xFFFFFFFF, false);
             ly += pitch;
         }
     }

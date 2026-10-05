@@ -102,6 +102,21 @@ class PresetDataTest {
     }
 
     @Test
+    void presetsOlderThanChainsAndRodsDontGainThem() {
+        ShapeSettings s = new ShapeSettings();
+        s.chain = s.rod = true;
+        Map<String, String> saved = PresetData.captureBlocks(s, f -> "test:" + f.name().toLowerCase());
+        ShapeSettings t = new ShapeSettings();
+        PresetData.applyBlocks(saved, t, (f, id) -> { });
+        assertTrue(t.chain && t.rod, "a preset saved with them on turns them on");
+
+        for (String k : new String[]{"chain", "chainUsed", "rod", "rodUsed"}) saved.remove(k);
+        PresetData.applyBlocks(saved, t, (f, id) -> { });
+        assertFalse(t.chain || t.rod, "an older preset turns them off");
+        assertTrue(t.shelf && t.wall);
+    }
+
+    @Test
     void examplesMatchTheOldExampleButton() {
         assertEquals(7, PresetData.examples().size());
         String[] names = {"Sine wave", "Parabolic arch", "Catenary arch", "Gothic arch", "Circle", "Heart", "Tangent"};
