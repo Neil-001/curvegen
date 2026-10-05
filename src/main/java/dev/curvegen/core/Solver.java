@@ -128,7 +128,7 @@ public final class Solver {
                 for (int cand : cands) {
                     int st = cand == Pieces.WALL ? wallGuess : !Pieces.isType(cand) ? cand : cand >= Pieces.F_FENCE ? cand + four : cand + side;
                     int e = t.errTab[idx][st];
-                    if (e < bestE) { bestE = e; best = cand; }
+                    if (e < bestE || (e == bestE && beatsAir(cand, best))) { bestE = e; best = cand; }
                 }
                 setOrbit(grid, nx, cells, best);
 
@@ -161,7 +161,7 @@ public final class Solver {
                         setOrbit(grid, nx, o.cells, cand);
                         int e = 0;
                         for (int q : o.aff) e += c.cost(q);
-                        if (e < bestE) { bestE = e; best = cand; }
+                        if (e < bestE || (e == bestE && beatsAir(cand, best))) { bestE = e; best = cand; }
                     }
                     setOrbit(grid, nx, o.cells, best);
                     if (best != cur) changed = true;
@@ -194,6 +194,13 @@ public final class Solver {
         for (byte b : out) counts[b & 0xFF]++;
         return new Result(out, nx, ny, err, t.area, counts, t, floor);
     }
+
+    /**
+     * A chain or end rod wins a tie with air. A line half a block wide that crosses one always covers exactly half
+     * of it, so the two tie often, and a rod's plate would otherwise decide whether the curve gets a piece there.
+     * Air never wins a tie back, so refinement still can't cycle.
+     */
+    private static boolean beatsAir(int cand, int best) { return best == Pieces.EMPTY && Pieces.isLine(cand); }
 
     private static int at(byte[] g, int nx, int ny, int i, int j) {
         return (i < 0 || j < 0 || i >= nx || j >= ny) ? 0 : g[j * nx + i] & 0xFF;
