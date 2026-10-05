@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /** Chains and end rods: thin lines the solver uses only when asked. */
 class ChainRodTest {
-    private static boolean isLine(int p) { return Pieces.FAMILY[p] == Pieces.Family.CHAIN || Pieces.FAMILY[p] == Pieces.Family.ROD; }
 
     /** A line an eighth of a block wide through the middle of a row or column of cells. */
     private static ShapeSettings thinLine(String eq) {
@@ -25,7 +24,7 @@ class ChainRodTest {
         for (ShapeSettings c : new ShapeSettings[]{s, thinLine("y = 2.5"), thinLine("x = 2.5")})
             for (boolean floor : new boolean[]{false, true}) {
                 c.floor = floor;
-                for (byte p : Solver.run(c).grid()) assertFalse(isLine(p), Pieces.NAME[p]);
+                for (byte p : Solver.run(c).grid()) assertFalse(Pieces.isLine(p), Pieces.NAME[p]);
             }
     }
 
@@ -92,6 +91,62 @@ class ChainRodTest {
         for (Layout.Cell c : l.cells()) if (c.y() < l.height() - 1) assertEquals(Pieces.CHAIN_V, c.above(), "above row " + c.y());
     }
 
+    /** A curve half a block wide, where upright chains cover exactly as much of the curve as they add outside it. */
+    private static ShapeSettings halfWideCurve() {
+        ShapeSettings s = new ShapeSettings();
+        s.gen = ShapeSettings.Gen.BEZIER; s.bW = 40; s.bH = 24; s.bLW = 0.5;
+        s.pts.clear();
+        s.pts.add(new double[]{3.984, 8.412}); s.pts.add(new double[]{8.756, 8.558}); s.pts.add(new double[]{30, 22}); s.pts.add(new double[]{38, 4});
+        s.slab = s.stair = s.trap = s.fence = s.pane = s.wall = false;
+        return s;
+    }
+
+    private static int pieces(Solver.Result r) {
+        int n = 0;
+        for (byte p : r.grid()) if (p != Pieces.EMPTY) n++;
+        return n;
+    }
+
+    @Test
+    void chainsAndRodsWinTiesWithAir() {
+        // Chains alone used to leave air where a chain fits as well, while rods filled the same cells for their plates.
+        ShapeSettings s = halfWideCurve();
+        s.chain = true;
+        Solver.Result chains = Solver.run(s);
+        assertEquals(17.9140625, chains.err(), 1e-9, "no worse than with those cells left empty");
+        assertEquals(24, pieces(chains));
+        Target t = chains.target();
+        int tied = 0;
+        for (int q = 0; q < chains.grid().length; q++) {
+            if (t.kind[q] != 2) continue;
+            String where = "at " + q % t.nx + "," + q / t.nx;
+            int air = t.errTab[q][Pieces.EMPTY], chain = Math.min(t.errTab[q][Pieces.CHAIN_H], t.errTab[q][Pieces.CHAIN_V]);
+            if (chains.grid()[q] == Pieces.EMPTY) assertTrue(air < chain, "air only where it fits better, " + where);
+            else if (chain == air) tied++;
+        }
+        assertEquals(4, tied, "cells where a chain ties with air");
+    }
+
+    @Test
+    void tiesWithAirStayAirForOtherPieces() {
+        int tied = 0;
+        for (double width : new double[]{0.5, 0.75, 1}) {
+            ShapeSettings s = halfWideCurve();
+            s.bLW = width; s.slab = s.stair = s.trap = true;
+            Solver.Result r = Solver.run(s);
+            Target t = r.target();
+            for (int q = 0; q < r.grid().length; q++) {
+                if (t.kind[q] != 2) continue;
+                int best = Integer.MAX_VALUE;
+                for (int p = Pieces.FULL; p <= Pieces.TD_R; p++) best = Math.min(best, t.errTab[q][p]);
+                if (t.errTab[q][Pieces.EMPTY] != best) continue;
+                tied++;
+                assertEquals(Pieces.EMPTY, r.grid()[q], "at " + q % t.nx + "," + q / t.nx);
+            }
+        }
+        assertTrue(tied > 0, "no cell where a piece ties with air");
+    }
+
     @Test
     void ellipsesStaySymmetric() {
         ShapeSettings s = new ShapeSettings();
@@ -105,7 +160,7 @@ class ChainRodTest {
                     for (int j = 0; j < r.ny(); j++)
                         for (int i = 0; i < r.nx(); i++) {
                             int p = r.at(i, j);
-                            if (!isLine(p)) continue;
+                            if (!Pieces.isLine(p)) continue;
                             lines++;
                             assertEquals(Pieces.MX[p], r.at(r.nx() - 1 - i, j), m + " at " + i + "," + j);
                             assertEquals(Pieces.MY[p], r.at(i, r.ny() - 1 - j), m + " at " + i + "," + j);
