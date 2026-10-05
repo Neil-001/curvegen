@@ -20,22 +20,24 @@ class ConnectionRulesTest {
     private static List<ShapeSettings> shapes() {
         List<ShapeSettings> out = new ArrayList<>();
         ShapeSettings base = new ShapeSettings();
-        for (boolean floor : new boolean[]{false, true})
-            for (int depth : new int[]{1, 3}) {
-                for (ShapeSettings.EllipseMode m : ShapeSettings.EllipseMode.values())
-                    for (int w : new int[]{7, 19, 31, 64})
-                        for (int h : new int[]{5, 13, 40}) {
-                            ShapeSettings c = base.copy();
-                            c.floor = floor; c.depth = depth; c.eMode = m; c.eW = w; c.eH = h; c.eT = 1.5;
-                            out.add(c);
-                        }
-                for (String eq : new String[]{"y=2sin(x)", "y = 9 - x^2/4", "x^2+y^2=16", "y=tan(x)"})
-                    for (ShapeSettings.EqMode qm : ShapeSettings.EqMode.values()) {
+        for (int k = 0; k < 8; k++) {   // also with chains and end rods among the connectors, which must ignore them
+            boolean floor = (k & 1) != 0;
+            int depth = (k & 2) != 0 ? 3 : 1;
+            base.chain = base.rod = (k & 4) != 0;
+            for (ShapeSettings.EllipseMode m : ShapeSettings.EllipseMode.values())
+                for (int w : new int[]{7, 19, 31, 64})
+                    for (int h : new int[]{5, 13, 40}) {
                         ShapeSettings c = base.copy();
-                        c.floor = floor; c.depth = depth; c.gen = ShapeSettings.Gen.EQUATION; c.src = eq; c.qMode = qm; c.qLW = 1.3;
+                        c.floor = floor; c.depth = depth; c.eMode = m; c.eW = w; c.eH = h; c.eT = 1.5;
                         out.add(c);
                     }
-            }
+            for (String eq : new String[]{"y=2sin(x)", "y = 9 - x^2/4", "x^2+y^2=16", "y=tan(x)"})
+                for (ShapeSettings.EqMode qm : ShapeSettings.EqMode.values()) {
+                    ShapeSettings c = base.copy();
+                    c.floor = floor; c.depth = depth; c.gen = ShapeSettings.Gen.EQUATION; c.src = eq; c.qMode = qm; c.qLW = 1.3;
+                    out.add(c);
+                }
+        }
         return out;
     }
 
@@ -50,7 +52,7 @@ class ConnectionRulesTest {
                     int st = r.at(i, j);
                     // Flat builds only use pieces that look different from above; upright builds never use flat states.
                     boolean uprightShelf = st == Pieces.SH_L || st == Pieces.SH_R;
-                    boolean flatState = st >= Pieces.F_TD_U && !uprightShelf;
+                    boolean flatState = st >= Pieces.F_TD_U && st < Pieces.CHAIN_H && !uprightShelf;
                     boolean uprightOnly = (st >= Pieces.SLAB_B && st <= Pieces.TD_T) || (st >= Pieces.FENCE && st < Pieces.F_TD_U) || uprightShelf;
                     assertFalse(c.floor ? uprightOnly : flatState, "wrong orientation: " + Pieces.NAME[st]);
                     if (!Pieces.isConnector(st)) continue;

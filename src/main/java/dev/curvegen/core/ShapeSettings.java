@@ -31,13 +31,21 @@ public final class ShapeSettings {
 
     /** Piece families the solver may use (full blocks are always allowed). */
     public boolean slab = true, stair = true, trap = true, shelf = true, fence = true, pane = true, wall = true;
+    /** Chains and end rods are thin lines rather than building blocks, so they start switched off. */
+    public boolean chain = false, rod = false;
 
     public boolean allows(Pieces.Family f) {
-        return switch (f) { case SLAB -> slab; case STAIRS -> stair; case TRAPDOOR -> trap; case SHELF -> shelf; case FENCE -> fence; case PANE -> pane; case WALL -> wall; default -> true; };
+        return switch (f) {
+            case SLAB -> slab; case STAIRS -> stair; case TRAPDOOR -> trap; case SHELF -> shelf; case FENCE -> fence; case PANE -> pane; case WALL -> wall;
+            case CHAIN -> chain; case ROD -> rod; default -> true;
+        };
     }
 
     public void allow(Pieces.Family f, boolean v) {
-        switch (f) { case SLAB -> slab = v; case STAIRS -> stair = v; case TRAPDOOR -> trap = v; case SHELF -> shelf = v; case FENCE -> fence = v; case PANE -> pane = v; case WALL -> wall = v; default -> {} }
+        switch (f) {
+            case SLAB -> slab = v; case STAIRS -> stair = v; case TRAPDOOR -> trap = v; case SHELF -> shelf = v; case FENCE -> fence = v; case PANE -> pane = v; case WALL -> wall = v;
+            case CHAIN -> chain = v; case ROD -> rod = v; default -> {}
+        }
     }
     /** False when the chosen full block is one fences/panes refuse to attach to (leaves, pumpkins…). */
     public boolean fullConnects = true;
@@ -59,7 +67,7 @@ public final class ShapeSettings {
         c.bW = bW; c.bH = bH; c.bMode = bMode; c.bLW = bLW; c.snap = snap;
         c.pts.clear();
         for (double[] p : pts) c.pts.add(p.clone());
-        c.slab = slab; c.stair = stair; c.trap = trap; c.shelf = shelf; c.fence = fence; c.pane = pane; c.wall = wall;
+        c.slab = slab; c.stair = stair; c.trap = trap; c.shelf = shelf; c.fence = fence; c.pane = pane; c.wall = wall; c.chain = chain; c.rod = rod;
         c.fullConnects = fullConnects; c.depth = depth; c.overwrite = overwrite; c.carve = carve; c.floor = floor;
         return c;
     }
