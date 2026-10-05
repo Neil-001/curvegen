@@ -107,11 +107,14 @@ public final class PresetData {
 
     /**
      * Applies stored block choices: sets whether each piece type is used, and hands each stored block id to setBlock.
-     * Missing values keep their current setting, except shelves in presets older than them.
+     * Missing values keep their current setting, except shelves, chains and end rods in presets older than them.
      */
     public static void applyBlocks(Map<String, String> d, ShapeSettings s, BiConsumer<Pieces.Family, String> setBlock) {
         // A preset saved before shelves existed lists every other piece type, and its build had no shelves.
         if (d.containsKey("wallUsed") && !d.containsKey("shelfUsed")) s.shelf = false;
+        // The same goes for chains and end rods, which came later still.
+        if (d.containsKey("wallUsed") && !d.containsKey("chainUsed")) s.chain = false;
+        if (d.containsKey("wallUsed") && !d.containsKey("rodUsed")) s.rod = false;
         for (Pieces.Family f : Pieces.Family.values()) {
             if (f == Pieces.Family.AIR) continue;
             String used = d.get(key(f) + "Used");
