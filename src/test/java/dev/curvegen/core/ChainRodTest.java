@@ -97,7 +97,7 @@ class ChainRodTest {
         s.gen = ShapeSettings.Gen.BEZIER; s.bW = 40; s.bH = 24; s.bLW = 0.5;
         s.pts.clear();
         s.pts.add(new double[]{3.984, 8.412}); s.pts.add(new double[]{8.756, 8.558}); s.pts.add(new double[]{30, 22}); s.pts.add(new double[]{38, 4});
-        s.slab = s.stair = s.trap = s.fence = s.pane = s.wall = false;
+        s.slab = s.stair = s.trap = s.shelf = s.fence = s.pane = s.wall = false;
         return s;
     }
 
