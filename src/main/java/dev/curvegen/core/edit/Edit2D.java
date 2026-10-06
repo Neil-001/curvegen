@@ -87,9 +87,11 @@ public final class Edit2D {
         double span = hi - lo;
         if (span < 1e-9) return null;
         // Pulling in stops at one block, or at the span it already has if that's smaller.
-        double f = Math.max(Math.min(span, 1), span + amount) / span;
-        for (double[] p : s.pts) p[axis] = side > 0 ? lo + (p[axis] - lo) * f : hi - (hi - p[axis]) * f;
         int size = axis == 0 ? s.bW : s.bH;
+        // Pushing out stops where the grid can't grow any further, so the points keep their proportions.
+        double room = side > 0 ? MAX_SIZE - lo : hi + MAX_SIZE - size;
+        double f = Math.min(room, Math.max(Math.min(span, 1), span + amount)) / span;
+        for (double[] p : s.pts) p[axis] = side > 0 ? lo + (p[axis] - lo) * f : hi - (hi - p[axis]) * f;
         int[] shift = new int[3];
         double min = side > 0 ? lo : hi - span * f, max = side > 0 ? lo + span * f : hi;
         if (min < 0) {

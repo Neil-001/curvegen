@@ -109,6 +109,19 @@ class Edit2DTest {
         assertEquals(30, s.bH);
         assertEquals(0, s.pts.get(0)[1], 1e-12);
         assertEquals(15, s.pts.get(1)[1], 1e-12);
+        // At the size limit there's no room, and the points keep their proportions instead of piling up at the edge.
+        ShapeSettings full = of(Gen.BEZIER);
+        full.bW = Edit2D.MAX_SIZE;
+        full.pts.clear();
+        full.pts.add(new double[]{0, 2});
+        full.pts.add(new double[]{200, 2});
+        full.pts.add(new double[]{400, 2});
+        for (int side : new int[]{1, -1}) {
+            Edit2D.bumpPoints(full, 0, side, 5);
+            assertEquals(Edit2D.MAX_SIZE, full.bW);
+            assertEquals(200, full.pts.get(1)[0], 1e-9);
+            assertEquals(400, full.pts.get(2)[0], 1e-9);
+        }
         // Depth and other shapes leave it to the box.
         assertNull(Edit2D.bumpPoints(s, 2, 1, 1));
         assertNull(Edit2D.bumpPoints(of(Gen.ELLIPSE), 0, 1, 1));

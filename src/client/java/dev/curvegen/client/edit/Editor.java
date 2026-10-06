@@ -57,7 +57,7 @@ public final class Editor {
     private static final int UNDO_LIMIT = 100;
 
     /** Everything undo puts back. */
-    private record Snapshot(ShapeSettings settings, Box box, Orient orient, int[] follow) {}
+    private record Snapshot(ShapeSettings settings, Box box, Orient orient, int[] follow, int[] pivot) {}
 
     private static boolean active, locked;
     private static EditShape shape;
@@ -200,7 +200,7 @@ public final class Editor {
 
     // ---------- state ----------
 
-    private static Snapshot snapshot() { return new Snapshot(S.copy(), box, orient, follow.clone()); }
+    private static Snapshot snapshot() { return new Snapshot(S.copy(), box, orient, follow.clone(), pivot == null ? null : pivot.clone()); }
     private static int[] worldSize() { return orient.worldSize(shape.size()); }
     private static BlockPos origin() { return new BlockPos(hologramOrigin[0], hologramOrigin[1], hologramOrigin[2]); }
 
@@ -219,7 +219,7 @@ public final class Editor {
         S.fullConnects = BlockChoices.fullBlockConnects();
         shape = EditShape.of(S);
         box = s.box; orient = s.orient; follow = s.follow.clone();
-        pivot = null;
+        pivot = s.pivot == null ? null : s.pivot.clone();
         dirty = true;
     }
 
