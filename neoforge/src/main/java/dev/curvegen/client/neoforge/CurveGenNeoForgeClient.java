@@ -1,10 +1,11 @@
 package dev.curvegen.client.neoforge;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import dev.curvegen.CurveGen;
 import dev.curvegen.client.ClientPlatform;
 import dev.curvegen.client.ColorIndex;
 import dev.curvegen.client.CurveGenClient;
-import dev.curvegen.client.Placement;
+import dev.curvegen.client.edit.Editor;
 import dev.curvegen.client.screen.SettingsScreen;
 import dev.curvegen.net.PlaceBlocksPayload;
 import java.nio.file.Path;
@@ -21,6 +22,7 @@ import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.loading.FMLPaths;
 import net.neoforged.neoforge.client.event.AddClientReloadListenersEvent;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
+import net.neoforged.neoforge.client.event.InputEvent;
 import net.neoforged.neoforge.client.event.RegisterGuiLayersEvent;
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.client.event.SubmitCustomGeometryEvent;
@@ -45,11 +47,21 @@ public final class CurveGenNeoForgeClient implements ClientPlatform {
         // NeoForge draws modded layers even with the HUD hidden (F1). Fabric doesn't, so this checks for it.
         modBus.addListener(RegisterGuiLayersEvent.class, event -> event.registerAboveAll(
                 Identifier.fromNamespaceAndPath("curvegen", "placement"), (graphics, delta) -> {
-                    if (!Minecraft.getInstance().gui.hud.isHidden()) Placement.renderHud(graphics);
+                    if (!Minecraft.getInstance().gui.hud.isHidden()) Editor.renderHud(graphics);
                 }));
         NeoForge.EVENT_BUS.addListener(ClientTickEvent.Post.class, event -> CurveGenClient.tick(Minecraft.getInstance()));
+        // The editor takes a click or a scroll only when it uses it. Both events fire for screens too, which it leaves alone.
+        NeoForge.EVENT_BUS.addListener(InputEvent.MouseButton.Pre.class, event -> {
+            Minecraft mc = Minecraft.getInstance();
+            if (mc.gui.screen() == null && mc.gui.overlay() == null
+                    && Editor.mouseButton(event.getButton(), event.getAction() == 1)) event.setCanceled(true);
+        });
+        NeoForge.EVENT_BUS.addListener(InputEvent.MouseScrollingEvent.class, event -> {
+            Minecraft mc = Minecraft.getInstance();
+            if (mc.gui.screen() == null && mc.gui.overlay() == null && Editor.mouseScroll(event.getScrollDeltaY())) event.setCanceled(true);
+        });
         NeoForge.EVENT_BUS.addListener(SubmitCustomGeometryEvent.class,
-                event -> Placement.render(event.getSubmitNodeCollector(), event.getPoseStack(), event.getLevelRenderState().cameraRenderState.pos));
+                event -> Editor.render(event.getSubmitNodeCollector(), event.getPoseStack(), event.getLevelRenderState().cameraRenderState.pos));
     }
 
     @Override public boolean canSendToServer() {

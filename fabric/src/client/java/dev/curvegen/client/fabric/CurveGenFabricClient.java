@@ -3,7 +3,7 @@ package dev.curvegen.client.fabric;
 import dev.curvegen.client.ClientPlatform;
 import dev.curvegen.client.ColorIndex;
 import dev.curvegen.client.CurveGenClient;
-import dev.curvegen.client.Placement;
+import dev.curvegen.client.edit.Editor;
 import dev.curvegen.net.PlaceBlocksPayload;
 import java.nio.file.Path;
 import net.fabricmc.api.ClientModInitializer;
@@ -26,11 +26,11 @@ public class CurveGenFabricClient implements ClientModInitializer, ClientPlatfor
         KeyMapping.Category.register(CurveGenClient.CATEGORY.id());
         CurveGenClient.init(this).forEach(KeyMappingHelper::registerKeyMapping);
         ClientTickEvents.END_CLIENT_TICK.register(CurveGenClient::tick);
-        LevelRenderEvents.COLLECT_SUBMITS.register(ctx -> Placement.render(ctx.submitNodeCollector(), ctx.poseStack(), ctx.levelState().cameraRenderState.pos));
+        LevelRenderEvents.COLLECT_SUBMITS.register(ctx -> Editor.render(ctx.submitNodeCollector(), ctx.poseStack(), ctx.levelState().cameraRenderState.pos));
         // Block colours come from the active resource packs, so recompute them whenever packs change.
         ResourceLoader.get(PackType.CLIENT_RESOURCES).registerReloadListener(Identifier.fromNamespaceAndPath("curvegen", "block_colours"),
                 (ResourceManagerReloadListener) manager -> ColorIndex.clear());
-        HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("curvegen", "placement"), (dc, tickCounter) -> Placement.renderHud(dc));
+        HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("curvegen", "placement"), (dc, tickCounter) -> Editor.renderHud(dc));
     }
 
     @Override public boolean canSendToServer() { return ClientPlayNetworking.canSend(PlaceBlocksPayload.ID); }

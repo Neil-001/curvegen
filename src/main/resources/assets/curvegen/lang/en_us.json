@@ -1,9 +1,11 @@
 {
   "key.category.curvegen.main": "Curve Generator",
   "key.curvegen.open": "Open curve generator",
-  "key.curvegen.confirm": "Place shape (in placement mode)",
-  "key.curvegen.cancel": "Cancel placement",
+  "key.curvegen.confirm": "Place shape",
+  "key.curvegen.cancel": "Cancel shape",
+  "key.curvegen.lock": "Lock or unlock shape",
   "key.curvegen.rotate": "Rotate shape",
+  "key.curvegen.tip": "Tip shape (upright or flat)",
   "key.curvegen.forward": "Move shape the way you're looking",
   "key.curvegen.back": "Move shape back towards you",
   "key.curvegen.down": "Move shape down",
@@ -12,6 +14,12 @@
   "key.curvegen.south": "Move shape south",
   "key.curvegen.west": "Move shape west",
   "key.curvegen.east": "Move shape east",
-  "key.curvegen.lock": "Lock or unlock shape",
-  "key.curvegen.undo": "Undo last placement"
+  "key.curvegen.bump_out": "Push out the side you're facing",
+  "key.curvegen.bump_in": "Pull in the side you're facing",
+  "key.curvegen.add_point": "Add a point to the curve",
+  "key.curvegen.remove_point": "Remove a point from the curve",
+  "key.curvegen.undo": "Undo last edit or placement",
+  "key.curvegen.redo": "Redo last edit",
+  "key.curvegen.replace": "Turn Replace on or off",
+  "key.curvegen.carve": "Turn Carve on or off"
 }
