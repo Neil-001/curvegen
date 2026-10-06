@@ -73,16 +73,37 @@ public final class ShapeSettings {
     /** Independent copy, so the solver can run on a worker thread while the UI keeps editing. */
     public ShapeSettings copy() {
         ShapeSettings c = new ShapeSettings();
-        c.gen = gen; c.eW = eW; c.eH = eH; c.eMode = eMode; c.eT = eT;
-        c.src = src; c.xmin = xmin; c.xmax = xmax; c.ymin = ymin; c.ymax = ymax;
-        c.qW = qW; c.qH = qH; c.qLock = qLock; c.qMode = qMode; c.qLW = qLW;
-        c.bW = bW; c.bH = bH; c.bMode = bMode; c.bLW = bLW; c.snap = snap;
-        c.e3W = e3W; c.e3H = e3H; c.e3D = e3D; c.e3Mode = e3Mode; c.e3T = e3T;
-        c.tRing = tRing; c.tTube = tTube; c.tW = tW; c.tH = tH; c.tD = tD; c.tHollow = tHollow;
-        c.pts.clear();
-        for (double[] p : pts) c.pts.add(p.clone());
-        c.slab = slab; c.stair = stair; c.trap = trap; c.shelf = shelf; c.fence = fence; c.pane = pane; c.wall = wall; c.chain = chain; c.rod = rod;
-        c.fullConnects = fullConnects; c.depth = depth; c.overwrite = overwrite; c.carve = carve; c.floor = floor;
+        c.set(this);
         return c;
+    }
+
+    /** Takes every setting from another instance. The in-world editor's undo uses it to put a snapshot back. */
+    public void set(ShapeSettings o) {
+        if (o == this) return;
+        gen = o.gen; eW = o.eW; eH = o.eH; eMode = o.eMode; eT = o.eT;
+        src = o.src; xmin = o.xmin; xmax = o.xmax; ymin = o.ymin; ymax = o.ymax;
+        qW = o.qW; qH = o.qH; qLock = o.qLock; qMode = o.qMode; qLW = o.qLW;
+        bW = o.bW; bH = o.bH; bMode = o.bMode; bLW = o.bLW; snap = o.snap;
+        e3W = o.e3W; e3H = o.e3H; e3D = o.e3D; e3Mode = o.e3Mode; e3T = o.e3T;
+        tRing = o.tRing; tTube = o.tTube; tW = o.tW; tH = o.tH; tD = o.tD; tHollow = o.tHollow;
+        pts.clear();
+        for (double[] p : o.pts) pts.add(p.clone());
+        slab = o.slab; stair = o.stair; trap = o.trap; shelf = o.shelf; fence = o.fence; pane = o.pane; wall = o.wall; chain = o.chain; rod = o.rod;
+        fullConnects = o.fullConnects; depth = o.depth; overwrite = o.overwrite; carve = o.carve; floor = o.floor;
+    }
+
+    /** Whether every setting matches. {@code ShapeSettingsTest} checks that this and {@link #set} cover every field. */
+    public boolean same(ShapeSettings o) {
+        if (pts.size() != o.pts.size()) return false;
+        for (int k = 0; k < pts.size(); k++) if (!java.util.Arrays.equals(pts.get(k), o.pts.get(k))) return false;
+        return gen == o.gen && eW == o.eW && eH == o.eH && eMode == o.eMode && eT == o.eT
+                && src.equals(o.src) && xmin.equals(o.xmin) && xmax.equals(o.xmax) && ymin.equals(o.ymin) && ymax.equals(o.ymax)
+                && qW == o.qW && qH == o.qH && qLock == o.qLock && qMode == o.qMode && qLW == o.qLW
+                && bW == o.bW && bH == o.bH && bMode == o.bMode && bLW == o.bLW && snap == o.snap
+                && e3W == o.e3W && e3H == o.e3H && e3D == o.e3D && e3Mode == o.e3Mode && e3T == o.e3T
+                && tRing == o.tRing && tTube == o.tTube && tW == o.tW && tH == o.tH && tD == o.tD && tHollow == o.tHollow
+                && slab == o.slab && stair == o.stair && trap == o.trap && shelf == o.shelf && fence == o.fence && pane == o.pane
+                && wall == o.wall && chain == o.chain && rod == o.rod
+                && fullConnects == o.fullConnects && depth == o.depth && overwrite == o.overwrite && carve == o.carve && floor == o.floor;
     }
 }

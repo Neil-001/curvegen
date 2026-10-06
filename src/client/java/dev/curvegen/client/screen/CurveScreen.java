@@ -6,6 +6,7 @@ import dev.curvegen.client.CurveGenClient;
 import dev.curvegen.client.LitematicExporter;
 import dev.curvegen.client.Placement;
 import dev.curvegen.client.PresetStore;
+import dev.curvegen.client.edit.Editor;
 import dev.curvegen.core.Layout;
 import dev.curvegen.core.Pieces.Family;
 import dev.curvegen.core.Pieces;
@@ -37,7 +38,6 @@ import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
-import net.minecraft.server.permissions.Permissions;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
 
@@ -174,7 +174,10 @@ public class CurveScreen extends ControlScreen {
                 "Clears existing blocks from the space the shape encloses: inside a thin or thick ellipse, or the other side of a filled equation. Filled ellipses, lines and Bézier curves don't carve.")));
         addRenderableWidget(carve);
         int aw = actionText + bpad + 8, bx = width - M - 3 * aw - 2 * bgap;
-        addRenderableWidget(Button.builder(Component.literal("Place"), b -> place()).bounds(bx, by, aw, 20).build());
+        Button place = Button.builder(Component.literal("Place"), b -> place()).bounds(bx, by, aw, 20).build();
+        place.setTooltip(Tooltip.create(Component.literal(Editor.isActive() ? "Back to the shape in the world, with the changes made here."
+                : "Puts the shape in the world as a hologram you can move and resize before placing it.")));
+        addRenderableWidget(place);
         addRenderableWidget(Button.builder(Component.literal("Export"), b -> export()).bounds(bx + aw + bgap, by, aw, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Done"), b -> onClose()).bounds(bx + 2 * (aw + bgap), by, aw, 20).build());
     }
@@ -844,13 +847,13 @@ public class CurveScreen extends ControlScreen {
     }
 
     private void place() {
+        // With a hologram already out, the changes made here show on it as soon as the screen closes.
+        if (Editor.isActive()) { onClose(); return; }
         if (!ready()) return;
-        Layout layout = Layout.of(result);
-        if (layout.isEmpty()) { flash("The shape is empty, so there's nothing to place."); return; }
-        if (minecraft.player != null && !minecraft.player.permissions().hasPermission(Permissions.COMMANDS_GAMEMASTER))
-            Placement.say(Component.literal("You'll need operator permissions to place this."));
-        Placement.start(layout, S.depth, S.overwrite, S.carve, S.floor);
+        if (Layout.of(result).isEmpty()) { flash("The shape is empty, so there's nothing to place."); return; }
+        if (!Placement.canPlace(minecraft)) Placement.say(Component.literal("You'll need operator permissions to place this."));
         onClose();
+        Editor.start();
     }
 
     private void export() {
