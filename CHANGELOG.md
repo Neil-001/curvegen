@@ -1,3 +1,11 @@
+# 1.3.1
+
+Curve Generator 1.3.1 shows mod messages above the hotbar instead of in chat.
+
+## Features
+
+- Show placement, undo and export messages above the hotbar (#41)
+
 # 1.3.0
 
 Curve Generator 1.3.0 adds shelves, chains and end rods as block choices for curves on Fabric and NeoForge.
