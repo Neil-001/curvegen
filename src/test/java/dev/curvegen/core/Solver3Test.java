@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.BitSet;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static dev.curvegen.core.Pieces3.*;
@@ -163,15 +164,41 @@ class Solver3Test {
 
     @Test
     void aSupersededSolveStops() {
-        ShapeSettings s = ellipsoid(40, 40, 40, ShapeSettings.EllipseMode.MIDDLE, 2);
+        ShapeSettings s = ellipsoid(20, 20, 20, ShapeSettings.EllipseMode.MIDDLE, 2);
         assertNull(Solver3.solve(Shape3.of(s), s, () -> true));
         AtomicInteger checks = new AtomicInteger();
         assertNotNull(Solver3.solve(Shape3.of(s), s, () -> checks.incrementAndGet() < 0));
         assertTrue(checks.get() > 20, "only " + checks.get() + " checks");
-        for (int after = 0; after < checks.get(); after++) {   // through sampling, then refinement
+        for (int after = 0; after < checks.get(); after++) {   // through sampling, refinement and the last check before returning
             int limit = after;
             AtomicInteger calls = new AtomicInteger();
             assertNull(Solver3.solve(Shape3.of(s), s, () -> calls.incrementAndGet() > limit), "cancelled after " + after + " checks");
+        }
+        // Cancelled from inside the sampling of a single layer, with nothing to refine afterwards.
+        ShapeSettings plain = new ShapeSettings();
+        plain.slab = plain.stair = plain.trap = plain.shelf = plain.fence = plain.pane = plain.wall = false;
+        AtomicBoolean stop = new AtomicBoolean();
+        Shape3 flat = Shapes3Cases.shape(8, 1, 8, Double.NEGATIVE_INFINITY, 0, (x, y, z) -> { stop.set(true); return Math.hypot(x - 4, z - 4) - 3; });
+        assertNull(Solver3.solve(flat, plain, stop::get));
+    }
+
+    @Test
+    void tinyShapesSurvive() {
+        // The fields crease at the middle of an ellipsoid and along a tube's core, so small shapes are sampled point by point.
+        ShapeSettings s = ellipsoid(1, 1, 1, ShapeSettings.EllipseMode.FILLED, 1);
+        s.slab = s.stair = s.trap = s.shelf = s.fence = s.pane = s.wall = false;
+        Solver3.Result r = Solver3.run(s);
+        assertEquals(FULL, r.at(0, 0, 0));
+        assertEquals(Math.PI / 6, r.volume(), 0.01);
+        ShapeSettings t = torus(1, 1, 1, 1, 1, false);
+        t.slab = t.stair = t.trap = t.shelf = t.fence = t.pane = t.wall = false;
+        assertEquals(FULL, Solver3.run(t).at(0, 0, 0));
+        for (int size = 1; size <= 6; size++) {
+            r = Solver3.run(ellipsoid(size, size, size, ShapeSettings.EllipseMode.FILLED, 1));
+            assertEquals(Math.PI / 6 * size * size * size, r.volume(), 0.01 * size * size * size, "sphere " + size);
+            r = Solver3.run(torus(3 * size, size, 3 * size, size, 3 * size, false));
+            double minor = size / 2.0, major = size;
+            assertEquals(2 * Math.PI * Math.PI * major * minor * minor, r.volume(), 0.02 * r.volume() + 0.01, "torus tube " + size);
         }
     }
 
@@ -190,6 +217,8 @@ class Solver3Test {
     @Test
     void ellipsoidDistanceIsExact() {
         double[][] axes = {{5, 5, 5}, {10, 4, 6}, {3, 12, 7.5}, {0.5, 8, 2}};
+        assertEquals(-0.5, Shapes3.sdEllipsoid(1e-20, 0, 0, .5, .5, .5), 1e-9);
+        assertEquals(-0.5, Shapes3.sdEllipsoid(1e-12, -1e-15, 1e-11, .5, 3, 2), 1e-6);
         double[][] points = {{0, 0, 0}, {3, 0, 0}, {0, 2, 0}, {0, 0, 1}, {1, 2, 3}, {9, 0.5, 0}, {12, 7, -4}, {-2.5, 3.25, 0}, {0.25, 0.25, 0.25}, {0, 3, 2}, {20, 0, 0}};
         for (double[] e : axes)
             for (double[] p : points) {

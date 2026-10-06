@@ -5,5 +5,6 @@ out/
 run/
 .idea/
 *.iml
-.vscode/# Minecraft writes an empty log here when GameRules3Test loads its blocks
+.vscode/
+# Minecraft writes an empty log here when GameRules3Test loads its blocks
 fabric/logs/

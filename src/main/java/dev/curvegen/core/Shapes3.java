@@ -16,6 +16,10 @@ public final class Shapes3 {
      */
     public static double sdEllipsoid(double px, double py, double pz, double a, double b, double c) {
         double x = Math.abs(px), y = Math.abs(py), z = Math.abs(pz);
+        // Too close to a plane of symmetry to tell from being on it, and the sums below would divide by nearly nothing.
+        if (x < 1e-9 * a) x = 0;
+        if (y < 1e-9 * b) y = 0;
+        if (z < 1e-9 * c) z = 0;
         double a2 = a * a, b2 = b * b, c2 = c * c, ax = a * x, by = b * y, cz = c * z;
         boolean inside = x * x / a2 + y * y / b2 + z * z / c2 < 1;
         // A coordinate of exactly 0 drops out of the sum. Deep inside, the nearest point can still lie off that
@@ -83,6 +87,8 @@ public final class Shapes3 {
         @Override public double lo() { return lo; }
         @Override public double hi() { return hi; }
         @Override public boolean hollow() { return hollow; }
+        // Both fields crease at the middle, which is within reach of the surface in a small ellipsoid.
+        @Override public boolean smooth() { return least >= 2; }
         @Override public double[] carve() { return carve; }
         @Override public boolean symX() { return true; }
         @Override public boolean symY() { return true; }
@@ -130,6 +136,8 @@ public final class Shapes3 {
         @Override public int ny() { return ny; }
         @Override public int nz() { return nz; }
         @Override public boolean hollow() { return hollow; }
+        // The field creases along the tube's core and the ring's axis, which a thin tube or a small hole brings near the surface.
+        @Override public boolean smooth() { return minor * least >= 2 && (major - minor) * Math.min(sx, sz) >= 1; }
         @Override public double[] carve() { return hollow ? new double[]{Double.NEGATIVE_INFINITY, 0} : null; }
         @Override public boolean symX() { return true; }
         @Override public boolean symY() { return true; }

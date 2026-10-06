@@ -162,6 +162,7 @@ public final class Solver3 {
                         grid[(j * nz + k) * nx + i] = (short) v;
                         counts[v]++;
                     }
+            if (cancelled.getAsBoolean()) return null;
             return new Result(grid, nx, ny, nz, err / 4096, volume / 4096, counts, sh, sweeps);
         }
 
@@ -182,7 +183,7 @@ public final class Solver3 {
             IntStream.range(j0, ny).parallel().forEach(j -> { if (!cancelled.getAsBoolean()) layers[j] = new Layer(j); });
             for (int j = j0; j < ny; j++) {
                 Layer l = layers[j];
-                if (l == null) return false;
+                if (l == null || l.stopped) return false;
                 if (slots + 2 * l.n > count.length) {
                     int size = Math.max(slots + 2 * l.n, count.length * 2);
                     count = Arrays.copyOf(count, size); overlap = Arrays.copyOf(overlap, size);
@@ -211,6 +212,7 @@ public final class Solver3 {
         final class Layer {
             int[] cells = new int[64], counts = new int[64];
             int n;
+            boolean stopped;
             /** For each mixed cell, its overlap with every part, then the same for the cell's mirror image in y. */
             final List<short[]> overlaps = new ArrayList<>();
             final double[] lattice = new double[125], plane = new double[25], line = new double[5];
@@ -218,7 +220,8 @@ public final class Solver3 {
 
             Layer(int j) {
                 int jm = ny - 1 - j;
-                for (int k = k0; k < nz; k++)
+                for (int k = k0; k < nz; k++) {
+                    if (cancelled.getAsBoolean()) { stopped = true; return; }
                     for (int i = i0; i < nx; ) {
                         int run = sh.uniform(i, j, k);
                         if (run < 0) { i -= run; continue; }
@@ -236,6 +239,7 @@ public final class Solver3 {
                         }
                         i++;
                     }
+                }
             }
 
             void solid(int i, int j, int jm, int k) {
