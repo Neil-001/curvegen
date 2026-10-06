@@ -67,6 +67,11 @@ public final class Target {
             case ELLIPSE -> ellipse(s);
             case EQUATION -> equation(s);
             case BEZIER -> bezier(s);
+            default -> {   // 3D shapes go through Shape3 and Solver3
+                Target t = new Target(1, 1);
+                t.error = "This is a 3D shape.";
+                yield t;
+            }
         };
     }
 

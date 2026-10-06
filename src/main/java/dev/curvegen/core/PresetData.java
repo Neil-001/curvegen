@@ -48,6 +48,21 @@ public final class PresetData {
                 d.put("shape", s.bMode.name());
                 d.put("lineWidth", num(s.bLW));
             }
+            case ELLIPSOID -> {
+                d.put("width", String.valueOf(s.e3W));
+                d.put("height", String.valueOf(s.e3H));
+                d.put("depth", String.valueOf(s.e3D));
+                d.put("shape", s.e3Mode.name());
+                d.put("thickness", num(s.e3T));
+            }
+            case TORUS -> {
+                d.put("ring", String.valueOf(s.tRing));
+                d.put("tube", String.valueOf(s.tTube));
+                d.put("width", String.valueOf(s.tW));
+                d.put("height", String.valueOf(s.tH));
+                d.put("depth", String.valueOf(s.tD));
+                d.put("hollow", String.valueOf(s.tHollow));
+            }
         }
         return d;
     }
@@ -87,6 +102,21 @@ public final class PresetData {
                 if (pts.size() >= 2 && pts.size() <= 10) { s.pts.clear(); s.pts.addAll(pts); }
                 s.bMode = enumOf(ShapeSettings.BzMode.class, d.get("shape"), s.bMode);
                 s.bLW = decimal(d, "lineWidth", 0.0625, 50, s.bLW);
+            }
+            case ELLIPSOID -> {
+                s.e3W = integer(d, "width", 1, Shape3.MAX_SIZE, s.e3W);
+                s.e3H = integer(d, "height", 1, Shape3.MAX_SIZE, s.e3H);
+                s.e3D = integer(d, "depth", 1, Shape3.MAX_SIZE, s.e3D);
+                s.e3Mode = enumOf(ShapeSettings.EllipseMode.class, d.get("shape"), s.e3Mode);
+                s.e3T = decimal(d, "thickness", 0.0625, 50, s.e3T);
+            }
+            case TORUS -> {
+                s.tRing = integer(d, "ring", 1, Shape3.MAX_SIZE, s.tRing);
+                s.tTube = integer(d, "tube", 1, Shape3.MAX_SIZE, s.tTube);
+                s.tW = integer(d, "width", 1, Shape3.MAX_SIZE, s.tW);
+                s.tH = integer(d, "height", 1, Shape3.MAX_SIZE, s.tH);
+                s.tD = integer(d, "depth", 1, Shape3.MAX_SIZE, s.tD);
+                if (d.containsKey("hollow")) s.tHollow = Boolean.parseBoolean(d.get("hollow"));
             }
         }
     }
@@ -147,6 +177,12 @@ public final class PresetData {
                 String kind = n == 2 ? "Straight line" : n == 3 ? "Quadratic Bézier" : n == 4 ? "Cubic Bézier" : n + "-point Bézier";
                 yield kind + " " + s.bW + "×" + s.bH + ", " + (s.bMode == ShapeSettings.BzMode.LINE ? "line " + num(s.bLW) : "filled");
             }
+            case ELLIPSOID -> "Ellipsoid " + s.e3W + "×" + s.e3H + "×" + s.e3D + ", " + switch (s.e3Mode) {
+                case THIN -> "thin"; case FILLED -> "filled";
+                case OUTWARDS -> "thick outwards " + num(s.e3T); case INWARDS -> "thick inwards " + num(s.e3T);
+                case MIDDLE -> "thick middle " + num(s.e3T);
+            };
+            case TORUS -> "Torus " + s.tW + "×" + s.tH + "×" + s.tD + ", tube " + s.tTube + (s.tHollow ? ", hollow" : ", filled");
         };
     }
 
