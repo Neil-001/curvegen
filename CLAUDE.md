@@ -7,7 +7,7 @@ A Fabric and NeoForge mod for Minecraft Java 26.3. It turns ellipses, equations 
 Needs JDK 25. Versions are in `gradle.properties`. Run build and test after every change.
 
 - `./gradlew build` builds both jars in `fabric/build/libs/` and `neoforge/build/libs/` and runs the tests.
-- `./gradlew :fabric:test` runs the pure-Java core's JUnit tests. Only Fabric hosts them, since they're loader-independent.
+- `./gradlew :fabric:test` runs the JUnit tests for the pure-Java core and for client classes that don't need the game running, such as `ModSettings`. Only Fabric hosts them, since they're loader-independent.
 - `./gradlew :fabric:runClient` or `./gradlew :neoforge:runClient` starts a dev client. Use `runServer` for a server.
 
 Both jars target 26.3 only. Minecraft is unobfuscated, so use its own names without mappings. Builds use the minimum supported Fabric API and NeoForge versions; CI also compiles against newer ones.
@@ -20,7 +20,9 @@ Both loaders compile the shared `src/main` and `src/client` code with their own 
 - Only `fabric/src/` and `neoforge/src/` may import their loader's classes. Shared client code uses `ClientPlatform`; changes to that contract must go into both loaders.
 - `CurveGen.java` handles server placement through `net/PlaceBlocksPayload.java` and checks `Permissions.COMMANDS_GAMEMASTER`.
 - In `dev/curvegen/client/`, `BlockChoices` maps pieces to block states for each orientation; `ColorIndex` matches face texture colours in CIELAB; `Placement` handles the hologram, Replace, Carve, undo and `/setblock`. `PresetStore` atomically replaces one JSON file per preset in `config/curvegen/presets/`.
-- `client/screen/CurveScreen` is the main UI; `PreviewTexture` draws the solved grid into a dynamic texture.
+- `ModSettings` holds the mod's own options as static fields, loaded at client start and saved atomically to `config/curvegen/settings.json`. A missing, mistyped or out-of-range value gets its default.
+- `client/screen/CurveScreen` is the main UI; `PreviewTexture` draws the solved grid into a dynamic texture. `SettingsScreen` edits `ModSettings` and opens from the main UI's cogwheel, from Mod Menu on Fabric and from the mod list's Config button on NeoForge. Both extend `ControlScreen`, which has the shared controls.
+- Mod Menu is optional. Fabric compiles against it, and only `ModMenuIntegration`, which Mod Menu itself loads, may refer to it.
 - `listing/` holds the Modrinth and CurseForge descriptions, which must say the same thing, and their artwork. `listing/art/render.py` redraws the artwork from the solver.
 
 ## Solver
@@ -51,7 +53,7 @@ Upright builds show the side face; flat builds show the top, with the drawing's 
 ## Conventions
 
 - Grey out inapplicable controls with a tooltip explaining why. Don't hide them.
-- Use `cycler(...)` or `toggle(...)` for options so right-click steps backwards, and `spin(...)` for numbers.
+- Use `ControlScreen`'s `cycler(...)` or `toggle(...)` for options so right-click steps backwards, and `spin(...)` for numbers.
 - Size buttons with `tw(...)` and the fitting loops in `CurveScreen.init`. Nothing may overlap at 427 px wide, as in 1280×720 at GUI scale 3. New controls must take space from existing ones.
 - Use plain, sentence case UI copy without jargon.
 - Visual fixes must preserve other behaviour. Prove it, for example by comparing pixels across all pieces as in `SilhouetteTest`.

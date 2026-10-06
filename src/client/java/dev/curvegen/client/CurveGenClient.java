@@ -33,9 +33,10 @@ public final class CurveGenClient {
         return k;
     }
 
-    /** Creates the keys and returns them for the loader to register, along with {@link #CATEGORY}. */
+    /** Loads the settings, creates the keys and returns them for the loader to register, along with {@link #CATEGORY}. */
     public static List<KeyMapping> init(ClientPlatform loader) {
         platform = loader;
+        ModSettings.load();
         OPEN = key("open", InputConstants.KEY_G);
         CONFIRM = key("confirm", InputConstants.KEY_RETURN);
         CANCEL = key("cancel", InputConstants.KEY_BACKSPACE);

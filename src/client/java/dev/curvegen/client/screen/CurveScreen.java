@@ -19,25 +19,19 @@ import dev.curvegen.core.Silhouette;
 import dev.curvegen.core.Solver;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
-import java.util.function.DoubleSupplier;
 import java.util.function.Function;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.AbstractButton;
-import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.CycleButton;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.InputWithModifiers;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.renderer.RenderPipelines;
@@ -47,7 +41,7 @@ import net.minecraft.server.permissions.Permissions;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
 
-public class CurveScreen extends Screen {
+public class CurveScreen extends ControlScreen {
     private enum Tab { ELLIPSE, EQUATION, BEZIER, BLOCKS, COUNT }
 
     private static final ShapeSettings S = CurveGenClient.SETTINGS;
@@ -77,8 +71,6 @@ public class CurveScreen extends Screen {
     private int hintY;
     private EditBox qHField, qLWField, bLWField;
     private CycleButton<EqMode> eqShape;
-    /** What a right-click does on buttons that step through options: step backwards. */
-    private final Map<AbstractWidget, Runnable> reverse = new HashMap<>();
     private String status;
     private long statusUntil;
 
@@ -103,20 +95,21 @@ public class CurveScreen extends Screen {
 
     @Override
     protected void init() {
-        labels.clear(); icons.clear(); pointFields.clear(); reverse.clear(); spinners.clear(); countRows = null; hint = null; qHField = null; qLWField = null; bLWField = null; eqShape = null;
+        labels.clear(); icons.clear(); pointFields.clear(); countRows = null; hint = null; qHField = null; qLWField = null; bLWField = null; eqShape = null;
 
-        // Top bar: tabs on the left, view options on the right, each button as wide as its text needs.
+        // Top bar: tabs on the left, view options and the settings cog on the right, each button as wide as its text needs.
         String[] names = {"Ellipse", "Equation", "Bézier", "Blocks", "Count"};
         Function<PreviewTexture.Colors, Component> colourName = c -> Component.literal(switch (c) {
             case STONE -> "Plain"; case PIECES -> "Piece types"; case BLOCKS -> "Block colours"; });
         int colourText = 0;
         for (PreviewTexture.Colors c : PreviewTexture.Colors.values()) colourText = Math.max(colourText, tw("Colour: " + colourName.apply(c).getString()));
         int curveText = Math.max(tw("Curve: " + CommonComponents.optionStatus(true).getString()), tw("Curve: " + CommonComponents.optionStatus(false).getString()));
-        int pad = 12, gap = 4;
+        int pad = 12, gap = 4, cogW = 20;
         for (;; pad -= 2) {
             int tabs = 0;
             for (String n : names) tabs += tw(n) + pad + 2;
-            if (M + tabs + gap + colourText + curveText + 2 * pad + gap + M <= width || pad <= 4) break;
+            if (M + tabs + gap + colourText + curveText + 2 * pad + gap + cogW + gap + M <= width || pad <= 4) break;
+            if (gap > 2) gap--;
         }
         int tx = M;
         for (int k = 0; k < names.length; k++) {
@@ -128,10 +121,11 @@ public class CurveScreen extends Screen {
             addRenderableWidget(b);
             tx += w + 2;
         }
-        int curveW = curveText + pad, colourW = colourText + pad;
+        int curveW = curveText + pad, colourW = colourText + pad, cogX = width - M - cogW;
         addRenderableWidget(cycler(List.of(PreviewTexture.Colors.values()), colors, colourName,
-                width - M - curveW - gap - colourW, 6, colourW, "Colour", v -> { colors = v; textureDirty = true; }));
-        addRenderableWidget(toggle(showCurve, width - M - curveW, 6, curveW, "Curve", v -> { showCurve = v; textureDirty = true; }));
+                cogX - gap - curveW - gap - colourW, 6, colourW, "Colour", v -> { colors = v; textureDirty = true; }));
+        addRenderableWidget(toggle(showCurve, cogX - gap - curveW, 6, curveW, "Curve", v -> { showCurve = v; textureDirty = true; }));
+        addRenderableWidget(new CogButton(cogX, 6, cogW, 20, () -> minecraft.gui.setScreen(new SettingsScreen(this))));
 
         switch (tab) {
             case ELLIPSE -> { initEllipse(); presetButtons(); }
@@ -184,8 +178,6 @@ public class CurveScreen extends Screen {
         addRenderableWidget(Button.builder(Component.literal("Export"), b -> export()).bounds(bx + aw + bgap, by, aw, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Done"), b -> onClose()).bounds(bx + 2 * (aw + bgap), by, aw, 20).build());
     }
-
-    private int tw(String s) { return font.width(s); }
 
     // ---------- presets ----------
     /** Top of the Save/Load preset row, the last thing in the left panel. */
@@ -385,11 +377,6 @@ public class CurveScreen extends Screen {
     private final List<EditBox[]> pointFields = new ArrayList<>();
     private boolean syncingPoints;
 
-    private static String coord(double v) {
-        String t = String.format(java.util.Locale.ROOT, "%.3f", v);
-        return t.contains(".") ? t.replaceAll("0+$", "").replaceAll("\\.$", "") : t;
-    }
-
     /** Keeps the typed coordinates in step with dragged handles (without fighting a field being edited). */
     private void syncPointFields() {
         syncingPoints = true;
@@ -575,94 +562,45 @@ public class CurveScreen extends Screen {
     }
 
     // ---------- widgets ----------
-    /** Horizontal space the arrows take from a field: 8 px of arrows plus a 1 px gap. */
-    private static final int ARROW_SLOT = 9;
-
-    private record Spinner(Arrow up, Arrow down, DoubleSupplier value, double min, double max, BooleanSupplier enabled) {}
-    private final List<Spinner> spinners = new ArrayList<>();
-
-    /** A small up or down arrow. Drawn by hand so it stays crisp at 8 pixels, and greyed out when it can't go further. */
-    private static final class Arrow extends AbstractButton {
-        private final boolean up;
+    /** The settings button: a cogwheel drawn by hand on an ordinary button, so it stays crisp at any scale. */
+    private static final class CogButton extends AbstractButton {
+        private static final String[] COG = {
+                "....###....",
+                ".##.###.##.",
+                ".#########.",
+                "..#######..",
+                "####...####",
+                "####...####",
+                "####...####",
+                "..#######..",
+                ".#########.",
+                ".##.###.##.",
+                "....###....",
+        };
         private final Runnable action;
 
-        Arrow(int x, int y, int w, int h, boolean up, Runnable action) {
-            super(x, y, w, h, Component.literal(up ? "Increase" : "Decrease"));
-            this.up = up; this.action = action;
+        CogButton(int x, int y, int w, int h, Runnable action) {
+            super(x, y, w, h, Component.literal("Settings"));
+            this.action = action;
+            setTooltip(Tooltip.create(Component.literal("Settings")));
         }
 
         @Override public void onPress(InputWithModifiers input) { action.run(); }
 
         @Override
         protected void extractContents(GuiGraphicsExtractor ctx, int mouseX, int mouseY, float delta) {
-            int x = getX(), y = getY();
-            ctx.fill(x, y, x + width, y + height, !active ? 0xFF22262C : isHovered() ? 0xFF55606E : 0xFF3A424D);
-            int c = active ? 0xFFE4E9EF : 0xFF4E5560, cx = x + width / 2, cy = y + height / 2;
-            for (int r = 0; r < 3; r++) {          // a 5-pixel-wide triangle
-                int half = up ? r : 2 - r, yy = cy - 1 + r - (up ? 1 : 0);
-                ctx.fill(cx - half, yy, cx + half + 1, yy + 1, c);
+            extractDefaultSprite(ctx);
+            int n = COG.length, x0 = getX() + (width - n) / 2, y0 = getY() + (height - n) / 2;
+            for (int pass = 0; pass < 2; pass++) {   // a shadow first, as button text has
+                int c = pass == 0 ? 0xFF3F3F3F : active ? 0xFFFFFFFF : 0xFFA0A0A0, o = 1 - pass;
+                for (int r = 0; r < n; r++)
+                    for (int k = 0; k < n; k++)
+                        if (COG[r].charAt(k) == '#') ctx.fill(x0 + k + o, y0 + r + o, x0 + k + o + 1, y0 + r + o + 1, c);
             }
         }
 
         @Override
         protected void updateWidgetNarration(NarrationElementOutput builder) { defaultButtonNarrationText(builder); }
-    }
-
-    /**
-     * A number field of total width w whose right edge holds up/down arrows (taken from the field, not added to it).
-     * The arrows step the value within [min, max] and grey out at the ends or when the field doesn't apply.
-     */
-    private EditBox spin(int x, int y, int w, int h, String value, Consumer<String> onChange,
-                                 DoubleSupplier current, double step, double min, double max, BooleanSupplier enabled, boolean integer) {
-        EditBox f = new EditBox(font, x, y, w - ARROW_SLOT, h, Component.empty());
-        f.setMaxLength(64);
-        f.setValue(value);
-        f.setResponder(onChange);
-        addRenderableWidget(f);
-        arrows(f, x + w - ARROW_SLOT + 1, y, h, current, step, min, max, enabled, integer);
-        return f;
-    }
-
-    private void arrows(EditBox f, int ax, int y, int h, DoubleSupplier current, double step, double min, double max,
-                        BooleanSupplier enabled, boolean integer) {
-        int top = h / 2;
-        Arrow up = new Arrow(ax, y, ARROW_SLOT - 1, top, true, () -> nudge(f, current, step, min, max, integer));
-        Arrow down = new Arrow(ax, y + top, ARROW_SLOT - 1, h - top, false, () -> nudge(f, current, -step, min, max, integer));
-        addRenderableWidget(up);
-        addRenderableWidget(down);
-        Spinner sp = new Spinner(up, down, current, min, max, enabled);
-        spinners.add(sp);
-        refresh(sp);
-    }
-
-    /** Steps the value and writes it into the field, whose own listener then applies it (clamped to the limits). */
-    private void nudge(EditBox f, DoubleSupplier current, double step, double min, double max, boolean integer) {
-        double v = Math.max(min, Math.min(max, current.getAsDouble() + step));
-        f.setValue(integer ? String.valueOf(Math.round(v)) : coord(v));
-    }
-
-    private static void refresh(Spinner sp) {
-        boolean on = sp.enabled.getAsBoolean();
-        double v = sp.value.getAsDouble();
-        sp.up.active = on && v < sp.max - 1e-9;
-        sp.down.active = on && v > sp.min + 1e-9;
-    }
-
-    /** A button that steps through options: click for the next one, right-click for the previous one. */
-    private <T> CycleButton<T> cycler(List<T> values, T initial, Function<T, Component> names,
-                                              int x, int y, int w, String label, Consumer<T> onChange) {
-        CycleButton<T> b = CycleButton.builder(names, initial).withValues(values)
-                .create(x, y, w, 20, Component.literal(label), (btn, v) -> onChange.accept(v));
-        reverse.put(b, () -> {
-            T prev = values.get((values.indexOf(b.getValue()) - 1 + values.size()) % values.size());
-            b.setValue(prev);
-            onChange.accept(prev);
-        });
-        return b;
-    }
-
-    private CycleButton<Boolean> toggle(boolean initial, int x, int y, int w, String label, Consumer<Boolean> onChange) {
-        return cycler(List.of(true, false), initial, CommonComponents::optionStatus, x, y, w, label, onChange);
     }
 
     private void setFloor(boolean flat) {
@@ -726,7 +664,6 @@ public class CurveScreen extends Screen {
     @Override
     public void extractRenderState(GuiGraphicsExtractor ctx, int mouseX, int mouseY, float delta) {
         poll();
-        for (Spinner sp : spinners) refresh(sp);
         super.extractRenderState(ctx, mouseX, mouseY, delta);
         for (Label l : labels) ctx.text(font, l.text, l.x, l.y, 0xFFC8CED6);
         for (Icon ic : icons) ctx.item(ic.stack, ic.x, ic.y);
@@ -841,15 +778,6 @@ public class CurveScreen extends Screen {
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean doubled) {
         double mx = event.x(), my = event.y(); int button = event.button();
-        if (button == InputConstants.MOUSE_BUTTON_RIGHT)
-            for (var e : reverse.entrySet()) {
-                AbstractWidget w = e.getKey();
-                if (w.active && w.visible && w.isMouseOver(mx, my)) {
-                    w.playDownSound(minecraft.getSoundManager());
-                    e.getValue().run();   // may rebuild the screen, so stop looking straight away
-                    return true;
-                }
-            }
         if (super.mouseClicked(event, doubled)) return true;
         boolean inCanvas = mx >= cx0() && mx < cx1() && my >= cy0() && my < cy1();
         if (!inCanvas || result == null) return false;
