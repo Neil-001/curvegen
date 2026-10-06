@@ -85,6 +85,36 @@ class Edit2DTest {
     }
 
     @Test
+    void bumpingABezierStretchesItsPointsNotItsGrid() {
+        ShapeSettings s = of(Gen.BEZIER);
+        s.pts.clear();
+        s.pts.add(new double[]{10, 4});
+        s.pts.add(new double[]{10.5, 9});
+        s.pts.add(new double[]{11, 4});
+        // The points span 1 block across. Pushing the right side out by one makes that 2, and the left stays at 10.
+        assertArrayEquals(new int[3], Edit2D.bumpPoints(s, 0, 1, 1));
+        assertArrayEquals(new double[]{10, 4}, s.pts.get(0), 1e-12);
+        assertArrayEquals(new double[]{11, 9}, s.pts.get(1), 1e-12);
+        assertArrayEquals(new double[]{12, 4}, s.pts.get(2), 1e-12);
+        assertEquals(40, s.bW);
+        // Pushing the left side out keeps the right at 12.
+        Edit2D.bumpPoints(s, 0, -1, 2);
+        assertArrayEquals(new double[]{8, 4}, s.pts.get(0), 1e-12);
+        assertArrayEquals(new double[]{12, 4}, s.pts.get(2), 1e-12);
+        // Pulling in stops at one block.
+        Edit2D.bumpPoints(s, 0, 1, -50);
+        assertArrayEquals(new double[]{9, 4}, s.pts.get(2), 1e-12);
+        // Past the bottom of the grid, the grid grows and reports how far its corner moved.
+        assertArrayEquals(new int[]{0, -6, 0}, Edit2D.bumpPoints(s, 1, -1, 10));
+        assertEquals(30, s.bH);
+        assertEquals(0, s.pts.get(0)[1], 1e-12);
+        assertEquals(15, s.pts.get(1)[1], 1e-12);
+        // Depth and other shapes leave it to the box.
+        assertNull(Edit2D.bumpPoints(s, 2, 1, 1));
+        assertNull(Edit2D.bumpPoints(of(Gen.ELLIPSE), 0, 1, 1));
+    }
+
+    @Test
     void pointsSitHalfwayThroughTheDepth() {
         ShapeSettings s = of(Gen.BEZIER);
         s.depth = 3;

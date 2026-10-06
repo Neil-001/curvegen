@@ -57,7 +57,7 @@ public final class Editor {
     private static final int UNDO_LIMIT = 100;
 
     /** Everything undo puts back. */
-    private record Snapshot(ShapeSettings settings, Box box, Orient orient) {}
+    private record Snapshot(ShapeSettings settings, Box box, Orient orient, int[] follow) {}
 
     private static boolean active, locked;
     private static EditShape shape;
@@ -66,6 +66,8 @@ public final class Editor {
     /** While unlocked: the way the player faced last tick, and how far they nudged the shape from where they look. */
     private static int facing;
     private static int[] follow = new int[3];
+    /** What the box turns about, from {@link Box#pivot}. Null until the next turn, after anything else changed the box's size. */
+    private static int[] pivot;
     private static final ArrayDeque<Snapshot> undo = new ArrayDeque<>(), redo = new ArrayDeque<>();
     /** What the last hologram was when it ended, for the radial menu's "Last shape". */
     private static Snapshot last;
@@ -154,7 +156,7 @@ public final class Editor {
         if (job != null) job.cancel(false);
         job = null; solved = null; hologram = null; hologramOrigin = null; viewOrigin = null;
         undo.clear(); redo.clear();
-        drag = null; hover = null; follow = new int[3];
+        drag = null; hover = null; follow = new int[3]; pivot = null;
         screenOpen = Minecraft.getInstance().gui.screen() != null; beforeScreen = null;
     }
 
@@ -198,7 +200,7 @@ public final class Editor {
 
     // ---------- state ----------
 
-    private static Snapshot snapshot() { return new Snapshot(S.copy(), box, orient); }
+    private static Snapshot snapshot() { return new Snapshot(S.copy(), box, orient, follow.clone()); }
     private static int[] worldSize() { return orient.worldSize(shape.size()); }
     private static BlockPos origin() { return new BlockPos(hologramOrigin[0], hologramOrigin[1], hologramOrigin[2]); }
 
@@ -213,8 +215,11 @@ public final class Editor {
 
     private static void restore(Snapshot s) {
         S.set(s.settings);
+        // Block choices aren't part of a snapshot, so this flag has to follow the blocks chosen now.
+        S.fullConnects = BlockChoices.fullBlockConnects();
         shape = EditShape.of(S);
-        box = s.box; orient = s.orient;
+        box = s.box; orient = s.orient; follow = s.follow.clone();
+        pivot = null;
         dirty = true;
     }
 
@@ -237,13 +242,15 @@ public final class Editor {
     private static void translate(int dx, int dy, int dz) {
         if (dx == 0 && dy == 0 && dz == 0) return;
         box = box.moved(dx, dy, dz);
+        if (pivot != null) { pivot[0] += 2 * dx; pivot[1] += 2 * dz; }
         for (int[] o : new int[][]{hologramOrigin, jobOrigin})
             if (o != null) { o[0] += dx; o[1] += dy; o[2] += dz; }
     }
 
     /** After the orientation changed: fits the box to it and gets the blocks to follow. */
     private static void turned() {
-        box = box.refit(worldSize());
+        if (pivot == null) pivot = box.pivot();
+        box = box.about(pivot, worldSize());
         if (!shape.solveUsesOrient() && solved != null && !dirty && job == null) rebuild(new int[]{box.x(), box.y(), box.z()});
         else dirty = true;
     }
@@ -273,6 +280,7 @@ public final class Editor {
         record();
         orient = shape.tip(orient, playerFacing());
         box = box.refit(worldSize());
+        pivot = null;
         dirty = true;
     }
 
@@ -300,7 +308,10 @@ public final class Editor {
         sign[axis] = d.getAxisDirection().getStep();
         want[axis] = Math.max(1, want[axis] + amount);
         Snapshot before = snapshot();
-        resize(box, sign, false, want);
+        int own = orient.ownAxis(axis);
+        int[] shift = shape.bump(own, sign[axis] * Orient.sign(orient.dir(own)), amount);
+        if (shift != null) { box = box.regrown(orient, shift, shape.size()); pivot = null; }
+        else resize(box, sign, false, want);
         if (!S.same(before.settings)) { record(before); dirty = true; }
     }
 
@@ -310,15 +321,18 @@ public final class Editor {
         for (int a = 0; a < 3; a++) dragged[orient.ownAxis(a)] = sign[a] != 0;
         shape.resize(orient.ownSize(worldWant), dragged);
         box = from.fit(sign, symmetric, worldSize());
+        pivot = null;
     }
 
     public static void toggleReplace() {
+        if (drag != null) endDrag();   // a drag starts again from its grab every frame, which would drop the change
         record();
         S.overwrite = !S.overwrite;
         Placement.say(Component.literal("Replace: ").append(CommonComponents.optionStatus(S.overwrite)));
     }
 
     public static void toggleCarve() {
+        if (drag != null) endDrag();
         record();
         S.carve = !S.carve;
         Placement.say(Component.literal("Carve: ").append(CommonComponents.optionStatus(S.carve)));
@@ -464,6 +478,7 @@ public final class Editor {
             double[] rel = {d.target[0] - box.x(), d.target[1] - box.y(), d.target[2] - box.z()};
             int[] shift = shape.movePoint(d.handle.point, orient.toOwn(rel, ownSize));
             if (shift != null) box = box.regrown(orient, shift, shape.size());
+            pivot = null;
         } else {
             double[] target = new double[3];
             for (int a = 0; a < 3; a++) target[a] = d.handle.sign[a] != 0 && (d.axis < 0 || d.axis == a) ? d.target[a] : Double.NaN;
@@ -532,7 +547,8 @@ public final class Editor {
         if (!open && screenOpen && beforeScreen != null) {
             shape = EditShape.of(S);
             orient = shape.orient(orient);
-            box = box.refit(worldSize());
+            Box fitted = box.refit(worldSize());
+            if (!fitted.equals(box)) { box = fitted; pivot = null; }
             if (!S.same(beforeScreen.settings)) record(beforeScreen);
             beforeScreen = null;
             dirty = true;   // block choices aren't settings, and they may have changed too
@@ -561,7 +577,7 @@ public final class Editor {
                 // The solve may have settled a size the settings left open, such as an equation's locked height.
                 Box fitted = box.refit(worldSize());
                 boolean current = !dirty && (!shape.solveUsesOrient() || orient.equals(jobOrient));
-                if (!fitted.equals(box)) { box = fitted; current = false; }
+                if (!fitted.equals(box)) { box = fitted; pivot = null; current = false; }
                 rebuild(current ? new int[]{box.x(), box.y(), box.z()} : at);
             }
         }

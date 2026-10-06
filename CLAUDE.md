@@ -93,6 +93,7 @@ Place in the G menu spawns one hologram, locked at the block the player looks at
 - The box and ideal curve are drawn from the live settings every frame. Blocks come from `EditShape.solve` on a worker thread with a `ShapeSettings.copy()`, then `EditShape.build` on the client thread. `Hologram` takes that list of offsets and block states, drops faces hidden against a whole-cube neighbour once per solve, and then only checks the world. Above `ModSettings.hologramBlockLimit` it draws nothing, so only the wireframe shows.
 - Face handles move along one axis, edge handles in the plane across their edge, and corners in the axis-aligned plane facing the camera, with scrolling for the third axis. Sneak resizes about the centre. `Editor.mouseButton` returns true only for a click on a highlighted handle or during a drag.
 - Nudge and bump keys are `CurveGenClient.STEP_KEYS`, each with an action that takes a number of blocks. Hold-to-type calls that action with the typed amount.
+- Turning rounds when width and depth differ in parity, so `Editor` turns about a pivot kept from before the first turn (`Box.about`). Anything else that resizes the box clears it.
 - Opening a screen mid-edit keeps the hologram. When it closes, `Editor` re-reads the settings and records one undo step if they changed.
 
 ### `EditShape`
@@ -100,6 +101,7 @@ Place in the G menu spawns one hologram, locked at the block the player looks at
 `client/edit/EditShape` is all a shape supplies. `Shape2D` implements it for the ellipse, equation and 2D Bézier curve; `EditShape.of` picks the implementation. Everything is in the shape's own axes, in blocks from its own minimum corner, except `Content`, which is in world axes.
 
 - `size()` and `resize(want, dragged)`: the box. `resize` applies what its limits allow and may change undragged axes, as an equation's same-scale lock does. `Editor` reads `size()` back and fits the box.
+- `bump(axis, side, amount)`: optional. A curve stretches its control points' bounding box here; returning null has `Editor` resize the box.
 - `orient(current)` returns the orientation the settings allow; `tip(current, forward)` tips a quarter turn and may change settings. A 2D shape switches `floor` instead of rotating.
 - `points()`, `pointPlane()`, `movePoint`, `removePoint`, `insertPoint`, `duplicatePoint`: control points. `pointPlane()` is the own axis points can't move along, or -1 for free 3D points, which drag like corners. `movePoint` returns how far the box's own minimum corner moved when the shape grew to keep the point inside.
 - `curve(solved)`: the ideal curve as segments, cheap enough for every frame.

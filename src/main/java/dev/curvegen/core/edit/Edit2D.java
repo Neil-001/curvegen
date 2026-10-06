@@ -74,6 +74,35 @@ public final class Edit2D {
         }
     }
 
+    /**
+     * Bumps a Bézier curve: the control points' bounding box grows or shrinks by {@code amount} blocks along own axis
+     * 0 or 1, on its low side ({@code side} -1) or high side (1), and the points stretch with it while the opposite
+     * side stays put. The grid grows to hold them, as in {@link #movePoint}, whose kind of shift this returns.
+     * Null when this isn't a Bézier curve, or its points have no extent along the axis to stretch.
+     */
+    public static int[] bumpPoints(ShapeSettings s, int axis, int side, int amount) {
+        if (s.gen != Gen.BEZIER || axis > 1) return null;
+        double lo = Double.POSITIVE_INFINITY, hi = Double.NEGATIVE_INFINITY;
+        for (double[] p : s.pts) { lo = Math.min(lo, p[axis]); hi = Math.max(hi, p[axis]); }
+        double span = hi - lo;
+        if (span < 1e-9) return null;
+        // Pulling in stops at one block, or at the span it already has if that's smaller.
+        double f = Math.max(Math.min(span, 1), span + amount) / span;
+        for (double[] p : s.pts) p[axis] = side > 0 ? lo + (p[axis] - lo) * f : hi - (hi - p[axis]) * f;
+        int size = axis == 0 ? s.bW : s.bH;
+        int[] shift = new int[3];
+        double min = side > 0 ? lo : hi - span * f, max = side > 0 ? lo + span * f : hi;
+        if (min < 0) {
+            int grow = Math.min(MAX_SIZE - size, (int) Math.ceil(-min));
+            for (double[] p : s.pts) p[axis] += grow;
+            size += grow; max += grow; shift[axis] = -grow;
+        }
+        if (max > size) size = Math.min(MAX_SIZE, (int) Math.ceil(max));
+        for (double[] p : s.pts) p[axis] = Math.max(0, Math.min(size, p[axis]));
+        if (axis == 0) s.bW = size; else s.bH = size;
+        return shift;
+    }
+
     /** A Bézier curve's control points, halfway through its depth. Other shapes have none. */
     public static List<double[]> points(ShapeSettings s) {
         List<double[]> out = new ArrayList<>();

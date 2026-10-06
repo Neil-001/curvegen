@@ -16,7 +16,19 @@ public record Box(int x, int y, int z, int sx, int sy, int sz) {
         return new Box(ax - size[0] / 2, ay, az - size[2] / 2, size[0], size[1], size[2]);
     }
 
-    /** The same place with a new size: it keeps its centre sideways and stays on its bottom. For turning and tipping. */
+    /** Twice the sideways centre, {x, z}: a whole number whatever the size's parity. */
+    public int[] pivot() { return new int[]{2 * x + sx, 2 * z + sz}; }
+
+    /**
+     * A new size about a pivot from {@link #pivot}, staying on its bottom. Turning a box whose width and depth differ
+     * in parity has to round, and rounding about the box's own centre each time would walk it sideways. Keeping the
+     * pivot from before the first turn brings four quarter turns back to where they started.
+     */
+    public Box about(int[] pivot, int[] size) {
+        return new Box(Math.floorDiv(pivot[0] - size[0], 2), y, Math.floorDiv(pivot[1] - size[2], 2), size[0], size[1], size[2]);
+    }
+
+    /** The same place with a new size: it keeps its centre sideways and stays on its bottom. */
     public Box refit(int[] size) { return fit(new int[3], false, size); }
 
     /**

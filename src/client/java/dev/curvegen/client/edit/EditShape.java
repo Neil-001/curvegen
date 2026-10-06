@@ -41,6 +41,14 @@ public interface EditShape {
      */
     void resize(int[] want, boolean[] dragged);
 
+    /**
+     * Bumps the side of the box at the low ({@code side} -1) or high (1) end of an own axis by {@code amount} blocks,
+     * for a shape that does something other than {@link #resize}: a curve stretches its control points' bounding
+     * box. Returns how many cells the box's own minimum corner moved along each own axis, or null to have the editor
+     * resize the box instead.
+     */
+    default int[] bump(int axis, int side, int amount) { return null; }
+
     /** The orientation these settings allow that is closest to {@code current}. Called after anything changes them. */
     default Orient orient(Orient current) { return current; }
 

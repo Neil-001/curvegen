@@ -31,6 +31,7 @@ final class Shape2D implements EditShape {
 
     @Override public int[] size() { return Edit2D.size(s); }
     @Override public void resize(int[] want, boolean[] dragged) { Edit2D.resize(s, want, dragged); }
+    @Override public int[] bump(int axis, int side, int amount) { return Edit2D.bumpPoints(s, axis, side, amount); }
     @Override public List<double[]> points() { return Edit2D.points(s); }
     @Override public int pointPlane() { return 2; }
     @Override public int[] movePoint(int index, double[] to) { return Edit2D.movePoint(s, index, to); }

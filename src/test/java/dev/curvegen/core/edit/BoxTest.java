@@ -83,6 +83,16 @@ class BoxTest {
     }
 
     @Test
+    void fourQuarterTurnsAboutAPivotComeBackToTheStart() {
+        Box b = new Box(-20, 64, 0, 40, 24, 1);
+        int[] pivot = b.pivot();
+        Box turned = b;
+        for (int k = 0; k < 4; k++) turned = turned.about(pivot, new int[]{turned.sz(), turned.sy(), turned.sx()});
+        assertEquals(b, turned);
+        assertEquals(new Box(-1, 64, -20, 1, 24, 40), b.about(pivot, new int[]{1, 24, 40}));
+    }
+
+    @Test
     void spawnSitsOnTheAnchorCentredSideways() {
         assertEquals(new Box(-4, 64, 0, 9, 5, 1), Box.spawn(0, 64, 0, new int[]{9, 5, 1}));
     }
