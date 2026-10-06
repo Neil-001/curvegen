@@ -316,7 +316,7 @@ public final class Placement {
         Minecraft mc = Minecraft.getInstance();
         if (!active || anchor == null || mc.player == null || mc.level == null) return;
         if (!mc.player.permissions().hasPermission(Permissions.COMMANDS_GAMEMASTER)) {
-            say(Component.literal("You need operator permissions (level 2) to place shapes. Use Export to make a Litematica schematic instead.").withStyle(ChatFormatting.RED));
+            say(Component.literal("You need operator permissions to place. Use Export instead.").withStyle(ChatFormatting.RED));
             return;
         }
         List<BlockPos> pos = new ArrayList<>(entries.size());
@@ -333,7 +333,7 @@ public final class Placement {
             if (!overwrite && !free(cur)) continue;
             pos.add(p); states.add(e.state); old.add(cur);
         }
-        if (pos.isEmpty()) { say(Component.literal("Nothing to change here: every spot is already taken and Replace is off.")); return; }
+        if (pos.isEmpty()) { say(Component.literal("Nothing to place: every spot is taken and Replace is off.")); return; }
         undoPositions = pos; undoStates = old;
         undoNearby = dependents(mc, pos);
         send(pos, states, false);
@@ -413,14 +413,17 @@ public final class Placement {
                         + BlockStateParser.serialize(states.get(i)) + (undo ? " strict" : ""));
             }
             int seconds = (int) Math.ceil(pos.size() / (COMMANDS_PER_TICK * 20.0));
-            say(Component.literal("This server doesn't have Curve Generator, so " + (undo ? "undo" : "placement")
-                    + " uses /setblock: " + pos.size() + " blocks, about " + seconds + " s."));
+            say(Component.literal("No server mod: " + (undo ? "undoing " : "placing ") + pos.size()
+                    + " blocks with /setblock, about " + seconds + " s."));
         }
     }
 
-    /** Shows a message from the mod itself in chat, and lets the narrator read it. */
+    /**
+     * Shows a message from the mod itself above the hotbar, and lets the narrator read it. It's one line that doesn't
+     * wrap, so keep it short enough for a 427 px wide screen.
+     */
     public static void say(Component t) {
         Minecraft mc = Minecraft.getInstance();
-        if (mc.player != null) mc.gui.chatListener().handleSystemMessage(t, false);
+        if (mc.player != null) mc.gui.chatListener().handleOverlay(t);
     }
 }
