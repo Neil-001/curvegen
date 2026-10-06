@@ -17,9 +17,11 @@ Both jars target 26.3 only. Minecraft is unobfuscated, so use its own names with
 Both loaders compile the shared `src/main` and `src/client` code with their own entrypoints and metadata. Fabric also compiles `src/test`. Fabric splits common and client source sets with Loom's `splitEnvironmentSourceSets()`; NeoForge combines them in one jar. Common code must never touch client classes.
 
 - `dev/curvegen/core/` must have no Minecraft imports. `Pieces` defines the 16×16 states, masks, mirrors and sturdy faces; `Target` builds the shapes and carve regions; `Solver` selects pieces. `Expr` compiles Desmos-style equations to lambdas without `eval`. Run the solver on a worker thread with a `ShapeSettings.copy()`. `Silhouette` shares piece pixels and outlines between the preview and Count icons. Those classes are 2D. 3D shapes have their own: `Pieces3`, `Shape3`, `Shapes3` and `Solver3`, described under "Volumetric solver".
-- Only `fabric/src/` and `neoforge/src/` may import their loader's classes. Shared client code uses `ClientPlatform`; changes to that contract must go into both loaders.
+- `dev/curvegen/core/edit/` is the in-world editor's maths, also free of Minecraft imports: `HandleMath` (ray to axis, ray to plane, picking), `Box` (the 26 box handles, drag and fit rules), `Orient` (which way a shape's own axes point) and `Edit2D` (what handles and keys do to a 2D shape's `ShapeSettings`).
+- Only `fabric/src/` and `neoforge/src/` may import their loader's classes. Shared client code uses `ClientPlatform`; changes to that contract must go into both loaders. Each loader also passes in-world mouse buttons and scrolling to `Editor.mouseButton` and `Editor.mouseScroll` and cancels the event when they return true: NeoForge through `InputEvent`, Fabric through `MouseHandlerMixin`, because Fabric API has no such event.
 - `CurveGen.java` handles server placement through `net/PlaceBlocksPayload.java` and checks `Permissions.COMMANDS_GAMEMASTER`.
-- In `dev/curvegen/client/`, `BlockChoices` maps pieces to block states for each orientation; `ColorIndex` matches face texture colours in CIELAB; `Placement` handles the hologram, Replace, Carve, undo and `/setblock`. `PresetStore` atomically replaces one JSON file per preset in `config/curvegen/presets/`.
+- In `dev/curvegen/client/`, `BlockChoices` maps pieces to block states for each orientation; `ColorIndex` matches face texture colours in CIELAB; `Placement` sends blocks to the server or falls back to `/setblock`, and undoes the last placement. `PresetStore` atomically replaces one JSON file per preset in `config/curvegen/presets/`.
+- `client/edit/` is the in-world editor. See "In-world editor" below.
 - `ModSettings` holds the mod's own options as static fields, loaded at client start and saved atomically to `config/curvegen/settings.json`. A missing, mistyped or out-of-range value gets its default.
 - `client/screen/CurveScreen` is the main UI; `PreviewTexture` draws the solved grid into a dynamic texture. `SettingsScreen` edits `ModSettings` and opens from the main UI's cogwheel, from Mod Menu on Fabric and from the mod list's Config button on NeoForge. Both extend `ControlScreen`, which has the shared controls.
 - Mod Menu is optional. Fabric compiles against it, and only `ModMenuIntegration`, which Mod Menu itself loads, may refer to it.
@@ -82,6 +84,28 @@ Sizes cap at `Shape3.MAX_SIZE` (256) per axis before padding. `Solver3.solve` ta
 - A stair's `FACING` points to its tall back. An open trapdoor's panel is opposite `FACING`, and so is a shelf's.
 - A shelf is a panel 3 pixels thick with lips 2 deep and 4 tall along its top and bottom. Only the panel's back is a sturdy face.
 
+## In-world editor
+
+Place in the G menu spawns one hologram, locked at the block the player looks at. `Editor` owns it: lock, handles, drags, keys, undo and redo, the HUD and the solver job. It knows nothing about any one shape.
+
+- `Editor` keeps a `Box` in world axes and an `Orient`. Edits change the live `CurveGenClient.SETTINGS`. Undo snapshots are `ShapeSettings.copy()` plus the box and orientation, and `ShapeSettings.set` restores one. `ShapeSettingsTest` fails if a new field is missing from `set` or `same`.
+- A drag restores the settings and box from when it started before every update, so a drag depends only on where the player looks now. Shape edits needn't be reversible.
+- The box and ideal curve are drawn from the live settings every frame. Blocks come from `EditShape.solve` on a worker thread with a `ShapeSettings.copy()`, then `EditShape.build` on the client thread. `Hologram` takes that list of offsets and block states, drops faces hidden against a whole-cube neighbour once per solve, and then only checks the world. Above `ModSettings.hologramBlockLimit` it draws nothing, so only the wireframe shows.
+- Face handles move along one axis, edge handles in the plane across their edge, and corners in the axis-aligned plane facing the camera, with scrolling for the third axis. Sneak resizes about the centre. `Editor.mouseButton` returns true only for a click on a highlighted handle or during a drag.
+- Nudge and bump keys are `CurveGenClient.STEP_KEYS`, each with an action that takes a number of blocks. Hold-to-type calls that action with the typed amount.
+- Opening a screen mid-edit keeps the hologram. When it closes, `Editor` re-reads the settings and records one undo step if they changed.
+
+### `EditShape`
+
+`client/edit/EditShape` is all a shape supplies. `Shape2D` implements it for the ellipse, equation and 2D Bézier curve; `EditShape.of` picks the implementation. Everything is in the shape's own axes, in blocks from its own minimum corner, except `Content`, which is in world axes.
+
+- `size()` and `resize(want, dragged)`: the box. `resize` applies what its limits allow and may change undragged axes, as an equation's same-scale lock does. `Editor` reads `size()` back and fits the box.
+- `orient(current)` returns the orientation the settings allow; `tip(current, forward)` tips a quarter turn and may change settings. A 2D shape switches `floor` instead of rotating.
+- `points()`, `pointPlane()`, `movePoint`, `removePoint`, `insertPoint`, `duplicatePoint`: control points. `pointPlane()` is the own axis points can't move along, or -1 for free 3D points, which drag like corners. `movePoint` returns how far the box's own minimum corner moved when the shape grew to keep the point inside.
+- `curve(solved)`: the ideal curve as segments, cheap enough for every frame.
+- `solve(copy, orient)` runs on the worker thread and mustn't touch the game. `build(solved, orient)` returns `Content`: `Placed(dx, dy, dz, state)` offsets from the world box's minimum corner, carve offsets, whether to tint by top texture, and an error message. Return false from `solveUsesOrient()` if turning only needs `build` again.
+- `describe()`: the HUD's first line.
+
 ## Conventions
 
 - Grey out inapplicable controls with a tooltip explaining why. Don't hide them.
@@ -95,8 +119,8 @@ Sizes cap at `Shape3.MAX_SIZE` (256) per axis before padding. `Solver3.solve` ta
 
 - Keep custom payloads under 32 KiB. Placement sends 2,500 blocks per batch; the `/setblock` fallback sends 40 commands per tick.
 - Undo restores blocks without updates, then the server updates every restored block's neighbours after the last batch. This prevents blocks breaking before their supports return. The fallback uses `strict` but can't update neighbours afterward, so surrounding blocks keep their state.
-- Placement records nearby blocks that need support. Undo restores missing ones even if their support has since gone; it doesn't remove dropped items.
-- Each loader passes the frame's `SubmitNodeCollector` to `Placement`. Submit hologram boxes after terrain to draw over water and glass, except boxes across a water surface from the camera, which go through normal submission to show through the water. `filledBox` must omit faces turned away from the camera because 26.2's filled-box render type doesn't cull them.
+- `Placement.place` records nearby blocks that need support. Undo restores missing ones even if their support has since gone; it doesn't remove dropped items.
+- Each loader passes the frame's `SubmitNodeCollector` to `Editor.render`. Submit hologram boxes after terrain to draw over water and glass, except boxes across a water surface from the camera, which go through normal submission to show through the water. `Hologram` must omit faces turned away from the camera because 26.2's filled-box render type doesn't cull them.
 - `NativeImage.getPixel` and `setPixel` take ARGB.
 
 ## Releasing

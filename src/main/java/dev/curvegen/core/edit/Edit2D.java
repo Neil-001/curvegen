@@ -23,6 +23,7 @@ public final class Edit2D {
             case ELLIPSE -> new int[]{s.eW, s.eH, s.depth};
             case EQUATION -> new int[]{s.qW, equationHeight(s), s.depth};
             case BEZIER -> new int[]{s.bW, s.bH, s.depth};
+            default -> throw new IllegalArgumentException("Not a 2D shape: " + s.gen);
         };
     }
 
