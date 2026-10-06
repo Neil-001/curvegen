@@ -15,7 +15,8 @@
   "environment": "*",
   "entrypoints": {
     "main": ["dev.curvegen.fabric.CurveGenFabric"],
-    "client": ["dev.curvegen.client.fabric.CurveGenFabricClient"]
+    "client": ["dev.curvegen.client.fabric.CurveGenFabricClient"],
+    "modmenu": ["dev.curvegen.client.fabric.ModMenuIntegration"]
   },
   "depends": {
     "fabricloader": ">=0.18.4",

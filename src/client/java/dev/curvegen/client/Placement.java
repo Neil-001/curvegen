@@ -46,8 +46,11 @@ public final class Placement {
 
     private record Entry(int dx, int dy, int dz, BlockState state, List<AABB> boxes, float r, float g, float b) {}
 
-    /** Above this many blocks the hologram shows only the bounding box, to keep frame rates sane. */
-    private static final int HOLOGRAM_LIMIT = 30000;
+    /**
+     * Above this many blocks the hologram shows only the bounding box, to keep frame rates sane. It's the setting's
+     * value when the hologram was last built, so a change in the settings screen rebuilds it.
+     */
+    private static int hologramLimit;
     private static final int COMMANDS_PER_TICK = 40;
 
     private static Layout layout;
@@ -150,13 +153,14 @@ public final class Placement {
 
     private static void rebuild(Direction forward) {
         Direction right = forward.getClockWise();
+        hologramLimit = ModSettings.hologramBlockLimit;
         List<Entry> out = new ArrayList<>(layout.cells().size() * depth);
         minDx = minDy = minDz = Integer.MAX_VALUE; maxDx = maxDy = maxDz = Integer.MIN_VALUE;
         for (Layout.Cell c : layout.cells())
             for (int k = 0; k < depth; k++) {
                 BlockPos o = offset(c.x(), c.y(), k, right, forward);
                 BlockState st = BlockChoices.stateFor(c.piece(), c.above(), right, forward, k, depth, floor);
-                List<AABB> boxes = out.size() < HOLOGRAM_LIMIT
+                List<AABB> boxes = out.size() < hologramLimit
                         ? st.getShape(EmptyBlockGetter.INSTANCE, BlockPos.ZERO).toAabbs() : List.of();
                 int rgb = ColorIndex.of(st.getBlock(), floor);
                 out.add(new Entry(o.getX(), o.getY(), o.getZ(), st, boxes,
@@ -177,7 +181,7 @@ public final class Placement {
 
     /** Works out what placing right now would actually do, given the blocks already in the world. */
     private static void refreshView(Minecraft mc) {
-        boolean drawn = entries.size() <= HOLOGRAM_LIMIT;   // the split is only for drawing the boxes
+        boolean drawn = entries.size() <= hologramLimit;   // the split is only for drawing the boxes
         List<Entry> place = new ArrayList<>(), wet = new ArrayList<>(), dry = new ArrayList<>();
         for (Entry e : entries) {
             BlockPos p = anchor.offset(e.dx, e.dy, e.dz);
@@ -205,7 +209,7 @@ public final class Placement {
                 mc.getConnection().sendCommand(commandQueue.poll());
         if (!active || mc.player == null) return;
         Direction f = facing(mc);
-        if (f != cachedFacing) rebuild(f);
+        if (f != cachedFacing || hologramLimit != ModSettings.hologramBlockLimit) rebuild(f);
         BlockPos base = lockedAnchor != null ? lockedAnchor : baseTarget(mc);
         anchor = base == null ? null : base.offset(nudge);
         if (anchor != null && mc.level != null && (!anchor.equals(viewAnchor) || viewFacing != cachedFacing || ++viewAge >= 10))
@@ -225,10 +229,10 @@ public final class Placement {
         ms.pushPose();
         ms.translate(-cx, -cy, -cz);
 
-        if (entries.size() <= HOLOGRAM_LIMIT) {
+        if (entries.size() <= hologramLimit) {
             // Water is drawn between the two phases. Boxes on the camera's side of the surface go after it, so they
             // draw over water behind them. Boxes on the far side go before it, so they show through the surface.
-            boolean clear = toBreak.size() <= HOLOGRAM_LIMIT;
+            boolean clear = toBreak.size() <= hologramLimit;
             boolean camWet = Minecraft.getInstance().gameRenderer.mainCamera().getFluidInCamera() == FogType.WATER;
             submitBoxes(out, ms, camWet ? placeWet : placeDry, !clear ? List.of() : camWet ? breakWet : breakDry, true, cx, cy, cz);
             submitBoxes(out, ms, camWet ? placeDry : placeWet, !clear ? List.of() : camWet ? breakDry : breakWet, false, cx, cy, cz);
@@ -244,9 +248,10 @@ public final class Placement {
     private static void submitBoxes(SubmitNodeCollector out, PoseStack ms, List<Entry> place, List<BlockPos> clear, boolean afterWater,
                                     double cx, double cy, double cz) {
         if (place.isEmpty() && clear.isEmpty()) return;
+        float opacity = (float) ModSettings.hologramOpacity;
         SubmitNodeCollector.CustomGeometryRenderer boxes = (pose, fill) -> {
             for (Entry e : place) {
-                int color = ARGB.colorFromFloat(0.45f, e.r, e.g, e.b);
+                int color = ARGB.colorFromFloat(opacity, e.r, e.g, e.b);
                 for (AABB b : e.boxes)
                     filledBox(pose, fill, e.dx + b.minX, e.dy + b.minY, e.dz + b.minZ, e.dx + b.maxX, e.dy + b.maxY, e.dz + b.maxZ, color, cx, cy, cz);
             }
@@ -297,7 +302,7 @@ public final class Placement {
                 + key(CurveGenClient.FORWARD) + "/" + key(CurveGenClient.BACK) + " move forwards or back, "
                 + key(CurveGenClient.LOCK) + (lockedAnchor != null ? " unlock (follow your view again)" : " lock position and direction") + ", "
                 + key(CurveGenClient.CANCEL) + " cancel").withStyle(ChatFormatting.GRAY));
-        if (entries.size() > HOLOGRAM_LIMIT) lines.add(Component.literal("Large shape: only its outline is previewed.").withStyle(ChatFormatting.YELLOW));
+        if (entries.size() > hologramLimit) lines.add(Component.literal("Large shape: only its outline is previewed.").withStyle(ChatFormatting.YELLOW));
         if (!mc.player.permissions().hasPermission(Permissions.COMMANDS_GAMEMASTER))
             lines.add(Component.literal("You need operator permissions to place blocks here. Cancel and use Export instead.").withStyle(ChatFormatting.RED));
         int y = 6;

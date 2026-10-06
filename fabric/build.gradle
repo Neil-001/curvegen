@@ -4,6 +4,11 @@ plugins {
 
 repositories {
 	mavenCentral()
+	maven {
+		name = 'TerraformersMC'
+		url = 'https://maven.terraformersmc.com/releases/'
+		content { includeGroup 'com.terraformersmc' }
+	}
 }
 
 loom {
@@ -31,6 +36,9 @@ sourceSets {
 	}
 	test {
 		java.srcDir rootProject.file('src/test/java')
+		// For the client classes that don't need the game running, such as ModSettings.
+		compileClasspath += sourceSets.client.output
+		runtimeClasspath += sourceSets.client.output
 	}
 }
 
@@ -38,8 +46,10 @@ dependencies {
 	minecraft "com.mojang:minecraft:${project.minecraft_version}"
 	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
 	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+	// Mod Menu is optional: only its entrypoint class refers to it, and only Mod Menu loads that class.
+	compileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
 
-	// Tests cover the pure-Java core (dev.curvegen.core) and don't need Minecraft running.
+	// Tests cover the pure-Java core (dev.curvegen.core) and the settings file, and don't need Minecraft running.
 	testImplementation "org.junit.jupiter:junit-jupiter:5.10.3"
 	testRuntimeOnly "org.junit.platform:junit-platform-launcher"
 }
