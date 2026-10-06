@@ -7,7 +7,7 @@ A Fabric and NeoForge mod for Minecraft Java 26.3. It turns ellipses, equations 
 Needs JDK 25. Versions are in `gradle.properties`. Run build and test after every change.
 
 - `./gradlew build` builds both jars in `fabric/build/libs/` and `neoforge/build/libs/` and runs the tests.
-- `./gradlew :fabric:test` runs the JUnit tests for the pure-Java core and for client classes that don't need the game running, such as `ModSettings`. Only Fabric hosts them, since they're loader-independent.
+- `./gradlew :fabric:test` runs the JUnit tests for the pure-Java core and for client classes that don't need the game running, such as `ModSettings`. Only Fabric hosts them, since they're loader-independent. `GameRules3Test` is the one test that loads Minecraft's blocks, to check the 3D pieces against the game. It needs no world or client.
 - `./gradlew :fabric:runClient` or `./gradlew :neoforge:runClient` starts a dev client. Use `runServer` for a server.
 
 Both jars target 26.3 only. Minecraft is unobfuscated, so use its own names without mappings. Builds use the minimum supported Fabric API and NeoForge versions; CI also compiles against newer ones.
@@ -16,7 +16,7 @@ Both jars target 26.3 only. Minecraft is unobfuscated, so use its own names with
 
 Both loaders compile the shared `src/main` and `src/client` code with their own entrypoints and metadata. Fabric also compiles `src/test`. Fabric splits common and client source sets with Loom's `splitEnvironmentSourceSets()`; NeoForge combines them in one jar. Common code must never touch client classes.
 
-- `dev/curvegen/core/` must have no Minecraft imports. `Pieces` defines the 16×16 states, masks, mirrors and sturdy faces; `Target` builds the shapes and carve regions; `Solver` selects pieces. `Expr` compiles Desmos-style equations to lambdas without `eval`. Run the solver on a worker thread with a `ShapeSettings.copy()`. `Silhouette` shares piece pixels and outlines between the preview and Count icons.
+- `dev/curvegen/core/` must have no Minecraft imports. `Pieces` defines the 16×16 states, masks, mirrors and sturdy faces; `Target` builds the shapes and carve regions; `Solver` selects pieces. `Expr` compiles Desmos-style equations to lambdas without `eval`. Run the solver on a worker thread with a `ShapeSettings.copy()`. `Silhouette` shares piece pixels and outlines between the preview and Count icons. Those classes are 2D. 3D shapes have their own: `Pieces3`, `Shape3`, `Shapes3` and `Solver3`, described under "Volumetric solver".
 - Only `fabric/src/` and `neoforge/src/` may import their loader's classes. Shared client code uses `ClientPlatform`; changes to that contract must go into both loaders.
 - `CurveGen.java` handles server placement through `net/PlaceBlocksPayload.java` and checks `Permissions.COMMANDS_GAMEMASTER`.
 - In `dev/curvegen/client/`, `BlockChoices` maps pieces to block states for each orientation; `ColorIndex` matches face texture colours in CIELAB; `Placement` handles the hologram, Replace, Carve, undo and `/setblock`. `PresetStore` atomically replaces one JSON file per preset in `config/curvegen/presets/`.
@@ -27,6 +27,8 @@ Both loaders compile the shared `src/main` and `src/client` code with their own 
 
 ## Solver
 
+This is the 2D solver, for ellipses, equations and Bézier curves. Its results must not change when the 3D one does.
+
 1. `Target` marks cells empty, full or mixed. Mixed cells sample 16×16 pixels and store each state's pixel error in `errTab`.
 2. Each cell starts with its lowest-error allowed piece. Fence, pane and wall tokens get their states from neighbours, initially assuming every supporting neighbour connects.
 3. Refinement re-picks cells until nothing improves. `Solver`'s affected sets must include side neighbours, the row below for upright wall heights, and rows above and below for flat connections. Otherwise a step can worsen the result.
@@ -34,9 +36,39 @@ Both loaders compile the shared `src/main` and `src/client` code with their own 
 5. In hollow shapes, refinement adds a penalty for a connector whose silhouette is a full block, such as a wall with two tall sides mirrored from one with two low sides. The block above would have to stay to keep it tall. Keep the rule as a cost, not a filter, or refinement can cycle.
 6. Hollowing removes unexposed full blocks from thin ellipses. A block is unexposed when every neighbour's silhouette fills the shared edge, so `Pieces.EDGE` decides this rather than `STURDY`. Keep connector supports and, upright, blocks that determine a wall's height below.
 
-Upright states are 0 to 55, with walls at 20 to 55 encoding three heights per side, covered and post. Flat-only states are 56 to 105. Shelves follow: 106 and 107 upright, 108 to 111 flat. Chain and end rod states, 112 to 117, serve both orientations: a chain runs across or up the drawing and a rod points one of four ways. Neither connects to anything or uses the end-on view. They win a tie with air, the only tie not settled by candidate order. Grids use `byte[]`, so indices must stay below 128.
+Upright states are 0 to 55, with walls at 20 to 55 encoding three heights per side, covered and post. Flat-only states are 56 to 105. Shelves follow: 106 and 107 upright, 108 to 111 flat. Chain and end rod states, 112 to 117, serve both orientations: a chain runs across or up the drawing and a rod points one of four ways. Neither connects to anything or uses the end-on view. They win a tie with air, the only tie not settled by candidate order. 2D grids use `byte[]`, so indices must stay below 128.
 
 Upright builds show the side face; flat builds show the top, with the drawing's top pointing away from the player. Match colours to that face. Flat builds exclude slabs, stairs and closed trapdoors because they look like full blocks from above. Upright builds exclude shelves facing towards or away from the viewer for the same reason.
+
+## Volumetric solver
+
+`Solver3` solves 3D shapes (`ShapeSettings.is3d()`: ellipsoid and torus so far) in the world's orientation: x east, y up, z south. It shares nothing with the 2D solver but `Pieces.Family` and the settings' piece toggles and `fullConnects`. The client doesn't use it yet.
+
+1. A `Shape3` is a box of blocks and a field, solid where the field lies from `lo()` to `hi()`. `uniform` marks runs of cells empty or solid without sampling them. A cell that may hold the surface is sampled at 16³ points, by interpolating the field from a 5×5×5 lattice, and stores its overlap with each of `Pieces3`'s 57 parts. Every state is a union of disjoint parts, so a state's error is the cell's volume plus the state's, less twice their overlap.
+2. Each mixed cell starts with its lowest-error token. A token is a state, except that a straight stair stands for whichever corner shape its neighbours give it, and `FENCE`, `PANE` and `WALL_POST` for whichever connections, heights and post.
+3. Refinement re-picks cells until nothing improves, for at most `MAX_SWEEPS` passes. A pick is judged on every cell whose state it can change: `Run.gather` lists them. A token reaches two steps on its own level, because a connector attaches to a stair by the stair's corner shape, and down any column of walls below those cells. Leaving a cell out lets a pick raise the total error, and then refinement can cycle.
+4. A symmetric shape is sampled in one octant. Mirrored cells share a token, and only the quarter that x and z leave is scored, so the total being lowered stays one sum. Cells on a mirror plane may only hold tokens that are their own image.
+5. `hollow()` shapes then lose every full block whose six neighbours fill the faces they share. No connector fills a face, so the blocks connectors attach to and the block above a wall always stay.
+
+`Pieces3` states decode to every block state property, and `Pieces3.props` writes them in the game's names (`facing=north,half=top,shape=inner_left`), so the client maps a state to a `BlockState` without guessing. There are 257 states, so 3D grids are `short[]`, indexed `(y*nz + z)*nx + x`. Shapes are the game's voxel shapes, except that a fence's arms, a chain and an end rod are scored as drawn, like the 2D pieces. `GameRules3Test` builds every state from `props` and compares its shape with the game's, then has the game update every stair, fence, pane and wall in a set of solved shapes and expects no change. Run it after touching `Pieces3` or `Solver3`'s rules.
+
+Rules the 3D solver follows beyond those under "Minecraft rules":
+
+- A stair becomes an outer corner when the stair in front of it, on the same half, faces sideways, and an inner corner when the one behind does, unless the cell beside it holds a stair facing the same way.
+- A wall side is tall when the bottom of the collision shape above covers that side's strip, 2 pixels wide from the edge to 1 past the centre. A fence's collision arms are solid, so a fence above makes a wall's sides tall where the fence connects.
+- A wall has a post if the wall above has one, if it has no sides, or if a side lacks its opposite. Otherwise it has none when two opposite sides are both tall, and else has one only if the block above covers its centre.
+
+### Adding a 3D shape
+
+Implement `Shape3` and add it to `Shape3.of`. Only the sizes, `field` and `wireframe` are required.
+
+- `field(x, y, z)` takes block coordinates from the box's lowest corner. It's called from several threads, so it must not share scratch state. NaN means outside.
+- The default `uniform` trusts the field to change by at most 1 per block, as a signed distance does. If it can be steeper, divide it by a bound on its slope or override `uniform`, or the solver will skip cells that hold the surface. `Solver3Test.skippedCellsReallyAreUniform` shows how to test that.
+- Give a shell as a band of a smooth field, not as `abs(distance) - thickness/2`: the lattice can't follow a crease. An implicit surface f = 0 with a thickness is a band of f over its gradient's length; a filled side is `lo` or `hi` at infinity. A tube around a curve, or a patch with a thickness, is the distance to it with `hi` at half the thickness. That field does have a crease, on the curve or patch itself, which is inside and harmless unless the thickness is under half a block. Return false from `smooth()` then, or for any field the lattice can't follow: the solver evaluates all 4096 points instead, which is far slower.
+- `carve()` gives the band of field values that count as the space the shape encloses, for `Solver3.carve`. `pad()` is the room added around the size the player set. `symX`, `symY` and `symZ` must be true only if the field is exactly mirrored about the box's centre.
+- `wireframe()` returns polylines as `{x0, y0, z0, x1, y1, z1, ...}` and must be cheap, since the editor draws it every frame while a solve runs.
+
+Sizes cap at `Shape3.MAX_SIZE` (256) per axis before padding. `Solver3.solve` takes a `BooleanSupplier` and returns null once it reports true, so the caller can drop a solve when the settings change. Run it on a worker thread with a `ShapeSettings.copy()`. A hollow sphere takes about 20 ms at 64 blocks across and 100 ms at 128.
 
 ## Minecraft rules
 
@@ -57,7 +89,7 @@ Upright builds show the side face; flat builds show the top, with the drawing's 
 - Size buttons with `tw(...)` and the fitting loops in `CurveScreen.init`. Nothing may overlap at 427 px wide, as in 1280×720 at GUI scale 3. New controls must take space from existing ones.
 - Use plain, sentence case UI copy without jargon.
 - Visual fixes must preserve other behaviour. Prove it, for example by comparing pixels across all pieces as in `SilhouetteTest`.
-- Test new core logic. Change `SolverRegressionTest` reference numbers only on purpose.
+- Test new core logic. Change `SolverRegressionTest` and `Solver3Test` reference numbers only on purpose.
 
 ## Placement and rendering
 

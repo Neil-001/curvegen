@@ -80,7 +80,7 @@ public class CurveScreen extends ControlScreen {
     public CurveScreen() {
         super(Component.literal("Curve Generator"));
         if (tab != Tab.BLOCKS && tab != Tab.COUNT)
-            tab = switch (S.gen) { case ELLIPSE -> Tab.ELLIPSE; case EQUATION -> Tab.EQUATION; case BEZIER -> Tab.BEZIER; };
+            tab = switch (S.gen) { case ELLIPSE -> Tab.ELLIPSE; case EQUATION -> Tab.EQUATION; case BEZIER -> Tab.BEZIER; default -> tab; };
         S.fullConnects = BlockChoices.fullBlockConnects();
     }
 
@@ -212,7 +212,7 @@ public class CurveScreen extends ControlScreen {
         if (g == null) return;
         PresetData.apply(p.data, g, S);
         if (withBlocks && p.blocks != null) { BlockChoices.apply(p.blocks, S, BlockChoices.CHOICE); textureDirty = true; }
-        tab = switch (g) { case ELLIPSE -> Tab.ELLIPSE; case EQUATION -> Tab.EQUATION; case BEZIER -> Tab.BEZIER; };
+        tab = switch (g) { case ELLIPSE -> Tab.ELLIPSE; case EQUATION -> Tab.EQUATION; case BEZIER -> Tab.BEZIER; default -> tab; };
         pointScroll = 0;
         dirty = true; autoFit = true;
         rebuildWidgets();
@@ -857,7 +857,7 @@ public class CurveScreen extends ControlScreen {
         if (!ready()) return;
         Layout layout = Layout.of(result);
         if (layout.isEmpty()) { flash("The shape is empty, so there's nothing to export."); return; }
-        String kind = switch (S.gen) { case ELLIPSE -> "ellipse"; case EQUATION -> "equation"; case BEZIER -> "bezier"; };
+        String kind = switch (S.gen) { case ELLIPSE -> "ellipse"; case EQUATION -> "equation"; case BEZIER -> "bezier"; default -> "shape"; };
         try {
             String author = minecraft.player != null ? minecraft.player.getName().getString() : "Curve Generator";
             Path file = LitematicExporter.export(layout, S.depth, S.floor, LitematicExporter.defaultName(kind) + (S.floor ? "_floor" : ""), author);

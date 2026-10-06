@@ -49,7 +49,7 @@ dependencies {
 	// Mod Menu is optional: only its entrypoint class refers to it, and only Mod Menu loads that class.
 	compileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
 
-	// Tests cover the pure-Java core (dev.curvegen.core) and the settings file, and don't need Minecraft running.
+	// Tests cover the pure-Java core (dev.curvegen.core) and the settings file. GameRules3Test also loads Minecraft's blocks, without a world or client.
 	testImplementation "org.junit.jupiter:junit-jupiter:5.10.3"
 	testRuntimeOnly "org.junit.platform:junit-platform-launcher"
 }
