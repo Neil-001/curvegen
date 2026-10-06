@@ -920,7 +920,7 @@ public class CurveScreen extends Screen {
         Layout layout = Layout.of(result);
         if (layout.isEmpty()) { flash("The shape is empty, so there's nothing to place."); return; }
         if (minecraft.player != null && !minecraft.player.permissions().hasPermission(Permissions.COMMANDS_GAMEMASTER))
-            Placement.say(Component.literal("Note: you'll need operator permissions to confirm placement. Export works for everyone."));
+            Placement.say(Component.literal("You'll need operator permissions to place this."));
         Placement.start(layout, S.depth, S.overwrite, S.carve, S.floor);
         onClose();
     }
@@ -934,7 +934,7 @@ public class CurveScreen extends Screen {
             String author = minecraft.player != null ? minecraft.player.getName().getString() : "Curve Generator";
             Path file = LitematicExporter.export(layout, S.depth, S.floor, LitematicExporter.defaultName(kind) + (S.floor ? "_floor" : ""), author);
             flash("Exported to schematics/" + file.getFileName());
-            Placement.say(Component.literal("Curve Generator: exported to schematics/" + file.getFileName()));
+            Placement.say(Component.literal("Exported to schematics/" + file.getFileName()));
         } catch (Exception e) {
             flash("Export failed: " + e.getMessage());
         }
