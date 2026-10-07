@@ -150,7 +150,7 @@ class Shapes3Test {
         pinned("sphere", cube("x^2 + y^2 + z^2 = 16", SURFACE, 1.5, 24, "-5", "5"), 331.7793, 1740.7715, 2528);
         pinned("ball", cube("x^2 + y^2 + z^2 < 16", SURFACE, 1, 24, "-5", "5"), 169.8477, 3703.8906, 4128);
         pinned("saddle", equation("z = x y / 3", SURFACE, 0.5, 20, "-3", "3", "-3", "3", "-3", "3"), 146.9873, 256.0186, 576);
-        pinned("tangent", cube("z = tan(x)", SURFACE, 1, 32, "-4", "4"), 678.5000, 2593.5000, 4544);
+        pinned("tangent", cube("z = tan(x)", SURFACE, 1, 32, "-4", "4"), 699.0000, 2614.0000, 4544);
         pinned("steps", cube("z > floor(x)", SURFACE, 1, 32, "-4", "4"), 0.0000, 18432.0000, 18432);
         ShapeSettings all = cube("x^2 + y^2 + z^2 = 16", SURFACE, 1, 24, "-5", "5");
         all.chain = all.rod = true;
@@ -378,6 +378,24 @@ class Shapes3Test {
     }
 
     @Test
+    void anEquationThatTurnsAtItsSurfaceStillHasOne() {
+        // x^2 is flat where x is 0, so a slope taken there says the surface is nowhere near. It's half a block off.
+        ShapeSettings s = cube("x^2 = 0.16", SURFACE, 1, 9, "-4.5", "4.5");
+        Shape3 sh = Shape3.of(s);
+        assertEquals(0, sh.uniform(4, 0, 0));
+        Solver3.Result r = Solver3.run(s);
+        assertEquals(1.8 * 81, r.volume(), 5);      // two walls 0.8 apart, each a block thick, run together
+        for (int x = 3; x <= 5; x++) assertNotEquals(AIR, r.at(x, 4, 4));
+        // Squared, an equation touches 0 without crossing it. It's the same surface as before.
+        assertEquals(81, Solver3.run(cube("x = 0", SURFACE, 1, 9, "-4.5", "4.5")).volume(), 0.5);
+        assertEquals(81, Solver3.run(cube("x^2 = 0", SURFACE, 1, 9, "-4.5", "4.5")).volume(), 0.5);
+        double ball = Solver3.run(cube("x^2 + y^2 + z^2 = 16", SURFACE, 1, 24, "-5", "5")).volume();
+        assertEquals(ball, Solver3.run(cube("(x^2 + y^2 + z^2 - 16)^2 = 0", SURFACE, 1, 24, "-5", "5")).volume(), ball * 0.02);
+        // A pole still isn't one, however the stepping goes.
+        assertEquals(0, Solver3.run(cube("1/x^2 = 0", SURFACE, 1, 9, "-4.5", "4.5")).volume(), 1e-9);
+    }
+
+    @Test
     void interpolatingAnEquationChangesLittle() {
         List<ShapeSettings> cases = List.of(equation("z = sin(x) cos(y)", SURFACE, 1, 24), equation("z = sin(x) cos(y)", SURFACE, 0.25, 24),
                 cube("x^2 + y^2 + z^2 = 16", SURFACE, 2, 24, "-5", "5"), cube("x^2 + y^2 + z^2 = 16", BELOW, 1, 24, "-5", "5"),
@@ -554,6 +572,22 @@ class Shapes3Test {
                 if (r.at(x, 5, z) != AIR && r.at(x, 6, z) != AIR) between++;
             }
         assertEquals(104, lower); assertEquals(104, upper); assertEquals(0, between);
+    }
+
+    @Test
+    void aHairpinKeepsBothItsArms() {
+        // A sheet bent double within a block or two: every point on it is on it, whichever arm is nearer the bucket's middle.
+        ShapeSettings s = surface(18, 22, 4, 2, 3, 1, 0);
+        double[][] bend = {{9, 9}, {13, 19}, {7, 10}};
+        for (int k = 0; k < 6; k++) { s.sPts.get(k)[0] = bend[k % 3][0]; s.sPts.get(k)[1] = bend[k % 3][1]; s.sPts.get(k)[2] = k / 3 * 4; }
+        Shape3 sh = Shape3.of(s);
+        for (int a = 0; a <= 200; a++)
+            for (int b = 1; b < 8; b++) {
+                double[] p = Bezier3.patchPoint(s.sPts, 2, 3, a / 200.0, b / 8.0);
+                assertEquals(0, sh.field(p[0] + 1, p[1] + 1, p[2] + 1), 0.02, "at u " + a / 200.0 + ", v " + b / 8.0);
+            }
+        double exact = area(s);
+        assertEquals(exact, Solver3.run(s).volume(), exact * 0.06);
     }
 
     @Test

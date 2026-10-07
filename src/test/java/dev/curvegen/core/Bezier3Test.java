@@ -110,6 +110,13 @@ class Bezier3Test {
             }
         }
         assertNull(Bezier3.nearestToRay(curve(1, 1), new double[3], new double[]{0, 0, 1}));
+        // A ray through a chord of a big curve misses the curve by a little. The answer is still a point of the curve.
+        List<double[]> arch = List.of(new double[]{0, 0, 0}, new double[]{128, 256, 0}, new double[]{256, 0, 0});
+        double[] eye = {125.33333333333334, 127.88888888888889, -10}, ahead = {0, 0, 1};
+        double[] hit = Bezier3.nearestToRay(arch, eye, ahead);
+        assertEquals(0, gap(Bezier3.point(arch, hit[0]), new double[]{hit[1], hit[2], hit[3]}), 1e-9);
+        assertEquals(HandleMath.toRay(eye, ahead, new double[]{hit[1], hit[2], hit[3]})[0], hit[4], 1e-9);
+        assertTrue(hit[4] > 0.01 && hit[4] < 0.06, "passes " + hit[4] + " from the curve");
     }
 
     @Test
@@ -177,6 +184,14 @@ class Bezier3Test {
             assertEquals(0, gap(on, new double[]{hit[2], hit[3], hit[4]}), 0.05);
             assertEquals(gap(on, eye), hit[6], 0.05);
         }
+        // A patch that rises and falls steeply is crossed more than once. The first crossing is the one that counts.
+        ShapeSettings peaks = surface(2, 6, 1);
+        double[] heights = {0, 256, 0, 0, 256, 20};
+        for (int k = 0; k < 12; k++) { peaks.sPts.get(k)[0] = 51.2 * (k % 6); peaks.sPts.get(k)[1] = heights[k % 6]; peaks.sPts.get(k)[2] = 256 * (k / 6); }
+        double[] first = Bezier3.patchNearestToRay(peaks.sPts, 2, 6, new double[]{-10, 106.67, 128}, new double[]{1, 0, 0});
+        assertEquals(0, first[5], 1e-3);
+        assertEquals(53.60915, first[2], 0.01);
+        assertEquals(63.60915, first[6], 0.01);
         // A ray that passes beside the patch finds the edge it comes closest to.
         double[] hit = Bezier3.patchNearestToRay(s.sPts, 4, 4, new double[]{-3, 40, 15}, new double[]{0, -1, 0});
         assertEquals(0, hit[0], 1e-6);

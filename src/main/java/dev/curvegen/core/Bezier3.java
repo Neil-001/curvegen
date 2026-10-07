@@ -130,12 +130,12 @@ public final class Bezier3 {
         }
         double u = (lo + hi) / 2;
         double[] p = point(pts, u), r = HandleMath.toRay(origin, dir, p);
-        // A curve that crosses itself, or a ray along it, has other bends the search can't see. Keep the sampled answer if it's better.
-        if (r[0] > hit[3]) {
-            double len = Math.sqrt(sq(segs[k * 6 + 3] - segs[k * 6], segs[k * 6 + 4] - segs[k * 6 + 1], segs[k * 6 + 5] - segs[k * 6 + 2]));
-            double t = len == 0 ? 0 : Math.sqrt(sq(hit[0] - segs[k * 6], hit[1] - segs[k * 6 + 1], hit[2] - segs[k * 6 + 2])) / len;
-            return new double[]{(k + t) / n, hit[0], hit[1], hit[2], hit[3], hit[4]};
-        }
+        // A curve that crosses itself, or a ray along it, has other bends the search can't see. If the curve is
+        // nearer the ray where the sampled answer was, take the curve's point there.
+        double len = Math.sqrt(sq(segs[k * 6 + 3] - segs[k * 6], segs[k * 6 + 4] - segs[k * 6 + 1], segs[k * 6 + 5] - segs[k * 6 + 2]));
+        double t = len == 0 ? 0 : Math.sqrt(sq(hit[0] - segs[k * 6], hit[1] - segs[k * 6 + 1], hit[2] - segs[k * 6 + 2])) / len;
+        double[] q = point(pts, (k + t) / n), rq = HandleMath.toRay(origin, dir, q);
+        if (rq[0] < r[0]) { u = (k + t) / n; p = q; r = rq; }
         return new double[]{u, p[0], p[1], p[2], r[0], r[1]};
     }
 
@@ -223,26 +223,38 @@ public final class Bezier3 {
 
     /**
      * Where the ray first hits the patch, or failing that the point on the patch it passes closest to:
-     * {u, v, x, y, z, distance from the ray, distance along the ray}. The distance from the ray is 0 for a hit.
+     * {u, v, x, y, z, distance from the ray, distance along the ray}. The distance from the ray is 0 for a hit,
+     * and passing within a twentieth of a block counts as one, so that a ray just clipping a hump stops there.
      */
     public static double[] patchNearestToRay(List<double[]> pts, int rows, int cols, double[] origin, double[] dir) {
-        final int g = 24;
+        // A mesh fine enough for the bends the control points can make: a patch with more of them can turn more often.
+        final int g = 24 * (cols - 1), gv = 24 * (rows - 1);
         double[] d = HandleMath.normalize(dir);
-        double[][] mesh = new double[(g + 1) * (g + 1)][];
-        for (int b = 0; b <= g; b++) {
+        double[][] mesh = new double[(g + 1) * (gv + 1)][];
+        for (int b = 0; b <= gv; b++) {
             List<double[]> across = new ArrayList<>(rows);      // the curve of constant v, evaluated along u
-            for (int c = 0; c < cols; c++) across.add(point(line(pts, rows, cols, c, false), (double) b / g));
+            for (int c = 0; c < cols; c++) across.add(point(line(pts, rows, cols, c, false), (double) b / gv));
             for (int a = 0; a <= g; a++) mesh[b * (g + 1) + a] = point(across, (double) a / g);
         }
         double bestS = Double.POSITIVE_INFINITY, hitU = 0, hitV = 0;
-        for (int b = 0; b < g; b++)
+        for (int b = 0; b < gv; b++)
             for (int a = 0; a < g; a++) {
                 double[] p00 = mesh[b * (g + 1) + a], p10 = mesh[b * (g + 1) + a + 1], p01 = mesh[(b + 1) * (g + 1) + a], p11 = mesh[(b + 1) * (g + 1) + a + 1];
                 double[] h = hitTriangle(origin, d, p00, p10, p11);
-                if (h != null && h[0] < bestS) { bestS = h[0]; hitU = (a + h[1] + h[2]) / g; hitV = (b + h[2]) / g; }
+                if (h != null && h[0] < bestS) { bestS = h[0]; hitU = (a + h[1] + h[2]) / g; hitV = (b + h[2]) / gv; }
                 h = hitTriangle(origin, d, p00, p11, p01);
-                if (h != null && h[0] < bestS) { bestS = h[0]; hitU = (a + h[1]) / g; hitV = (b + h[1] + h[2]) / g; }
+                if (h != null && h[0] < bestS) { bestS = h[0]; hitU = (a + h[1]) / g; hitV = (b + h[1] + h[2]) / gv; }
             }
+        // The mesh cuts the tops off the patch's humps, so a ray that only just clips one misses the mesh there.
+        // Passing within a twentieth of a block of a mesh line counts as a hit too.
+        for (int b = 0; b <= gv; b++)
+            for (int a = 0; a <= g; a++)
+                for (int way = 0; way < 2; way++) {
+                    if (way == 0 ? a == g : b == gv) continue;
+                    double[] near = pass(origin, d, mesh[b * (g + 1) + a], mesh[way == 0 ? b * (g + 1) + a + 1 : (b + 1) * (g + 1) + a]);
+                    if (near[0] > GRAZE || near[1] >= bestS) continue;
+                    bestS = near[1]; hitU = (a + (way == 0 ? near[2] : 0)) / g; hitV = (b + (way == 0 ? 0 : near[2])) / gv;
+                }
         double u, v;
         if (bestS < Double.POSITIVE_INFINITY) { u = hitU; v = hitV; }
         else {
@@ -252,11 +264,17 @@ public final class Bezier3 {
                 double dist = HandleMath.toRay(origin, d, mesh[k])[0];
                 if (dist < bestD) { bestD = dist; best = k; }
             }
-            u = (double) (best % (g + 1)) / g; v = (double) (best / (g + 1)) / g;
+            u = (double) (best % (g + 1)) / g; v = (double) (best / (g + 1)) / gv;
         }
-        // The mesh is only close to the patch. Walk to the best point nearby on the patch itself.
+        // The mesh is only close to the patch. From a hit, close in on the nearest real crossing, which is the first
+        // one when the ray clips a hump twice.
+        if (bestS < Double.POSITIVE_INFINITY) {
+            double[] at = crossing(pts, rows, cols, origin, d, u, v, bestS);
+            if (at != null) { u = at[0]; v = at[1]; }
+        }
+        // Then, or when there's no crossing, walk to the best point nearby on the patch itself.
         double here = HandleMath.toRay(origin, d, patchPoint(pts, rows, cols, u, v))[0];
-        for (double step = 0.5 / g; step > 1e-5 && here > 1e-9; ) {
+        for (double step = 0.5 / Math.max(g, gv); step > 1e-6 && here > 1e-9; ) {
             boolean moved = false;
             for (int k = 0; k < 4; k++) {
                 double tu = Math.max(0, Math.min(1, u + (k == 0 ? step : k == 1 ? -step : 0)));
@@ -270,6 +288,43 @@ public final class Bezier3 {
         return new double[]{u, v, p[0], p[1], p[2], r[0], r[1]};
     }
 
+    /** Newton's method for where the ray meets the patch, from a guess at (u, v) and s along the ray. Null if it doesn't settle on the patch. */
+    private static double[] crossing(List<double[]> pts, int rows, int cols, double[] o, double[] d, double u, double v, double s) {
+        final double e = 1e-6;
+        for (int it = 0; it < 12; it++) {
+            double[] p = patchPoint(pts, rows, cols, u, v), pu = patchPoint(pts, rows, cols, u + e, v), pv = patchPoint(pts, rows, cols, u, v + e);
+            double[] r = {p[0] - o[0] - s * d[0], p[1] - o[1] - s * d[1], p[2] - o[2] - s * d[2]};
+            if (Math.sqrt(sq(r[0], r[1], r[2])) < 1e-9) return new double[]{u, v};
+            // Solve [Su Sv -d] (du dv ds) = -r by Cramer's rule.
+            double[] a = {(pu[0] - p[0]) / e, (pu[1] - p[1]) / e, (pu[2] - p[2]) / e}, b = {(pv[0] - p[0]) / e, (pv[1] - p[1]) / e, (pv[2] - p[2]) / e}, c = {-d[0], -d[1], -d[2]};
+            double det = det(a, b, c);
+            if (Math.abs(det) < 1e-12) return null;
+            double[] m = {-r[0], -r[1], -r[2]};
+            u += det(m, b, c) / det; v += det(a, m, c) / det; s += det(a, b, m) / det;
+            if (u < 0 || u > 1 || v < 0 || v > 1 || s < 0 || u != u) return null;
+        }
+        return null;
+    }
+
+    private static double det(double[] a, double[] b, double[] c) {
+        return a[0] * (b[1] * c[2] - b[2] * c[1]) - b[0] * (a[1] * c[2] - a[2] * c[1]) + c[0] * (a[1] * b[2] - a[2] * b[1]);
+    }
+
+    /** A ray that passes this close to the patch counts as hitting it. */
+    private static final double GRAZE = 0.05;
+
+    /** How a ray passes the piece from a to b: {distance at the closest, how far along the ray, how far along the piece from 0 to 1}. */
+    private static double[] pass(double[] o, double[] d, double[] a, double[] b) {
+        double ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], wx = a[0] - o[0], wy = a[1] - o[1], wz = a[2] - o[2];
+        double aa = ux * ux + uy * uy + uz * uz, ad = ux * d[0] + uy * d[1] + uz * d[2], aw = ux * wx + uy * wy + uz * wz, dw = d[0] * wx + d[1] * wy + d[2] * wz;
+        double denom = aa - ad * ad;
+        double t = denom > 1e-12 ? Math.max(0, Math.min(1, (ad * dw - aw) / denom)) : 0;
+        double s = Math.max(0, dw + ad * t);
+        t = aa > 1e-12 ? Math.max(0, Math.min(1, (ad * s - aw) / aa)) : 0;
+        double ex = wx + ux * t - d[0] * s, ey = wy + uy * t - d[1] * s, ez = wz + uz * t - d[2] * s;
+        return new double[]{Math.sqrt(ex * ex + ey * ey + ez * ez), s, t};
+    }
+
     /** Where a ray crosses a triangle: {distance along the ray, weight of b, weight of c}, or null. */
     private static double[] hitTriangle(double[] o, double[] d, double[] a, double[] b, double[] c) {
         double e1x = b[0] - a[0], e1y = b[1] - a[1], e1z = b[2] - a[2], e2x = c[0] - a[0], e2y = c[1] - a[1], e2z = c[2] - a[2];
@@ -277,11 +332,13 @@ public final class Bezier3 {
         double det = e1x * px + e1y * py + e1z * pz;
         if (Math.abs(det) < 1e-12) return null;
         double tx = o[0] - a[0], ty = o[1] - a[1], tz = o[2] - a[2];
+        // A ray along the seam between two triangles must hit one of them, so each reaches a hair past its edges.
+        final double seam = 1e-9;
         double wb = (tx * px + ty * py + tz * pz) / det;
-        if (wb < 0 || wb > 1) return null;
+        if (wb < -seam || wb > 1 + seam) return null;
         double qx = ty * e1z - tz * e1y, qy = tz * e1x - tx * e1z, qz = tx * e1y - ty * e1x;
         double wc = (d[0] * qx + d[1] * qy + d[2] * qz) / det;
-        if (wc < 0 || wb + wc > 1) return null;
+        if (wc < -seam || wb + wc > 1 + seam) return null;
         double s = (e2x * qx + e2y * qy + e2z * qz) / det;
         return s < 0 ? null : new double[]{s, wb, wc};
     }
