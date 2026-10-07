@@ -712,7 +712,7 @@ public class CurveScreen extends ControlScreen {
         int x0 = cx0(), y0 = cy0(), x1 = cx1(), y1 = cy1();
         if (!S.is3d()) ctx.fill(x0, y0, x1, y1, 0xFF15181D);   // a 3D shape has its controls here, already drawn
         ctx.enableScissor(x0, y0, x1, y1);
-        if (result != null && preview.id() != null) {
+        if (result != null && preview.id() != null && !S.is3d()) {
             var m = ctx.pose();
             m.pushMatrix();
             m.translate(panX, panY);
