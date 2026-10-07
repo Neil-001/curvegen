@@ -290,8 +290,10 @@ public final class Editor {
      * for the shape settings and block choices as they are now.
      */
     private static boolean solvedFor(boolean shownOnly) {
-        ShapeSettings ref = !shownOnly && job != null && !jobCancelled.get() ? jobSettings : shown;
-        if (ref == null || !BlockChoices.CHOICE.equals(shownChoices)) return false;
+        boolean running = !shownOnly && job != null && !jobCancelled.get();
+        ShapeSettings ref = running ? jobSettings : shown;
+        // A running solve's blocks get the choices as they are when it finishes, so only the ones on show can be out of date.
+        if (ref == null || !running && !BlockChoices.CHOICE.equals(shownChoices)) return false;
         ShapeSettings now = S.copy();
         now.overwrite = ref.overwrite;   // Replace doesn't change which blocks the shape has
         // Nor does Carve, but a shape that only works out what to clear while it's on needs a solve when it comes on.
@@ -373,7 +375,17 @@ public final class Editor {
             editGroup = group; editStep = before;
         }
         rebase = true;
+        reshape();
+        settle();
         adopt();
+    }
+
+    /** After an edit that can leave control points outside the box: grows it to hold them, where they are in the world. */
+    private static void settle() {
+        int[] shift = shape.settle();
+        if (shift == null) return;
+        Box grown = box.regrown(orient, shift, shape.size());
+        if (!grown.equals(box)) { box = grown; pivot = null; }
     }
 
     /** Moves the box and everything drawn relative to it. */
@@ -566,6 +578,7 @@ public final class Editor {
     private static void removePoint(int index, boolean alt) {
         Snapshot before = snapshot();
         if (!shape.removePoint(index, alt)) { Placement.say(Component.literal(least(alt))); return; }
+        settle();
         record(before);
         hover = null;
         dirty = true;
@@ -795,7 +808,7 @@ public final class Editor {
             long now = System.currentTimeMillis();
             if (droppingSince == 0) droppingSince = now;
             // A solve that takes seconds is always dropped: by the time it finished, its blocks would be long out of date.
-            if (lastSolveMillis > SLOW_MS || now - droppingSince < STARVED_MS) jobCancelled.set(true);
+            if (lastSolveMillis > SLOW_MS || now - jobStarted > SLOW_MS || now - droppingSince < STARVED_MS) jobCancelled.set(true);
         }
         if (dirty && job == null) {
             dirty = false;
@@ -865,6 +878,7 @@ public final class Editor {
         Minecraft mc = Minecraft.getInstance();
         if (!active || mc.player == null) return;
         sync();
+        StepHold.poll();
         Vector3fc forward = mc.gameRenderer.mainCamera().forwardVector();
         eye = new double[]{cam.x, cam.y, cam.z};
         look = new double[]{forward.x(), forward.y(), forward.z()};

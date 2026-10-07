@@ -95,6 +95,13 @@ public interface EditShape {
     default int duplicatePoint(int index, boolean alt) { return duplicatePoint(index); }
 
     /**
+     * Called after an edit that can leave control points outside the box, such as taking a row out of a surface.
+     * Grows the box to hold them and returns how many cells its own minimum corner moved along each own axis, like
+     * {@link #movePoint}, or null when there's nothing to do.
+     */
+    default int[] settle() { return null; }
+
+    /**
      * Where a look ray, in own axes, meets the shape, for adding a point there: {x, y, z, distance from the ray,
      * distance along the ray}. Null has the editor look for the nearest spot on {@link #curve} instead.
      */

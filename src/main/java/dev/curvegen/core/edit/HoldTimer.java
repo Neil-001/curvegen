@@ -12,7 +12,8 @@ public final class HoldTimer {
     private long since;
     /** Set when the hold was called off: the key is still down and still ignored, but no bar shows and no box opens. */
     private boolean cancelled;
-    private int spent = -1;
+    /** A bit for each key that opened the number box and hasn't been seen up since. */
+    private long spent;
 
     /** The key being held, or -1. */
     public int key() { return key; }
@@ -45,17 +46,22 @@ public final class HoldTimer {
     }
 
     /** Call after acting on OPEN. The key is probably still down, and stays {@link #spent} until it's let go. */
-    public void opened() { spent = key; key = -1; }
+    public void opened() { spent |= 1L << key; key = -1; }
 
     /**
-     * The key that opened the number box, while it has been down ever since, or -1. The game goes on repeating it
-     * once the box closes, and those presses aren't new ones. {@code down} says whether a key is physically down
-     * now, which the game's own "is this key pressed" doesn't while a screen is open.
+     * Forgets every spent key that is up. {@code down} says whether a key is physically down now, which the game's
+     * own "is this key pressed" doesn't while a screen is open. Call it often, every frame if possible: a key let go
+     * and pressed again between two calls still looks held, and that press is then lost.
      */
-    public int spent(java.util.function.IntPredicate down) {
-        if (spent >= 0 && !down.test(spent)) spent = -1;
-        return spent;
+    public void release(java.util.function.IntPredicate down) {
+        for (int k = 0; k < 64; k++) if ((spent >> k & 1) != 0 && !down.test(k)) spent &= ~(1L << k);
     }
+
+    /**
+     * Whether a key opened the number box and has been down ever since. The game goes on repeating it once the box
+     * closes, and those presses aren't new ones.
+     */
+    public boolean spent(int key) { return (spent >> key & 1) != 0; }
 
     /** How full the progress bar is, from 0 to 1, or -1 while it doesn't show. */
     public double progress(long nowMillis, double barDelaySeconds, double holdSeconds) {

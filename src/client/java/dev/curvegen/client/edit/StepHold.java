@@ -31,10 +31,11 @@ public final class StepHold {
     /** Call every client tick, with or without a hologram. */
     public static void tick(Minecraft mc) {
         List<StepKey> keys = CurveGenClient.STEP_KEYS;
-        int pressed = -1, spent = TIMER.spent(k -> physicallyDown(keys.get(k).key()));
+        int pressed = -1;
+        poll();
         for (int k = 0; k < keys.size(); k++) {
             boolean clicked = false;
-            while (keys.get(k).key().consumeClick()) clicked = k != spent;   // the key that opened the box is still repeating
+            while (keys.get(k).key().consumeClick()) clicked = !TIMER.spent(k);   // a key that opened the box and is still down only repeats
             // A held key repeats, so another key's press counts before its own.
             if (clicked && (pressed < 0 || pressed == TIMER.key())) pressed = k;
         }
@@ -62,6 +63,15 @@ public final class StepHold {
             }
             default -> { }
         }
+    }
+
+    /**
+     * Notices keys that opened the number box coming up. It runs every tick and, while there's a hologram, every
+     * frame, so that letting such a key go and pressing it again at once counts as a press.
+     */
+    static void poll() {
+        List<StepKey> keys = CurveGenClient.STEP_KEYS;
+        TIMER.release(k -> k < keys.size() && physicallyDown(keys.get(k).key()));
     }
 
     /** Whether the key itself is down, whatever screen is open. A mouse button doesn't repeat, so it counts as up. */

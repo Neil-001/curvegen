@@ -5,6 +5,7 @@ import dev.curvegen.core.Expr;
 import dev.curvegen.core.PresetData;
 import dev.curvegen.core.Shape3;
 import dev.curvegen.core.ShapeSettings;
+import dev.curvegen.core.Shapes3;
 import dev.curvegen.core.ShapeSettings.EllipseMode;
 import dev.curvegen.core.ShapeSettings.Eq3Mode;
 import dev.curvegen.core.ShapeSettings.Gen;
@@ -75,8 +76,7 @@ public final class Edit3D {
     /** The box the same-scale lock gives a width, as the shape itself works it out: x is the width, z the height and y the depth. */
     private static int[] locked(int width, double[] r) {
         int w = clamp(width);
-        double x = r[1] - r[0];
-        return new int[]{w, clamp((int) Math.round(w * (r[5] - r[4]) / x)), clamp((int) Math.round(w * (r[3] - r[2]) / x))};
+        return new int[]{w, Shapes3.scaled(w, r[5] - r[4], r[1] - r[0]), Shapes3.scaled(w, r[3] - r[2], r[1] - r[0])};
     }
 
     /** The control points a shape is drawn through, or null for a shape without any. */
@@ -93,7 +93,7 @@ public final class Edit3D {
         if (r != null) {
             // Height is the z range and depth the y range.
             double x = r[1] - r[0];
-            int w = dragged[0] ? to[0] : dragged[1] ? (int) Math.round(to[1] * x / (r[5] - r[4])) : dragged[2] ? (int) Math.round(to[2] * x / (r[3] - r[2])) : now[0];
+            int w = dragged[0] ? to[0] : dragged[1] ? Shapes3.scaled(to[1], x, r[5] - r[4]) : dragged[2] ? Shapes3.scaled(to[2], x, r[3] - r[2]) : now[0];
             to = locked(w, r);
         }
         List<double[]> pts = pts(s);
@@ -144,11 +144,31 @@ public final class Edit3D {
     private static int hold(List<double[]> pts, int[] size, int axis, double min, double max) {
         int shift = 0;
         if (min < 0) {
-            int grow = Math.min(MAX - size[axis], (int) Math.ceil(-min));
+            // Less a whisker, so that a point which sums put a rounding error outside doesn't cost a whole block.
+            int grow = Math.min(MAX - size[axis], (int) Math.ceil(-min - 1e-9));
             for (double[] p : pts) p[axis] += grow;
             size[axis] += grow; max += grow; shift = -grow;
         }
-        if (max > size[axis]) size[axis] = Math.min(MAX, (int) Math.ceil(max));
+        if (max > size[axis]) size[axis] = Math.min(MAX, Math.max(size[axis], (int) Math.ceil(max - 1e-9)));
+        return shift;
+    }
+
+    /**
+     * Grows the box to hold every control point, after an edit that can leave some outside it: taking a row or a
+     * column out of a surface moves the rows that are left. Returns how many cells the box's own minimum corner moved
+     * along each axis (zero or negative), or null for a shape without points.
+     */
+    public static int[] fit(ShapeSettings s) {
+        List<double[]> pts = pts(s);
+        if (pts == null) return null;
+        int[] size = size(s), shift = new int[3];
+        for (int a = 0; a < 3; a++) {
+            double lo = Double.POSITIVE_INFINITY, hi = Double.NEGATIVE_INFINITY;
+            for (double[] p : pts) { lo = Math.min(lo, p[a]); hi = Math.max(hi, p[a]); }
+            shift[a] = hold(pts, size, a, lo, hi);
+            for (double[] p : pts) p[a] = Math.max(0, Math.min(size[a], p[a]));
+        }
+        setSize(s, size);
         return shift;
     }
 

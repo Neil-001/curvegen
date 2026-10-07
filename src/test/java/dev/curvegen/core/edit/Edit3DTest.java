@@ -101,6 +101,37 @@ class Edit3DTest {
     }
 
     @Test
+    void aLockedEquationWithFarApartRangesStaysWithinTheLimits() {
+        ShapeSettings s = of(Gen.EQUATION3);
+        s.x3min = "0"; s.x3max = "2000000000"; s.y3min = "0"; s.y3max = "2000000000"; s.z3min = "0"; s.z3max = "1";
+        assertArrayEquals(new int[]{32, 1, 32}, Edit3D.size(s));
+        Edit3D.resize(s, new int[]{32, 2, 32}, new boolean[]{false, true, false});   // a height of 2 asks for a width in the billions
+        assertArrayEquals(new int[]{Shape3.MAX_SIZE, 1, Shape3.MAX_SIZE}, Edit3D.size(s));
+        s.x3max = "0.000000001"; s.y3max = "1";
+        Shape3 shape = Shape3.of(s);
+        assertArrayEquals(new int[]{shape.nx(), shape.ny(), shape.nz()}, Edit3D.size(s));
+        assertEquals(Shape3.MAX_SIZE, shape.nz(), "the solver's own sum doesn't overflow either");
+    }
+
+    @Test
+    void takingARowOutGrowsTheBoxToHoldWhatIsLeft() {
+        ShapeSettings s = of(Gen.SURFACE);
+        s.sH = 60;
+        for (int k = 0; k < 16; k++) s.sPts.get(k)[1] = k < 4 ? 60 : 0;   // one high row, then three on the floor
+        assertTrue(Edit3D.removePoint(s, 0, false));
+        double low = 0;
+        for (double[] p : s.sPts) low = Math.min(low, p[1]);
+        assertTrue(low < -10, "the middle row dips below the box: " + low);
+        int[] shift = Edit3D.fit(s);
+        assertEquals(-15, shift[1]);
+        assertEquals(75, s.sH);
+        for (double[] p : s.sPts) assertTrue(p[1] >= 0 && p[1] <= 75);
+        assertEquals(75, s.sPts.get(0)[1], 1e-9, "the high row is 15 further from the box's new bottom");
+        assertArrayEquals(new int[]{0, 0, 0}, Edit3D.fit(s));
+        assertNull(Edit3D.fit(of(Gen.TORUS)));
+    }
+
+    @Test
     void anUnlockedEquationStretchesOneAxisAtATime() {
         ShapeSettings s = of(Gen.EQUATION3);
         s.q3Lock = false;

@@ -44,6 +44,7 @@ final class Shape3D implements EditShape {
     @Override public boolean removePoint(int index, boolean alt) { return Edit3D.removePoint(s, index, alt); }
     @Override public int insertPoint(double[] at, boolean alt) { return Edit3D.insertPoint(s, at, alt); }
     @Override public int duplicatePoint(int index, boolean alt) { return Edit3D.duplicatePoint(s, index, alt); }
+    @Override public int[] settle() { return Edit3D.fit(s); }
     @Override public double[] lookAt(double[] origin, double[] dir) { return Edit3D.lookAt(s, origin, dir); }
     @Override public List<Option> options() { return Edit3D.options(s); }
     @Override public boolean solveUsesCarve() { return true; }

@@ -104,16 +104,36 @@ class HoldTimerTest {
     }
 
     @Test
-    void theKeyThatOpenedTheBoxIsSpentUntilItComesUp() {
+    void aKeyThatOpenedTheBoxIsSpentUntilItComesUp() {
         HoldTimer t = new HoldTimer();
-        assertEquals(-1, t.spent(k -> true));
-        assertEquals(HoldTimer.Event.STEP, t.update(3, true, 0, 3));
-        assertEquals(HoldTimer.Event.OPEN, t.update(-1, true, 3000, 3));
+        assertFalse(t.spent(3));
+        assertEquals(Event.STEP, t.update(3, true, 0, 3));
+        assertEquals(Event.OPEN, t.update(-1, true, 3000, 3));
         t.opened();
         t.reset();   // the box is a screen, which resets the timer every tick
-        assertEquals(3, t.spent(k -> true), "still down when the box closes: its repeats aren't presses");
-        assertEquals(3, t.spent(k -> k == 3));
-        assertEquals(-1, t.spent(k -> false), "let go");
-        assertEquals(-1, t.spent(k -> true), "and pressed again, which counts");
+        t.release(k -> true);
+        assertTrue(t.spent(3), "still down when the box closes: its repeats aren't presses");
+        assertFalse(t.spent(4));
+        t.release(k -> false);
+        assertFalse(t.spent(3), "let go");
+        t.release(k -> true);
+        assertFalse(t.spent(3), "and pressed again, which counts");
+    }
+
+    @Test
+    void twoKeysCanBeSpentAtOnce() {
+        HoldTimer t = new HoldTimer();
+        t.update(3, true, 0, 3);
+        t.update(-1, true, 3000, 3);
+        t.opened();
+        t.release(k -> true);
+        assertEquals(Event.STEP, t.update(5, true, 4000, 3));
+        assertEquals(Event.OPEN, t.update(-1, true, 7000, 3));
+        t.opened();
+        t.release(k -> true);
+        assertTrue(t.spent(3) && t.spent(5));
+        t.release(k -> k == 3);
+        assertTrue(t.spent(3));
+        assertFalse(t.spent(5));
     }
 }
