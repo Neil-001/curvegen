@@ -3,7 +3,7 @@ package dev.curvegen.core;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Shapes and settings the 3D tests solve: ellipsoids and toruses, and a few shapes made to bring out connectors and corner stairs. */
+/** Shapes and settings the 3D tests solve: one or more of every kind the mod builds, and a few shapes made to bring out connectors and corner stairs. */
 public final class Shapes3Cases {
     private Shapes3Cases() {}
 
@@ -83,6 +83,16 @@ public final class Shapes3Cases {
                     s.gen = ShapeSettings.Gen.TORUS; s.tRing = d[0]; s.tTube = d[1]; s.tW = d[3]; s.tH = d[4]; s.tD = d[2]; s.tHollow = d[5] == 1;
                     if (d[5] == 13) s.tD = 13;
                     out.add(new Case("torus " + d[0] + "/" + d[1] + " in " + s.tW + "x" + s.tH + "x" + s.tD + tag, Shape3.of(s), s));
+                }
+                for (ShapeSettings s : List.of(Shapes3Test.equation("z = x y / 3", ShapeSettings.Eq3Mode.SURFACE, 0.75, 14, "-3", "3", "-3", "3", "-3", "3"),
+                        Shapes3Test.equation("z < 2 - floor(x^2 + y^2)/3", ShapeSettings.Eq3Mode.SURFACE, 1, 14, "-3", "3", "-3", "3", "-1", "3"),
+                        Shapes3Test.curve(14, 10, 14, 1.25, 1, 1, 2, 4, 12, 13, 13, 9, 1, 12, 2, 12),
+                        Shapes3Test.surface(14, 9, 12, 3, 4, 0.75, 2, 6, 3, 7, 5, 2, 8, 4, 3, 7, 2, 6))) {
+                    ShapeSettings own = base.copy();
+                    own.set(s);
+                    for (Pieces.Family f : Pieces.Family.values()) own.allow(f, base.allows(f));
+                    own.fullConnects = fullConnects;
+                    out.add(new Case(PresetData.defaultName(own, own.gen) + tag, Shape3.of(own), own));
                 }
                 out.add(new Case("sheets" + tag, sheets(0.18), base));
                 out.add(new Case("thick sheets" + tag, sheets(0.45), base));
