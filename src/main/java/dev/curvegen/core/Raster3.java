@@ -16,6 +16,8 @@ public final class Raster3 {
     public final int width, height;
     public final int[] argb;
     private final float[] depth;
+    /** Pixels a hidden line has already shown through, so stretches that overlap don't add up to a brighter line. */
+    private final boolean[] faint;
 
     /** How bright each direction's faces are: north, east, south, west, down, up. */
     private static final float[] LIGHT = {0.74f, 0.62f, 0.82f, 0.56f, 0.45f, 1f};
@@ -27,11 +29,13 @@ public final class Raster3 {
         this.width = width; this.height = height;
         argb = new int[width * height];
         depth = new float[width * height];
+        faint = new boolean[width * height];
     }
 
     public void clear(int background) {
         Arrays.fill(argb, background);
         Arrays.fill(depth, Float.POSITIVE_INFINITY);
+        Arrays.fill(faint, false);
     }
 
     static int shade(int rgb, float f) {
@@ -122,9 +126,10 @@ public final class Raster3 {
                     int x = px + i, y = py + j;
                     if (x < 0 || y < 0 || x >= width || y >= height) continue;
                     int at = y * width + x;
-                    if (z <= depth[at]) { argb[at] = 0xFF000000 | rgb; continue; }
+                    if (z <= depth[at]) { argb[at] = 0xFF000000 | rgb; faint[at] = true; continue; }
+                    if (faint[at]) continue;
+                    faint[at] = true;
                     int old = argb[at];
-                    if ((old & 0xFFFFFF) == rgb) continue;      // already drawn in full by another stretch
                     argb[at] = 0xFF000000 | mix(old >> 16 & 0xFF, cr) << 16 | mix(old >> 8 & 0xFF, cg) << 8 | mix(old & 0xFF, cb);
                 }
         }

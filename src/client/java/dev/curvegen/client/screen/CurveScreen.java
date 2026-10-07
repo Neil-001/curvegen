@@ -325,6 +325,8 @@ public class CurveScreen extends ControlScreen {
     private void setMode(boolean three) {
         if (three == mode3d) return;
         mode3d = three;
+        // Both solvers share one thread, so a 3D solve left running would hold up the 2D shape.
+        if (!three && cancel3 != null) cancel3.set(true);
         S.gen = three ? last3d : last2d;
         if (tab != Tab.BLOCKS && tab != Tab.COUNT) tab = tabFor(S.gen);
         pointScroll = 0; countScroll = 0;
@@ -1048,10 +1050,12 @@ public class CurveScreen extends ControlScreen {
         }
         preview3.palette(Preview3.palette(colors, BlockChoices.CHOICE, S.topColours));
         preview3.showWires(showCurve);
-        int[] dims = {shape.nx(), shape.ny(), shape.nz(), shape.pad(), cx1() - cx0(), py1() - cy0()};
+        // The box the player set, without the room a thickness adds: a thicker shape keeps the view it has.
+        int pad = shape.pad();
+        int[] dims = {shape.nx() - 2 * pad, shape.ny() - 2 * pad, shape.nz() - 2 * pad, cx1() - cx0(), py1() - cy0()};
         if (fit3 || !Arrays.equals(dims, fitted)) {
             fit3 = false; fitted = dims;
-            preview3.fit(dims[0], dims[1], dims[2], dims[3], cx0(), cy0() + 12, cx1(), py1());
+            preview3.fit(shape.nx(), shape.ny(), shape.nz(), pad, cx0(), cy0() + 12, cx1(), py1());
         }
     }
 

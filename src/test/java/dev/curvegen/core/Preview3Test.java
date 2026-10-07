@@ -201,6 +201,9 @@ class Preview3Test {
         int behind = r.argb[19 * 40 + 20];
         assertNotEquals(face, behind);
         assertNotEquals(0xFFFF4D73, behind);
+        // Drawn again, and thicker so its stamps overlap, a hidden line is no brighter.
+        r.line(o, -3, 0.75, -2, 4, 0.75, -2, 0xFF4D73, 3);
+        assertEquals(behind, r.argb[19 * 40 + 20]);
         // A line that runs far off the picture is still drawn across it, and one that misses it changes nothing.
         int[] before = r.argb.clone();
         r.line(o, 1e7, 50, 0, 1e7 + 5, 50, 0, 0xFFFFFF, 2);

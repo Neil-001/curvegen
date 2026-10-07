@@ -60,6 +60,7 @@ public class PresetsScreen extends Screen {
     private final Map<Key, Job3> jobs3 = new HashMap<>();
     private final Preview3 picture = new Preview3();
     private Key pictureFor;
+    private int[] pictureIn;
     private boolean turning;
 
     private static final int ROW = 20, ICON = 12;
@@ -182,8 +183,10 @@ public class PresetsScreen extends Screen {
     /** Draws a solved 3D preset, seen from the same side each time until the player turns it. */
     private void draw3(GuiGraphicsExtractor ctx, Preset target, CurveScreen.Solved3 r, int x0, int y0, int x1, int y1) {
         Key k = new Key(target, withBlocks(target));
-        if (!k.equals(pictureFor)) {
-            pictureFor = k;
+        int[] in = {x0, y0, x1, y1};
+        // A resized window moves the picture's place, and the view goes with it.
+        if (!k.equals(pictureFor) || !java.util.Arrays.equals(in, pictureIn)) {
+            pictureFor = k; pictureIn = in;
             var shape = r.result().shape();
             picture.mesh(r.mesh(), shape.pad());
             picture.wires(List.of(), 0);
