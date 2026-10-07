@@ -6,6 +6,7 @@ import dev.curvegen.core.ShapeSettings;
 import dev.curvegen.core.ShapeSettings.Gen;
 import dev.curvegen.core.Solver;
 import dev.curvegen.core.edit.Edit2D;
+import dev.curvegen.core.edit.Option;
 import dev.curvegen.core.edit.Orient;
 import java.util.ArrayList;
 import java.util.List;
@@ -40,6 +41,7 @@ final class Shape2D implements EditShape {
     @Override public int insertPoint(double[] at) { return Edit2D.insertPoint(s, at); }
     @Override public int duplicatePoint(int index) { return Edit2D.duplicatePoint(s, index); }
     @Override public boolean solveUsesOrient() { return false; }
+    @Override public List<Option> options() { return Edit2D.options(s); }
 
     @Override
     public Orient orient(Orient o) {

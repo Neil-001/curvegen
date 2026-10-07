@@ -8,10 +8,12 @@ import dev.curvegen.client.CurveGenClient;
 import dev.curvegen.client.LitematicExporter;
 import dev.curvegen.client.ModSettings;
 import dev.curvegen.client.Placement;
+import dev.curvegen.client.screen.RadialScreen;
 import dev.curvegen.core.Pieces;
 import dev.curvegen.core.ShapeSettings;
 import dev.curvegen.core.edit.Box;
 import dev.curvegen.core.edit.HandleMath;
+import dev.curvegen.core.edit.Option;
 import dev.curvegen.core.edit.Orient;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -27,6 +29,7 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.core.BlockPos;
@@ -138,6 +141,11 @@ public final class Editor {
 
     private static boolean screenOpen;
     private static Snapshot beforeScreen;
+    /** Set when an undo step was recorded or taken back, so a screen that is open doesn't count that change as its own. */
+    private static boolean rebase;
+    /** The last {@link #edit} that recorded a step: what it was for, and the step. */
+    private static Object editGroup;
+    private static Snapshot editStep;
 
     public static boolean isActive() { return active; }
     public static boolean isLocked() { return locked; }
@@ -207,7 +215,7 @@ public final class Editor {
     private static void reset() {
         dropJob();
         solved = null; hologram = null; hologramOrigin = null; viewOrigin = null;
-        undo.clear(); redo.clear();
+        undo.clear(); redo.clear(); editGroup = null; editStep = null;
         drag = null; hover = null; follow = new int[3]; pivot = null;
         screenOpen = Minecraft.getInstance().gui.screen() != null; beforeScreen = null;
     }
@@ -288,12 +296,14 @@ public final class Editor {
     private static void record() { record(snapshot()); }
 
     private static void record(Snapshot before) {
+        rebase = true;
         undo.push(before);
         if (undo.size() > UNDO_LIMIT) undo.removeLast();
         redo.clear();
     }
 
     private static void restore(Snapshot s) {
+        rebase = true;
         S.set(s.settings);
         // Block choices aren't part of a snapshot, so this flag has to follow the blocks chosen now.
         S.fullConnects = BlockChoices.fullBlockConnects();
@@ -305,6 +315,7 @@ public final class Editor {
 
     /** Takes back the last edit to the hologram. */
     public static void undo() {
+        StepHold.cancel();   // the number box would replace a step that undo has just moved
         if (drag != null) endDrag();
         if (undo.isEmpty()) { Placement.say(Component.literal("Nothing to undo on this shape.")); return; }
         redo.push(snapshot());
@@ -312,10 +323,44 @@ public final class Editor {
     }
 
     public static void redo() {
+        StepHold.cancel();
         if (drag != null) endDrag();
         if (redo.isEmpty()) { Placement.say(Component.literal("Nothing to redo.")); return; }
         undo.push(snapshot());
         restore(redo.pop());
+    }
+
+    /**
+     * The newest undo step, for {@link #retract}. Hold-to-type uses the pair to swap the step a key's press made for
+     * the amount typed, so the two are one undo step.
+     */
+    public static Object lastStep() { return undo.peek(); }
+
+    /** Takes back the newest undo step without leaving a redo, if it is still {@code step}. False if it isn't. */
+    public static boolean retract(Object step) {
+        if (step == null || undo.peek() != step) return false;
+        restore(undo.pop());
+        return true;
+    }
+
+    /**
+     * Makes a change to the settings from outside the editor, such as the radial menu's, as one undo step, and fits
+     * the box to the result. {@code change} only has to change the settings. Changes in a row with the same non-null
+     * {@code group}, such as the steps of scrolling one value, share an undo step.
+     */
+    public static void edit(Object group, Runnable change) {
+        if (!active) { change.run(); return; }
+        if (drag != null) endDrag();
+        Snapshot before = snapshot();
+        change.run();
+        if (S.same(before.settings)) return;
+        boolean merges = group != null && group.equals(editGroup) && undo.peek() == editStep;
+        if (!merges) {
+            record(before);
+            editGroup = group; editStep = before;
+        }
+        rebase = true;
+        adopt();
     }
 
     /** Moves the box and everything drawn relative to it. */
@@ -432,16 +477,20 @@ public final class Editor {
     public static void addPoint() {
         if (!locked || drag != null) return;
         if (shape.points().isEmpty()) { Placement.say(Component.literal("Only curves made of points can take another.")); return; }
+        edit(null, Editor::insertAtLook);
+    }
+
+    /** Where the player looks at the curve, or null when they aren't looking at it. */
+    private static double[] lookOnCurve() {
         double[] segs = worldCurve();
         double[] near = segs == null ? null : HandleMath.nearestOnSegments(eye, look, segs);
-        if (near == null || near[3] > HandleMath.scaled(ModSettings.pickRadius * 2, near[4])) {
-            Placement.say(Component.literal("Look at the curve where you want the new point."));
-            return;
-        }
-        Snapshot before = snapshot();
-        if (shape.insertPoint(toOwn(near)) < 0) { Placement.say(Component.literal("This curve can't take any more points.")); return; }
-        record(before);
-        dirty = true;
+        return near == null || near[3] > HandleMath.scaled(ModSettings.pickRadius * 2, near[4]) ? null : near;
+    }
+
+    private static void insertAtLook() {
+        double[] near = lookOnCurve();
+        if (near == null) Placement.say(Component.literal("Look at the curve where you want the new point."));
+        else if (shape.insertPoint(toOwn(near)) < 0) Placement.say(Component.literal("This curve can't take any more points."));
     }
 
     /** Removes the point the player looks at. */
@@ -449,6 +498,39 @@ public final class Editor {
         if (!locked || drag != null) return;
         if (hover == null || !hover.isPoint()) { Placement.say(Component.literal("Look at a point to remove it.")); return; }
         removePoint(hover.point);
+    }
+
+    /**
+     * What the radial menu's "Shape options" shows: the shape's own options, then adding and removing a point for a
+     * shape that has points. The menu frees the cursor, so both act on what the player was looking at when it opened.
+     */
+    public static List<Option> options() {
+        if (!active) return List.of();
+        List<Option> out = new ArrayList<>(shape.options());
+        if (!shape.points().isEmpty()) {
+            String unlocked = locked ? null : "Lock the shape first.";
+            out.add(new Option.Action("Add point", unlocked != null ? unlocked
+                    : lookOnCurve() == null ? "Look at the curve where you want the new point, then open this menu." : null, Editor::insertAtLook));
+            Handle aimed = hover;
+            out.add(new Option.Action("Remove point", unlocked != null ? unlocked
+                    : aimed == null || !aimed.isPoint() ? "Look at the point to remove, then open this menu." : null, () -> {
+                        if (!shape.removePoint(aimed.point)) Placement.say(Component.literal("The shape needs the points it has left."));
+                        hover = null;
+                    }));
+        }
+        return out;
+    }
+
+    /** The HUD's first line: the shape and its size. */
+    public static String describe() { return active ? shape.describe() : ""; }
+
+    /** Null when the hologram's blocks are ready to place or export. Otherwise why they aren't. */
+    public static String notReady() {
+        if (!active) return "There's no shape out.";
+        if (hologram == null || dirty || job != null) return "Still working on the shape, try again in a moment.";
+        if (hologram.error != null) return "Fix the shape first: " + hologram.error;
+        if (hologram.size() == 0) return "The shape is empty.";
+        return null;
     }
 
     private static void removePoint(int index) {
@@ -631,10 +713,16 @@ public final class Editor {
             if (drag != null) endDrag();
             beforeScreen = snapshot();
         }
+        // An edit the editor recorded itself while the screen was open isn't the screen's to record again.
+        if (rebase && beforeScreen != null) beforeScreen = snapshot();
+        rebase = false;
         if (!open && screenOpen && beforeScreen != null) {
-            adopt();   // block choices aren't settings, and they may have changed too
-            if (!S.same(beforeScreen.settings)) record(beforeScreen);
+            Snapshot before = beforeScreen;
             beforeScreen = null;
+            S.fullConnects = BlockChoices.fullBlockConnects();
+            before.settings.fullConnects = S.fullConnects;   // it follows the blocks, which undo doesn't put back
+            adopt();   // block choices aren't settings, and they may have changed too
+            if (!S.same(before.settings)) record(before);
         }
         screenOpen = open;
         sync();
@@ -744,17 +832,19 @@ public final class Editor {
         eye = new double[]{cam.x, cam.y, cam.z};
         look = new double[]{forward.x(), forward.y(), forward.z()};
 
-        boolean editing = locked && mc.gui.screen() == null;
+        // The radial menu keeps the handles, and the one the player was looking at, for "Remove point".
+        Screen screen = mc.gui.screen();
+        boolean aiming = locked && screen == null, editing = aiming || locked && screen instanceof RadialScreen;
         if (drag != null) {
-            if (editing) updateDrag(mc); else endDrag();
+            if (aiming) updateDrag(mc); else endDrag();
         }
         List<Handle> handles = editing ? handles() : List.of();
         List<double[]> at = new ArrayList<>(handles.size());
         for (Handle h : handles) at.add(handlePosition(h));
-        if (drag == null) {
+        if (aiming && drag == null) {
             int k = HandleMath.pick(eye, look, at, ModSettings.pickRadius);
             hover = k < 0 ? null : handles.get(k);
-        }
+        } else if (!editing) hover = null;
 
         // Everything below is relative to the box's corner, which keeps the numbers small far from the world's origin.
         double ox = box.x(), oy = box.y(), oz = box.z();
@@ -850,7 +940,9 @@ public final class Editor {
 
     public static void renderHud(GuiGraphicsExtractor dc) {
         Minecraft mc = Minecraft.getInstance();
-        if (!active || mc.player == null) return;
+        // A screen covers the hints or draws its own, and the menu's labels need the room.
+        if (!active || mc.player == null || mc.gui.screen() != null) return;
+        StepHold.renderBar(dc);
         var font = mc.font;
         int room = dc.guiWidth() - 12;
         List<Component> lines = new ArrayList<>();
@@ -870,7 +962,7 @@ public final class Editor {
 
         // Key hints, flowed into as many lines as the screen's width needs.
         List<String> hints = new ArrayList<>(List.of(
-                key(CurveGenClient.CONFIRM) + " place", key(CurveGenClient.CANCEL) + " cancel",
+                key(CurveGenClient.RADIAL) + " menu", key(CurveGenClient.CONFIRM) + " place", key(CurveGenClient.CANCEL) + " cancel",
                 key(CurveGenClient.LOCK) + (locked ? " unlock" : " lock"), key(CurveGenClient.ROTATE) + " rotate", key(CurveGenClient.TIP) + " tip",
                 key(CurveGenClient.FORWARD) + "/" + key(CurveGenClient.BACK) + " move",
                 key(CurveGenClient.BUMP_OUT) + "/" + key(CurveGenClient.BUMP_IN) + " resize the side you face",

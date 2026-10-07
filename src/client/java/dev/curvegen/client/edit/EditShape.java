@@ -1,6 +1,7 @@
 package dev.curvegen.client.edit;
 
 import dev.curvegen.core.ShapeSettings;
+import dev.curvegen.core.edit.Option;
 import dev.curvegen.core.edit.Orient;
 import java.util.List;
 import java.util.function.BooleanSupplier;
@@ -30,11 +31,14 @@ public interface EditShape {
      */
     record Content(List<Placed> blocks, List<BlockPos> carve, boolean topColours, String error) {}
 
-    /** Whether the in-world editor can edit this kind of shape. */
-    static boolean supports(ShapeSettings.Gen gen) { return true; }
-
     /** The shape for the current settings. */
     static EditShape of(ShapeSettings s) { return s.is3d() ? new Shape3D(s) : new Shape2D(s); }
+
+    /**
+     * Whether the in-world editor can edit this kind of shape. The radial menu greys out the ones it can't. A kind
+     * that has no {@link ShapeSettings.Gen} yet is listed there with null, which this refuses.
+     */
+    static boolean supports(ShapeSettings.Gen gen) { return gen != null; }
 
     /** The box the handles sit on, along the shape's own axes. */
     int[] size();
@@ -101,6 +105,14 @@ public interface EditShape {
 
     /** Turns a solve into blocks for an orientation. Runs on the client thread, once per solve or turn. */
     Content build(Object solved, Orient orient);
+
+    /**
+     * The shape's own settings for the radial menu's "Shape options": fill type, thickness and the like, in the order
+     * the wedges should go. Sizes belong to the box and aren't listed. The editor adds "Add point" and "Remove point"
+     * itself for a shape with {@link #points}. The menu calls this every frame, so build the list from the live
+     * settings and keep it cheap. A menu holds at most {@code Radial.MAX_WEDGES} wedges, one of which is "Back".
+     */
+    default List<Option> options() { return List.of(); }
 
     /** One line for the HUD that names the shape and its size. */
     String describe();

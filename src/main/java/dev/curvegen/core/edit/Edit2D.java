@@ -2,6 +2,9 @@ package dev.curvegen.core.edit;
 
 import dev.curvegen.core.Expr;
 import dev.curvegen.core.ShapeSettings;
+import dev.curvegen.core.ShapeSettings.BzMode;
+import dev.curvegen.core.ShapeSettings.EllipseMode;
+import dev.curvegen.core.ShapeSettings.EqMode;
 import dev.curvegen.core.ShapeSettings.Gen;
 import dev.curvegen.core.Target;
 import java.util.ArrayList;
@@ -103,6 +106,46 @@ public final class Edit2D {
         for (double[] p : s.pts) p[axis] = Math.max(0, Math.min(size, p[axis]));
         if (axis == 0) s.bW = size; else s.bH = size;
         return shift;
+    }
+
+    /** Whether an equation is an inequality, which says itself which side is filled. */
+    public static boolean isInequality(String src) {
+        return src.contains("<") || src.contains(">") || src.contains("≤") || src.contains("≥");
+    }
+
+    private static final double MIN_THICK = 0.0625, MAX_THICK = 50, THICK_STEP = 0.25;
+
+    /** What the radial menu's "Shape options" offers for a 2D shape. Sizes are the box's, and ranges stay in the full menu. */
+    public static List<Option> options(ShapeSettings s) {
+        List<Option> out = new ArrayList<>();
+        switch (s.gen) {
+            case ELLIPSE -> {
+                out.add(new Option.Cycler("Shape", null, List.of("Thin", "Filled", "Thick out", "Thick in", "Thick middle"),
+                        () -> s.eMode.ordinal(), v -> s.eMode = EllipseMode.values()[v]));
+                boolean thick = s.eMode == EllipseMode.OUTWARDS || s.eMode == EllipseMode.INWARDS || s.eMode == EllipseMode.MIDDLE;
+                out.add(new Option.Number("Thickness", thick ? null : "Only a thick wall has a thickness. Change Shape first.",
+                        () -> s.eT, v -> s.eT = v, MIN_THICK, MAX_THICK, THICK_STEP, false));
+            }
+            case EQUATION -> {
+                boolean inequality = isInequality(s.src);
+                out.add(new Option.Text("Equation", null, () -> s.src, v -> s.src = v, v -> {
+                    try { Expr.parseEquation(v); return null; } catch (Expr.ParseException e) { return e.getMessage(); }
+                }));
+                out.add(new Option.Cycler("Shape", inequality ? "Your inequality sets the shape. Use = to choose it here." : null,
+                        List.of("Line", "Fill under", "Fill over"), () -> s.qMode.ordinal(), v -> s.qMode = EqMode.values()[v]));
+                out.add(new Option.Number("Line width", inequality || s.qMode != EqMode.LINE ? "Filled shapes don't use a line width." : null,
+                        () -> s.qLW, v -> s.qLW = v, MIN_THICK, MAX_THICK, THICK_STEP, false));
+                out.add(Option.toggle("Same scale", null, () -> s.qLock, v -> s.qLock = v));
+            }
+            case BEZIER -> {
+                out.add(new Option.Cycler("Shape", null, List.of("Line", "Filled"), () -> s.bMode.ordinal(), v -> s.bMode = BzMode.values()[v]));
+                out.add(new Option.Number("Line width", s.bMode != BzMode.LINE ? "Filled shapes don't use a line width." : null,
+                        () -> s.bLW, v -> s.bLW = v, MIN_THICK, MAX_THICK, THICK_STEP, false));
+                out.add(Option.toggle("Snap", null, () -> s.snap, v -> s.snap = v));
+            }
+            default -> { }
+        }
+        return out;
     }
 
     /** A Bézier curve's control points, halfway through its depth. Other shapes have none. */

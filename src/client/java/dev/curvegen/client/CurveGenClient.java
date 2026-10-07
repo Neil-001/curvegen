@@ -2,7 +2,9 @@ package dev.curvegen.client;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import dev.curvegen.client.edit.Editor;
+import dev.curvegen.client.edit.StepHold;
 import dev.curvegen.client.screen.CurveScreen;
+import dev.curvegen.client.screen.RadialScreen;
 import dev.curvegen.core.ShapeSettings;
 import java.util.ArrayList;
 import java.util.List;
@@ -23,7 +25,7 @@ public final class CurveGenClient {
 
     /** The heading for the keys in the Controls screen. Each loader registers it in its own way. */
     public static final KeyMapping.Category CATEGORY = new KeyMapping.Category(Identifier.fromNamespaceAndPath("curvegen", "main"));
-    public static KeyMapping OPEN, CONFIRM, CANCEL, ROTATE, TIP, FORWARD, BACK, BUMP_OUT, BUMP_IN, LOCK, UNDO, REDO, REPLACE, CARVE, ADD_POINT, REMOVE_POINT;
+    public static KeyMapping OPEN, RADIAL, CONFIRM, CANCEL, ROTATE, TIP, FORWARD, BACK, BUMP_OUT, BUMP_IN, LOCK, UNDO, REDO, REPLACE, CARVE, ADD_POINT, REMOVE_POINT;
     /** Moves along one world axis each, in {@link Direction} order. Unbound until the player assigns them. */
     private static final KeyMapping[] MOVE = new KeyMapping[6];
     /** Every key, in the order the Controls screen lists them. */
@@ -31,8 +33,8 @@ public final class CurveGenClient {
 
     /**
      * A key that moves or resizes the hologram by a number of blocks: every nudge and bump key. A tap passes 1.
-     * The hold progress bar and the number box belong here: they would call {@code action} with the typed amount
-     * instead, and a negative amount goes the other way.
+     * Held, {@link StepHold} opens the number box and passes the typed amount instead. A negative amount goes the
+     * other way.
      */
     public record StepKey(KeyMapping key, IntConsumer action) {}
     public static final List<StepKey> STEP_KEYS = new ArrayList<>();
@@ -54,6 +56,7 @@ public final class CurveGenClient {
         platform = loader;
         ModSettings.load();
         OPEN = key("open", InputConstants.KEY_G);
+        RADIAL = key("radial", InputConstants.KEY_V);
         CONFIRM = key("confirm", InputConstants.KEY_RETURN);
         CANCEL = key("cancel", InputConstants.KEY_BACKSPACE);
         LOCK = key("lock", InputConstants.KEY_K);
@@ -78,8 +81,10 @@ public final class CurveGenClient {
         while (OPEN.consumeClick()) mc.gui.setScreen(new CurveScreen());
         // Z takes back an edit while there's a hologram, and the last placement otherwise.
         while (UNDO.consumeClick()) { if (Editor.isActive()) Editor.undo(); else Placement.undo(); }
+        while (RADIAL.consumeClick()) if (mc.gui.screen() == null && mc.player != null) mc.gui.setScreen(new RadialScreen());
+        StepHold.tick(mc);
         for (KeyMapping k : KEYS) {
-            if (k == OPEN || k == UNDO) continue;
+            if (k == OPEN || k == UNDO || k == RADIAL) continue;
             while (k.consumeClick()) if (Editor.isActive()) press(k);   // otherwise drained, so it doesn't fire when a hologram appears
         }
         Placement.tick(mc);
@@ -87,7 +92,6 @@ public final class CurveGenClient {
     }
 
     private static void press(KeyMapping k) {
-        for (StepKey s : STEP_KEYS) if (s.key() == k) { s.action().accept(1); return; }
         if (k == CONFIRM) Editor.confirm();
         else if (k == CANCEL) Editor.cancel();
         else if (k == LOCK) Editor.toggleLock();
