@@ -8,6 +8,7 @@ import dev.curvegen.client.CurveGenClient;
 import dev.curvegen.client.LitematicExporter;
 import dev.curvegen.client.ModSettings;
 import dev.curvegen.client.Placement;
+import dev.curvegen.core.Pieces;
 import dev.curvegen.core.ShapeSettings;
 import dev.curvegen.core.edit.Box;
 import dev.curvegen.core.edit.HandleMath;
@@ -15,7 +16,9 @@ import dev.curvegen.core.edit.Orient;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -31,6 +34,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.ARGB;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.FogType;
 import net.minecraft.world.phys.BlockHitResult;
@@ -86,6 +90,9 @@ public final class Editor {
      */
     private static long droppingSince;
     private static final long STARVED_MS = 400;
+    /** The settings of the running solve, and the settings and block choices the hologram was last built from. */
+    private static ShapeSettings jobSettings, shown;
+    private static Map<Pieces.Family, Block> shownChoices;
     /** The orientation the running solve was started with, and the box's corner then (moved along with later nudges). */
     private static Orient jobOrient;
     private static int[] jobOrigin;
@@ -143,7 +150,7 @@ public final class Editor {
         if (mc.player == null) return;
         reset();
         facing = mc.player.getDirection().get3DDataValue();
-        shape = EditShape.of(S);
+        reshape();
         orient = shape.orient(Orient.facing(facing));
         BlockPos at = target(mc);
         box = Box.spawn(at.getX(), at.getY(), at.getZ(), worldSize());
@@ -155,13 +162,40 @@ public final class Editor {
         if (last == null || Minecraft.getInstance().player == null) return false;
         reset();
         S.set(last.settings);
-        shape = EditShape.of(S);
+        reshape();
         orient = last.orient; box = last.box;
         begin();
         return true;
     }
 
     public static boolean hasLast() { return last != null; }
+
+    /**
+     * Picks the handler for the settings as they are now. A solve of the other family of shape, 2D or 3D, means
+     * nothing to the new handler, so it goes, along with the blocks it gave.
+     */
+    private static void reshape() {
+        EditShape next = EditShape.of(S);
+        if (shape == null || next.getClass() != shape.getClass()) {
+            dropJob();
+            solved = null; hologram = null; hologramOrigin = null; shown = null;
+        }
+        shape = next;
+    }
+
+    /** Takes up settings something else changed, such as the menu: the handler, an orientation they allow, the box's size. */
+    private static void adopt() {
+        reshape();
+        orient = shape.orient(orient);
+        Box fitted = box.refit(worldSize());
+        if (!fitted.equals(box)) { box = fitted; pivot = null; }
+        dirty = true;
+    }
+
+    /** The menu can switch between a 2D and a 3D shape while it's open, and the hologram is drawn behind it all the while. */
+    private static void sync() {
+        if (active && (shape instanceof Shape3D) != S.is3d()) adopt();
+    }
 
     private static void dropJob() {
         if (job == null) return;
@@ -222,6 +256,8 @@ public final class Editor {
     public static String export() {
         Minecraft mc = Minecraft.getInstance();
         if (!active) return "There's no shape in the world to export.";
+        // With the menu open, the hologram may still be the shape or the blocks from before a change made there.
+        if (hologram != null && !dirty && job == null && stale()) adopt();
         if (hologram == null || dirty || job != null) return "Still working on the shape, try again in a moment.";
         if (hologram.error != null) return "Fix the shape first: " + hologram.error;
         if (hologram.size() == 0) return "The shape is empty, so there's nothing to export.";
@@ -232,6 +268,14 @@ public final class Editor {
         } catch (Exception e) {
             return "Export failed: " + e.getMessage();
         }
+    }
+
+    /** Whether the hologram was built from other shape settings or block choices than the ones set now. */
+    private static boolean stale() {
+        if (shown == null || !BlockChoices.CHOICE.equals(shownChoices)) return true;
+        ShapeSettings now = S.copy();
+        now.overwrite = shown.overwrite; now.carve = shown.carve;   // neither changes which blocks the shape has
+        return !now.same(shown);
     }
 
     // ---------- state ----------
@@ -253,7 +297,7 @@ public final class Editor {
         S.set(s.settings);
         // Block choices aren't part of a snapshot, so this flag has to follow the blocks chosen now.
         S.fullConnects = BlockChoices.fullBlockConnects();
-        shape = EditShape.of(S);
+        reshape();
         box = s.box; orient = s.orient; follow = s.follow.clone();
         pivot = s.pivot == null ? null : s.pivot.clone();
         dirty = true;
@@ -294,6 +338,7 @@ public final class Editor {
     private static void rebuild(int[] at) {
         blockLimit = ModSettings.hologramBlockLimit;
         hologram = new Hologram(shape.build(solved, orient), blockLimit);
+        shownChoices = new EnumMap<>(BlockChoices.CHOICE);
         hologramOrigin = at;
         viewOrigin = null;
     }
@@ -587,15 +632,12 @@ public final class Editor {
             beforeScreen = snapshot();
         }
         if (!open && screenOpen && beforeScreen != null) {
-            shape = EditShape.of(S);
-            orient = shape.orient(orient);
-            Box fitted = box.refit(worldSize());
-            if (!fitted.equals(box)) { box = fitted; pivot = null; }
+            adopt();   // block choices aren't settings, and they may have changed too
             if (!S.same(beforeScreen.settings)) record(beforeScreen);
             beforeScreen = null;
-            dirty = true;   // block choices aren't settings, and they may have changed too
         }
         screenOpen = open;
+        sync();
 
         if (!locked && !open) {
             int now = playerFacing();
@@ -616,6 +658,7 @@ public final class Editor {
             job = null; jobOrigin = null;
             if (result != null) {
                 solved = result;
+                shown = jobSettings;
                 droppingSince = 0;
                 // The solve may have settled a size the settings left open, such as an equation's locked height.
                 Box fitted = box.refit(worldSize());
@@ -633,6 +676,7 @@ public final class Editor {
         if (dirty && job == null) {
             dirty = false;
             ShapeSettings copy = S.copy();
+            jobSettings = S.copy();   // its own copy: a solve may settle values in the one it's given
             EditShape solver = shape;
             Orient o = jobOrient = orient;
             jobOrigin = new int[]{box.x(), box.y(), box.z()};
@@ -695,6 +739,7 @@ public final class Editor {
     public static void render(SubmitNodeCollector out, PoseStack ms, Vec3 cam) {
         Minecraft mc = Minecraft.getInstance();
         if (!active || mc.player == null) return;
+        sync();
         Vector3fc forward = mc.gameRenderer.mainCamera().forwardVector();
         eye = new double[]{cam.x, cam.y, cam.z};
         look = new double[]{forward.x(), forward.y(), forward.z()};

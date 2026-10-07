@@ -43,7 +43,11 @@ final class Shape2D implements EditShape {
 
     @Override
     public Orient orient(Orient o) {
-        int right = o.x(), forward = Orient.worldAxis(o.y()) == 1 ? o.z() : o.y();
+        // A 3D shape can be turned any way up before the menu swaps it for a drawing, so either axis may be the vertical one.
+        int[] across = {o.x(), o.y(), o.z()}, away = {o.z(), o.y(), o.x()};
+        int right = -1, forward = -1;
+        for (int d : across) if (right < 0 && Orient.worldAxis(d) != 1) right = d;
+        for (int d : away) if (forward < 0 && Orient.worldAxis(d) != 1 && Orient.worldAxis(d) != Orient.worldAxis(right)) forward = d;
         return s.floor ? new Orient(right, forward, Orient.UP) : new Orient(right, Orient.UP, forward);
     }
 
