@@ -23,6 +23,24 @@ class BoxTest {
         assertArrayEquals(new double[]{10, 64, 21}, box.handle(new int[]{-1, 1, 0}), 0);
     }
 
+    private static Set<String> names(int[][] handles) {
+        Set<String> out = new HashSet<>();
+        for (int[] h : handles) out.add(h[0] + "," + h[1] + "," + h[2]);
+        return out;
+    }
+
+    @Test
+    void aThinDimensionKeepsOneLayerOfHandlesAndItsOwnTwoFaces() {
+        assertEquals(26, Box.handles(new int[]{8, 4, 3}, 1.25).length, "nothing is thin");
+        // One block deep: the middle layer's four faces and four edges, and the front and back faces.
+        Set<String> thin = names(Box.handles(new int[]{8, 4, 1}, 1.25));
+        assertEquals(Set.of("1,0,0", "-1,0,0", "0,1,0", "0,-1,0", "1,1,0", "1,-1,0", "-1,1,0", "-1,-1,0", "0,0,1", "0,0,-1"), thin);
+        assertEquals(thin, names(Box.handles(new int[]{8, 4, 2}, 1.25)), "two deep puts the layers a block apart");
+        // A column: every face still has its handle, so it can grow along any axis.
+        assertEquals(Set.of("1,0,0", "-1,0,0", "0,1,0", "0,-1,0", "0,0,1", "0,0,-1"), names(Box.handles(new int[]{1, 9, 1}, 1.25)));
+        assertEquals(6, Box.handles(new int[]{1, 1, 1}, 1.25).length);
+    }
+
     @Test
     void aFaceMovesInWholeBlocksAndTheOppositeSideStays() {
         int[] east = {1, 0, 0};

@@ -2,6 +2,7 @@ package dev.curvegen.client;
 
 import dev.curvegen.core.Pieces.Family;
 import dev.curvegen.core.Pieces;
+import dev.curvegen.core.Pieces3;
 import dev.curvegen.core.PresetData;
 import dev.curvegen.core.ShapeSettings;
 import java.util.ArrayList;
@@ -256,6 +257,40 @@ public final class BlockChoices {
         else if ((front && back && depthShape == WallSide.TALL) || (l == 2 && r == 2)) post = false; // straight and tall
         else post = covered;                                                        // straight: post if something sits on it
         return with(s, BlockStateProperties.UP, post);
+    }
+
+    // ---------- 3D piece → BlockState ----------
+
+    /**
+     * The block state for one of the volumetric solver's states: the block chosen for its piece type, with every
+     * property {@link Pieces3#props} names. The solver has already settled connections, corner shapes and wall
+     * heights by the game's rules, so nothing here depends on the neighbours.
+     */
+    public static BlockState stateFor3(int piece) {
+        if (piece == Pieces3.AIR) return Blocks.AIR.defaultBlockState();
+        Block b = CHOICE.get(Pieces3.FAMILY[piece]);
+        BlockState s = b.defaultBlockState();
+        String props = Pieces3.props(piece);
+        if (!props.isEmpty())
+            for (String kv : props.split(",")) {
+                int eq = kv.indexOf('=');
+                Property<?> p = b.getStateDefinition().getProperty(kv.substring(0, eq));
+                if (p != null) s = withNamed(s, p, kv.substring(eq + 1));
+            }
+        s = with(s, BlockStateProperties.WATERLOGGED, false);
+        if (s.hasProperty(BlockStateProperties.PERSISTENT)) s = s.setValue(BlockStateProperties.PERSISTENT, true);
+        return s;
+    }
+
+    /** Every 3D state's block state, indexed by state, for the current block choices. */
+    public static BlockState[] statesFor3() {
+        BlockState[] out = new BlockState[Pieces3.COUNT];
+        for (int p = 0; p < Pieces3.COUNT; p++) out[p] = stateFor3(p);
+        return out;
+    }
+
+    private static <T extends Comparable<T>> BlockState withNamed(BlockState s, Property<T> p, String value) {
+        return p.getValue(value).map(v -> s.setValue(p, v)).orElse(s);
     }
 
     private static WallSide shape(int v) { return v == 0 ? WallSide.NONE : v == 1 ? WallSide.LOW : WallSide.TALL; }

@@ -3,6 +3,7 @@ package dev.curvegen.client.edit;
 import dev.curvegen.core.ShapeSettings;
 import dev.curvegen.core.edit.Orient;
 import java.util.List;
+import java.util.function.BooleanSupplier;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.state.BlockState;
 
@@ -30,7 +31,7 @@ public interface EditShape {
     record Content(List<Placed> blocks, List<BlockPos> carve, boolean topColours, String error) {}
 
     /** The shape for the current settings. */
-    static EditShape of(ShapeSettings s) { return new Shape2D(s); }
+    static EditShape of(ShapeSettings s) { return s.is3d() ? new Shape3D(s) : new Shape2D(s); }
 
     /** The box the handles sit on, along the shape's own axes. */
     int[] size();
@@ -84,9 +85,13 @@ public interface EditShape {
 
     /**
      * Solves the shape. Runs on a worker thread with a private copy of the settings, so it mustn't touch the game or
-     * the live settings. The result goes to {@link #build} and {@link #curve}.
+     * the live settings. The result goes to {@link #build} and {@link #curve}. Once {@code cancelled} reports true
+     * the result is no longer wanted, and a slow solve should return null instead of finishing.
      */
-    Object solve(ShapeSettings copy, Orient orient);
+    Object solve(ShapeSettings copy, Orient orient, BooleanSupplier cancelled);
+
+    /** True when {@link #solve} only works out what Carve clears while Carve is on, so switching it on needs a new solve. */
+    default boolean solveUsesCarve() { return false; }
 
     /** False when {@link #solve} ignores the orientation, so turning the shape only needs {@link #build} again. */
     default boolean solveUsesOrient() { return true; }

@@ -9,6 +9,7 @@ import dev.curvegen.core.edit.Edit2D;
 import dev.curvegen.core.edit.Orient;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BooleanSupplier;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.level.block.state.BlockState;
@@ -61,7 +62,7 @@ final class Shape2D implements EditShape {
     }
 
     @Override
-    public Object solve(ShapeSettings copy, Orient orient) {
+    public Object solve(ShapeSettings copy, Orient orient, BooleanSupplier cancelled) {
         Solver.Result r = Solver.run(copy);   // settles the equation's locked height in the copy
         return new Solved(r, Edit2D.size(copy), Math.max(1, copy.depth));
     }

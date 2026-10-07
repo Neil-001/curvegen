@@ -1,5 +1,6 @@
 package dev.curvegen.client;
 
+import dev.curvegen.client.edit.EditShape;
 import dev.curvegen.core.Layout;
 import dev.curvegen.core.LitematicBits;
 import java.io.IOException;
@@ -25,6 +26,7 @@ import net.minecraft.world.level.block.state.BlockState;
  * Writes a single-region Litematica schematic into the game's schematics folder.
  * Upright shapes: the drawing's x axis runs east, its y axis up, and depth runs south.
  * Flat shapes: x runs east, the drawing's y runs north, and layers stack up. Rotate in Litematica as needed.
+ * A hologram exports as it stands in the world.
  */
 public final class LitematicExporter {
     private LitematicExporter() {}
@@ -36,65 +38,94 @@ public final class LitematicExporter {
         int d = Math.max(1, depth);
         // Upright: drawing x → east, y → up, depth → south. Flat: drawing x → east, y → north, layers → up.
         int sx = layout.width(), sy = floor ? d : layout.height(), sz = floor ? layout.height() : d;
-        int volume = sx * sy * sz;
-        List<BlockState> palette = new ArrayList<>();
-        Map<BlockState, Integer> index = new HashMap<>();
-        BlockState air = Blocks.AIR.defaultBlockState();
-        palette.add(air);
-        index.put(air, 0);
-        int[] values = new int[volume];
-        int total = 0;
+        Region region = new Region(sx, sy, sz);
         for (Layout.Cell c : layout.cells())
             for (int k = 0; k < d; k++) {
                 BlockState st = floor ? BlockChoices.stateFor(c.piece(), c.above(), Direction.EAST, Direction.NORTH, k, d, true)
                                       : BlockChoices.stateFor(c.piece(), c.above(), Direction.EAST, Direction.SOUTH, k, d, false);
-                int wy = floor ? k : c.y(), wz = floor ? layout.height() - 1 - c.y() : k;
-                int id = index.computeIfAbsent(st, s -> { palette.add(s); return palette.size() - 1; });
-                values[(wy * sz + wz) * sx + c.x()] = id;
-                total++;
+                region.set(c.x(), floor ? k : c.y(), floor ? layout.height() - 1 - c.y() : k, st);
             }
-        int bits = LitematicBits.bitsFor(palette.size());
+        return region.write(baseName, author);
+    }
 
-        ListTag paletteNbt = new ListTag();
-        for (BlockState st : palette) paletteNbt.add(NbtUtils.writeBlockState(st));
+    /** Exports blocks as they stand in the world, such as a hologram's: x east, y up and z south. The list mustn't be empty. */
+    public static Path export(List<EditShape.Placed> blocks, String baseName, String author) throws IOException {
+        int[] lo = {Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE}, hi = {Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE};
+        for (EditShape.Placed p : blocks) {
+            lo[0] = Math.min(lo[0], p.dx()); lo[1] = Math.min(lo[1], p.dy()); lo[2] = Math.min(lo[2], p.dz());
+            hi[0] = Math.max(hi[0], p.dx()); hi[1] = Math.max(hi[1], p.dy()); hi[2] = Math.max(hi[2], p.dz());
+        }
+        Region region = new Region(hi[0] - lo[0] + 1, hi[1] - lo[1] + 1, hi[2] - lo[2] + 1);
+        for (EditShape.Placed p : blocks) region.set(p.dx() - lo[0], p.dy() - lo[1], p.dz() - lo[2], p.state());
+        return region.write(baseName, author);
+    }
 
-        CompoundTag region = new CompoundTag();
-        region.put("Position", vec(0, 0, 0));
-        region.put("Size", vec(sx, sy, sz));
-        region.put("BlockStatePalette", paletteNbt);
-        region.put("BlockStates", new LongArrayTag(LitematicBits.pack(values, bits)));
-        region.put("TileEntities", new ListTag());
-        region.put("Entities", new ListTag());
-        region.put("PendingBlockTicks", new ListTag());
-        region.put("PendingFluidTicks", new ListTag());
+    /** One region's blocks as palette indices, in Litematica's order: x fastest, then z, then y. */
+    private static final class Region {
+        final int sx, sy, sz;
+        final int[] values;
+        final List<BlockState> palette = new ArrayList<>();
+        final Map<BlockState, Integer> index = new HashMap<>();
+        int total;
 
-        long now = System.currentTimeMillis();
-        CompoundTag meta = new CompoundTag();
-        meta.putString("Name", baseName);
-        meta.putString("Author", author);
-        meta.putString("Description", "Made with Curve Generator");
-        meta.putInt("RegionCount", 1);
-        meta.putInt("TotalVolume", volume);
-        meta.putInt("TotalBlocks", total);
-        meta.putLong("TimeCreated", now);
-        meta.putLong("TimeModified", now);
-        meta.put("EnclosingSize", vec(sx, sy, sz));
+        Region(int sx, int sy, int sz) {
+            this.sx = sx; this.sy = sy; this.sz = sz;
+            values = new int[Math.multiplyExact(Math.multiplyExact(sx, sy), sz)];
+            BlockState air = Blocks.AIR.defaultBlockState();
+            palette.add(air);
+            index.put(air, 0);
+        }
 
-        CompoundTag regions = new CompoundTag();
-        regions.put(baseName, region);
+        void set(int x, int y, int z, BlockState st) {
+            values[(y * sz + z) * sx + x] = index.computeIfAbsent(st, s -> { palette.add(s); return palette.size() - 1; });
+            total++;
+        }
 
-        CompoundTag root = new CompoundTag();
-        root.putInt("MinecraftDataVersion", SharedConstants.getCurrentVersion().dataVersion().version());
-        root.putInt("Version", SCHEMATIC_VERSION);
-        root.putInt("SubVersion", SUB_VERSION);
-        root.put("Metadata", meta);
-        root.put("Regions", regions);
+        Path write(String baseName, String author) throws IOException {
+            int volume = values.length;
+            int bits = LitematicBits.bitsFor(palette.size());
 
-        Path dir = CurveGenClient.platform.gameDir().resolve("schematics");
-        Files.createDirectories(dir);
-        Path file = dir.resolve(baseName + ".litematic");
-        NbtIo.writeCompressed(root, file);
-        return file;
+            ListTag paletteNbt = new ListTag();
+            for (BlockState st : palette) paletteNbt.add(NbtUtils.writeBlockState(st));
+
+            CompoundTag region = new CompoundTag();
+            region.put("Position", vec(0, 0, 0));
+            region.put("Size", vec(sx, sy, sz));
+            region.put("BlockStatePalette", paletteNbt);
+            region.put("BlockStates", new LongArrayTag(LitematicBits.pack(values, bits)));
+            region.put("TileEntities", new ListTag());
+            region.put("Entities", new ListTag());
+            region.put("PendingBlockTicks", new ListTag());
+            region.put("PendingFluidTicks", new ListTag());
+
+            long now = System.currentTimeMillis();
+            CompoundTag meta = new CompoundTag();
+            meta.putString("Name", baseName);
+            meta.putString("Author", author);
+            meta.putString("Description", "Made with Curve Generator");
+            meta.putInt("RegionCount", 1);
+            meta.putInt("TotalVolume", volume);
+            meta.putInt("TotalBlocks", total);
+            meta.putLong("TimeCreated", now);
+            meta.putLong("TimeModified", now);
+            meta.put("EnclosingSize", vec(sx, sy, sz));
+
+            CompoundTag regions = new CompoundTag();
+            regions.put(baseName, region);
+
+            CompoundTag root = new CompoundTag();
+            root.putInt("MinecraftDataVersion", SharedConstants.getCurrentVersion().dataVersion().version());
+            root.putInt("Version", SCHEMATIC_VERSION);
+            root.putInt("SubVersion", SUB_VERSION);
+            root.put("Metadata", meta);
+            root.put("Regions", regions);
+
+            Path dir = CurveGenClient.platform.gameDir().resolve("schematics");
+            Files.createDirectories(dir);
+            Path file = dir.resolve(baseName + ".litematic");
+            NbtIo.writeCompressed(root, file);
+            return file;
+        }
     }
 
     public static String defaultName(String kind) {
