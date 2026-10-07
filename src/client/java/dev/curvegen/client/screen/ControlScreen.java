@@ -68,6 +68,9 @@ abstract class ControlScreen extends Screen {
         protected void updateWidgetNarration(NarrationElementOutput builder) { defaultButtonNarrationText(builder); }
     }
 
+    /** A lone arrow button, for moving a row of a list up or down. */
+    protected AbstractButton arrow(int x, int y, int w, int h, boolean up, Runnable action) { return new Arrow(x, y, w, h, up, action); }
+
     /**
      * A number field of total width w whose right edge holds up/down arrows (taken from the field, not added to it).
      * The arrows step the value within [min, max] and grey out at the ends or when the field doesn't apply.

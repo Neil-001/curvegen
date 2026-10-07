@@ -314,9 +314,7 @@ public class CurveScreen extends ControlScreen {
     }
 
 
-    private static boolean isInequality(String src) {
-        return src.contains("<") || src.contains(">") || src.contains("≤") || src.contains("≥");
-    }
+    private static boolean isInequality(String src) { return dev.curvegen.core.edit.Edit2D.isInequality(src); }
 
     /** An inequality decides the filled side itself, so the Shape choice (and line width) don't apply. */
     private void updateEquationControls() {

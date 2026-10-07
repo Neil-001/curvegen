@@ -341,5 +341,5 @@ public class PresetsScreen extends Screen {
     public void onClose() { minecraft.gui.setScreen(parent); }
 
     @Override
-    public boolean isPauseScreen() { return parent.isPauseScreen(); }
+    public boolean isPauseScreen() { return parent != null && parent.isPauseScreen(); }
 }

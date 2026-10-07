@@ -1,6 +1,7 @@
 {
   "key.category.curvegen.main": "Curve Generator",
   "key.curvegen.open": "Open curve generator",
+  "key.curvegen.radial": "Open radial menu",
   "key.curvegen.confirm": "Place shape",
   "key.curvegen.cancel": "Cancel shape",
   "key.curvegen.lock": "Lock or unlock shape",
