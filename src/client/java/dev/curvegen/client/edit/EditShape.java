@@ -30,6 +30,9 @@ public interface EditShape {
      */
     record Content(List<Placed> blocks, List<BlockPos> carve, boolean topColours, String error) {}
 
+    /** Whether the in-world editor can edit this kind of shape. */
+    static boolean supports(ShapeSettings.Gen gen) { return true; }
+
     /** The shape for the current settings. */
     static EditShape of(ShapeSettings s) { return s.is3d() ? new Shape3D(s) : new Shape2D(s); }
 
