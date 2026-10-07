@@ -50,15 +50,9 @@ public class SettingsScreen extends ControlScreen {
         radial.setTooltip(Tooltip.create(Component.literal(
                 "Hold: the menu stays open while you hold its key. Press: one press opens it and another closes it.")));
         addRenderableWidget(radial);
-        // The radial menu defines the wedges, so until it can reorder them this only puts a changed order back.
-        boolean custom = !ModSettings.radialOrder.isEmpty();
-        Button order = Button.builder(Component.literal("Wedge order: " + (custom ? "Custom" : "Default")), b -> {
-            ModSettings.radialOrder = new ArrayList<>();
-            rebuildWidgets();
-        }).bounds(left, row(3), colW, 20).build();
-        order.active = custom;
-        order.setTooltip(Tooltip.create(Component.literal(custom ? "Put the radial menu's wedges back in their default order."
-                : "The radial menu's wedges are in their default order.")));
+        Button order = Button.builder(Component.literal("Wedge order: " + (ModSettings.radialOrder.isEmpty() ? "Default" : "Custom") + "…"),
+                b -> minecraft.gui.setScreen(new WedgeOrderScreen(this))).bounds(left, row(3), colW, 20).build();
+        order.setTooltip(Tooltip.create(Component.literal("Choose where each wedge of the radial menu goes.")));
         addRenderableWidget(order);
 
         number(right, 0, "Handle size (blocks)", "How big the handles you drag are.",
