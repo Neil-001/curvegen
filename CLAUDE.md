@@ -17,10 +17,10 @@ Both jars target 26.3 only. Minecraft is unobfuscated, so use its own names with
 Both loaders compile the shared `src/main` and `src/client` code with their own entrypoints and metadata. Fabric also compiles `src/test`. Fabric splits common and client source sets with Loom's `splitEnvironmentSourceSets()`; NeoForge combines them in one jar. Common code must never touch client classes.
 
 - `dev/curvegen/core/` must have no Minecraft imports. `Pieces` defines the 16×16 states, masks, mirrors and sturdy faces; `Target` builds the shapes and carve regions; `Solver` selects pieces. `Expr` compiles Desmos-style equations to lambdas without `eval`. Run the solver on a worker thread with a `ShapeSettings.copy()`. `Silhouette` shares piece pixels and outlines between the preview and Count icons. Those classes are 2D. 3D shapes have their own: `Pieces3`, `Shape3`, `Shapes3` and `Solver3`, described under "Volumetric solver".
-- `dev/curvegen/core/edit/` is the in-world editor's maths, also free of Minecraft imports: `HandleMath` (ray to axis, ray to plane, picking), `Box` (the 26 box handles, drag and fit rules), `Orient` (which way a shape's own axes point) and `Edit2D` (what handles and keys do to a 2D shape's `ShapeSettings`).
+- `dev/curvegen/core/edit/` is the in-world editor's maths, also free of Minecraft imports: `HandleMath` (ray to axis, ray to plane, picking), `Box` (the 26 box handles, drag and fit rules), `Orient` (which way a shape's own axes point), `Edit2D` and `Edit3D` (what handles and keys do to a 2D or 3D shape's `ShapeSettings`) and `Turned` (a `Shape3` with its own axes pointing another way).
 - Only `fabric/src/` and `neoforge/src/` may import their loader's classes. Shared client code uses `ClientPlatform`; changes to that contract must go into both loaders. Each loader also passes in-world mouse buttons and scrolling to `Editor.mouseButton` and `Editor.mouseScroll` and cancels the event when they return true: NeoForge through `InputEvent`, Fabric through `MouseHandlerMixin`, because Fabric API has no such event.
 - `CurveGen.java` handles server placement through `net/PlaceBlocksPayload.java` and checks `Permissions.COMMANDS_GAMEMASTER`.
-- In `dev/curvegen/client/`, `BlockChoices` maps pieces to block states for each orientation; `ColorIndex` matches face texture colours in CIELAB; `Placement` sends blocks to the server or falls back to `/setblock`, and undoes the last placement. `PresetStore` atomically replaces one JSON file per preset in `config/curvegen/presets/`.
+- In `dev/curvegen/client/`, `BlockChoices` maps pieces to block states for each orientation, and 3D states through `stateFor3`, which sets every property `Pieces3.props` names on the chosen block; `ColorIndex` matches face texture colours in CIELAB; `Placement` sends blocks to the server or falls back to `/setblock`, and undoes the last placement. `PresetStore` atomically replaces one JSON file per preset in `config/curvegen/presets/`.
 - `client/edit/` is the in-world editor. See "In-world editor" below.
 - `ModSettings` holds the mod's own options as static fields, loaded at client start and saved atomically to `config/curvegen/settings.json`. A missing, mistyped or out-of-range value gets its default.
 - `client/screen/CurveScreen` is the main UI; `PreviewTexture` draws the solved grid into a dynamic texture. `SettingsScreen` edits `ModSettings` and opens from the main UI's cogwheel, from Mod Menu on Fabric and from the mod list's Config button on NeoForge. Both extend `ControlScreen`, which has the shared controls.
@@ -44,7 +44,7 @@ Upright builds show the side face; flat builds show the top, with the drawing's 
 
 ## Volumetric solver
 
-`Solver3` solves 3D shapes (`ShapeSettings.is3d()`: ellipsoid and torus so far) in the world's orientation: x east, y up, z south. It shares nothing with the 2D solver but `Pieces.Family` and the settings' piece toggles and `fullConnects`. The client doesn't use it yet.
+`Solver3` solves 3D shapes (`ShapeSettings.is3d()`: ellipsoid and torus so far) in the world's orientation: x east, y up, z south. It shares nothing with the 2D solver but `Pieces.Family` and the settings' piece toggles and `fullConnects`. The in-world editor runs it through `Shape3D`.
 
 1. A `Shape3` is a box of blocks and a field, solid where the field lies from `lo()` to `hi()`. `uniform` marks runs of cells empty or solid without sampling them. A cell that may hold the surface is sampled at 16³ points, by interpolating the field from a 5×5×5 lattice, and stores its overlap with each of `Pieces3`'s 57 parts. Every state is a union of disjoint parts, so a state's error is the cell's volume plus the state's, less twice their overlap.
 2. Each mixed cell starts with its lowest-error token. A token is a state, except that a straight stair stands for whichever corner shape its neighbours give it, and `FENCE`, `PANE` and `WALL_POST` for whichever connections, heights and post.
@@ -52,7 +52,7 @@ Upright builds show the side face; flat builds show the top, with the drawing's 
 4. A symmetric shape is sampled in one octant. Mirrored cells share a token, and only the quarter that x and z leave is scored, so the total being lowered stays one sum. Cells on a mirror plane may only hold tokens that are their own image.
 5. `hollow()` shapes then lose every full block whose six neighbours fill the faces they share. No connector fills a face, so the blocks connectors attach to and the block above a wall always stay.
 
-`Pieces3` states decode to every block state property, and `Pieces3.props` writes them in the game's names (`facing=north,half=top,shape=inner_left`), so the client maps a state to a `BlockState` without guessing. There are 257 states, so 3D grids are `short[]`, indexed `(y*nz + z)*nx + x`. Shapes are the game's voxel shapes, except that a fence's arms, a chain and an end rod are scored as drawn, like the 2D pieces. `GameRules3Test` builds every state from `props` and compares its shape with the game's, then has the game update every stair, fence, pane and wall in a set of solved shapes and expects no change. Run it after touching `Pieces3` or `Solver3`'s rules.
+`Pieces3` states decode to every block state property, and `Pieces3.props` writes them in the game's names (`facing=north,half=top,shape=inner_left`), so the client maps a state to a `BlockState` without guessing. There are 257 states, so 3D grids are `short[]`, indexed `(y*nz + z)*nx + x`. Shapes are the game's voxel shapes, except that a fence's arms, a chain and an end rod are scored as drawn, like the 2D pieces. `GameRules3Test` builds every state with `BlockChoices.stateFor3` and compares its shape with the game's, then has the game update every stair, fence, pane and wall in a set of solved shapes and expects no change. Run it after touching `Pieces3` or `Solver3`'s rules.
 
 Rules the 3D solver follows beyond those under "Minecraft rules":
 
@@ -70,7 +70,7 @@ Implement `Shape3` and add it to `Shape3.of`. Only the sizes, `field` and `wiref
 - `carve()` gives the band of field values that count as the space the shape encloses, for `Solver3.carve`. `pad()` is the room added around the size the player set. `symX`, `symY` and `symZ` must be true only if the field is exactly mirrored about the box's centre.
 - `wireframe()` returns polylines as `{x0, y0, z0, x1, y1, z1, ...}` and must be cheap, since the editor draws it every frame while a solve runs.
 
-Sizes cap at `Shape3.MAX_SIZE` (256) per axis before padding. `Solver3.solve` takes a `BooleanSupplier` and returns null once it reports true, so the caller can drop a solve when the settings change. Run it on a worker thread with a `ShapeSettings.copy()`. A hollow sphere takes about 20 ms at 64 blocks across and 100 ms at 128.
+Sizes cap at `Shape3.MAX_SIZE` (256) per axis before padding. `Solver3.solve` takes a `BooleanSupplier` and returns null once it reports true, so the caller can drop a solve when the settings change. Run it on a worker thread with a `ShapeSettings.copy()`. The solver only works in the world's orientation, so a turned or tipped shape is solved again as `Turned.of(shape, orient)`, never by moving solved blocks. `Turned` falls back to one block at a time for a shape that overrides `uniform`, whose runs are counted along its own x. A hollow sphere takes about 20 ms at 64 blocks across and 100 ms at 128.
 
 ## Minecraft rules
 
@@ -89,24 +89,32 @@ Sizes cap at `Shape3.MAX_SIZE` (256) per axis before padding. `Solver3.solve` ta
 Place in the G menu spawns one hologram, locked at the block the player looks at. `Editor` owns it: lock, handles, drags, keys, undo and redo, the HUD and the solver job. It knows nothing about any one shape.
 
 - `Editor` keeps a `Box` in world axes and an `Orient`. Edits change the live `CurveGenClient.SETTINGS`. Undo snapshots are `ShapeSettings.copy()` plus the box and orientation, and `ShapeSettings.set` restores one. `ShapeSettingsTest` fails if a new field is missing from `set` or `same`.
+- A solve gets a cancel supplier. When the shape changes while one is running, `Editor` drops it, so a slow solve doesn't hold up the latest shape. After 400 ms of dropping, the next one runs to its end, so a long drag of a slow shape still shows blocks.
 - A drag restores the settings and box from when it started before every update, so a drag depends only on where the player looks now. Shape edits needn't be reversible.
 - The box and ideal curve are drawn from the live settings every frame. Blocks come from `EditShape.solve` on a worker thread with a `ShapeSettings.copy()`, then `EditShape.build` on the client thread. `Hologram` takes that list of offsets and block states, drops faces hidden against a whole-cube neighbour once per solve, and then only checks the world. Above `ModSettings.hologramBlockLimit` it draws nothing, so only the wireframe shows.
+- Handles are drawn twice: dimmed through terrain with `Hologram.throughWalls()`, then as they are where nothing hides them. The first is the game's see-through text render type on `textures/white.png`, because the game has no untextured type without a depth test and making one needs an access widener. Picking ignores terrain.
+- Along an axis where the box is too small to tell three layers of handles apart (`Box.handles(size, gap)`), only the middle layer shows, with that axis's own two face handles.
 - Face handles move along one axis, edge handles in the plane across their edge, and corners in the axis-aligned plane facing the camera, with scrolling for the third axis. Sneak resizes about the centre. `Editor.mouseButton` returns true only for a click on a highlighted handle or during a drag.
 - Nudge and bump keys are `CurveGenClient.STEP_KEYS`, each with an action that takes a number of blocks. Hold-to-type calls that action with the typed amount.
 - Turning rounds when width and depth differ in parity, so `Editor` turns about a pivot kept from before the first turn (`Box.about`). Anything else that resizes the box clears it.
+- `Editor.export()` writes the hologram's blocks to a Litematica schematic as they stand in the world. The G menu's Export uses it for 3D shapes.
 - Opening a screen mid-edit keeps the hologram. When it closes, `Editor` re-reads the settings and records one undo step if they changed.
 
 ### `EditShape`
 
-`client/edit/EditShape` is all a shape supplies. `Shape2D` implements it for the ellipse, equation and 2D Bézier curve; `EditShape.of` picks the implementation. Everything is in the shape's own axes, in blocks from its own minimum corner, except `Content`, which is in world axes.
+`client/edit/EditShape` is all a shape supplies. `Shape2D` implements it for the ellipse, equation and 2D Bézier curve, and `Shape3D` for the 3D shapes; `EditShape.of` picks the implementation and `EditShape.supports` says whether a kind has one. Everything is in the shape's own axes, in blocks from its own minimum corner, except `Content`, which is in world axes.
 
 - `size()` and `resize(want, dragged)`: the box. `resize` applies what its limits allow and may change undragged axes, as an equation's same-scale lock does. `Editor` reads `size()` back and fits the box.
 - `bump(axis, side, amount)`: optional. A curve stretches its control points' bounding box here; returning null has `Editor` resize the box.
 - `orient(current)` returns the orientation the settings allow; `tip(current, forward)` tips a quarter turn and may change settings. A 2D shape switches `floor` instead of rotating.
 - `points()`, `pointPlane()`, `movePoint`, `removePoint`, `insertPoint`, `duplicatePoint`: control points. `pointPlane()` is the own axis points can't move along, or -1 for free 3D points, which drag like corners. `movePoint` returns how far the box's own minimum corner moved when the shape grew to keep the point inside.
 - `curve(solved)`: the ideal curve as segments, cheap enough for every frame.
-- `solve(copy, orient)` runs on the worker thread and mustn't touch the game. `build(solved, orient)` returns `Content`: `Placed(dx, dy, dz, state)` offsets from the world box's minimum corner, carve offsets, whether to tint by top texture, and an error message. Return false from `solveUsesOrient()` if turning only needs `build` again.
+- `solve(copy, orient, cancelled)` runs on the worker thread and mustn't touch the game. It may return null once `cancelled` reports true. A 3D shape only works out what Carve clears while Carve is on (`solveUsesCarve()`), so switching it on solves again. `build(solved, orient)` returns `Content`: `Placed(dx, dy, dz, state)` offsets from the world box's minimum corner, carve offsets, whether to tint by top texture, and an error message. Return false from `solveUsesOrient()` if turning only needs `build` again.
 - `describe()`: the HUD's first line.
+
+A 3D shape's box leaves out the room an outwards shell adds (`Shape3.pad()`), so its blocks and wireframe are offset by that much. A torus's handles and bump keys change only its box (`tW`, `tH`, `tD`): the ring and tube sizes describe the round ring that is stretched to fill it. `Edit3D.setRing` and `setTube` change those and scale the box with them.
+
+Until the G menu has 3D tabs, it opens on Blocks for a 3D shape and shows the shape's preset buttons and its colour face (`ShapeSettings.topColours`) where the 2D preview goes. `ColorIndex.of(Block)` follows that switch for 3D shapes and `floor` for 2D ones.
 
 ## Conventions
 
