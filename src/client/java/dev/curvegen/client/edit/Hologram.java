@@ -34,6 +34,9 @@ public final class Hologram {
     /** A block and the faces of it worth drawing: 12 coordinates a quad, with the side each quad faces. */
     private record Entry(int dx, int dy, int dz, BlockState state, float[] quads, byte[] sides, int rgb) {}
 
+    private static final float[] NO_QUADS = new float[0];
+    private static final byte[] NO_SIDES = new byte[0];
+
     private final List<Entry> entries;
     private final List<BlockPos> carve;
     /** False above the block limit, when only the wireframe shows. */
@@ -82,8 +85,9 @@ public final class Hologram {
                     if (!(hidden[5] && b.maxX >= 1)) { quads.add(new float[]{e, c, d, e, f, d, e, f, g, e, c, g}); sides.add((byte) 5); }
                 }
             }
-            float[] flat = new float[quads.size() * 12];
-            byte[] side = new byte[quads.size()];
+            // A shape too large to draw can have millions of blocks, which then share the two empty arrays.
+            float[] flat = quads.isEmpty() ? NO_QUADS : new float[quads.size() * 12];
+            byte[] side = quads.isEmpty() ? NO_SIDES : new byte[quads.size()];
             for (int q = 0; q < side.length; q++) {
                 System.arraycopy(quads.get(q), 0, flat, q * 12, 12);
                 side[q] = sides.get(q);
