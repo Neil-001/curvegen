@@ -1,5 +1,6 @@
 package dev.curvegen.game;
 
+import dev.curvegen.client.BlockChoices;
 import dev.curvegen.core.Pieces;
 import dev.curvegen.core.Pieces3;
 import dev.curvegen.core.Shapes3Cases;
@@ -29,12 +30,14 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Checks the 3D pieces against the game itself rather than a copy of its rules: every state's properties build a
  * real block state with the same shape, and no block in a solved shape changes when the game updates it.
+ * The states come from the client's mapping, {@code BlockChoices.stateFor3}, so this covers what gets placed.
  * This is the one test that loads Minecraft's blocks. It needs no world or client.
  */
 class GameRules3Test {
@@ -48,6 +51,10 @@ class GameRules3Test {
         tag(Blocks.COBBLESTONE_WALL, BlockTags.WALLS);
         tag(Blocks.OAK_FENCE, BlockTags.FENCES, BlockTags.WOODEN_FENCES);
         tag(Blocks.OAK_LEAVES, BlockTags.LEAVES);
+        BlockChoices.CHOICE.putAll(Map.of(Pieces.Family.SLAB, Blocks.STONE_SLAB, Pieces.Family.STAIRS, Blocks.STONE_STAIRS,
+                Pieces.Family.TRAPDOOR, Blocks.OAK_TRAPDOOR, Pieces.Family.SHELF, Blocks.OAK_SHELF, Pieces.Family.FENCE, Blocks.OAK_FENCE,
+                Pieces.Family.PANE, Blocks.GLASS_PANE, Pieces.Family.WALL, Blocks.COBBLESTONE_WALL, Pieces.Family.CHAIN, Blocks.IRON_CHAIN,
+                Pieces.Family.ROD, Blocks.END_ROD));
     }
 
     @SafeVarargs
@@ -58,39 +65,10 @@ class GameRules3Test {
         bind.invoke(b.builtInRegistryHolder(), List.of(tags));
     }
 
-    private static Block block(Pieces.Family f, boolean fullConnects) {
-        return switch (f) {
-            case AIR -> Blocks.AIR;
-            case FULL -> fullConnects ? Blocks.STONE : Blocks.OAK_LEAVES;   // nothing attaches to leaves
-            case SLAB -> Blocks.STONE_SLAB;
-            case STAIRS -> Blocks.STONE_STAIRS;
-            case TRAPDOOR -> Blocks.OAK_TRAPDOOR;
-            case SHELF -> Blocks.OAK_SHELF;
-            case FENCE -> Blocks.OAK_FENCE;
-            case PANE -> Blocks.GLASS_PANE;
-            case WALL -> Blocks.COBBLESTONE_WALL;
-            case CHAIN -> Blocks.IRON_CHAIN;
-            case ROD -> Blocks.END_ROD;
-        };
-    }
-
-    /** The block state for a piece state, built only from {@link Pieces3#props}, as the client will. */
+    /** The block state for a piece state, from the client's own mapping with these blocks chosen. */
     private static BlockState state(int piece, boolean fullConnects) {
-        Block b = block(Pieces3.FAMILY[piece], fullConnects);
-        BlockState st = b.defaultBlockState();
-        String props = Pieces3.props(piece);
-        if (props.isEmpty()) return st;
-        for (String kv : props.split(",")) {
-            String[] p = kv.split("=");
-            Property<?> prop = b.getStateDefinition().getProperty(p[0]);
-            assertNotNull(prop, b + " has no property " + p[0]);
-            st = with(st, prop, p[1]);
-        }
-        return st;
-    }
-
-    private static <T extends Comparable<T>> BlockState with(BlockState st, Property<T> prop, String value) {
-        return st.setValue(prop, prop.getValue(value).orElseThrow(() -> new AssertionError(prop + " has no value " + value)));
+        BlockChoices.CHOICE.put(Pieces.Family.FULL, fullConnects ? Blocks.STONE : Blocks.OAK_LEAVES);   // nothing attaches to leaves
+        return BlockChoices.stateFor3(piece);
     }
 
     private static boolean[] voxels(VoxelShape shape) {
@@ -168,6 +146,38 @@ class GameRules3Test {
         }
         assertTrue(connectors > 5000 && walls > 2000 && corners > 2000, connectors + " connectors, " + walls + " walls, " + corners + " corner stairs");
     }
+
+    @Test
+    void everyPropertyReachesTheChosenBlock() {
+        Map<Pieces.Family, Block> before = new java.util.EnumMap<>(BlockChoices.CHOICE);
+        try {
+            BlockChoices.CHOICE.putAll(Map.of(Pieces.Family.FULL, Blocks.OAK_LEAVES, Pieces.Family.SLAB, Blocks.SMOOTH_QUARTZ_SLAB,
+                    Pieces.Family.STAIRS, Blocks.PURPUR_STAIRS, Pieces.Family.TRAPDOOR, Blocks.IRON_TRAPDOOR, Pieces.Family.SHELF, Blocks.CRIMSON_SHELF,
+                    Pieces.Family.FENCE, Blocks.NETHER_BRICK_FENCE, Pieces.Family.PANE, Blocks.IRON_BARS, Pieces.Family.WALL, Blocks.MUD_BRICK_WALL));
+            assertEquals(Blocks.AIR.defaultBlockState(), BlockChoices.stateFor3(Pieces3.AIR));
+            for (int s = 1; s < Pieces3.COUNT; s++) {
+                BlockState st = BlockChoices.stateFor3(s);
+                assertSame(BlockChoices.CHOICE.get(Pieces3.FAMILY[s]), st.getBlock(), Pieces3.name(s));
+                String props = Pieces3.props(s);
+                if (!props.isEmpty())
+                    for (String kv : props.split(",")) {
+                        String[] p = kv.split("=");
+                        Property<?> prop = st.getBlock().getStateDefinition().getProperty(p[0]);
+                        assertNotNull(prop, st.getBlock() + " has no property " + p[0]);
+                        assertEquals(p[1], name(st, prop), Pieces3.name(s) + " " + p[0]);
+                    }
+                for (Property<?> prop : st.getProperties())
+                    if (prop.getName().equals("waterlogged")) assertEquals("false", name(st, prop), Pieces3.name(s));
+            }
+            // Leaves placed by hand don't decay.
+            assertEquals("true", name(BlockChoices.stateFor3(Pieces3.FULL), Blocks.OAK_LEAVES.getStateDefinition().getProperty("persistent")));
+            assertSame(BlockChoices.stateFor3(Pieces3.WALL_POST), BlockChoices.statesFor3()[Pieces3.WALL_POST]);
+        } finally {
+            BlockChoices.CHOICE.putAll(before);
+        }
+    }
+
+    private static <T extends Comparable<T>> String name(BlockState st, Property<T> prop) { return prop.getName(st.getValue(prop)); }
 
     @Test
     void theGameCorrectsAWrongState() {

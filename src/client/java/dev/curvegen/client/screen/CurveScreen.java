@@ -81,6 +81,8 @@ public class CurveScreen extends ControlScreen {
         super(Component.literal("Curve Generator"));
         if (tab != Tab.BLOCKS && tab != Tab.COUNT)
             tab = switch (S.gen) { case ELLIPSE -> Tab.ELLIPSE; case EQUATION -> Tab.EQUATION; case BEZIER -> Tab.BEZIER; default -> tab; };
+        // The shape tabs are the 2D shapes'. A 3D shape is edited in the world, and its blocks are chosen here.
+        if (S.is3d() && tab != Tab.COUNT) tab = Tab.BLOCKS;
         S.fullConnects = BlockChoices.fullBlockConnects();
     }
 
@@ -134,6 +136,7 @@ public class CurveScreen extends ControlScreen {
             case BLOCKS -> initBlocks();
             case COUNT -> { }
         }
+        if (S.is3d()) init3d();
 
         // Bottom bar: build options on the left, actions on the right, each button as wide as its text needs.
         int by = height - 26;
@@ -154,6 +157,10 @@ public class CurveScreen extends ControlScreen {
                 .create(x, by, orientText + bpad, 20, Component.literal("Build"), (b, v) -> setFloor(v));
         orient.setTooltip(Tooltip.create(Component.literal("Upright builds a wall, drawn from the side. Flat builds a floor, drawn from above.")));
         reverse.put(orient, () -> setFloor(!S.floor));
+        if (S.is3d()) {
+            orient.active = false;
+            orient.setTooltip(Tooltip.create(Component.literal("A 3D shape is turned in the world, with the rotate and tip keys.")));
+        }
         addRenderableWidget(orient);
         x += orientText + bpad + bgap;
         labels.add(new Label(x, by + 6, S.floor ? "Height" : "Depth"));
@@ -162,7 +169,9 @@ public class CurveScreen extends ControlScreen {
             int d = clampInt(v, 1, 64, S.depth);
             if (d != S.depth) { S.depth = d; dirty = true; }   // walls look different when more than one deep
         }, () -> S.depth, 1, 1, 64, () -> true, true);
-        depthField.setTooltip(Tooltip.create(Component.literal(S.floor ? "How many layers the floor is stacked up." : "How many blocks deep the shape is built.")));
+        depthField.setTooltip(Tooltip.create(Component.literal(S.is3d() ? "A 3D shape has its own depth. Resize it in the world."
+                : S.floor ? "How many layers the floor is stacked up." : "How many blocks deep the shape is built.")));
+        if (S.is3d()) depthField.setEditable(false);
         x += fieldW + bgap;
         CycleButton<Boolean> replace = toggle(S.overwrite, x, by, replaceText + bpad, "Replace", v -> S.overwrite = v);
         replace.setTooltip(Tooltip.create(Component.literal(
@@ -195,6 +204,25 @@ public class CurveScreen extends ControlScreen {
                 b -> minecraft.gui.setScreen(new PresetsScreen(this, S.gen, this::loadPreset))).bounds(M + w + 4, y, w, 20).build();
         load.setTooltip(Tooltip.create(Component.literal("Browse, preview and load saved shapes.")));
         addRenderableWidget(load);
+    }
+
+    /**
+     * What a 3D shape has in this menu, in the space where a 2D shape is previewed: its presets, and which face of a
+     * block its colours are matched to.
+     */
+    private void init3d() {
+        int x = cx0() + 8, y = cy0() + 20, w = Math.min(120, (cx1() - cx0() - 20) / 2);
+        Button save = Button.builder(Component.literal("Save preset"), b -> savePreset()).bounds(x, y, w, 20).build();
+        save.setTooltip(Tooltip.create(Component.literal("Save this shape's settings under a name.")));
+        addRenderableWidget(save);
+        Button load = Button.builder(Component.literal("Load preset"),
+                b -> minecraft.gui.setScreen(new PresetsScreen(this, S.gen, this::loadPreset))).bounds(x + w + 4, y, w, 20).build();
+        load.setTooltip(Tooltip.create(Component.literal("Browse and load saved shapes of this kind.")));
+        addRenderableWidget(load);
+        CycleButton<Boolean> face = cycler(List.of(false, true), S.topColours, v -> Component.literal(v ? "Top" : "Side"),
+                x, y + ROW, 2 * w + 4, "Match colours to", v -> S.topColours = v);
+        face.setTooltip(Tooltip.create(Component.literal("Which face of a block its colour is taken from, for the shape in the world and for Match a colour.")));
+        addRenderableWidget(face);
     }
 
     private void savePreset() {
@@ -407,7 +435,7 @@ public class CurveScreen extends ControlScreen {
                 boolean on = S.allows(f);
                 Button use = Button.builder(Component.literal(on ? "Use" : "Off"), b -> { S.allow(f, !S.allows(f)); dirty = true; rebuildWidgets(); })
                         .bounds(M, y, 26, h).build();
-                if (S.floor && (f == Family.SLAB || f == Family.STAIRS)) {
+                if (S.floor && !S.is3d() && (f == Family.SLAB || f == Family.STAIRS)) {
                     use.active = false;
                     use.setTooltip(Tooltip.create(Component.literal("From above, " + BlockChoices.familyName(f).toLowerCase(java.util.Locale.ROOT)
                             + " look like full blocks, so flat builds don't use them.")));
@@ -682,9 +710,9 @@ public class CurveScreen extends ControlScreen {
         if (tab == Tab.COUNT) drawCount(ctx, mouseX, mouseY);
 
         int x0 = cx0(), y0 = cy0(), x1 = cx1(), y1 = cy1();
-        ctx.fill(x0, y0, x1, y1, 0xFF15181D);
+        if (!S.is3d()) ctx.fill(x0, y0, x1, y1, 0xFF15181D);   // a 3D shape has its controls here, already drawn
         ctx.enableScissor(x0, y0, x1, y1);
-        if (result != null && preview.id() != null) {
+        if (result != null && preview.id() != null && !S.is3d()) {
             var m = ctx.pose();
             m.pushMatrix();
             m.translate(panX, panY);
@@ -700,7 +728,8 @@ public class CurveScreen extends ControlScreen {
 
         // status line across the top of the canvas
         String line; int color = 0xFFDDE3EA;
-        if (result == null) line = "Working…";
+        if (S.is3d()) line = "A 3D shape is previewed in the world.";
+        else if (result == null) line = "Working…";
         else if (result.target().error != null) { line = result.target().error; color = 0xFFFF8098; }
         else {
             int total = 0;
@@ -849,6 +878,12 @@ public class CurveScreen extends ControlScreen {
     private void place() {
         // With a hologram already out, the changes made here show on it as soon as the screen closes.
         if (Editor.isActive()) { onClose(); return; }
+        if (S.is3d()) {
+            if (!Placement.canPlace(minecraft)) Placement.say(Component.literal("You'll need operator permissions to place this."));
+            onClose();
+            Editor.start();
+            return;
+        }
         if (!ready()) return;
         if (Layout.of(result).isEmpty()) { flash("The shape is empty, so there's nothing to place."); return; }
         if (!Placement.canPlace(minecraft)) Placement.say(Component.literal("You'll need operator permissions to place this."));
@@ -857,6 +892,12 @@ public class CurveScreen extends ControlScreen {
     }
 
     private void export() {
+        if (S.is3d()) {
+            String message = Editor.isActive() ? Editor.export() : "Put the shape in the world with Place first, then export it.";
+            flash(message);
+            if (Editor.isActive()) Placement.say(Component.literal(message));
+            return;
+        }
         if (!ready()) return;
         Layout layout = Layout.of(result);
         if (layout.isEmpty()) { flash("The shape is empty, so there's nothing to export."); return; }

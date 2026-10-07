@@ -2,10 +2,13 @@ package dev.curvegen.client.edit;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.VertexConsumer;
 import dev.curvegen.client.BlockChoices;
 import dev.curvegen.client.CurveGenClient;
+import dev.curvegen.client.LitematicExporter;
 import dev.curvegen.client.ModSettings;
 import dev.curvegen.client.Placement;
+import dev.curvegen.core.Pieces;
 import dev.curvegen.core.ShapeSettings;
 import dev.curvegen.core.edit.Box;
 import dev.curvegen.core.edit.HandleMath;
@@ -13,10 +16,13 @@ import dev.curvegen.core.edit.Orient;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicBoolean;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
@@ -28,6 +34,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.ARGB;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.FogType;
 import net.minecraft.world.phys.BlockHitResult;
@@ -75,6 +82,17 @@ public final class Editor {
     // ---------- solving ----------
     private static boolean dirty;
     private static Future<Object> job;
+    /** Tells the running solve its result is no longer wanted. */
+    private static AtomicBoolean jobCancelled;
+    /**
+     * When solves started being dropped because the shape kept changing, in milliseconds, or 0. After
+     * {@link #STARVED_MS} of that the next one runs to its end, so a long drag of a slow shape still shows blocks.
+     */
+    private static long droppingSince;
+    private static final long STARVED_MS = 400;
+    /** The settings of the running solve, and the settings and block choices the hologram was last built from. */
+    private static ShapeSettings jobSettings, shown;
+    private static Map<Pieces.Family, Block> shownChoices;
     /** The orientation the running solve was started with, and the box's corner then (moved along with later nudges). */
     private static Orient jobOrient;
     private static int[] jobOrigin;
@@ -132,7 +150,7 @@ public final class Editor {
         if (mc.player == null) return;
         reset();
         facing = mc.player.getDirection().get3DDataValue();
-        shape = EditShape.of(S);
+        reshape();
         orient = shape.orient(Orient.facing(facing));
         BlockPos at = target(mc);
         box = Box.spawn(at.getX(), at.getY(), at.getZ(), worldSize());
@@ -144,7 +162,7 @@ public final class Editor {
         if (last == null || Minecraft.getInstance().player == null) return false;
         reset();
         S.set(last.settings);
-        shape = EditShape.of(S);
+        reshape();
         orient = last.orient; box = last.box;
         begin();
         return true;
@@ -152,9 +170,43 @@ public final class Editor {
 
     public static boolean hasLast() { return last != null; }
 
+    /**
+     * Picks the handler for the settings as they are now. A solve of the other family of shape, 2D or 3D, means
+     * nothing to the new handler, so it goes, along with the blocks it gave.
+     */
+    private static void reshape() {
+        EditShape next = EditShape.of(S);
+        if (shape == null || next.getClass() != shape.getClass()) {
+            dropJob();
+            solved = null; hologram = null; hologramOrigin = null; shown = null;
+        }
+        shape = next;
+    }
+
+    /** Takes up settings something else changed, such as the menu: the handler, an orientation they allow, the box's size. */
+    private static void adopt() {
+        reshape();
+        orient = shape.orient(orient);
+        Box fitted = box.refit(worldSize());
+        if (!fitted.equals(box)) { box = fitted; pivot = null; }
+        dirty = true;
+    }
+
+    /** The menu can switch between a 2D and a 3D shape while it's open, and the hologram is drawn behind it all the while. */
+    private static void sync() {
+        if (active && (shape instanceof Shape3D) != S.is3d()) adopt();
+    }
+
+    private static void dropJob() {
+        if (job == null) return;
+        jobCancelled.set(true);
+        job.cancel(false);
+        job = null;
+    }
+
     private static void reset() {
-        if (job != null) job.cancel(false);
-        job = null; solved = null; hologram = null; hologramOrigin = null; viewOrigin = null;
+        dropJob();
+        solved = null; hologram = null; hologramOrigin = null; viewOrigin = null;
         undo.clear(); redo.clear();
         drag = null; hover = null; follow = new int[3]; pivot = null;
         screenOpen = Minecraft.getInstance().gui.screen() != null; beforeScreen = null;
@@ -168,8 +220,7 @@ public final class Editor {
     private static void end() {
         last = snapshot();
         active = false; drag = null; hover = null;
-        if (job != null) job.cancel(false);
-        job = null;
+        dropJob();
     }
 
     public static void cancel() {
@@ -198,6 +249,35 @@ public final class Editor {
         end();
     }
 
+    /**
+     * Writes the hologram's blocks to a Litematica schematic, as they stand in the world. Returns a message for the
+     * player either way.
+     */
+    public static String export() {
+        Minecraft mc = Minecraft.getInstance();
+        if (!active) return "There's no shape in the world to export.";
+        // With the menu open, the hologram may still be the shape or the blocks from before a change made there.
+        if (hologram != null && !dirty && job == null && stale()) adopt();
+        if (hologram == null || dirty || job != null) return "Still working on the shape, try again in a moment.";
+        if (hologram.error != null) return "Fix the shape first: " + hologram.error;
+        if (hologram.size() == 0) return "The shape is empty, so there's nothing to export.";
+        try {
+            String author = mc.player != null ? mc.player.getName().getString() : "Curve Generator";
+            String name = LitematicExporter.defaultName(S.gen.name().toLowerCase(java.util.Locale.ROOT));
+            return "Exported to schematics/" + LitematicExporter.export(hologram.blocks(), name, author).getFileName();
+        } catch (Exception e) {
+            return "Export failed: " + e.getMessage();
+        }
+    }
+
+    /** Whether the hologram was built from other shape settings or block choices than the ones set now. */
+    private static boolean stale() {
+        if (shown == null || !BlockChoices.CHOICE.equals(shownChoices)) return true;
+        ShapeSettings now = S.copy();
+        now.overwrite = shown.overwrite; now.carve = shown.carve;   // neither changes which blocks the shape has
+        return !now.same(shown);
+    }
+
     // ---------- state ----------
 
     private static Snapshot snapshot() { return new Snapshot(S.copy(), box, orient, follow.clone(), pivot == null ? null : pivot.clone()); }
@@ -217,7 +297,7 @@ public final class Editor {
         S.set(s.settings);
         // Block choices aren't part of a snapshot, so this flag has to follow the blocks chosen now.
         S.fullConnects = BlockChoices.fullBlockConnects();
-        shape = EditShape.of(S);
+        reshape();
         box = s.box; orient = s.orient; follow = s.follow.clone();
         pivot = s.pivot == null ? null : s.pivot.clone();
         dirty = true;
@@ -258,6 +338,7 @@ public final class Editor {
     private static void rebuild(int[] at) {
         blockLimit = ModSettings.hologramBlockLimit;
         hologram = new Hologram(shape.build(solved, orient), blockLimit);
+        shownChoices = new EnumMap<>(BlockChoices.CHOICE);
         hologramOrigin = at;
         viewOrigin = null;
     }
@@ -335,6 +416,7 @@ public final class Editor {
         if (drag != null) endDrag();
         record();
         S.carve = !S.carve;
+        if (S.carve && shape.solveUsesCarve()) dirty = true;
         Placement.say(Component.literal("Carve: ").append(CommonComponents.optionStatus(S.carve)));
     }
 
@@ -518,11 +600,16 @@ public final class Editor {
         return out;
     }
 
+    /** Layers of box handles closer together than this many handle widths thin out to one. */
+    private static final double THIN = 5;
+
     private static List<Handle> handles() {
         List<Handle> out = new ArrayList<>();
         int n = shape.points().size();
         for (int k = 0; k < n; k++) out.add(new Handle(k, null));
-        for (int[] sign : Box.handles()) out.add(new Handle(-1, sign));
+        // A drag keeps the handles it started with, or the one being dragged could thin out from under it.
+        int[] size = (drag != null ? drag.grab.box : box).size();
+        for (int[] sign : Box.handles(size, ModSettings.handleSize * THIN)) out.add(new Handle(-1, sign));
         return out;
     }
 
@@ -545,15 +632,12 @@ public final class Editor {
             beforeScreen = snapshot();
         }
         if (!open && screenOpen && beforeScreen != null) {
-            shape = EditShape.of(S);
-            orient = shape.orient(orient);
-            Box fitted = box.refit(worldSize());
-            if (!fitted.equals(box)) { box = fitted; pivot = null; }
+            adopt();   // block choices aren't settings, and they may have changed too
             if (!S.same(beforeScreen.settings)) record(beforeScreen);
             beforeScreen = null;
-            dirty = true;   // block choices aren't settings, and they may have changed too
         }
         screenOpen = open;
+        sync();
 
         if (!locked && !open) {
             int now = playerFacing();
@@ -574,6 +658,8 @@ public final class Editor {
             job = null; jobOrigin = null;
             if (result != null) {
                 solved = result;
+                shown = jobSettings;
+                droppingSince = 0;
                 // The solve may have settled a size the settings left open, such as an equation's locked height.
                 Box fitted = box.refit(worldSize());
                 boolean current = !dirty && (!shape.solveUsesOrient() || orient.equals(jobOrient));
@@ -581,13 +667,21 @@ public final class Editor {
                 rebuild(current ? new int[]{box.x(), box.y(), box.z()} : at);
             }
         }
+        if (dirty && job != null && !jobCancelled.get()) {
+            // The shape has moved on from what's being solved. A slow solve is dropped, unless that has gone on too long.
+            long now = System.currentTimeMillis();
+            if (droppingSince == 0) droppingSince = now;
+            if (now - droppingSince < STARVED_MS) jobCancelled.set(true);
+        }
         if (dirty && job == null) {
             dirty = false;
             ShapeSettings copy = S.copy();
+            jobSettings = S.copy();   // its own copy: a solve may settle values in the one it's given
             EditShape solver = shape;
             Orient o = jobOrient = orient;
             jobOrigin = new int[]{box.x(), box.y(), box.z()};
-            job = EXEC.submit(() -> solver.solve(copy, o));
+            AtomicBoolean cancelled = jobCancelled = new AtomicBoolean();
+            job = EXEC.submit(() -> solver.solve(copy, o, cancelled::get));
         }
 
         if (hologram != null && blockLimit != ModSettings.hologramBlockLimit && solved != null) rebuild(hologramOrigin);
@@ -634,6 +728,8 @@ public final class Editor {
 
     private static final int WHITE = 0xE6FFFFFF, CURVE = 0xFFFFD24A, POINT = 0xFF3F7BE0, FACE = 0xFFF2F2F2, EDGE = 0xFF7FD4FF,
             CORNER = 0xFFFFA646, HOT = 0xFF6BFF8A, GRID = 0x50FFFFFF, POLYGON = 0xAA6EA0FF;
+    /** How strongly a handle shows through terrain and other blocks in front of it, out of 255. */
+    private static final int HIDDEN_ALPHA = 90;
 
     /**
      * Submits the hologram, its wireframe and its handles for this frame. {@code ms} is the world's pose stack and
@@ -643,6 +739,7 @@ public final class Editor {
     public static void render(SubmitNodeCollector out, PoseStack ms, Vec3 cam) {
         Minecraft mc = Minecraft.getInstance();
         if (!active || mc.player == null) return;
+        sync();
         Vector3fc forward = mc.gameRenderer.mainCamera().forwardVector();
         eye = new double[]{cam.x, cam.y, cam.z};
         look = new double[]{forward.x(), forward.y(), forward.z()};
@@ -702,20 +799,24 @@ public final class Editor {
 
         if (!handles.isEmpty()) {
             double base = ModSettings.handleSize;
-            Hologram.submit(out, ms, RenderTypes.debugFilledBox(), true, (pose, fill) -> {
-                for (int k = 0; k < handles.size(); k++) {
-                    Handle h = handles.get(k);
-                    double[] p = at.get(k);
-                    boolean hot = h.same(hover);
-                    double dist = Math.sqrt((p[0] - eye[0]) * (p[0] - eye[0]) + (p[1] - eye[1]) * (p[1] - eye[1]) + (p[2] - eye[2]) * (p[2] - eye[2]));
-                    double r = HandleMath.scaled(base, dist) / 2 * (hot ? 1.35 : 1);
-                    int moving = 0;
-                    if (!h.isPoint()) for (int s : h.sign) if (s != 0) moving++;
-                    int color = hot ? HOT : h.isPoint() ? POINT : moving == 1 ? FACE : moving == 2 ? EDGE : CORNER;
-                    double x = p[0] - ox, y = p[1] - oy, z = p[2] - oz;
-                    Hologram.filledBox(pose, fill, x - r, y - r, z - r, x + r, y + r, z + r, color, cx, cy, cz);
-                }
-            });
+            // Twice: dimmed through whatever is in the way, then as they are where nothing is.
+            for (boolean through : new boolean[]{true, false})
+                Hologram.submit(out, ms, through ? Hologram.throughWalls() : RenderTypes.debugFilledBox(), true, (pose, vc) -> {
+                    VertexConsumer fill = through ? Hologram.lit(vc) : vc;
+                    for (int k = 0; k < handles.size(); k++) {
+                        Handle h = handles.get(k);
+                        double[] p = at.get(k);
+                        boolean hot = h.same(hover);
+                        double dist = Math.sqrt((p[0] - eye[0]) * (p[0] - eye[0]) + (p[1] - eye[1]) * (p[1] - eye[1]) + (p[2] - eye[2]) * (p[2] - eye[2]));
+                        double r = HandleMath.scaled(base, dist) / 2 * (hot ? 1.35 : 1);
+                        int moving = 0;
+                        if (!h.isPoint()) for (int s : h.sign) if (s != 0) moving++;
+                        int color = hot ? HOT : h.isPoint() ? POINT : moving == 1 ? FACE : moving == 2 ? EDGE : CORNER;
+                        if (through) color = ARGB.color(HIDDEN_ALPHA, color);
+                        double x = p[0] - ox, y = p[1] - oy, z = p[2] - oz;
+                        Hologram.filledBox(pose, fill, x - r, y - r, z - r, x + r, y + r, z + r, color, cx, cy, cz);
+                    }
+                });
         }
         ms.popPose();
     }

@@ -15,6 +15,7 @@ import net.minecraft.client.renderer.feature.CustomFeatureRenderer;
 import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.core.BlockPos;
+import net.minecraft.resources.Identifier;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.util.ARGB;
 import net.minecraft.world.level.EmptyBlockGetter;
@@ -32,6 +33,9 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 public final class Hologram {
     /** A block and the faces of it worth drawing: 12 coordinates a quad, with the side each quad faces. */
     private record Entry(int dx, int dy, int dz, BlockState state, float[] quads, byte[] sides, int rgb) {}
+
+    private static final float[] NO_QUADS = new float[0];
+    private static final byte[] NO_SIDES = new byte[0];
 
     private final List<Entry> entries;
     private final List<BlockPos> carve;
@@ -81,8 +85,9 @@ public final class Hologram {
                     if (!(hidden[5] && b.maxX >= 1)) { quads.add(new float[]{e, c, d, e, f, d, e, f, g, e, c, g}); sides.add((byte) 5); }
                 }
             }
-            float[] flat = new float[quads.size() * 12];
-            byte[] side = new byte[quads.size()];
+            // A shape too large to draw can have millions of blocks, which then share the two empty arrays.
+            float[] flat = quads.isEmpty() ? NO_QUADS : new float[quads.size() * 12];
+            byte[] side = quads.isEmpty() ? NO_SIDES : new byte[quads.size()];
             for (int q = 0; q < side.length; q++) {
                 System.arraycopy(quads.get(q), 0, flat, q * 12, 12);
                 side[q] = sides.get(q);
@@ -93,6 +98,13 @@ public final class Hologram {
     }
 
     public int size() { return entries.size(); }
+
+    /** Every block of the shape, whatever is in the world: what an export holds. */
+    public List<EditShape.Placed> blocks() {
+        List<EditShape.Placed> out = new ArrayList<>(entries.size());
+        for (Entry e : entries) out.add(new EditShape.Placed(e.dx, e.dy, e.dz, e.state));
+        return out;
+    }
     public boolean isDrawn() { return drawn; }
     public int placing() { return toPlace.size(); }
     public int clearing() { return toBreak.size(); }
@@ -206,5 +218,28 @@ public final class Hologram {
 
     private static void quad(PoseStack.Pose pose, VertexConsumer vc, int color, float... xyz) {
         for (int i = 0; i < 12; i += 3) vc.addVertex(pose, xyz[i], xyz[i + 1], xyz[i + 2]).setColor(color);
+    }
+
+    /**
+     * A render type that draws plain coloured quads over everything, whatever is in front. The game has no such
+     * type for untextured boxes, so this is the one it draws see-through name tags with, on a white texture.
+     */
+    static RenderType throughWalls() { return RenderTypes.textSeeThrough(WHITE); }
+    private static final Identifier WHITE = Identifier.fromNamespaceAndPath("curvegen", "textures/white.png");
+
+    /** A vertex consumer for {@link #throughWalls}, which wants a texture coordinate and a light level on every vertex. */
+    static VertexConsumer lit(VertexConsumer vc) { return new Lit(vc); }
+
+    /** Completes each vertex as soon as it has its colour. */
+    private record Lit(VertexConsumer vc) implements VertexConsumer {
+        @Override public VertexConsumer addVertex(float x, float y, float z) { vc.addVertex(x, y, z); return this; }
+        @Override public VertexConsumer setColor(int r, int g, int b, int a) { vc.setColor(r, g, b, a).setUv(0.5f, 0.5f).setLight(0xF000F0); return this; }
+        @Override public VertexConsumer setColor(int argb) { vc.setColor(argb).setUv(0.5f, 0.5f).setLight(0xF000F0); return this; }
+        @Override public VertexConsumer setUv(float u, float v) { return this; }
+        @Override public VertexConsumer setUv1(int u, int v) { return this; }
+        @Override public VertexConsumer setUv2(int u, int v) { return this; }
+        @Override public VertexConsumer setUv3(float u, float v) { return this; }
+        @Override public VertexConsumer setNormal(float x, float y, float z) { return this; }
+        @Override public VertexConsumer setLineWidth(float w) { return this; }
     }
 }

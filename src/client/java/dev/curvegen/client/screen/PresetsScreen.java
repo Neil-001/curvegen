@@ -64,7 +64,8 @@ public class PresetsScreen extends Screen {
             "...###...", "#########", ".#######.", ".#.#.#.#.", ".#.#.#.#.", ".#.#.#.#.", ".#.#.#.#.", ".#.#.#.#.", "..#####.."};
 
     public PresetsScreen(Screen parent, ShapeSettings.Gen gen, BiConsumer<Preset, Boolean> onLoad) {
-        super(Component.literal("Load a preset: " + switch (gen) { case ELLIPSE -> "ellipse"; case EQUATION -> "equation"; case BEZIER -> "Bézier curve"; default -> "shape"; }));
+        super(Component.literal("Load a preset: " + switch (gen) { case ELLIPSE -> "ellipse"; case EQUATION -> "equation"; case BEZIER -> "Bézier curve";
+            case ELLIPSOID -> "ellipsoid"; case TORUS -> "torus"; default -> "shape"; }));
         this.parent = parent; this.gen = gen; this.onLoad = onLoad;
     }
 
@@ -130,6 +131,8 @@ public class PresetsScreen extends Screen {
         if (withBlocks(p)) BlockChoices.apply(p.blocks, s, new EnumMap<>(BlockChoices.CHOICE));
         return s;
     }
+
+    private boolean is3d() { return ShapeSettings.is3d(gen); }
 
     private Solver.Result resultFor(Preset p) {
         Key k = new Key(p, withBlocks(p));
@@ -229,9 +232,11 @@ public class PresetsScreen extends Screen {
             ctx.textWithWordWrap(font, Component.literal("Hover a preset to preview it, or select one and press Preview."),
                     px0 + 8, py0 + 8, px1 - px0 - 16, 0xFF9AA5B3, false);
         } else {
-            Solver.Result r = resultFor(target);
+            Solver.Result r = is3d() ? null : resultFor(target);
             int infoH = 24;
-            if (r == null) ctx.text(font, "Working…", px0 + 8, py0 + 8, 0xFF9AA5B3, false);
+            if (is3d()) ctx.textWithWordWrap(font, Component.literal("A 3D shape is previewed in the world once it's loaded."),
+                    px0 + 8, py0 + 8, px1 - px0 - 16, 0xFF9AA5B3, false);
+            else if (r == null) ctx.text(font, "Working…", px0 + 8, py0 + 8, 0xFF9AA5B3, false);
             else if (r.target().error != null)
                 ctx.textWithWordWrap(font, Component.literal(r.target().error), px0 + 8, py0 + 8, px1 - px0 - 16, 0xFFFF8098, false);
             else {

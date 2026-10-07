@@ -1,6 +1,7 @@
 package dev.curvegen.client;
 
 import com.mojang.blaze3d.platform.NativeImage;
+import dev.curvegen.core.ShapeSettings;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -33,8 +34,11 @@ public final class ColorIndex {
     /** Per texture: {red, green, blue, coverage}, or {-1} when it can't be read. */
     private static final Map<Identifier, int[]> TEXTURES = new HashMap<>();
 
-    /** Colour for the current build orientation (top face when building a floor). */
-    public static int of(Block block) { return of(block, CurveGenClient.SETTINGS.floor); }
+    /** Colour for the current build: the top face for a floor, or for a 3D shape set to match by its top. */
+    public static int of(Block block) {
+        ShapeSettings s = CurveGenClient.SETTINGS;
+        return of(block, s.is3d() ? s.topColours : s.floor);
+    }
 
     public static int of(Block block, boolean top) {
         return (top ? TOP : SIDE).computeIfAbsent(block, b -> compute(b, top));

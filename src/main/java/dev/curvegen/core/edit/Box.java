@@ -45,6 +45,21 @@ public record Box(int x, int y, int z, int sx, int sy, int sz) {
         return out;
     }
 
+    /**
+     * The handles to show on a box of this size. Along an axis where the three layers of handles would be closer
+     * together than {@code gap}, only the middle layer stays, with the two face handles that resize along that axis.
+     */
+    public static int[][] handles(int[] size, double gap) {
+        java.util.List<int[]> out = new java.util.ArrayList<>();
+        for (int[] h : handles()) {
+            boolean keep = true;
+            for (int a = 0; a < 3 && keep; a++)
+                if (h[a] != 0 && size[a] / 2.0 < gap) keep = h[(a + 1) % 3] == 0 && h[(a + 2) % 3] == 0;
+            if (keep) out.add(h);
+        }
+        return out.toArray(new int[0][]);
+    }
+
     /** Where a handle sits, in world coordinates. */
     public double[] handle(int[] sign) {
         double[] p = new double[3];
