@@ -59,6 +59,13 @@ public class RadialScreen extends Screen {
             KINDS_3D = List.of(new Kind("Ellipsoid", Gen.ELLIPSOID), new Kind("Torus", Gen.TORUS), new Kind("3D equation", null),
                     new Kind("3D Bézier", null), new Kind("Surface", null));
 
+    /** Whether the menu can put this kind of shape in the world. The full menu's Place follows it. */
+    static boolean offers(Gen gen) {
+        for (List<Kind> kinds : List.of(KINDS_2D, KINDS_3D))
+            for (Kind k : kinds) if (k.gen == gen) return EditShape.supports(gen);
+        return false;
+    }
+
     private static final int RING_OUT = Radial.RING, RING_IN = 9;
 
     private Page page = Page.ROOT;
