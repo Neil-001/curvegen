@@ -281,6 +281,23 @@ class Edit3DTest {
     }
 
     @Test
+    void aSurfacesRowsAndColumnsAreNumbers() {
+        ShapeSettings s = of(Gen.SURFACE);
+        double[] at = dev.curvegen.core.Bezier3.patchPoint(s.sPts, 4, 4, 0.3, 0.6);
+        java.util.List<Option> options = Edit3D.options(s);
+        ((Option.Number) options.get(2)).set().accept(6);
+        ((Option.Number) options.get(3)).set().accept(5);
+        assertEquals(6, s.sRows);
+        assertEquals(5, s.sCols);
+        assertEquals(30, s.sPts.size());
+        assertArrayEquals(at, dev.curvegen.core.Bezier3.patchPoint(s.sPts, 6, 5, 0.3, 0.6), 1e-9);
+        Edit3D.setGrid(s, 1, 99);
+        assertEquals(2, s.sRows);
+        assertEquals(6, s.sCols);
+        assertEquals(12, s.sPts.size());
+    }
+
+    @Test
     void torusOptionsGoThroughTheRingAndTubeRules() {
         ShapeSettings s = of(Gen.TORUS);
         java.util.List<Option> options = Edit3D.options(s);

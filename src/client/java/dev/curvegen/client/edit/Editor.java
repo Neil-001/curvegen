@@ -94,7 +94,9 @@ public final class Editor {
      * {@link #STARVED_MS} of that the next one runs to its end, so a long drag of a slow shape still shows blocks.
      */
     private static long droppingSince;
-    private static final long STARVED_MS = 400;
+    private static final long STARVED_MS = 400, SLOW_MS = 1000;
+    /** When the running solve started, and how long the last one to finish took. */
+    private static long jobStarted, lastSolveMillis;
     /** The settings of the running solve, and the settings and block choices the hologram was last built from. */
     private static ShapeSettings jobSettings, shown;
     private static Map<Pieces.Family, Block> shownChoices;
@@ -281,11 +283,20 @@ public final class Editor {
     }
 
     /** Whether the hologram was built from other shape settings or block choices than the ones set now. */
-    private static boolean stale() {
-        if (shown == null || !BlockChoices.CHOICE.equals(shownChoices)) return true;
+    private static boolean stale() { return !solvedFor(true); }
+
+    /**
+     * Whether the hologram's blocks, or with {@code shownOnly} unset the ones a running solve is about to give, are
+     * for the shape settings and block choices as they are now.
+     */
+    private static boolean solvedFor(boolean shownOnly) {
+        ShapeSettings ref = !shownOnly && job != null && !jobCancelled.get() ? jobSettings : shown;
+        if (ref == null || !BlockChoices.CHOICE.equals(shownChoices)) return false;
         ShapeSettings now = S.copy();
-        now.overwrite = shown.overwrite; now.carve = shown.carve;   // neither changes which blocks the shape has
-        return !now.same(shown);
+        now.overwrite = ref.overwrite;   // Replace doesn't change which blocks the shape has
+        // Nor does Carve, but a shape that only works out what to clear while it's on needs a solve when it comes on.
+        if (shownOnly || !shape.solveUsesCarve() || !S.carve) now.carve = ref.carve;
+        return now.same(ref);
     }
 
     // ---------- state ----------
@@ -525,18 +536,9 @@ public final class Editor {
     public static List<Option> options() {
         if (!active) return List.of();
         List<Option> out = new ArrayList<>(shape.options());
-        String unlocked = locked ? null : "Lock the shape first.";
-        if (grid()) {
-            // A surface gains and loses whole rows and columns, and losing one doesn't depend on which was picked.
-            String aim = unlocked != null ? unlocked : lookOnCurve() == null ? "Look at the surface where you want the new points, then open this menu." : null;
-            for (boolean alt : new boolean[]{false, true}) {
-                out.add(new Option.Action("Add " + line(alt), aim, () -> insertAtLook(alt)));
-                out.add(new Option.Action("Remove " + line(alt), unlocked, () -> {
-                    if (!shape.removePoint(0, alt)) Placement.say(Component.literal(least(alt)));
-                    hover = null;
-                }));
-            }
-        } else if (!shape.points().isEmpty()) {
+        // A surface lists its rows and columns as numbers of its own.
+        if (!grid() && !shape.points().isEmpty()) {
+            String unlocked = locked ? null : "Lock the shape first.";
             out.add(new Option.Action("Add point", unlocked != null ? unlocked
                     : lookOnCurve() == null ? "Look at the curve where you want the new point, then open this menu." : null, () -> insertAtLook(false)));
             Handle aimed = hover;
@@ -750,7 +752,10 @@ public final class Editor {
             beforeScreen = null;
             S.fullConnects = BlockChoices.fullBlockConnects();
             before.settings.fullConnects = S.fullConnects;   // it follows the blocks, which undo doesn't put back
-            adopt();   // block choices aren't settings, and they may have changed too
+            boolean wasDirty = dirty;
+            adopt();
+            // A screen that changed nothing, such as chat, shouldn't cost a solve, which can take seconds for a large shape.
+            if (!wasDirty && solvedFor(false)) dirty = false;
             if (!S.same(before.settings)) record(before);
         }
         screenOpen = open;
@@ -775,6 +780,7 @@ public final class Editor {
             job = null; jobOrigin = null;
             if (result != null) {
                 solved = result;
+                lastSolveMillis = System.currentTimeMillis() - jobStarted;
                 shown = jobSettings;
                 droppingSince = 0;
                 // The solve may have settled a size the settings left open, such as an equation's locked height.
@@ -788,7 +794,8 @@ public final class Editor {
             // The shape has moved on from what's being solved. A slow solve is dropped, unless that has gone on too long.
             long now = System.currentTimeMillis();
             if (droppingSince == 0) droppingSince = now;
-            if (now - droppingSince < STARVED_MS) jobCancelled.set(true);
+            // A solve that takes seconds is always dropped: by the time it finished, its blocks would be long out of date.
+            if (lastSolveMillis > SLOW_MS || now - droppingSince < STARVED_MS) jobCancelled.set(true);
         }
         if (dirty && job == null) {
             dirty = false;
@@ -798,6 +805,7 @@ public final class Editor {
             Orient o = jobOrient = orient;
             jobOrigin = new int[]{box.x(), box.y(), box.z()};
             AtomicBoolean cancelled = jobCancelled = new AtomicBoolean();
+            jobStarted = System.currentTimeMillis();
             job = EXEC.submit(() -> solver.solve(copy, o, cancelled::get));
         }
 
@@ -1009,7 +1017,7 @@ public final class Editor {
             hints.add("drag a handle to resize, sneak for both sides");
             if (!shape.points().isEmpty()) {
                 if (grid()) {
-                    hints.add("drag a point, right-click removes a row, middle-click adds one, sneak for a column");
+                    hints.add("drag a point, right-click removes its row, middle-click adds one, sneak for a column");
                     hints.add(key(CurveGenClient.ADD_POINT) + " add a row where you look");
                     hints.add(key(CurveGenClient.REMOVE_POINT) + " remove a row");
                 } else {

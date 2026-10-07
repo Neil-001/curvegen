@@ -234,6 +234,19 @@ public final class Edit3D {
         return addLine(s, u, v, alt);
     }
 
+    /**
+     * Gives a surface this many rows and columns of points, within what a surface may have. More of them leave its
+     * shape as it is, and fewer keep it as close as they can.
+     */
+    public static void setGrid(ShapeSettings s, int rows, int cols) {
+        rows = Math.max(Bezier3.MIN_GRID, Math.min(Bezier3.MAX_GRID, rows));
+        cols = Math.max(Bezier3.MIN_GRID, Math.min(Bezier3.MAX_GRID, cols));
+        while (s.sRows < rows && Bezier3.addRow(s, 0.5) >= 0) { }
+        while (s.sRows > rows && Bezier3.removeRow(s)) { }
+        while (s.sCols < cols && Bezier3.addColumn(s, 0.5) >= 0) { }
+        while (s.sCols > cols && Bezier3.removeColumn(s)) { }
+    }
+
     /** Adds a row nearest v, or a column nearest u, and returns the index of its point nearest the other of the two. */
     private static int addLine(ShapeSettings s, double u, double v, boolean column) {
         if (column) {
@@ -362,6 +375,8 @@ public final class Edit3D {
             case SURFACE -> {
                 out.add(new Option.Number("Thickness", null, () -> s.sT, v -> s.sT = v, MIN_THICK, MAX_THICK, THICK_STEP, false));
                 out.add(Option.toggle("Snap", null, () -> s.snap, v -> s.snap = v));
+                out.add(new Option.Number("Rows", null, () -> s.sRows, v -> setGrid(s, (int) v, s.sCols), Bezier3.MIN_GRID, Bezier3.MAX_GRID, 1, true));
+                out.add(new Option.Number("Columns", null, () -> s.sCols, v -> setGrid(s, s.sRows, (int) v), Bezier3.MIN_GRID, Bezier3.MAX_GRID, 1, true));
             }
             default -> { }
         }
