@@ -1,11 +1,13 @@
 package dev.curvegen.client.edit;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import dev.curvegen.client.CurveGenClient;
 import dev.curvegen.client.CurveGenClient.StepKey;
 import dev.curvegen.client.ModSettings;
 import dev.curvegen.client.screen.InputScreen;
 import dev.curvegen.core.edit.HoldTimer;
 import java.util.List;
+import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.network.chat.Component;
@@ -29,10 +31,10 @@ public final class StepHold {
     /** Call every client tick, with or without a hologram. */
     public static void tick(Minecraft mc) {
         List<StepKey> keys = CurveGenClient.STEP_KEYS;
-        int pressed = -1;
+        int pressed = -1, spent = TIMER.spent(k -> physicallyDown(keys.get(k).key()));
         for (int k = 0; k < keys.size(); k++) {
             boolean clicked = false;
-            while (keys.get(k).key().consumeClick()) clicked = true;
+            while (keys.get(k).key().consumeClick()) clicked = k != spent;   // the key that opened the box is still repeating
             // A held key repeats, so another key's press counts before its own.
             if (clicked && (pressed < 0 || pressed == TIMER.key())) pressed = k;
         }
@@ -60,6 +62,12 @@ public final class StepHold {
             }
             default -> { }
         }
+    }
+
+    /** Whether the key itself is down, whatever screen is open. A mouse button doesn't repeat, so it counts as up. */
+    private static boolean physicallyDown(KeyMapping mapping) {
+        InputConstants.Key key = InputConstants.getKey(mapping.saveString());
+        return key.getType() == InputConstants.Type.KEYBOARD && InputConstants.isKeyDown(key.getValue());
     }
 
     /** Calls off the hold in progress. The key that is down does nothing more until it's pressed again. */

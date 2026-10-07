@@ -102,4 +102,18 @@ class HoldTimerTest {
         assertEquals(-1, t.key());
         assertEquals(Event.NONE, t.update(-1, true, 5000, HOLD));
     }
+
+    @Test
+    void theKeyThatOpenedTheBoxIsSpentUntilItComesUp() {
+        HoldTimer t = new HoldTimer();
+        assertEquals(-1, t.spent(k -> true));
+        assertEquals(HoldTimer.Event.STEP, t.update(3, true, 0, 3));
+        assertEquals(HoldTimer.Event.OPEN, t.update(-1, true, 3000, 3));
+        t.opened();
+        t.reset();   // the box is a screen, which resets the timer every tick
+        assertEquals(3, t.spent(k -> true), "still down when the box closes: its repeats aren't presses");
+        assertEquals(3, t.spent(k -> k == 3));
+        assertEquals(-1, t.spent(k -> false), "let go");
+        assertEquals(-1, t.spent(k -> true), "and pressed again, which counts");
+    }
 }

@@ -85,6 +85,22 @@ public interface EditShape {
     default int duplicatePoint(int index) { return -1; }
 
     /**
+     * How many points make a row, for a shape whose points are a grid, row after row: a surface. 0 for points in one
+     * line. On a grid the three edits above act on a whole row, or on a column while the player sneaks, which is
+     * what {@code alt} says in the variants below. Other shapes ignore it.
+     */
+    default int pointColumns() { return 0; }
+    default boolean removePoint(int index, boolean alt) { return removePoint(index); }
+    default int insertPoint(double[] at, boolean alt) { return insertPoint(at); }
+    default int duplicatePoint(int index, boolean alt) { return duplicatePoint(index); }
+
+    /**
+     * Where a look ray, in own axes, meets the shape, for adding a point there: {x, y, z, distance from the ray,
+     * distance along the ray}. Null has the editor look for the nearest spot on {@link #curve} instead.
+     */
+    default double[] lookAt(double[] origin, double[] dir) { return null; }
+
+    /**
      * The ideal curve as line segments {x1,y1,z1,x2,y2,z2,...} in own axes, or null. The editor draws it every frame,
      * so this has to be cheap. {@code solved} is the last result of {@link #solve}, or null before the first.
      */

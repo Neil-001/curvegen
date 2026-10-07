@@ -12,6 +12,7 @@ public final class HoldTimer {
     private long since;
     /** Set when the hold was called off: the key is still down and still ignored, but no bar shows and no box opens. */
     private boolean cancelled;
+    private int spent = -1;
 
     /** The key being held, or -1. */
     public int key() { return key; }
@@ -43,8 +44,18 @@ public final class HoldTimer {
         return Event.NONE;
     }
 
-    /** Call after acting on OPEN. */
-    public void opened() { key = -1; }
+    /** Call after acting on OPEN. The key is probably still down, and stays {@link #spent} until it's let go. */
+    public void opened() { spent = key; key = -1; }
+
+    /**
+     * The key that opened the number box, while it has been down ever since, or -1. The game goes on repeating it
+     * once the box closes, and those presses aren't new ones. {@code down} says whether a key is physically down
+     * now, which the game's own "is this key pressed" doesn't while a screen is open.
+     */
+    public int spent(java.util.function.IntPredicate down) {
+        if (spent >= 0 && !down.test(spent)) spent = -1;
+        return spent;
+    }
 
     /** How full the progress bar is, from 0 to 1, or -1 while it doesn't show. */
     public double progress(long nowMillis, double barDelaySeconds, double holdSeconds) {
