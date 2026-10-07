@@ -50,6 +50,31 @@ public interface Shape3 {
     /** False makes the solver evaluate the field at all 4096 points of a block that holds the surface. It's slow. */
     default boolean smooth() { return true; }
 
+    /**
+     * Samples a block for the solver to interpolate: the field at (i + a/4, j + b/4, k + c/4) goes in
+     * lattice[(b*5 + c)*5 + a], with the outermost samples {@link #inset} inside the block's faces. A shape whose
+     * field is quicker to work out from a neighbouring sample's answer overrides this. Only asked of a {@link #smooth} shape.
+     */
+    default void lattice(int i, int j, int k, double[] lattice) {
+        double e = inset();
+        for (int b = 0, q = 0; b < 5; b++)
+            for (int c = 0; c < 5; c++)
+                for (int a = 0; a < 5; a++)
+                    lattice[q++] = field(i + (a == 0 ? e : a == 4 ? 1 - e : a * .25), j + (b == 0 ? e : b == 4 ? 1 - e : b * .25), k + (c == 0 ? e : c == 4 ? 1 - e : c * .25));
+    }
+
+    /**
+     * Can the solver interpolate between those samples? A field that jumps in some blocks only, as an equation
+     * with a floor in it does, returns false for those, and the solver evaluates every point there instead.
+     */
+    default boolean follows(double[] lattice) { return true; }
+
+    /**
+     * How far inside a block's faces the solver takes its outermost samples. A field that can jump on a block
+     * boundary sets this just above 0, so a block never sees the far side of a jump along its own face.
+     */
+    default double inset() { return 0; }
+
     /** Should full blocks that no face shows be removed after solving? */
     default boolean hollow() { return false; }
 
@@ -78,6 +103,9 @@ public interface Shape3 {
         return switch (s.gen) {
             case ELLIPSOID -> new Shapes3.Ellipsoid(s);
             case TORUS -> new Shapes3.Torus(s);
+            case EQUATION3 -> new Shapes3.Equation(s);
+            case BEZIER3 -> new Shapes3.Curve(s);
+            case SURFACE -> new Shapes3.Patch(s);
             default -> throw new IllegalArgumentException(s.gen + " is not a 3D shape");
         };
     }

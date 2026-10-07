@@ -36,6 +36,8 @@ public final class Solver3 {
 
     private static final int EMPTY = -1, SOLID = -2, NO_DATA = -3;
     public static final int MAX_SWEEPS = 30;
+    /** Rows of a level sampled as one task. */
+    private static final int STRIP = 8;
 
     // For each part, the rows of a block's 16×16×16 voxels it touches and its bits in each. A row runs along x.
     private static final int[][] PART_ROWS = new int[PART_COUNT][], PART_ROWS_FLIPPED = new int[PART_COUNT][], PART_MASKS = new int[PART_COUNT][];
@@ -148,6 +150,7 @@ public final class Solver3 {
                 for (int k = 0; k < nz; k++)
                     for (int i = 0; i < nx; i++) {
                         int p = at(i, j, k);
+                        if (ref[p] == EMPTY) continue;
                         st[p] = (short) resolve(p);
                         if ((sx && i < i0) || (sz && k < k0)) continue;
                         int weight = (sx && 2 * i + 1 != nx ? 2 : 1) * (sz && 2 * k + 1 != nz ? 2 : 1);
@@ -177,17 +180,25 @@ public final class Solver3 {
 
         // ---------- sampling ----------
 
-        /** Marks every cell empty, solid or mixed. Layers are sampled side by side, then stored in order so the result never depends on timing. */
+        /**
+         * Marks every cell empty, solid or mixed. Each level is cut into strips of a few rows, which are sampled side
+         * by side and then stored in order, so the result never depends on timing. Strips rather than whole levels,
+         * because a shape that lies flat has most of its surface on a few levels.
+         */
         boolean sample() {
-            Layer[] layers = new Layer[ny];
-            IntStream.range(j0, ny).parallel().forEach(j -> { if (!cancelled.getAsBoolean()) layers[j] = new Layer(j); });
-            for (int j = j0; j < ny; j++) {
-                Layer l = layers[j];
+            int perLayer = (nz - k0 + STRIP - 1) / STRIP;
+            Strip[] strips = new Strip[ny * perLayer];
+            IntStream.range(j0 * perLayer, strips.length).parallel().forEach(t -> {
+                if (!cancelled.getAsBoolean()) strips[t] = new Strip(t / perLayer, k0 + t % perLayer * STRIP);
+            });
+            for (int t = j0 * perLayer; t < strips.length; t++) {
+                Strip l = strips[t];
                 if (l == null || l.stopped) return false;
                 if (slots + 2 * l.n > count.length) {
                     int size = Math.max(slots + 2 * l.n, count.length * 2);
                     count = Arrays.copyOf(count, size); overlap = Arrays.copyOf(overlap, size);
                 }
+                int j = t / perLayer;
                 for (int q = 0; q < l.n; q++) {
                     int p = l.cells[q];
                     ref[p] = store(l.overlaps.get(2 * q), l.counts[q]);
@@ -208,8 +219,8 @@ public final class Solver3 {
 
         int store(short[] ov, int cnt) { overlap[slots] = ov; count[slots] = cnt; return slots++; }
 
-        /** One level of the grid: its solid cells go straight into {@link #ref}, and its mixed cells are kept here until every level is done. */
-        final class Layer {
+        /** A few rows of one level of the grid: their solid cells go straight into {@link #ref}, and their mixed cells are kept here until every strip is done. */
+        final class Strip {
             int[] cells = new int[64], counts = new int[64];
             int n;
             boolean stopped;
@@ -218,9 +229,9 @@ public final class Solver3 {
             final double[] lattice = new double[125], plane = new double[25], line = new double[5];
             final int[] rows = new int[256];
 
-            Layer(int j) {
+            Strip(int j, int from) {
                 int jm = ny - 1 - j;
-                for (int k = k0; k < nz; k++) {
+                for (int k = from; k < Math.min(nz, from + STRIP); k++) {
                     if (cancelled.getAsBoolean()) { stopped = true; return; }
                     for (int i = i0; i < nx; ) {
                         int run = sh.uniform(i, j, k);
@@ -249,30 +260,14 @@ public final class Solver3 {
 
             /** Fills {@link #rows} with the cell's voxels that are inside the shape and returns how many are. */
             int sampleCell(int i, int j, int k) {
-                int cnt = 0;
-                if (!sh.smooth()) {
-                    for (int r = 0; r < 256; r++) {
-                        double y = j + ((r >> 4) + .5) / 16, z = k + ((r & 15) + .5) / 16;
-                        int bits = 0;
-                        for (int x = 0; x < 16; x++) {
-                            double v = sh.field(i + (x + .5) / 16, y, z);
-                            if (v >= lo && v <= hi) bits |= 1 << x;
-                        }
-                        rows[r] = bits; cnt += Integer.bitCount(bits);
-                    }
-                    return cnt;
-                }
+                if (!sh.smooth()) return sampleEvery(i, j, k);
                 // The field at 5×5×5 points a quarter of a block apart, interpolated to the voxel centres between them.
-                int in = 0, above = 0, below = 0;
-                for (int b = 0, q = 0; b < 5; b++)
-                    for (int c = 0; c < 5; c++)
-                        for (int a = 0; a < 5; a++) {
-                            double v = sh.field(i + a * .25, j + b * .25, k + c * .25);
-                            lattice[q++] = v;
-                            if (v > hi) above++; else if (v < lo) below++; else if (v == v) in++;
-                        }
+                int in = 0, above = 0, below = 0, cnt = 0;
+                sh.lattice(i, j, k, lattice);
+                for (double v : lattice) if (v > hi) above++; else if (v < lo) below++; else if (v == v) in++;
                 if (in == 125) return 4096;
                 if (above == 125 || below == 125) return 0;
+                if (!sh.follows(lattice)) return sampleEvery(i, j, k);
                 for (int y = 0; y < 16; y++) {
                     int b = (y >> 2) * 25;
                     double ty = ((y & 3) + .5) / 4;
@@ -289,6 +284,21 @@ public final class Solver3 {
                         }
                         rows[y * 16 + z] = bits; cnt += Integer.bitCount(bits);
                     }
+                }
+                return cnt;
+            }
+
+            /** The slow way: the field at every voxel's centre. */
+            int sampleEvery(int i, int j, int k) {
+                int cnt = 0;
+                for (int r = 0; r < 256; r++) {
+                    double y = j + ((r >> 4) + .5) / 16, z = k + ((r & 15) + .5) / 16;
+                    int bits = 0;
+                    for (int x = 0; x < 16; x++) {
+                        double v = sh.field(i + (x + .5) / 16, y, z);
+                        if (v >= lo && v <= hi) bits |= 1 << x;
+                    }
+                    rows[r] = bits; cnt += Integer.bitCount(bits);
                 }
                 return cnt;
             }
@@ -404,7 +414,8 @@ public final class Solver3 {
                 for (int k = k0; k < nz; k++)
                     for (int i = i0; i < nx; i++) {
                         int p = at(i, j, k);
-                        if (ref[p] < 0) { place(i, j, k, ref[p] == SOLID ? FULL : AIR); continue; }
+                        if (ref[p] == EMPTY) continue;      // already air, which is state 0
+                        if (ref[p] < 0) { place(i, j, k, FULL); continue; }
                         int list = (sx && 2 * i + 1 == nx ? 1 : 0) | (sy && 2 * j + 1 == ny ? 2 : 0) | (sz && 2 * k + 1 == nz ? 4 : 0);
                         // First guess: connectors attach wherever a neighbour will hold something.
                         int bits = 0;

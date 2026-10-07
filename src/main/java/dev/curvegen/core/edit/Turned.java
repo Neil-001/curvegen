@@ -19,6 +19,8 @@ public final class Turned implements Shape3 {
     private final int[] own = new int[3];
     /** Whether the shape leaves {@link Shape3#uniform} alone, so its field can be trusted the same way in any direction. */
     private final boolean plain;
+    /** Where each of a block's 125 samples, numbered as the world sees them, is among the shape's own. */
+    private final int[] sample = new int[125];
 
     public static Shape3 of(Shape3 shape, Orient o) { return o.equals(UNTURNED) ? shape : new Turned(shape, o); }
 
@@ -37,6 +39,11 @@ public final class Turned implements Shape3 {
             plain = false;
         }
         this.plain = plain;
+        for (int q = 0; q < 125; q++) {
+            int[] world = {q % 5, q / 25, q / 5 % 5}, mine = new int[3];
+            for (int a = 0; a < 3; a++) mine[a] = back[a] ? 4 - world[axis[a]] : world[axis[a]];
+            sample[q] = (mine[1] * 5 + mine[2]) * 5 + mine[0];
+        }
     }
 
     @Override public int nx() { return n[own[0]]; }
@@ -58,6 +65,22 @@ public final class Turned implements Shape3 {
         return Integer.signum(run);
     }
 
+    /** The shape samples its own block, in its own way, and the samples are handed back in the world's order. */
+    @Override
+    public void lattice(int i, int j, int k, double[] lattice) {
+        double[] mine = new double[125];
+        in.lattice((int) coord(0, i + .5, j + .5, k + .5), (int) coord(1, i + .5, j + .5, k + .5), (int) coord(2, i + .5, j + .5, k + .5), mine);
+        for (int q = 0; q < 125; q++) lattice[q] = mine[sample[q]];
+    }
+
+    @Override
+    public boolean follows(double[] lattice) {
+        double[] mine = new double[125];
+        for (int q = 0; q < 125; q++) mine[sample[q]] = lattice[q];
+        return in.follows(mine);
+    }
+
+    @Override public double inset() { return in.inset(); }
     @Override public double lo() { return in.lo(); }
     @Override public double hi() { return in.hi(); }
     @Override public boolean smooth() { return in.smooth(); }
