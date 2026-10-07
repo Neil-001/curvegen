@@ -252,6 +252,25 @@ public final class Shapes3 {
         }
 
         /**
+         * A surface the equation only touches, as (x - 1)^2 = 0 does, has the same sign of distance on both sides,
+         * which leaves a crease on the surface that the solver can't interpolate across in a thin wall. Within one
+         * block the two sides can be told apart by which way the surface lies, so one side is given the other sign.
+         */
+        @Override public void lattice(int i, int j, int k, double[] lattice) {
+            if (mode != ShapeSettings.Eq3Mode.SURFACE) { Shape3.super.lattice(i, j, k, lattice); return; }
+            double[] touch = new double[4], first = null;
+            for (int q = 0; q < 125; q++) {
+                int a = q % 5, b = q / 25, c = q / 5 % 5;
+                double v = distance(i + (a == 0 ? INSET : a == 4 ? 1 - INSET : a * .25), j + (b == 0 ? INSET : b == 4 ? 1 - INSET : b * .25), k + (c == 0 ? INSET : c == 4 ? 1 - INSET : c * .25), half + 0.5, touch);
+                if (touch[3] != 0 && v == v) {
+                    if (first == null) first = touch.clone();
+                    v = touch[0] * first[0] + touch[1] * first[1] + touch[2] * first[2] < 0 ? -Math.abs(v) : Math.abs(v);
+                }
+                lattice[q] = v;
+            }
+        }
+
+        /**
          * One slope of the equation at a point where it's v. It looks the other way if the first look falls off the
          * equation's domain, or finds no slope at all: on a crease, as where |x| = |y| in max(|x|, |y|), one side is flat.
          */
@@ -268,7 +287,14 @@ public final class Shapes3 {
          * bends, and measures straight back from where it arrives. NaN when a walk of half as far again as
          * {@code reach} doesn't get there, or the equation only jumps across 0 without ever being 0.
          */
-        private double distance(double x0, double y0, double z0, double reach) {
+        private double distance(double x0, double y0, double z0, double reach) { return distance(x0, y0, z0, reach, null); }
+
+        /**
+         * The same, also saying when the equation only touches 0 where the walk arrived, without changing sign:
+         * {@code touch} then gets the way from the point to there and a 1, and otherwise a 0 at the end.
+         */
+        private double distance(double x0, double y0, double z0, double reach, double[] touch) {
+            if (touch != null) touch[3] = 0;
             double x = x0, y = y0, z = z0, v = raw(x, y, z);
             if (v == 0) return 0;
             if (!Double.isFinite(v)) return Double.NaN;
@@ -319,6 +345,11 @@ public final class Shapes3 {
                         tv = nv;
                         if (tv == 0 || step < 1e-4) {
                             double ex = tx - x0, ey = ty - y0, ez = tz - z0;
+                            if (touch != null) {
+                                // A little further on the equation is on the same side as before if it only touches.
+                                double past = raw(tx + 2e-3 * wx, ty + 2e-3 * wy, tz + 2e-3 * wz);
+                                if (past == past && past != 0 && (past < 0) == (v < 0)) { touch[0] = ex; touch[1] = ey; touch[2] = ez; touch[3] = 1; }
+                            }
                             return sign * Math.sqrt(ex * ex + ey * ey + ez * ez);
                         }
                         double hx = slope(tx, ty, tz, tv, 0), hy = slope(tx, ty, tz, tv, 1), hz = slope(tx, ty, tz, tv, 2), h = Math.sqrt(hx * hx + hy * hy + hz * hz);
@@ -702,14 +733,17 @@ public final class Shapes3 {
      * bends around it; a point's distance comes from the nearest sample, by stepping to the closest point of that
      * sample's own bent sheet. Past an edge the field is NaN, because the two sides meet there with nothing between.
      *
-     * Finding the nearest sample is what takes the time, so the box is cut into buckets that each remember the sample
-     * nearest their centre. From there it's a short walk across the grid of samples to the one nearest any point in
-     * the bucket. A patch folded close to itself gives a bucket one such sample for each sheet.
+     * Finding the nearest sample is what takes the time. {@link Near3} lists, for each bucket of the box, every
+     * second sample each way that can be nearest a point in it, and from the nearest of those it's a short walk
+     * across the grid to the nearest of all. Where the patch folds back or bends sharply, another stretch of it can
+     * be nearer than the one that walk ends on, so any such stretch among the bucket's samples is tried as well.
+     * Within a block the solver's samples are worked out one from the next, which skips the search, and a block
+     * where that disagrees with searching at its corners and centre is searched throughout.
      */
     public static final class Patch implements Shape3 {
         /** How far, in samples, a point's closest point on the patch may be from the nearest sample. */
         private static final double TRUST = 1.5;
-        private static final int MOST = 384, BUCKET = 2, SHEETS = 6;
+        private static final int MOST = 384;
 
         private final int nx, ny, nz, pad, rows, cols;
         private final double hi, cap;
@@ -719,10 +753,8 @@ public final class Shapes3 {
         private volatile List<double[]> wires;
 
         /** The samples: nu + 1 along a row by nv + 1 across, each 18 numbers: the point, then its slopes and bends per sample step. */
-        private record Built(int nu, int nv, double[] at, int gx, int gy, int gz, int[] seed, int[][] others, double span, double acrossU, double acrossV) {
-            int bucket(double x, double y, double z) { return (cell(y, gy) * gz + cell(z, gz)) * gx + cell(x, gx); }
-            private static int cell(double v, int n) { return Math.max(0, Math.min(n - 1, (int) (v / BUCKET))); }
-
+        /** {@code coarse} holds the samples {@code near} knows, by their place in {@code at}; {@code apart} is how far a point of the patch can be from the nearest of them. */
+        private record Built(int nu, int nv, double[] at, int[] coarse, Near3 near, double span, double apart, double acrossU, double acrossV) {
             double d2(int k, double x, double y, double z) {
                 double ex = at[k * 18] - x, ey = at[k * 18 + 1] - y, ez = at[k * 18 + 2] - z;
                 return ex * ex + ey * ey + ez * ez;
@@ -832,78 +864,21 @@ public final class Shapes3 {
                         acrossU = Math.min(acrossU, lv > 0 ? area / lv : 0);
                         acrossV = Math.min(acrossV, lu > 0 ? area / lu : 0);
                     }
-                int gx = (nx + BUCKET - 1) / BUCKET, gy = (ny + BUCKET - 1) / BUCKET, gz = (nz + BUCKET - 1) / BUCKET;
-                int[] seed = new int[gx * gy * gz];
-                java.util.Arrays.fill(seed, -1);
-                Built made = new Built(nu, nv, at, gx, gy, gz, seed, new int[seed.length][], span / 2, acrossU, acrossV);
-                seeds(made);
-                return built = made;
-            }
-        }
-
-        /**
-         * Gives every bucket within reach of the patch the samples to start looking from. The buckets the samples
-         * lie in come first, and each bucket then offers what it has to the six around it. A bucket walks from an
-         * offered sample towards its centre and each of its corners, and keeps where it ends up unless it already
-         * has a sample that the walk could have come from. So it ends with one for each stretch of the patch that
-         * is nearest some part of it: one on an ordinary patch, more where the patch folds back or turns sharply.
-         */
-        private void seeds(Built b) {
-            double reach = cap + 2 * b.span;
-            int w = b.nu + 1, gx = b.gx, gy = b.gy, gz = b.gz;
-            // Pairs still to pass on: a bucket, and a sample it has just been given.
-            int[] queue = new int[4 * w * (b.nv + 1)];
-            int head = 0, tail = 0;
-            for (int k = 0; k < w * (b.nv + 1); k++) { queue[tail++] = -1 - b.bucket(b.at[k * 18], b.at[k * 18 + 1], b.at[k * 18 + 2]); queue[tail++] = k; }
-            while (head < tail) {
-                int from = queue[head++], sample = queue[head++];
-                // A sample is first offered to its own bucket (marked by the minus), and from then on to a bucket's neighbours.
-                boolean own = from < 0;
-                if (own) from = -1 - from;
-                int fx = from % gx, fz = from / gx % gz, fy = from / gx / gz;
-                for (int side = own ? 6 : 0; side < (own ? 7 : 6); side++) {
-                    int x = fx + (side == 0 ? 1 : side == 1 ? -1 : 0), y = fy + (side == 2 ? 1 : side == 3 ? -1 : 0), z = fz + (side == 4 ? 1 : side == 5 ? -1 : 0);
-                    if (x < 0 || y < 0 || z < 0 || x >= gx || y >= gy || z >= gz) continue;
-                    int to = (y * gz + z) * gx + x;
-                    for (int c = 0; c < 9; c++) {
-                        double px = (x + (c == 8 ? .5 : c & 1)) * BUCKET, py = (y + (c == 8 ? .5 : c >> 1 & 1)) * BUCKET, pz = (z + (c == 8 ? .5 : c >> 2)) * BUCKET;
-                        if (has(b, to, sample, px, py, pz)) continue;
-                        int found = b.walk(sample, px, py, pz);
-                        if (Math.sqrt(b.d2(found, px, py, pz)) > reach || has(b, to, found, px, py, pz)) continue;
-                        int[] more = b.others[to];
-                        if (b.seed[to] < 0) b.seed[to] = found;
-                        else if (more != null && more.length == SHEETS - 1) continue;
-                        else {
-                            more = more == null ? new int[1] : java.util.Arrays.copyOf(more, more.length + 1);
-                            more[more.length - 1] = found;
-                            b.others[to] = more;
-                        }
-                        if (tail + 2 > queue.length) queue = java.util.Arrays.copyOf(queue, queue.length * 2);
-                        queue[tail++] = to; queue[tail++] = found;
-                    }
+                // Every second sample each way, and the last, so the edges are among them.
+                int cu = (nu + 1) / 2 + 1, cv = (nv + 1) / 2 + 1;
+                int[] coarse = new int[cu * cv];
+                double[] box = new double[coarse.length * 6];
+                for (int q = 0; q < coarse.length; q++) {
+                    int k = coarse[q] = Math.min(nv, q / cu * 2) * (nu + 1) + Math.min(nu, q % cu * 2);
+                    for (int d = 0; d < 3; d++) box[q * 6 + d] = box[q * 6 + 3 + d] = at[k * 18 + d];
                 }
+                Near3 near = new Near3(nx, ny, nz, coarse.length, box, cap + 2 * span, (q, x, y, z) -> {
+                    int o = coarse[q] * 18;
+                    double ex = at[o] - x, ey = at[o + 1] - y, ez = at[o + 2] - z;
+                    return Math.sqrt(ex * ex + ey * ey + ez * ez);
+                });
+                return built = new Built(nu, nv, at, coarse, near, span / 2, span, acrossU, acrossV);
             }
-        }
-
-        /** Does the bucket already have a sample on the same stretch of the patch as this one, as seen from a point? */
-        private static boolean has(Built b, int bucket, int sample, double x, double y, double z) {
-            if (b.seed[bucket] < 0) return false;
-            if (joined(b, b.seed[bucket], sample, x, y, z)) return true;
-            int[] more = b.others[bucket];
-            for (int q = 0; more != null && q < more.length; q++) if (joined(b, more[q], sample, x, y, z)) return true;
-            return false;
-        }
-
-        /**
-         * Two samples are on the same stretch, from a point's view, when the sample halfway between them on the grid
-         * is no further from the point than they are. Around a hairpin it is: the way from one to the other leads
-         * away from the point before it comes back.
-         */
-        private static boolean joined(Built b, int s, int t, double x, double y, double z) {
-            int w = b.nu + 1;
-            if (Math.abs(s % w - t % w) <= 1 && Math.abs(s / w - t / w) <= 1) return true;
-            int mid = (s / w + t / w) / 2 * w + (s % w + t % w) / 2;
-            return b.d2(mid, x, y, z) <= Math.max(b.d2(s, x, y, z), b.d2(t, x, y, z));
         }
 
         private static double dist(double[] a, double[] b) { return Math.sqrt((a[0] - b[0]) * (a[0] - b[0]) + (a[1] - b[1]) * (a[1] - b[1]) + (a[2] - b[2]) * (a[2] - b[2])); }
@@ -914,28 +889,57 @@ public final class Shapes3 {
         /**
          * The closest point of the patch to a point, as {signed distance, how far past an edge it is beyond what
          * still counts as the patch, blocks past an edge, distance to the nearest sample, blocks inside the nearest
-         * edge at the least}. False when nothing is within reach.
+         * edge at the least}. Returns 0 when nothing is within reach, 1 when one stretch of the patch is anywhere
+         * near, and 2 when another is near enough that a neighbouring point could be closer to it.
          */
-        private boolean foot(Built b, double x, double y, double z, double[] out) {
-            int bucket = b.bucket(x, y, z), first = b.seed[bucket];
-            if (first < 0) return false;
-            int w = b.nu + 1, k = b.walk(first, x, y, z);
+        private int foot(Built b, double x, double y, double z, double[] out) {
+            int bucket = b.near.bucket(x, y, z), count = b.near.count(bucket), stretches = 1;
+            if (count == 0) return 0;
+            int[] items = b.near.items(bucket);
+            int w = b.nu + 1, best = -1;
+            double bestD = Double.POSITIVE_INFINITY;
+            for (int q = 0; q < count; q++) {
+                double d = b.d2(b.coarse[items[q]], x, y, z);
+                if (d < bestD) { bestD = d; best = b.coarse[items[q]]; }
+            }
+            int k = b.walk(best, x, y, z);
             step(b, k % w, k / w, x, y, z, out);
             out[3] = Math.sqrt(b.d2(k, x, y, z));
-            int[] more = b.others[bucket];
-            if (more != null) {
-                // A patch folded back on itself has another sheet here, which may be the closer.
-                double[] again = new double[7];
-                int nearest = k;
-                for (int other : more) {
-                    k = b.walk(other, x, y, z);
-                    if (k == nearest) continue;
-                    step(b, k % w, k / w, x, y, z, again);
-                    again[3] = Math.min(out[3], Math.sqrt(b.d2(k, x, y, z)));
-                    if (Math.abs(again[0]) < Math.abs(out[0])) System.arraycopy(again, 0, out, 0, 7); else out[3] = again[3];
+            // Another stretch of the patch may be closer than the one the nearest sample is on: the other arm of a
+            // hairpin, or the far sheet of a fold. Try the nearest sample that is well away on the grid from
+            // every closest point found so far, while there's one near enough to matter.
+            double[] seenU = new double[4], seenV = new double[4], again = null;
+            seenU[0] = out[5]; seenV[0] = out[6];
+            for (int seen = 1; seen < 4; seen++) {
+                // Near enough to be closer for this point, and with a block's width to spare for the points around it.
+                double within = Math.abs(out[0]) + 2 * b.apart, around = within + 2 * R_CELL;
+                int other = -1;
+                double otherD = around * around;
+                for (int q = 0; q < count; q++) {
+                    int c = b.coarse[items[q]];
+                    double d = b.d2(c, x, y, z);
+                    if (d >= otherD) continue;
+                    // It's on a stretch already tried if it's next to that closest point on the grid, or if the way
+                    // there across the grid never leads further from the point than its two ends are.
+                    boolean tried = false;
+                    for (int t = 0; t < seen && !tried; t++) {
+                        int su = (int) Math.max(0, Math.min(b.nu, Math.round(seenU[t]))), sv = (int) Math.max(0, Math.min(b.nv, Math.round(seenV[t])));
+                        tried = (Math.abs(c % w - su) <= 4 && Math.abs(c / w - sv) <= 4)
+                                || b.d2((c / w + sv) / 2 * w + (c % w + su) / 2, x, y, z) <= Math.max(d, b.d2(sv * w + su, x, y, z));
+                    }
+                    if (!tried) { otherD = d; other = c; }
                 }
+                if (other < 0) break;
+                stretches = 2;
+                if (otherD > within * within) break;
+                if (again == null) again = new double[7];
+                k = b.walk(other, x, y, z);
+                step(b, k % w, k / w, x, y, z, again);
+                seenU[seen] = again[5]; seenV[seen] = again[6];
+                again[3] = out[3] = Math.min(out[3], Math.sqrt(b.d2(k, x, y, z)));
+                if (Math.abs(again[0]) < Math.abs(out[0])) System.arraycopy(again, 0, out, 0, 7);
             }
-            return true;
+            return stretches;
         }
 
         /**
@@ -1009,7 +1013,7 @@ public final class Shapes3 {
 
         @Override public double field(double x, double y, double z) {
             double[] r = new double[7];
-            return foot(built(), x, y, z, r) ? value(r) : cap;
+            return foot(built(), x, y, z, r) > 0 ? value(r) : cap;
         }
 
         private double value(double[] r) { return r[1] > 0 ? Double.NaN : Math.max(-cap, Math.min(cap, r[0])); }
@@ -1021,12 +1025,11 @@ public final class Shapes3 {
          */
         @Override public void lattice(int i, int j, int k, double[] lattice) {
             Built b = built();
-            for (int c = 0; c < 8; c++) {
-                int bucket = b.bucket(i + (c & 1), j + (c >> 1 & 1), k + (c >> 2));
-                if (b.seed[bucket] < 0 || b.others[bucket] != null) { Shape3.super.lattice(i, j, k, lattice); return; }
-            }
             double[] r = new double[7];
-            foot(b, i, j, k, r);
+            // Only where one stretch of the patch is near the whole block: its corners and centre say.
+            for (int c = 1; c < 9; c++)
+                if (foot(b, i + (c == 8 ? .5 : c & 1), j + (c == 8 ? .5 : c >> 1 & 1), k + (c == 8 ? .5 : c >> 2), r) != 1) { Shape3.super.lattice(i, j, k, lattice); return; }
+            if (foot(b, i, j, k, r) != 1) { Shape3.super.lattice(i, j, k, lattice); return; }
             double rowU = r[5], rowV = r[6], levelU = rowU, levelV = rowV;
             for (int y = 0, q = 0; y < 5; y++) {
                 for (int z = 0; z < 5; z++) {
@@ -1044,7 +1047,7 @@ public final class Shapes3 {
 
         @Override public int uniform(int i, int j, int k) {
             Built b = built();
-            if (b.seed[b.bucket(i + .5, j + .5, k + .5)] < 0) return -(BUCKET - i % BUCKET);
+            if (b.near.count(b.near.bucket(i + .5, j + .5, k + .5)) == 0) return -(Near3.SIZE - i % Near3.SIZE);
             double[] r = new double[7];
             foot(b, i + .5, j + .5, k + .5, r);
             double d = Math.abs(r[0]);

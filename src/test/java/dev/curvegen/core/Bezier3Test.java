@@ -192,6 +192,13 @@ class Bezier3Test {
         assertEquals(0, first[5], 1e-3);
         assertEquals(53.60915, first[2], 0.01);
         assertEquals(63.60915, first[6], 0.01);
+        // In and out of the top of one hump, under a block apart: still the way in.
+        ShapeSettings hump = surface(2, 3, 1);
+        double[][] over = {{0, 0}, {128, 256}, {256, 11}};
+        for (int k = 0; k < 6; k++) { hump.sPts.get(k)[0] = over[k % 3][0]; hump.sPts.get(k)[1] = over[k % 3][1]; hump.sPts.get(k)[2] = 256 * (k / 3); }
+        first = Bezier3.patchNearestToRay(hump.sPts, 2, 3, new double[]{-10, 65536.0 / 501 - .001, 128}, new double[]{1, 0, 0});
+        assertEquals(0, first[5], 1e-6);
+        assertEquals(130.448702066, first[2], 1e-3);
         // A ray that passes beside the patch finds the edge it comes closest to.
         double[] hit = Bezier3.patchNearestToRay(s.sPts, 4, 4, new double[]{-3, 40, 15}, new double[]{0, -1, 0});
         assertEquals(0, hit[0], 1e-6);

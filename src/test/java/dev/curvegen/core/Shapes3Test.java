@@ -150,7 +150,7 @@ class Shapes3Test {
         pinned("sphere", cube("x^2 + y^2 + z^2 = 16", SURFACE, 1.5, 24, "-5", "5"), 331.7793, 1740.7715, 2528);
         pinned("ball", cube("x^2 + y^2 + z^2 < 16", SURFACE, 1, 24, "-5", "5"), 169.8477, 3703.8906, 4128);
         pinned("saddle", equation("z = x y / 3", SURFACE, 0.5, 20, "-3", "3", "-3", "3", "-3", "3"), 146.9873, 256.0186, 576);
-        pinned("tangent", cube("z = tan(x)", SURFACE, 1, 32, "-4", "4"), 699.0000, 2614.0000, 4544);
+        pinned("tangent", cube("z = tan(x)", SURFACE, 1, 32, "-4", "4"), 688.7500, 2603.7500, 4544);
         pinned("steps", cube("z > floor(x)", SURFACE, 1, 32, "-4", "4"), 0.0000, 18432.0000, 18432);
         ShapeSettings all = cube("x^2 + y^2 + z^2 = 16", SURFACE, 1, 24, "-5", "5");
         all.chain = all.rod = true;
@@ -391,6 +391,11 @@ class Shapes3Test {
         assertEquals(81, Solver3.run(cube("x^2 = 0", SURFACE, 1, 9, "-4.5", "4.5")).volume(), 0.5);
         double ball = Solver3.run(cube("x^2 + y^2 + z^2 = 16", SURFACE, 1, 24, "-5", "5")).volume();
         assertEquals(ball, Solver3.run(cube("(x^2 + y^2 + z^2 - 16)^2 = 0", SURFACE, 1, 24, "-5", "5")).volume(), ball * 0.02);
+        // Thin, too: the two sides of a surface that is only touched are told apart, so a thin wall doesn't fall between samples.
+        Solver3.Result thin = Solver3.run(cube("x = 0.3", SURFACE, 0.25, 9, "-4.5", "4.5")), touched = Solver3.run(cube("(x - 0.3)^2 = 0", SURFACE, 0.25, 9, "-4.5", "4.5"));
+        assertEquals(20.25, thin.volume(), 0.01);
+        assertEquals(20.25, touched.volume(), 0.3);
+        assertEquals(81, blocks(touched));
         // A pole still isn't one, however the stepping goes.
         assertEquals(0, Solver3.run(cube("1/x^2 = 0", SURFACE, 1, 9, "-4.5", "4.5")).volume(), 1e-9);
     }
@@ -588,6 +593,29 @@ class Shapes3Test {
             }
         double exact = area(s);
         assertEquals(exact, Solver3.run(s).volume(), exact * 0.06);
+    }
+
+    @Test
+    void anotherHairpinKeepsBothItsArms() {
+        ShapeSettings s = surface(24, 24, 12, 2, 3, 1, 0);
+        double[][] bend = {{17, 22}, {10, 4}, {12, 11}};
+        for (int k = 0; k < 6; k++) { s.sPts.get(k)[0] = bend[k % 3][0]; s.sPts.get(k)[1] = bend[k % 3][1]; s.sPts.get(k)[2] = k / 3 * 12; }
+        Shape3 sh = Shape3.of(s);
+        double[] lattice = new double[125];
+        for (int a = 0; a <= 400; a++)
+            for (int b = 1; b < 12; b++) {
+                double[] p = Bezier3.patchPoint(s.sPts, 2, 3, a / 400.0, b / 12.0);
+                assertEquals(0, sh.field(p[0] + 1, p[1] + 1, p[2] + 1), 0.02, "at u " + a / 400.0 + ", v " + b / 12.0);
+                // And as the solver samples it: the block's sample nearest the point is within its distance of the patch.
+                int i = (int) (p[0] + 1), j = (int) (p[1] + 1), k = (int) (p[2] + 1);
+                sh.lattice(i, j, k, lattice);
+                int qa = (int) Math.round((p[0] + 1 - i) * 4), qb = (int) Math.round((p[1] + 1 - j) * 4), qc = (int) Math.round((p[2] + 1 - k) * 4);
+                double v = lattice[(qb * 5 + qc) * 5 + qa];
+                if (v == v) assertTrue(Math.abs(v) <= 0.25, "sample by u " + a / 400.0 + ", v " + b / 12.0 + " is " + v);
+            }
+        // The arms are close enough that their thickness runs together near the bend, so it's a little under area times thickness.
+        double exact = area(s), built = Solver3.run(s).volume();
+        assertTrue(built > exact * 0.85 && built < exact * 1.01, built + " against " + exact);
     }
 
     @Test

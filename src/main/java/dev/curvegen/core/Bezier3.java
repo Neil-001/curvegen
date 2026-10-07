@@ -227,54 +227,25 @@ public final class Bezier3 {
      * and passing within a twentieth of a block counts as one, so that a ray just clipping a hump stops there.
      */
     public static double[] patchNearestToRay(List<double[]> pts, int rows, int cols, double[] origin, double[] dir) {
-        // A mesh fine enough for the bends the control points can make: a patch with more of them can turn more often.
-        final int g = 24 * (cols - 1), gv = 24 * (rows - 1);
         double[] d = HandleMath.normalize(dir);
-        double[][] mesh = new double[(g + 1) * (gv + 1)][];
-        for (int b = 0; b <= gv; b++) {
-            List<double[]> across = new ArrayList<>(rows);      // the curve of constant v, evaluated along u
-            for (int c = 0; c < cols; c++) across.add(point(line(pts, rows, cols, c, false), (double) b / gv));
-            for (int a = 0; a <= g; a++) mesh[b * (g + 1) + a] = point(across, (double) a / g);
-        }
-        double bestS = Double.POSITIVE_INFINITY, hitU = 0, hitV = 0;
-        for (int b = 0; b < gv; b++)
-            for (int a = 0; a < g; a++) {
-                double[] p00 = mesh[b * (g + 1) + a], p10 = mesh[b * (g + 1) + a + 1], p01 = mesh[(b + 1) * (g + 1) + a], p11 = mesh[(b + 1) * (g + 1) + a + 1];
-                double[] h = hitTriangle(origin, d, p00, p10, p11);
-                if (h != null && h[0] < bestS) { bestS = h[0]; hitU = (a + h[1] + h[2]) / g; hitV = (b + h[2]) / gv; }
-                h = hitTriangle(origin, d, p00, p11, p01);
-                if (h != null && h[0] < bestS) { bestS = h[0]; hitU = (a + h[1]) / g; hitV = (b + h[1] + h[2]) / gv; }
+        // A mesh fine enough for the bends the control points can make: a patch with more of them can turn more often.
+        int g = 24 * (cols - 1), gv = 24 * (rows - 1);
+        double[] found = scan(pts, rows, cols, origin, d, 0, 1, 0, 1, g, gv);
+        double u = found[1], v = found[2], du = 1.0 / g, dv = 1.0 / gv;
+        if (found[0] > 0) {
+            // One facet of that mesh can hide two crossings, where the ray goes in and out of a hump. Look again
+            // around the hit with a finer mesh, twice, and then close in on the real crossing nearest what it finds.
+            for (int level = 0; level < 2; level++) {
+                double[] finer = scan(pts, rows, cols, origin, d, Math.max(0, u - du), Math.min(1, u + du), Math.max(0, v - dv), Math.min(1, v + dv), 16, 16);
+                if (finer[0] == 0) break;
+                found = finer; u = finer[1]; v = finer[2]; du /= 8; dv /= 8;
             }
-        // The mesh cuts the tops off the patch's humps, so a ray that only just clips one misses the mesh there.
-        // Passing within a twentieth of a block of a mesh line counts as a hit too.
-        for (int b = 0; b <= gv; b++)
-            for (int a = 0; a <= g; a++)
-                for (int way = 0; way < 2; way++) {
-                    if (way == 0 ? a == g : b == gv) continue;
-                    double[] near = pass(origin, d, mesh[b * (g + 1) + a], mesh[way == 0 ? b * (g + 1) + a + 1 : (b + 1) * (g + 1) + a]);
-                    if (near[0] > GRAZE || near[1] >= bestS) continue;
-                    bestS = near[1]; hitU = (a + (way == 0 ? near[2] : 0)) / g; hitV = (b + (way == 0 ? 0 : near[2])) / gv;
-                }
-        double u, v;
-        if (bestS < Double.POSITIVE_INFINITY) { u = hitU; v = hitV; }
-        else {
-            int best = 0;
-            double bestD = Double.POSITIVE_INFINITY;
-            for (int k = 0; k < mesh.length; k++) {
-                double dist = HandleMath.toRay(origin, d, mesh[k])[0];
-                if (dist < bestD) { bestD = dist; best = k; }
-            }
-            u = (double) (best % (g + 1)) / g; v = (double) (best / (g + 1)) / gv;
-        }
-        // The mesh is only close to the patch. From a hit, close in on the nearest real crossing, which is the first
-        // one when the ray clips a hump twice.
-        if (bestS < Double.POSITIVE_INFINITY) {
-            double[] at = crossing(pts, rows, cols, origin, d, u, v, bestS);
+            double[] at = crossing(pts, rows, cols, origin, d, u, v, found[3]);
             if (at != null) { u = at[0]; v = at[1]; }
         }
         // Then, or when there's no crossing, walk to the best point nearby on the patch itself.
         double here = HandleMath.toRay(origin, d, patchPoint(pts, rows, cols, u, v))[0];
-        for (double step = 0.5 / Math.max(g, gv); step > 1e-6 && here > 1e-9; ) {
+        for (double step = Math.min(du, dv) / 2; step > 1e-7 && here > 1e-9; ) {
             boolean moved = false;
             for (int k = 0; k < 4; k++) {
                 double tu = Math.max(0, Math.min(1, u + (k == 0 ? step : k == 1 ? -step : 0)));
@@ -286,6 +257,48 @@ public final class Bezier3 {
         }
         double[] p = patchPoint(pts, rows, cols, u, v), r = HandleMath.toRay(origin, d, p);
         return new double[]{u, v, p[0], p[1], p[2], r[0], r[1]};
+    }
+
+    /**
+     * Meshes part of the patch, nu by nv facets, and finds where the ray first hits the mesh:
+     * {1, u, v, distance along the ray}. Without a hit it's {0, u, v, 0} for the mesh point nearest the ray.
+     */
+    private static double[] scan(List<double[]> pts, int rows, int cols, double[] o, double[] d, double u0, double u1, double v0, double v1, int nu, int nv) {
+        double[][] mesh = new double[(nu + 1) * (nv + 1)][];
+        for (int b = 0; b <= nv; b++) {
+            List<double[]> across = new ArrayList<>(cols);      // the curve of constant v, evaluated along u
+            for (int c = 0; c < cols; c++) across.add(point(line(pts, rows, cols, c, false), v0 + (v1 - v0) * b / nv));
+            for (int a = 0; a <= nu; a++) mesh[b * (nu + 1) + a] = point(across, u0 + (u1 - u0) * a / nu);
+        }
+        double bestS = Double.POSITIVE_INFINITY, hitA = 0, hitB = 0;
+        for (int b = 0; b < nv; b++)
+            for (int a = 0; a < nu; a++) {
+                double[] p00 = mesh[b * (nu + 1) + a], p10 = mesh[b * (nu + 1) + a + 1], p01 = mesh[(b + 1) * (nu + 1) + a], p11 = mesh[(b + 1) * (nu + 1) + a + 1];
+                double[] h = hitTriangle(o, d, p00, p10, p11);
+                if (h != null && h[0] < bestS) { bestS = h[0]; hitA = a + h[1] + h[2]; hitB = b + h[2]; }
+                h = hitTriangle(o, d, p00, p11, p01);
+                if (h != null && h[0] < bestS) { bestS = h[0]; hitA = a + h[1]; hitB = b + h[1] + h[2]; }
+            }
+        // The mesh cuts the tops off the patch's humps, so a ray that only just clips one misses the mesh there.
+        // Passing within a twentieth of a block of a mesh line counts as a hit too.
+        for (int b = 0; b <= nv; b++)
+            for (int a = 0; a <= nu; a++)
+                for (int way = 0; way < 2; way++) {
+                    if (way == 0 ? a == nu : b == nv) continue;
+                    double[] near = pass(o, d, mesh[b * (nu + 1) + a], mesh[way == 0 ? b * (nu + 1) + a + 1 : (b + 1) * (nu + 1) + a]);
+                    if (near[0] > GRAZE || near[1] >= bestS) continue;
+                    bestS = near[1]; hitA = a + (way == 0 ? near[2] : 0); hitB = b + (way == 0 ? 0 : near[2]);
+                }
+        if (bestS == Double.POSITIVE_INFINITY) {
+            int best = 0;
+            double bestD = Double.POSITIVE_INFINITY;
+            for (int k = 0; k < mesh.length; k++) {
+                double dist = HandleMath.toRay(o, d, mesh[k])[0];
+                if (dist < bestD) { bestD = dist; best = k; }
+            }
+            return new double[]{0, u0 + (u1 - u0) * (best % (nu + 1)) / nu, v0 + (v1 - v0) * (best / (nu + 1)) / nv, 0};
+        }
+        return new double[]{1, u0 + (u1 - u0) * hitA / nu, v0 + (v1 - v0) * hitB / nv, bestS};
     }
 
     /** Newton's method for where the ray meets the patch, from a guess at (u, v) and s along the ray. Null if it doesn't settle on the patch. */
