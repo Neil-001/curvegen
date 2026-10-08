@@ -14,8 +14,7 @@ public final class Shapes3 {
      * sides. Ranges can differ by any factor, so it's kept within the limits before it's made a whole number.
      */
     public static int scaled(int size, double range, double of) {
-        double v = Math.rint(size * range / of);
-        return v >= Shape3.MAX_SIZE ? Shape3.MAX_SIZE : v >= 1 ? (int) v : 1;
+        return (int) Math.max(1, Math.min(Shape3.MAX_SIZE, Math.round(size * range / of)));
     }
 
     /**

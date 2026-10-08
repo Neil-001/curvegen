@@ -878,7 +878,6 @@ public final class Editor {
         Minecraft mc = Minecraft.getInstance();
         if (!active || mc.player == null) return;
         sync();
-        StepHold.poll();
         Vector3fc forward = mc.gameRenderer.mainCamera().forwardVector();
         eye = new double[]{cam.x, cam.y, cam.z};
         look = new double[]{forward.x(), forward.y(), forward.z()};

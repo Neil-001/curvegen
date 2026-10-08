@@ -6,6 +6,7 @@ import dev.curvegen.client.ClientPlatform;
 import dev.curvegen.client.ColorIndex;
 import dev.curvegen.client.CurveGenClient;
 import dev.curvegen.client.edit.Editor;
+import dev.curvegen.client.edit.StepHold;
 import dev.curvegen.client.screen.SettingsScreen;
 import dev.curvegen.net.PlaceBlocksPayload;
 import java.nio.file.Path;
@@ -60,6 +61,8 @@ public final class CurveGenNeoForgeClient implements ClientPlatform {
             Minecraft mc = Minecraft.getInstance();
             if (mc.gui.screen() == null && mc.gui.overlay() == null && Editor.mouseScroll(event.getScrollDeltaY())) event.setCanceled(true);
         });
+        // Hold-to-type tells a new press from the repeats of a held key by seeing it come up, screen or no screen.
+        NeoForge.EVENT_BUS.addListener(InputEvent.Key.class, event -> StepHold.keyEvent(event.getKeyEvent(), event.getAction()));
         NeoForge.EVENT_BUS.addListener(SubmitCustomGeometryEvent.class,
                 event -> Editor.render(event.getSubmitNodeCollector(), event.getPoseStack(), event.getLevelRenderState().cameraRenderState.pos));
     }

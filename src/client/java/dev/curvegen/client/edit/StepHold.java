@@ -10,6 +10,7 @@ import java.util.List;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.input.KeyEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Util;
 
@@ -32,7 +33,7 @@ public final class StepHold {
     public static void tick(Minecraft mc) {
         List<StepKey> keys = CurveGenClient.STEP_KEYS;
         int pressed = -1;
-        poll();
+        TIMER.release(k -> k < keys.size() && physicallyDown(keys.get(k).key()));
         for (int k = 0; k < keys.size(); k++) {
             boolean clicked = false;
             while (keys.get(k).key().consumeClick()) clicked = !TIMER.spent(k);   // a key that opened the box and is still down only repeats
@@ -66,12 +67,14 @@ public final class StepHold {
     }
 
     /**
-     * Notices keys that opened the number box coming up. It runs every tick and, while there's a hologram, every
-     * frame, so that letting such a key go and pressing it again at once counts as a press.
+     * Every key event, with or without a screen open: each loader passes them on. {@code action} is 0 for a release,
+     * 1 for a press and 2 for a repeat. A release or a fresh press of a key that opened the number box ends its
+     * being spent, and only repeats leave it so.
      */
-    static void poll() {
+    public static void keyEvent(KeyEvent event, int action) {
+        if (action != 0 && action != 1) return;
         List<StepKey> keys = CurveGenClient.STEP_KEYS;
-        TIMER.release(k -> k < keys.size() && physicallyDown(keys.get(k).key()));
+        for (int k = 0; k < keys.size(); k++) if (keys.get(k).key().matches(event)) TIMER.released(k);
     }
 
     /** Whether the key itself is down, whatever screen is open. A mouse button doesn't repeat, so it counts as up. */

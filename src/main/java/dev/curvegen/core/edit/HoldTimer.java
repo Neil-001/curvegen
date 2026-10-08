@@ -49,9 +49,15 @@ public final class HoldTimer {
     public void opened() { spent |= 1L << key; key = -1; }
 
     /**
-     * Forgets every spent key that is up. {@code down} says whether a key is physically down now, which the game's
-     * own "is this key pressed" doesn't while a screen is open. Call it often, every frame if possible: a key let go
-     * and pressed again between two calls still looks held, and that press is then lost.
+     * A spent key came up, or went down afresh, which means it came up first. Call this from the key events
+     * themselves: a key let go and pressed again between two ticks looks held to anything that only checks now and then.
+     */
+    public void released(int key) { spent &= ~(1L << key); }
+
+    /**
+     * Forgets every spent key that is up, for a release no event told of, such as one while the window had lost
+     * focus. {@code down} says whether a key is physically down now, which the game's own "is this key pressed"
+     * doesn't while a screen is open.
      */
     public void release(java.util.function.IntPredicate down) {
         for (int k = 0; k < 64; k++) if ((spent >> k & 1) != 0 && !down.test(k)) spent &= ~(1L << k);

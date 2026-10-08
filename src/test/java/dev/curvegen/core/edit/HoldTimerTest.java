@@ -121,6 +121,20 @@ class HoldTimerTest {
     }
 
     @Test
+    void aFreshPressEndsAKeysBeingSpentEvenIfItNeverLookedUp() {
+        HoldTimer t = new HoldTimer();
+        t.update(3, true, 0, 3);
+        t.update(-1, true, 3000, 3);
+        t.opened();
+        t.release(k -> true);
+        assertTrue(t.spent(3));
+        t.released(3);   // the release and the new press both arrived before anything looked again
+        t.release(k -> true);
+        assertFalse(t.spent(3));
+        assertEquals(Event.STEP, t.update(3, true, 5000, 3));
+    }
+
+    @Test
     void twoKeysCanBeSpentAtOnce() {
         HoldTimer t = new HoldTimer();
         t.update(3, true, 0, 3);

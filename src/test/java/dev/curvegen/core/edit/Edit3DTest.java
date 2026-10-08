@@ -101,6 +101,14 @@ class Edit3DTest {
     }
 
     @Test
+    void aLockedSizeRoundsHalvesUpAsItAlwaysDid() {
+        ShapeSettings s = of(Gen.EQUATION3);
+        s.q3W = 5; s.x3min = "0"; s.x3max = "2"; s.y3min = "0"; s.y3max = "2"; s.z3min = "0"; s.z3max = "1";
+        assertArrayEquals(new int[]{5, 3, 5}, Edit3D.size(s));   // 2.5 blocks high
+        assertEquals(3, Shape3.of(s).ny());
+    }
+
+    @Test
     void aLockedEquationWithFarApartRangesStaysWithinTheLimits() {
         ShapeSettings s = of(Gen.EQUATION3);
         s.x3min = "0"; s.x3max = "2000000000"; s.y3min = "0"; s.y3max = "2000000000"; s.z3min = "0"; s.z3max = "1";
