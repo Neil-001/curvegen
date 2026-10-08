@@ -14,8 +14,9 @@ import java.util.regex.Pattern;
  * a block there. An error names nothing, so it answers the oldest command. Either is hidden only when that command
  * is the mod's.
  *
- * <p>A command of the player's that prints no error stays in the queue until a later reply passes it, so one error of
- * the mod's after it can show.
+ * <p>When it can't tell, the line shows. A command of the player's that prints no error stays in the queue, so the
+ * error after it is taken for its reply. From then on nothing says which command an error answers, and every error
+ * shows until a success of the mod's gives the place in the order again.
  */
 public final class CommandReplies {
     public static final String SUCCESS = "commands.setblock.success", FAILED = "commands.setblock.failed", HERE = "command.context.here";
@@ -26,20 +27,27 @@ public final class CommandReplies {
     static final int TIMEOUT = 200, GRACE = 40;
 
     private record Pos(int x, int y, int z) {}
-    /** A command waiting for its reply: the position it sets a block at, if it's a plain {@code /setblock}, and whether the mod sent it. */
-    private record Sent(Pos pos, boolean own) {}
+    /**
+     * A command waiting for its reply: whether the mod sent it, and the position it sets a block at if it's a plain
+     * {@code /setblock}. {@code anywhere} is for one that sets a block where this can't tell, as with {@code ~}.
+     */
+    private record Sent(Pos pos, boolean own, boolean anywhere) {
+        boolean sets(Pos p) { return anywhere || p.equals(pos); }
+    }
     private final ArrayDeque<Sent> sent = new ArrayDeque<>();
     /** The errors already shown since the mod's commands started. */
     private final Set<String> shown = new HashSet<>();
     /** How many of the mod's commands are unanswered, and whether the last error seen answered one of them. */
     private int own;
     private boolean ownError;
+    /** Set once an error may have gone to the wrong command, until a success of the mod's shows where the replies have got to. */
+    private boolean unsure;
     private int idle, grace;
 
     /** Call for each of the mod's commands as it's sent. */
     public void sent(int x, int y, int z) {
         if (own == 0 && grace == 0) shown.clear();
-        sent.add(new Sent(new Pos(x, y, z), true));
+        sent.add(new Sent(new Pos(x, y, z), true, false));
         own++;
         idle = 0;
     }
@@ -51,13 +59,13 @@ public final class CommandReplies {
         try {
             if (m.matches()) pos = new Pos(Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2)), Integer.parseInt(m.group(3)));
         } catch (NumberFormatException _) { }
-        sent.add(new Sent(pos, false));
+        sent.add(new Sent(pos, false, pos == null && command.contains("setblock")));
         idle = 0;
     }
 
     /** Call once a client tick. */
     public void tick() {
-        if (!sent.isEmpty() && ++idle > TIMEOUT) { sent.clear(); own = 0; }
+        if (!sent.isEmpty() && ++idle > TIMEOUT) { sent.clear(); own = 0; unsure = false; }
         if (own == 0 && grace > 0 && --grace == 0) ownError = false;
     }
 
@@ -66,21 +74,22 @@ public final class CommandReplies {
 
     /**
      * Whether to hide a line that says a command worked, by its translation key. Only "Changed the block", and only
-     * when the oldest unanswered command that set a block there is the mod's. The commands sent before that one have
-     * been answered too.
+     * when the oldest unanswered command that could have set a block there is the mod's. The commands sent before
+     * that one have been answered too.
      */
     public boolean hidesSuccess(String key, int x, int y, int z) {
         Pos p = new Pos(x, y, z);
-        if (!SUCCESS.equals(key) || sent.stream().noneMatch(c -> p.equals(c.pos))) return false;
+        if (!SUCCESS.equals(key) || sent.stream().noneMatch(c -> c.sets(p))) return false;
         ownError = false;
         Sent answered;
-        do answered = remove(); while (!p.equals(answered.pos));
+        do answered = remove(); while (!answered.sets(p));
+        if (answered.own) unsure = false;
         return answered.own;
     }
 
     /**
      * Whether to hide a line that says a command failed, by its translation key. Never when the oldest unanswered
-     * command isn't the mod's. Otherwise "Could not set the block" is hidden, and any other error {@code /setblock}
+     * command isn't the mod's, or after such an error until the mod's next success. Otherwise "Could not set the block" is hidden, and any other error {@code /setblock}
      * can give, such as a position that isn't loaded, shows the first time and is hidden after that. {@link #HERE}
      * is the second line a syntax error comes with, and belongs to whichever command the error before it did.
      */
@@ -89,9 +98,10 @@ public final class CommandReplies {
         if (key.equals(HERE)) return ownError && !shown.add(key);
         ownError = false;
         if (sent.isEmpty()) return false;
-        if (!sent.peek().own) { remove(); return false; }
+        if (!sent.peek().own) { remove(); unsure = !sent.isEmpty(); return false; }
         if (!key.equals(FAILED) && !isError(key)) return false;
         remove();
+        if (unsure) { unsure = !sent.isEmpty(); return false; }
         ownError = true;
         return key.equals(FAILED) || !shown.add(key);
     }

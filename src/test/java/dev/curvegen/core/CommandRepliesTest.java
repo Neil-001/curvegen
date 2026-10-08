@@ -108,8 +108,9 @@ class CommandRepliesTest {
         assertTrue(r.hidesFailure(CommandReplies.HERE));
         assertFalse(r.hidesFailure("argument.block.id.invalid"), "the player's");
         assertFalse(r.hidesFailure(CommandReplies.HERE), "and so is its second line");
-        assertTrue(r.hidesFailure("argument.block.id.invalid"));
-        assertTrue(r.hidesFailure(CommandReplies.HERE));
+        // Nothing says the player's command hadn't been answered already, so the next error may be theirs too.
+        assertFalse(r.hidesFailure("argument.block.id.invalid"));
+        assertFalse(r.hidesFailure(CommandReplies.HERE));
     }
 
     @Test
@@ -123,11 +124,39 @@ class CommandRepliesTest {
         assertFalse(r.hidesSuccess(S, 1, 0, 0), "the player got there first");
         assertTrue(r.hidesFailure(CommandReplies.FAILED), "so the mod's had nothing to change");
         assertTrue(r.hidesSuccess(S, 2, 0, 0));
-        // A position given any other way isn't known, and the reply goes to the mod's command.
+    }
+
+    @Test
+    void aPlayersSetblockAtAnUnknownPlaceMayBeTheOneThatWorked() {
+        CommandReplies r = new CommandReplies();
         r.sent(5, 0, 0);
-        r.other("setblock ~ ~ ~ stone");
+        r.other("setblock ~ ~ ~ stone");            // where the player stands, which is where the mod sets a block next
         r.sent(6, 0, 0);
-        assertTrue(r.hidesSuccess(S, 6, 0, 0));
+        r.sent(7, 0, 0);
+        assertTrue(r.hidesSuccess(S, 5, 0, 0));
+        assertFalse(r.hidesSuccess(S, 6, 0, 0), "it may be the player's, so it shows");
+        assertTrue(r.hidesFailure(CommandReplies.FAILED), "the mod's, which found the block already there");
+        assertTrue(r.hidesSuccess(S, 7, 0, 0));
+        r.sent(8, 0, 0);
+        r.other("execute as @a run setblock ~ ~1 ~ stone");
+        assertTrue(r.hidesSuccess(S, 8, 0, 0), "sent before the player's");
+        assertFalse(r.hidesSuccess(S, 1, 1, 1));
+    }
+
+    @Test
+    void anErrorAfterAPlayersQuietCommandShowsAndSoDoTheNext() {
+        CommandReplies r = new CommandReplies();
+        r.other("time query daytime");   // prints its result, which says nothing about the order
+        r.sent(0, 0, 0);
+        r.other("setblock 9 9 9 stone");
+        r.sent(1, 0, 0);
+        r.sent(2, 0, 0);
+        r.sent(3, 0, 0);
+        assertFalse(r.hidesFailure(CommandReplies.FAILED), "the mod's, taken for the reply to the first command");
+        assertFalse(r.hidesFailure(CommandReplies.FAILED), "the player's, which mustn't be hidden");
+        assertFalse(r.hidesFailure(CommandReplies.FAILED), "still unsure whose");
+        assertTrue(r.hidesSuccess(S, 2, 0, 0), "a success says where the replies have got to");
+        assertTrue(r.hidesFailure(CommandReplies.FAILED));
         assertEquals(0, r.awaiting());
     }
 
