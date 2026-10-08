@@ -51,14 +51,12 @@ class CommandRepliesTest {
     @Test
     void thePlayersOwnFailuresShowInTheirPlaceInTheOrder() {
         CommandReplies r = new CommandReplies();
-        r.other();
-        assertEquals(0, r.awaiting(), "nothing of the mod's is out, so there's nothing to keep track of");
         r.sent(0, 0, 0);
-        r.other();            // the player's /setblock on a block that's already there
+        r.other("setblock 9 9 9 stone");   // on a block that's already there
         r.sent(1, 0, 0);
         r.sent(2, 0, 0);
-        r.other();            // the player's /fill somewhere that isn't loaded, twice
-        r.other();
+        r.other("fill 5000 0 0 5000 0 0 stone");   // somewhere that isn't loaded, twice
+        r.other("fill 5000 0 0 5000 0 0 stone");
         r.sent(3, 0, 0);
         assertTrue(r.hidesSuccess(S, 0, 0, 0));
         assertFalse(r.hidesFailure(CommandReplies.FAILED), "the player's");
@@ -74,13 +72,73 @@ class CommandRepliesTest {
     void aPlayersCommandThatPrintsNoErrorIsPassedByTheNextSuccess() {
         CommandReplies r = new CommandReplies();
         r.sent(0, 0, 0);
-        r.other();            // /time query, whose result isn't an error
+        r.other("time query daytime");
         r.sent(1, 0, 0);
         r.sent(2, 0, 0);
         assertTrue(r.hidesSuccess(S, 0, 0, 0));
         assertTrue(r.hidesSuccess(S, 1, 0, 0));
         assertTrue(r.hidesFailure(CommandReplies.FAILED));
         assertEquals(0, r.awaiting());
+    }
+
+    @Test
+    void aPlayersCommandBetweenTwoBatchesKeepsItsPlace() {
+        CommandReplies r = new CommandReplies();
+        r.sent(0, 0, 0);
+        assertTrue(r.hidesSuccess(S, 0, 0, 0));
+        // Everything of the mod's is answered when the player's command goes out, just before the next batch.
+        r.other("setblock 9 9 9 stone");
+        r.sent(1, 0, 0);
+        r.sent(2, 0, 0);
+        assertFalse(r.hidesFailure(CommandReplies.FAILED), "the player's");
+        assertTrue(r.hidesSuccess(S, 1, 0, 0));
+        assertTrue(r.hidesSuccess(S, 2, 0, 0));
+    }
+
+    @Test
+    void aSyntaxErrorsSecondLineGoesWithItsFirst() {
+        CommandReplies r = new CommandReplies();
+        r.sent(0, 0, 0);
+        r.sent(1, 0, 0);
+        r.other("setblock 9 9 9 nonsense");
+        r.sent(2, 0, 0);
+        assertFalse(r.hidesFailure("argument.block.id.invalid"), "the mod's first");
+        assertFalse(r.hidesFailure(CommandReplies.HERE));
+        assertTrue(r.hidesFailure("argument.block.id.invalid"));
+        assertTrue(r.hidesFailure(CommandReplies.HERE));
+        assertFalse(r.hidesFailure("argument.block.id.invalid"), "the player's");
+        assertFalse(r.hidesFailure(CommandReplies.HERE), "and so is its second line");
+        assertTrue(r.hidesFailure("argument.block.id.invalid"));
+        assertTrue(r.hidesFailure(CommandReplies.HERE));
+    }
+
+    @Test
+    void thePlayersOwnSuccessAtABlockTheModIsSettingShows() {
+        CommandReplies r = new CommandReplies();
+        r.sent(0, 0, 0);
+        r.other("setblock 1 0 0 minecraft:stone");
+        r.sent(1, 0, 0);
+        r.sent(2, 0, 0);
+        assertTrue(r.hidesSuccess(S, 0, 0, 0));
+        assertFalse(r.hidesSuccess(S, 1, 0, 0), "the player got there first");
+        assertTrue(r.hidesFailure(CommandReplies.FAILED), "so the mod's had nothing to change");
+        assertTrue(r.hidesSuccess(S, 2, 0, 0));
+        // A position given any other way isn't known, and the reply goes to the mod's command.
+        r.sent(5, 0, 0);
+        r.other("setblock ~ ~ ~ stone");
+        r.sent(6, 0, 0);
+        assertTrue(r.hidesSuccess(S, 6, 0, 0));
+        assertEquals(0, r.awaiting());
+    }
+
+    @Test
+    void thePlayersCommandsAloneHideNothing() {
+        CommandReplies r = new CommandReplies();
+        r.other("setblock 1 2 3 stone");
+        r.other("setblock 1 2 3 stone");
+        assertFalse(r.hidesSuccess(S, 1, 2, 3));
+        assertFalse(r.hidesFailure(CommandReplies.FAILED));
+        assertFalse(r.hidesFailure(CommandReplies.HERE));
     }
 
     @Test

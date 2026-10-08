@@ -18,6 +18,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 abstract class ClientCommonPacketListenerImplMixin {
     @Inject(method = "send", at = @At("HEAD"))
     private void curvegen$send(Packet<?> packet, CallbackInfo ci) {
-        if (packet instanceof ServerboundChatCommandPacket || packet instanceof ServerboundChatCommandSignedPacket) Placement.commandSent();
+        if (packet instanceof ServerboundChatCommandPacket plain) Placement.commandSent(plain.command());
+        else if (packet instanceof ServerboundChatCommandSignedPacket signed) Placement.commandSent(signed.command());
     }
 }

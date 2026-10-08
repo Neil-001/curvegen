@@ -72,9 +72,12 @@ public final class Placement {
         REPLIES.tick();
     }
 
-    /** Each loader calls this for every command the client sends to the server, so the replies to the player's own aren't taken for the mod's. */
-    public static void commandSent() {
-        if (!sending) REPLIES.other();
+    /**
+     * Each loader calls this for every command the client sends to the server, with its text without the slash, so
+     * the replies to the player's own aren't taken for the mod's.
+     */
+    public static void commandSent(String command) {
+        if (!sending) REPLIES.other(command);
     }
 
     /**
