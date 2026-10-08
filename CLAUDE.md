@@ -82,7 +82,7 @@ Implement `Shape3` and add it to `Shape3.of`. Only the sizes, `field` and `wiref
 - `field` is called from several threads, so it must not share scratch state. The solver drops any voxel with a NaN among the eight samples around it.
 - The default `uniform` trusts the field to change by at most 1 per block. If it can be steeper, divide it by a bound on its slope or override `uniform`, or the solver will skip cells that hold the surface. `Solver3Test.skippedCellsReallyAreUniform` and its namesake in `Shapes3Test` show how to test that.
 - Give a shell as a band of a smooth field, not as `abs(distance) - thickness/2`: the lattice can't follow a crease. An implicit surface f = 0 with a thickness is a band of f over its gradient's length; a filled side is `lo` or `hi` at infinity.
-- Return false from `smooth()` only for a field the lattice can't follow, because evaluating all 4096 points is far slower. A tube's distance field has a crease on the curve itself, and interpolating across it thins a tube under a block thick. The ellipsoid and torus do the same when they're only a few blocks thick. A sheet has too many cells for that, so give it a signed distance, which has no crease on the sheet, and NaN past its edges. `follows`, `inset` and `lattice` help a field the lattice only sometimes follows.
+- Return false from `smooth()` for a field the lattice can't follow. The solver then evaluates all 4096 points, which is far slower. A tube's distance field has a crease on the curve itself, and interpolating across it thins a tube under a block thick. The ellipsoid and torus do the same when they're only a few blocks thick. A sheet has too many cells for that, so give it a signed distance, which has no crease on the sheet, and NaN past its edges. `follows`, `inset` and `lattice` help a field the lattice only sometimes follows.
 - `symX`, `symY` and `symZ` must be true only if the field is exactly mirrored about the box's centre.
 - `wireframe()` must be cheap, since the editor draws it every frame while a solve runs. Work it out once and keep it if it takes any time.
 
@@ -94,7 +94,7 @@ Implement `Shape3` and add it to `Shape3.of`. Only the sizes, `field` and `wiref
 - **Curve** (`BEZIER3`). One Bézier through all of `pts3`, 2 to `Bezier3.MAX_POINTS`, as a round tube with round ends.
 - **Surface** (`SURFACE`). One patch of `sRows` × `sCols` points, 2 to 6 each way, row by row in `sPts`. The thickness is measured straight out from the patch and the edges are cut square, so a level patch on the block grid, a block thick, is exactly a layer of blocks.
 
-These limits are known and accepted:
+Known limits:
 
 - In an equation's Surface mode, a sign change with no zero, at a jump or an asymptote, isn't surface. So `z = floor(x)` is treads without risers and `z = tan(x)` has no walls at its asymptotes. An equation that only touches 0 at its surface, as `x^2 = 0` does, still builds a wall.
 - Surface mode never samples point by point, because that would take seconds. A wall loses up to a quarter of a block where it ends at a jump off the block grid, an asymptote or the edge of the equation's domain, and a wall much thicker than the surface's bends are wide is only roughly that thick.
