@@ -37,7 +37,7 @@ public class SettingsScreen extends ControlScreen {
     @Override
     protected void init() {
         labels.clear();
-        // Two columns: keys and the radial menu on the left, handles and the hologram on the right.
+        // Two columns: keys, the radial menu and the on-screen text on the left, handles and the hologram on the right.
         colW = Math.min(220, (width - 2 * M - GAP) / 2);
         int left = (width - 2 * colW - GAP) / 2, right = left + colW + GAP;
 
@@ -51,9 +51,16 @@ public class SettingsScreen extends ControlScreen {
                 "Hold: the menu stays open while you hold its key. Press: one press opens it and another closes it.")));
         addRenderableWidget(radial);
         Button order = Button.builder(Component.literal("Wedge order: " + (ModSettings.radialOrder.isEmpty() ? "Default" : "Custom") + "…"),
-                b -> minecraft.gui.setScreen(new WedgeOrderScreen(this))).bounds(left, row(3), colW, 20).build();
+                _ -> minecraft.gui.setScreen(new WedgeOrderScreen(this))).bounds(left, row(3), colW, 20).build();
         order.setTooltip(Tooltip.create(Component.literal("Choose where each wedge of the radial menu goes.")));
         addRenderableWidget(order);
+        CycleButton<Boolean> hints = toggle(ModSettings.showKeyHints, left, row(4), colW, "Key hints", v -> ModSettings.showKeyHints = v);
+        hints.setTooltip(Tooltip.create(Component.literal("Lists a shape's keys on screen while you edit it.")));
+        addRenderableWidget(hints);
+        CycleButton<Boolean> info = toggle(ModSettings.showShapeInfo, left, row(5), colW, "Shape info", v -> ModSettings.showShapeInfo = v);
+        info.setTooltip(Tooltip.create(Component.literal(
+                "Shows a shape's kind, size and block counts on screen while you edit it. Warnings and errors always show.")));
+        addRenderableWidget(info);
 
         number(right, 0, "Handle size (blocks)", "How big the handles you drag are.",
                 () -> ModSettings.handleSize, v -> ModSettings.handleSize = v, 0.05, ModSettings.HANDLE_MIN, ModSettings.HANDLE_MAX, 1, false);
@@ -70,15 +77,15 @@ public class SettingsScreen extends ControlScreen {
         // Bottom bar: each button as wide as its text needs.
         int by = height - 26, pad = 16;
         int keysW = tw("Key bindings…") + pad, resetW = tw("Reset to defaults") + pad, doneW = tw("Done") + pad + 8;
-        Button keys = Button.builder(Component.literal("Key bindings…"), b -> openKeys()).bounds(left, by, keysW, 20).build();
+        Button keys = Button.builder(Component.literal("Key bindings…"), _ -> openKeys()).bounds(left, by, keysW, 20).build();
         keys.setTooltip(Tooltip.create(Component.literal("Change the mod's keys in the game's key binds screen.")));
         addRenderableWidget(keys);
         int end = right + colW;
-        addRenderableWidget(Button.builder(Component.literal("Reset to defaults"), b -> {
+        addRenderableWidget(Button.builder(Component.literal("Reset to defaults"), _ -> {
             ModSettings.reset();
             rebuildWidgets();
         }).bounds(end - doneW - 4 - resetW, by, resetW, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Done"), b -> onClose()).bounds(end - doneW, by, doneW, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Done"), _ -> onClose()).bounds(end - doneW, by, doneW, 20).build());
     }
 
     /**
@@ -94,7 +101,7 @@ public class SettingsScreen extends ControlScreen {
             try {
                 double d = Double.parseDouble(v.trim());
                 if (Double.isFinite(d)) set.accept(Math.max(min, Math.min(max, integer ? Math.rint(d) : d)) / scale);
-            } catch (NumberFormatException ignored) { }
+            } catch (NumberFormatException _) { }
         }, shown, step, min, max, () -> true, integer).setTooltip(Tooltip.create(Component.literal(tip)));
     }
 

@@ -68,7 +68,7 @@ public final class Edit3D {
             double[] r = new double[6];
             for (int k = 0; k < 6; k++) r[k] = Expr.constant(src[k], "range");
             return r[1] > r[0] && r[3] > r[2] && r[5] > r[4] ? r : null;
-        } catch (Expr.ParseException e) {
+        } catch (Expr.ParseException _) {
             return null;
         }
     }

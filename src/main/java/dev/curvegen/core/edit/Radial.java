@@ -16,8 +16,8 @@ public final class Radial {
 
     /** A label box's size, and the most wedges a menu can have without two labels overlapping on a 427 by 240 screen. */
     public static final int LABEL_W = 80, LABEL_H = 22, MAX_WEDGES = 12;
-    /** Half the ring's height, and the room kept under the labels for two lines of text. */
-    public static final int RING = 26, FOOT = 24;
+    /** The ring's outer and inner radius, and the room kept under the labels for two lines of text. */
+    public static final int RING = 26, RING_IN = 9, FOOT = 24;
 
     public static String name(String id) {
         return switch (id) {
@@ -32,17 +32,38 @@ public final class Radial {
      * The wedge a cursor at (dx, dy) from the centre points at, with y running down the screen. Wedge 0 is centred on
      * straight up and the rest follow clockwise. -1 within {@code dead} of the centre, where no direction is clear.
      *
-     * <p>The labels sit round an oval, wider than it is tall, so the menu is one too: {@code stretch} is how many times
-     * wider, from {@link #stretch}. Wedges are even slices of the oval, which keeps every label inside its own wedge.
+     * <p>The labels sit round an oval, wider than it is tall: {@code stretch} is how many times wider, from
+     * {@link #stretch}. Wedges are even slices of that oval, which keeps every label inside its own wedge. On the
+     * round ring in the middle they're the same directions, so the slices at the sides are wider than the ones at
+     * the top and bottom.
      */
     public static int wedgeAt(double dx, double dy, int n, double dead, double stretch) {
         double u = dx / stretch;
-        if (n <= 0 || Math.hypot(u, dy) < dead) return -1;
+        if (n <= 0 || Math.hypot(dx, dy) < dead) return -1;
         double turn = Math.atan2(u, -dy) / (2 * Math.PI);   // 0 straight up, a quarter to the right
         return Math.floorMod((int) Math.round(turn * n), n);
     }
 
-    /** How many times wider than tall the menu is, for the radii its labels sit at. */
+    /**
+     * The ring's pixels: which of {@code n} wedges each belongs to, or -1 for none. It's a circle {@link #RING}
+     * across each way from its centre, whatever the stretch, row by row from the top left. A pixel's wedge is the one
+     * {@link #wedgeAt} gives a cursor anywhere on it. A pixel that two wedges share is left empty, which draws the
+     * line between them.
+     */
+    public static byte[] ring(int n, double stretch) {
+        byte[] out = new byte[4 * RING * RING];
+        for (int j = 0; j < 2 * RING; j++)
+            for (int i = 0; i < 2 * RING; i++) {
+                double dx = i + 0.5 - RING, dy = j + 0.5 - RING, r = Math.hypot(dx, dy);
+                int w = r > RING ? -1 : wedgeAt(dx, dy, n, RING_IN, stretch);
+                for (int c = 0; c < 4 && w >= 0; c++)
+                    if (wedgeAt(dx + (c & 1) - 0.5, dy + (c >> 1) - 0.5, n, 0, stretch) != w) w = -1;
+                out[j * 2 * RING + i] = (byte) w;
+            }
+        return out;
+    }
+
+    /** How many times wider than tall the labels' oval is, for the radii they sit at. */
     public static double stretch(int rx, int ry) { return (rx + LABEL_W / 2.0) / (ry + LABEL_H / 2.0); }
 
     /**

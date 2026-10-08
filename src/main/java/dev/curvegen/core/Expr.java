@@ -196,22 +196,22 @@ public final class Expr {
             case Neg g -> uses(g.a, v);
             case Bin b -> uses(b.a, v) || uses(b.b, v);
             case Call c -> c.args.stream().anyMatch(a -> uses(a, v));
-            case Num ignored -> false;
+            case Num _ -> false;
         };
     }
 
     private static Fn3 compile(Node n) {
         if (!(n instanceof Num) && !(n instanceof Var) && !uses(n, 'x') && !uses(n, 'y') && !uses(n, 'z')) {
             double v = raw(n).eval(0, 0, 0);
-            return (x, y, z) -> v;
+            return (_, _, _) -> v;
         }
         return raw(n);
     }
 
     private static Fn3 raw(Node n) {
         switch (n) {
-            case Num k -> { double v = k.v; return (x, y, z) -> v; }
-            case Var w -> { return w.v == 'x' ? (x, y, z) -> x : w.v == 'y' ? (x, y, z) -> y : (x, y, z) -> z; }
+            case Num k -> { double v = k.v; return (_, _, _) -> v; }
+            case Var w -> { return w.v == 'x' ? (x, _, _) -> x : w.v == 'y' ? (_, y, _) -> y : (_, _, z) -> z; }
             case Neg g -> { Fn3 a = compile(g.a); return (x, y, z) -> -a.eval(x, y, z); }
             case Bin b -> {
                 Fn3 a = compile(b.a), c = compile(b.b);

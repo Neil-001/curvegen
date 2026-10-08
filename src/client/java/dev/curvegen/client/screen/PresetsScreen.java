@@ -101,15 +101,15 @@ public class PresetsScreen extends Screen {
 
         int by = height - 26, bw = Math.max(60, font.width("Preview") + 20);
         int blocksW = font.width("Blocks: OFF") + 20, x = width - 8 - 3 * bw - blocksW - 12;
-        previewButton = Button.builder(Component.literal("Preview"), b -> previewed = selected).bounds(x, by, bw, 20).build();
+        previewButton = Button.builder(Component.literal("Preview"), _ -> previewed = selected).bounds(x, by, bw, 20).build();
         blocksButton = CycleButton.onOffBuilder(loadBlocks).create(x + bw + 4, by, blocksW, 20, Component.literal("Blocks"),
-                (b, v) -> { loadBlocks = v; textureFor = null; pictureFor = null; });
-        loadButton = Button.builder(Component.literal("Load"), b -> { if (selected != null) load(selected); })
+                (_, v) -> { loadBlocks = v; textureFor = null; pictureFor = null; });
+        loadButton = Button.builder(Component.literal("Load"), _ -> { if (selected != null) load(selected); })
                 .bounds(x + bw + blocksW + 8, by, bw, 20).build();
         addRenderableWidget(previewButton);
         addRenderableWidget(blocksButton);
         addRenderableWidget(loadButton);
-        addRenderableWidget(Button.builder(Component.literal("Cancel"), b -> onClose()).bounds(width - 8 - bw, by, bw, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Cancel"), _ -> onClose()).bounds(width - 8 - bw, by, bw, 20).build());
         refilter();
     }
 
@@ -152,7 +152,7 @@ public class PresetsScreen extends Screen {
         if (job == null) { ShapeSettings s = settingsFor(p); jobs.put(k, CurveScreen.EXEC.submit(() -> Solver.run(s))); return null; }
         if (!job.isDone()) return null;
         jobs.remove(k);
-        try { r = job.get(); } catch (Exception e) { return null; }
+        try { r = job.get(); } catch (Exception _) { return null; }
         results.put(k, r);
         return r;
     }
@@ -175,7 +175,7 @@ public class PresetsScreen extends Screen {
         }
         if (!job.future.isDone()) return null;
         jobs3.remove(k);
-        try { r = job.future.get(); } catch (Exception e) { return null; }
+        try { r = job.future.get(); } catch (Exception _) { return null; }
         if (r != null) solved3.put(k, r);
         return r;
     }

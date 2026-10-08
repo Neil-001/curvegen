@@ -857,15 +857,15 @@ public final class Editor {
             color[n++] = argb;
         }
 
+        /** Lines are cut off this close in front of the camera, just short of the game's own near plane. */
+        private static final double NEAR = 0.04;
+
         /**
          * Draws each segment as a strip facing the camera, in the handles' render type. The game's own line types
          * fade into fog, which at a short render distance hides the far side of a large shape while its handles
          * still show. {@code cam} is the camera and {@code forward} the way it looks, and {@code spread} is how
          * wide half the line is one block in front of the camera, so the strip is as wide as a line on screen.
          */
-        /** Lines are cut off this close in front of the camera, just short of the game's own near plane. */
-        private static final double NEAR = 0.04;
-
         void submit(SubmitNodeCollector out, PoseStack ms, double[] cam, double[] forward, double spread) {
             if (n == 0) return;
             Hologram.submit(out, ms, RenderTypes.debugFilledBox(), true, (pose, vc) -> {
@@ -996,6 +996,8 @@ public final class Editor {
                         if (!h.isPoint()) for (int s : h.sign) if (s != 0) moving++;
                         int color = hot ? HOT : h.isPoint() ? POINT : moving == 1 ? FACE : moving == 2 ? EDGE : CORNER;
                         if (through) color = ARGB.color(HIDDEN_ALPHA, color);
+                        // The handle being dragged stands out from the rest.
+                        if (drag != null && !h.same(drag.handle)) color = HandleMath.dimmed(color);
                         double x = p[0] - ox, y = p[1] - oy, z = p[2] - oz;
                         Hologram.filledBox(pose, fill, x - r, y - r, z - r, x + r, y + r, z + r, color, cx, cy, cz);
                     }
@@ -1039,15 +1041,19 @@ public final class Editor {
         var font = mc.font;
         int room = dc.guiWidth() - 12;
         List<Component> lines = new ArrayList<>();
-        lines.add(Component.literal(shape.describe() + (locked ? "" : " (following your view)")).withStyle(ChatFormatting.WHITE));
+        // The shape's own lines can be switched off. What's wrong or still being worked out shows either way.
+        boolean info = ModSettings.showShapeInfo;
+        if (info) lines.add(Component.literal(shape.describe() + (locked ? "" : " (following your view)")).withStyle(ChatFormatting.WHITE));
         if (hologram != null && hologram.error != null) lines.add(Component.literal(hologram.error).withStyle(ChatFormatting.RED));
         else if (hologram == null) lines.add(Component.literal("Working…").withStyle(ChatFormatting.WHITE));
         else {
             int skipped = hologram.size() - hologram.placing();
             String what = hologram.placing() + " blocks to place" + (skipped > 0 ? " (" + skipped + " skipped, Replace is off)" : "");
             if (S.carve) what += ", " + hologram.clearing() + " to clear (in red)";
-            if (dirty || job != null) what += "  Updating…";
-            lines.add(Component.literal(what).withStyle(ChatFormatting.WHITE));
+            boolean updating = dirty || job != null;
+            if (!info) what = updating ? "Updating…" : "";
+            else if (updating) what += "  Updating…";
+            if (!what.isEmpty()) lines.add(Component.literal(what).withStyle(ChatFormatting.WHITE));
             if (!hologram.isDrawn()) lines.add(Component.literal("Large shape: only its outline is previewed.").withStyle(ChatFormatting.YELLOW));
             if (hologram.size() > VERY_LARGE)
                 lines.add(Component.literal(String.format(java.util.Locale.ROOT, "%.1f million blocks. Placing this will take a long time.", hologram.size() / 1e6))
@@ -1065,7 +1071,8 @@ public final class Editor {
                 key(CurveGenClient.UNDO) + " undo", key(CurveGenClient.REDO) + " redo",
                 key(CurveGenClient.REPLACE) + " Replace: " + CommonComponents.optionStatus(S.overwrite).getString(),
                 key(CurveGenClient.CARVE) + " Carve: " + CommonComponents.optionStatus(S.carve).getString()));
-        if (locked) {
+        if (!ModSettings.showKeyHints) hints.clear();
+        else if (locked) {
             hints.add("drag a handle to resize, sneak for both sides");
             if (!shape.points().isEmpty()) {
                 if (grid()) {

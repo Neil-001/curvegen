@@ -35,7 +35,7 @@ public final class Edit2D {
         try {
             double[] r = {Expr.constant(s.xmin, "x from"), Expr.constant(s.xmax, "x to"), Expr.constant(s.ymin, "y from"), Expr.constant(s.ymax, "y to")};
             return r[1] > r[0] && r[3] > r[2] ? r : null;
-        } catch (Expr.ParseException e) {
+        } catch (Expr.ParseException _) {
             return null;
         }
     }
@@ -74,6 +74,7 @@ public final class Edit2D {
                 for (double[] p : s.pts) { p[0] *= fx; p[1] *= fy; }
                 s.bW = w; s.bH = h;
             }
+            default -> { }   // a 3D shape's sizes are Edit3D's
         }
     }
 

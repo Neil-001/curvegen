@@ -46,9 +46,6 @@ public final class ColorIndex {
 
     public static void clear() { SIDE.clear(); TOP.clear(); TEXTURES.clear(); }
 
-    // NeoForge deprecates the model methods that take no world, in favour of its own that need a world and a position.
-    // These colours are worked out without a world, and Fabric only has the plain methods.
-    @SuppressWarnings("deprecation")
     private static int compute(Block block, boolean top) {
         BlockState state = block.defaultBlockState();
         Minecraft mc = Minecraft.getInstance();
@@ -56,7 +53,7 @@ public final class ColorIndex {
             BlockStateModel model = mc.getModelManager().getBlockStateModelSet().get(state);
             Direction face = top ? Direction.UP : Direction.NORTH;
             List<BlockStateModelPart> parts = new ArrayList<>();
-            model.collectParts(RandomSource.create(42L), parts);
+            CurveGenClient.platform.modelParts(model, state, RandomSource.create(42L), parts);
             List<BakedQuad> quads = new ArrayList<>();
             for (BlockStateModelPart part : parts) quads.addAll(part.getQuads(face));
             if (quads.isEmpty())
@@ -77,7 +74,7 @@ public final class ColorIndex {
             if (w > 0) return ((int) (r / w) << 16) | ((int) (g / w) << 8) | (int) (b / w);
 
             // No quads on that face (unusual models): fall back to the particle texture.
-            int[] p = average(model.particleMaterial().sprite());
+            int[] p = average(CurveGenClient.platform.particleMaterial(model, state).sprite());
             if (p != null) {
                 int rr = p[0], gg = p[1], bb = p[2];
                 int tint = tint(state, 0);
@@ -86,7 +83,7 @@ public final class ColorIndex {
                 }
                 return (rr << 16) | (gg << 8) | bb;
             }
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             // fall through to the map colour
         }
         return state.getMapColor(EmptyBlockGetter.INSTANCE, BlockPos.ZERO).col;
@@ -97,7 +94,7 @@ public final class ColorIndex {
         try {
             BlockTintSource source = Minecraft.getInstance().getBlockColors().getTintSource(state, index);
             return source == null ? -1 : source.color(state);
-        } catch (Exception e) { return -1; }
+        } catch (Exception _) { return -1; }
     }
 
     private static int[] average(TextureAtlasSprite sprite) {
@@ -121,7 +118,7 @@ public final class ColorIndex {
             if (w == 0) return new int[]{-1};
             // Coverage (how much of the texture is opaque) weighs overlays such as the grass side's green fringe.
             return new int[]{(int) (r / w), (int) (g / w), (int) (b / w), (int) Math.max(1, w / 255)};
-        } catch (Exception e) {
+        } catch (Exception _) {
             return new int[]{-1};
         }
     }

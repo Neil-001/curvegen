@@ -43,6 +43,10 @@ public final class ModSettings {
     public static int hologramBlockLimit;
     /** Reverses which way scrolling moves a handle while it's dragged. */
     public static boolean invertDragScroll;
+    /** Whether a hologram's keys are listed on screen. */
+    public static boolean showKeyHints;
+    /** Whether a hologram's shape, size and block counts are shown on screen. Warnings and errors show either way. */
+    public static boolean showShapeInfo;
 
     static { reset(); }
 
@@ -56,6 +60,8 @@ public final class ModSettings {
         hologramOpacity = 0.45;
         hologramBlockLimit = 30000;
         invertDragScroll = false;
+        showKeyHints = true;
+        showShapeInfo = true;
     }
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
@@ -85,7 +91,7 @@ public final class ModSettings {
             Files.writeString(tmp, write(), StandardCharsets.UTF_8);
             try {
                 Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-            } catch (IOException e) {
+            } catch (IOException _) {
                 Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING);
             }
         } catch (IOException e) {
@@ -104,7 +110,7 @@ public final class ModSettings {
             JsonElement root = JsonParser.parseString(json);
             if (!root.isJsonObject()) return false;
             o = root.getAsJsonObject();
-        } catch (RuntimeException e) {
+        } catch (RuntimeException _) {
             return false;
         }
         holdSeconds = number(o, "holdSeconds", HOLD_MIN, HOLD_MAX, holdSeconds);
@@ -119,6 +125,8 @@ public final class ModSettings {
         double limit = number(o, "hologramBlockLimit", 0, BLOCK_LIMIT_MAX, hologramBlockLimit);
         if (limit == Math.rint(limit)) hologramBlockLimit = (int) limit;
         invertDragScroll = flag(o, "invertDragScroll", invertDragScroll);
+        showKeyHints = flag(o, "showKeyHints", showKeyHints);
+        showShapeInfo = flag(o, "showShapeInfo", showShapeInfo);
         return true;
     }
 
@@ -135,6 +143,8 @@ public final class ModSettings {
         o.addProperty("hologramOpacity", hologramOpacity);
         o.addProperty("hologramBlockLimit", hologramBlockLimit);
         o.addProperty("invertDragScroll", invertDragScroll);
+        o.addProperty("showKeyHints", showKeyHints);
+        o.addProperty("showShapeInfo", showShapeInfo);
         return GSON.toJson(o);
     }
 
@@ -142,7 +152,7 @@ public final class ModSettings {
         JsonElement e = o.get(name);
         if (e == null || !e.isJsonPrimitive() || !e.getAsJsonPrimitive().isNumber()) return fallback;
         double v;
-        try { v = e.getAsDouble(); } catch (NumberFormatException ex) { return fallback; }
+        try { v = e.getAsDouble(); } catch (NumberFormatException _) { return fallback; }
         return v >= min && v <= max ? v : fallback;   // NaN fails both comparisons
     }
 

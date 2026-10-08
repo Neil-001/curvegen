@@ -6,6 +6,13 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class HandleMathTest {
+    @Test
+    void aDimmedHandleKeepsItsColourAndLosesOpacity() {
+        assertEquals(0x4D3F7BE0, HandleMath.dimmed(0xFF3F7BE0));
+        assertEquals(0x1B3F7BE0, HandleMath.dimmed(0x5A3F7BE0), "one that already shows through a wall gets fainter still");
+        assertEquals(0x00FFFFFF, HandleMath.dimmed(0x00FFFFFF));
+    }
+
     private static final double EPS = 1e-9;
 
     @Test

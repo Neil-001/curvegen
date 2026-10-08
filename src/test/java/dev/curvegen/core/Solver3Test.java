@@ -195,7 +195,7 @@ class Solver3Test {
         ShapeSettings plain = new ShapeSettings();
         plain.slab = plain.stair = plain.trap = plain.shelf = plain.fence = plain.pane = plain.wall = false;
         AtomicBoolean stop = new AtomicBoolean();
-        Shape3 flat = Shapes3Cases.shape(8, 1, 8, Double.NEGATIVE_INFINITY, 0, (x, y, z) -> { stop.set(true); return Math.hypot(x - 4, z - 4) - 3; });
+        Shape3 flat = Shapes3Cases.shape(8, 1, 8, Double.NEGATIVE_INFINITY, 0, (x, _, z) -> { stop.set(true); return Math.hypot(x - 4, z - 4) - 3; });
         assertNull(Solver3.solve(flat, plain, stop::get));
     }
 

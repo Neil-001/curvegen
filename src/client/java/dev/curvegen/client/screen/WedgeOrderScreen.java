@@ -37,14 +37,14 @@ public class WedgeOrderScreen extends ControlScreen {
 
         int by = height - 26, pad = 16, resetW = tw("Default order") + pad, doneW = tw("Done") + pad + 8, end = right + colW;
         boolean custom = !ModSettings.radialOrder.isEmpty();
-        Button reset = Button.builder(Component.literal("Default order"), b -> {
+        Button reset = Button.builder(Component.literal("Default order"), _ -> {
             start = new ArrayList<>(Radial.START); edit = new ArrayList<>(Radial.EDIT);
             store();
         }).bounds(end - doneW - 4 - resetW, by, resetW, 20).build();
         reset.active = custom;
         reset.setTooltip(Tooltip.create(Component.literal(custom ? "Put every wedge back where it started." : "The wedges are already in their default order.")));
         addRenderableWidget(reset);
-        addRenderableWidget(Button.builder(Component.literal("Done"), b -> onClose()).bounds(end - doneW, by, doneW, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Done"), _ -> onClose()).bounds(end - doneW, by, doneW, 20).build());
     }
 
     private void column(int x, int w, String heading, List<String> ids) {

@@ -27,6 +27,7 @@ import dev.curvegen.core.Silhouette;
 import dev.curvegen.core.Solver;
 import dev.curvegen.core.Solver3;
 import dev.curvegen.core.edit.Edit3D;
+import dev.curvegen.core.edit.HandleMath;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -166,7 +167,7 @@ public class CurveScreen extends ControlScreen {
         int tx = M;
         CycleButton<Boolean> mode = CycleButton.builder((Boolean v) -> Component.literal(v ? "3D" : "2D"), mode3d)
                 .withValues(List.of(false, true)).displayOnlyValue()
-                .create(tx, 6, modeText + pad, 20, Component.literal("Shapes"), (b, v) -> setMode(v));
+                .create(tx, 6, modeText + pad, 20, Component.literal("Shapes"), (_, v) -> setMode(v));
         mode.setTooltip(Tooltip.create(Component.literal("Switches the tabs between flat shapes and 3D shapes.")));
         reverse.put(mode, () -> setMode(!mode3d));
         addRenderableWidget(mode);
@@ -174,7 +175,7 @@ public class CurveScreen extends ControlScreen {
         for (int k = 0; k < names.length; k++) {
             Tab t = tabs[k];
             int w = tw(names[k]) + pad;
-            Button b = Button.builder(Component.literal(names[k]), btn -> switchTab(t)).bounds(tx, 6, w, 20).build();
+            Button b = Button.builder(Component.literal(names[k]), _ -> switchTab(t)).bounds(tx, 6, w, 20).build();
             b.active = tab != t;
             if (t == Tab.COUNT) b.setTooltip(Tooltip.create(Component.literal("How many of each block and orientation the shape uses.")));
             addRenderableWidget(b);
@@ -224,7 +225,7 @@ public class CurveScreen extends ControlScreen {
         int x = M;
         CycleButton<Boolean> orient = CycleButton.builder((Boolean v) -> Component.literal(v ? "Flat" : "Upright"), S.floor)
                 .withValues(List.of(false, true)).displayOnlyValue()
-                .create(x, by, orientText + bpad, 20, Component.literal("Build"), (b, v) -> setFloor(v));
+                .create(x, by, orientText + bpad, 20, Component.literal("Build"), (_, v) -> setFloor(v));
         orient.setTooltip(Tooltip.create(Component.literal("Upright builds a wall, drawn from the side. Flat builds a floor, drawn from above.")));
         reverse.put(orient, () -> setFloor(!S.floor));
         if (S.is3d()) {
@@ -254,15 +255,15 @@ public class CurveScreen extends ControlScreen {
                 : "Clears existing blocks from the space the shape encloses: inside a thin or thick ellipse, or the other side of a filled equation. Filled ellipses, lines and Bézier curves don't carve.")));
         addRenderableWidget(carve);
         int aw = actionText + bpad + 8, bx = width - M - 3 * aw - 2 * bgap;
-        Button place = Button.builder(Component.literal("Place"), b -> place()).bounds(bx, by, aw, 20).build();
+        Button place = Button.builder(Component.literal("Place"), _ -> place()).bounds(bx, by, aw, 20).build();
         boolean placeable = Editor.isActive() || !mode3d || RadialScreen.offers(S.gen);
         place.active = placeable;
         place.setTooltip(Tooltip.create(Component.literal(!placeable ? "This shape can't be put in the world yet. Use Export instead."
                 : Editor.isActive() ? "Back to the shape in the world, with the changes made here."
                 : "Puts the shape in the world as a hologram you can move and resize before placing it.")));
         addRenderableWidget(place);
-        addRenderableWidget(Button.builder(Component.literal("Export"), b -> export()).bounds(bx + aw + bgap, by, aw, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Done"), b -> onClose()).bounds(bx + 2 * (aw + bgap), by, aw, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Export"), _ -> export()).bounds(bx + aw + bgap, by, aw, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Done"), _ -> onClose()).bounds(bx + 2 * (aw + bgap), by, aw, 20).build());
     }
 
     // ---------- presets ----------
@@ -271,11 +272,11 @@ public class CurveScreen extends ControlScreen {
 
     private void presetButtons() {
         int y = presetRowY(), w = (PANEL_W - 4) / 2;
-        Button save = Button.builder(Component.literal("Save preset"), b -> savePreset()).bounds(M, y, w, 20).build();
+        Button save = Button.builder(Component.literal("Save preset"), _ -> savePreset()).bounds(M, y, w, 20).build();
         save.setTooltip(Tooltip.create(Component.literal("Save this tab's shape settings under a name.")));
         addRenderableWidget(save);
         Button load = Button.builder(Component.literal("Load preset"),
-                b -> minecraft.gui.setScreen(new PresetsScreen(this, S.gen, this::loadPreset))).bounds(M + w + 4, y, w, 20).build();
+                _ -> minecraft.gui.setScreen(new PresetsScreen(this, S.gen, this::loadPreset))).bounds(M + w + 4, y, w, 20).build();
         load.setTooltip(Tooltip.create(Component.literal("Browse, preview and load saved shapes.")));
         addRenderableWidget(load);
     }
@@ -418,14 +419,14 @@ public class CurveScreen extends ControlScreen {
                 () -> S.bLW, 0.25, 0.0625, 50, () -> S.bMode == BzMode.LINE, false);
         updateBezierControls();
         addRenderableWidget(toggle(S.snap, M, row(3), PANEL_W, "Snap to half blocks", v -> S.snap = v));
-        Button add = Button.builder(Component.literal("Add point"), b -> {
+        Button add = Button.builder(Component.literal("Add point"), _ -> {
             int n = S.pts.size();
             double[] a = S.pts.get(n - 2), c = S.pts.get(n - 1);
             S.pts.add(n - 1, new double[]{(a[0] + c[0]) / 2, (a[1] + c[1]) / 2});
             dirty = true; rebuildWidgets();
         }).bounds(M, row(4), 73, 20).build();
         add.active = S.pts.size() < 10;
-        Button rem = Button.builder(Component.literal("Remove"), b -> {
+        Button rem = Button.builder(Component.literal("Remove"), _ -> {
             S.pts.remove(S.pts.size() - 2 >= 1 ? S.pts.size() - 2 : S.pts.size() - 1);
             dirty = true; rebuildWidgets();
         }).bounds(M + 77, row(4), 73, 20).build();
@@ -449,7 +450,7 @@ public class CurveScreen extends ControlScreen {
             labels.add(new Label(M + 71, y + 4, "y"));
             EditBox fx = new EditBox(font, M + 17, y, 50 - ARROW_SLOT, 16, Component.literal("Point " + (k + 1) + " x"));
             EditBox fy = new EditBox(font, M + 78, y, 50 - ARROW_SLOT, 16, Component.literal("Point " + (k + 1) + " y"));
-            Button x = Button.builder(Component.literal("×"), b -> {
+            Button x = Button.builder(Component.literal("×"), _ -> {
                 if (S.pts.size() > 2) { S.pts.remove(idx); dirty = true; rebuildWidgets(); }
             }).bounds(M + 132, y, 18, 16).build();
             x.active = n > 2;
@@ -465,7 +466,7 @@ public class CurveScreen extends ControlScreen {
                     try {
                         double d = Double.parseDouble(v.trim());
                         if (Double.isFinite(d)) { S.pts.get(idx)[a] = d; dirty = true; }
-                    } catch (NumberFormatException ignored) { }
+                    } catch (NumberFormatException _) { }
                 });
                 addRenderableWidget(f);
                 // Arrows step by half a block and keep the point inside the grid.
@@ -507,7 +508,7 @@ public class CurveScreen extends ControlScreen {
                 labels.add(new Label(M + 4, y + (h - 8) / 2, "Use"));
             } else {
                 boolean on = S.allows(f);
-                Button use = Button.builder(Component.literal(on ? "Use" : "Off"), b -> { S.allow(f, !S.allows(f)); dirty = true; rebuildWidgets(); })
+                Button use = Button.builder(Component.literal(on ? "Use" : "Off"), _ -> { S.allow(f, !S.allows(f)); dirty = true; rebuildWidgets(); })
                         .bounds(M, y, 26, h).build();
                 if (S.floor && !S.is3d() && (f == Family.SLAB || f == Family.STAIRS)) {
                     use.active = false;
@@ -518,7 +519,7 @@ public class CurveScreen extends ControlScreen {
             }
             Block block = BlockChoices.CHOICE.get(f);
             String name = font.plainSubstrByWidth(block.getName().getString(), PANEL_W - 54 - 8);
-            Button pick = Button.builder(Component.literal(name), b -> minecraft.gui.setScreen(new BlockPickerScreen(this, f, chosen -> {
+            Button pick = Button.builder(Component.literal(name), _ -> minecraft.gui.setScreen(new BlockPickerScreen(this, f, chosen -> {
                 BlockChoices.CHOICE.put(f, chosen);
                 S.fullConnects = BlockChoices.fullBlockConnects();
                 dirty = true; textureDirty = true;
@@ -528,7 +529,7 @@ public class CurveScreen extends ControlScreen {
             addRenderableWidget(pick);
             icons.add(new Icon(M + 29, y + (h - 16) / 2, new ItemStack(block)));
         }
-        addRenderableWidget(Button.builder(Component.literal("Match a colour…"), b -> minecraft.gui.setScreen(
+        addRenderableWidget(Button.builder(Component.literal("Match a colour…"), _ -> minecraft.gui.setScreen(
                 new ColorPickerScreen(this, BlockChoices.pickedColor >= 0 ? BlockChoices.pickedColor : 0x8E6B4A, rgb -> {
                     BlockChoices.autoSelect(rgb);
                     S.fullConnects = BlockChoices.fullBlockConnects();
@@ -600,7 +601,7 @@ public class CurveScreen extends ControlScreen {
         int mult = Math.max(1, S.depth);
         for (Family f : BlockChoices.FAMILIES) {
             java.util.LinkedHashMap<String, int[]> merged = new java.util.LinkedHashMap<>();
-            for (int st : statesFor(f, floor)) merged.computeIfAbsent(shortName(st), k -> new int[]{st, 0})[1] += result.counts()[st] * mult;
+            for (int st : statesFor(f, floor)) merged.computeIfAbsent(shortName(st), _ -> new int[]{st, 0})[1] += result.counts()[st] * mult;
             int total = 0;
             for (int[] m : merged.values()) total += m[1];
             boolean unused = floor && (f == Family.SLAB || f == Family.STAIRS);
@@ -898,19 +899,19 @@ public class CurveScreen extends ControlScreen {
                 new IntSupplier[]{() -> S.b3W, () -> S.b3H, () -> S.b3D}, new IntConsumer[]{v -> S.b3W = v, v -> S.b3H = v, v -> S.b3D = v},
                 new BooleanSupplier[]{ALWAYS, ALWAYS, ALWAYS}, null);
         CycleButton<BzMode> shape = short3(cycler(List.of(BzMode.values()), BzMode.LINE, m -> Component.literal(m == BzMode.LINE ? "Line" : "Filled"),
-                M, r3(1), PANEL_W, "Shape", v -> { }));
+                M, r3(1), PANEL_W, "Shape", _ -> { }));
         shape.active = false;
         shape.setTooltip(Tooltip.create(Component.literal("A 3D curve is always a line. Only a 2D curve can be filled.")));
         thickness(2, () -> S.b3T, v -> S.b3T = v, ALWAYS, null);
         short3(toggle(S.snap, M, r3(3), PANEL_W, "Snap to half blocks", v -> S.snap = v));
         int n = S.pts3.size();
-        Button add = Button.builder(Component.literal("Add point"), b -> {
+        Button add = Button.builder(Component.literal("Add point"), _ -> {
             if (Bezier3.insert(S.pts3, 0.5) >= 0) { dirty = true; rebuildWidgets(); }
         }).bounds(M, r3(4), 73, h3).build();
         add.active = n < Bezier3.MAX_POINTS;
         add.setTooltip(Tooltip.create(Component.literal(add.active ? "Adds a point without changing the curve. The points between the ends all move."
                 : "A curve can have " + Bezier3.MAX_POINTS + " points at most.")));
-        Button rem = Button.builder(Component.literal("Remove"), b -> {
+        Button rem = Button.builder(Component.literal("Remove"), _ -> {
             if (S.pts3.size() > 2) {
                 List<double[]> fewer = Bezier3.reduce(S.pts3);
                 S.pts3.clear(); S.pts3.addAll(fewer);
@@ -975,13 +976,13 @@ public class CurveScreen extends ControlScreen {
                     try {
                         double d = Double.parseDouble(v.trim());
                         if (Double.isFinite(d) && d != pts.get(idx)[a]) { pts.get(idx)[a] = d; dirty = true; }
-                    } catch (NumberFormatException ignored) { }
+                    } catch (NumberFormatException _) { }
                 });
                 addRenderableWidget(f);
                 bind(f, () -> idx < pts.size() ? coord(pts.get(idx)[a]) : "", ALWAYS, null, null);
             }
             if (grid) continue;
-            Button x = Button.builder(Component.literal("×"), b -> {
+            Button x = Button.builder(Component.literal("×"), _ -> {
                 if (pts.size() > 2 && idx < pts.size()) { pts.remove(idx); dirty = true; rebuildWidgets(); }
             }).bounds(M + 133, y, 17, 16).build();
             x.active = n > 2;
@@ -1073,6 +1074,9 @@ public class CurveScreen extends ControlScreen {
     /** The control points the tab shows in the picture, or null. */
     private List<double[]> points3() { return tab == Tab.BEZIER3 ? S.pts3 : tab == Tab.SURFACE ? S.sPts : null; }
 
+    /** A colour for point {@code k}'s handle: fainter while another point is dragged, so the dragged one stands out. */
+    private int handle(int argb, int k) { return dragPoint >= 0 && k != dragPoint ? HandleMath.dimmed(argb) : argb; }
+
     private void drawHandles3(GuiGraphicsExtractor ctx, int mx, int my) {
         List<double[]> pts = points3();
         boolean grid = tab == Tab.SURFACE, inside = mx >= cx0() && mx < cx1() && my >= cy0() + 12 && my < py1();
@@ -1080,11 +1084,11 @@ public class CurveScreen extends ControlScreen {
         for (int k = 0; k < pts.size(); k++) {
             double[] p = pts.get(k), s = preview3.cam.project(p[0], p[1], p[2]);
             int x = (int) Math.round(s[0]), y = (int) Math.round(s[1]), r = grid ? 3 : 5;
-            ctx.fill(x - r, y - r, x + r + 1, y + r + 1, 0xFFFFFFFF);
-            ctx.fill(x - r + 1, y - r + 1, x + r, y + r, k == hover ? 0xFFFFB84D : 0xFF3F7BE0);
+            ctx.fill(x - r, y - r, x + r + 1, y + r + 1, handle(0xFFFFFFFF, k));
+            ctx.fill(x - r + 1, y - r + 1, x + r, y + r, handle(k == hover ? 0xFFFFB84D : 0xFF3F7BE0, k));
             if (grid) continue;
             String n = String.valueOf(k + 1);
-            ctx.text(font, n, x - font.width(n) / 2 + 1, y - 3, 0xFFFFFFFF, false);
+            ctx.text(font, n, x - font.width(n) / 2 + 1, y - 3, handle(0xFFFFFFFF, k), false);
         }
         if (grid && hover >= 0 && dragPoint < 0)
             ctx.setTooltipForNextFrame(font, Component.literal("Row " + (hover / S.sCols + 1) + ", column " + (hover % S.sCols + 1)), mx, my);
@@ -1206,10 +1210,10 @@ public class CurveScreen extends ControlScreen {
         return f;
     }
     private static int clampInt(String v, int lo, int hi, int d) {
-        try { return Math.max(lo, Math.min(hi, Integer.parseInt(v.trim()))); } catch (NumberFormatException e) { return d; }
+        try { return Math.max(lo, Math.min(hi, Integer.parseInt(v.trim()))); } catch (NumberFormatException _) { return d; }
     }
     private static double clampNum(String v, double lo, double hi, double d) {
-        try { double x = Double.parseDouble(v.trim()); return x > 0 ? Math.max(lo, Math.min(hi, x)) : d; } catch (NumberFormatException e) { return d; }
+        try { double x = Double.parseDouble(v.trim()); return x > 0 ? Math.max(lo, Math.min(hi, x)) : d; } catch (NumberFormatException _) { return d; }
     }
     private static String fmt(double v) { return v == Math.rint(v) ? String.valueOf((long) v) : String.valueOf(v); }
 
@@ -1363,10 +1367,10 @@ public class CurveScreen extends ControlScreen {
         for (int k = 0; k < S.pts.size(); k++) {
             float[] h = handleScreen(k);
             int x = Math.round(h[0]), y = Math.round(h[1]);
-            ctx.fill(x - 5, y - 5, x + 6, y + 6, 0xFFFFFFFF);
-            ctx.fill(x - 4, y - 4, x + 5, y + 5, k == dragPoint ? 0xFFFFB84D : 0xFF3F7BE0);
+            ctx.fill(x - 5, y - 5, x + 6, y + 6, handle(0xFFFFFFFF, k));
+            ctx.fill(x - 4, y - 4, x + 5, y + 5, handle(k == dragPoint ? 0xFFFFB84D : 0xFF3F7BE0, k));
             String n = String.valueOf(k + 1);
-            ctx.text(font, n, x - font.width(n) / 2 + 1, y - 3, 0xFFFFFFFF, false);
+            ctx.text(font, n, x - font.width(n) / 2 + 1, y - 3, handle(0xFFFFFFFF, k), false);
         }
     }
 
