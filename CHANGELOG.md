@@ -15,6 +15,10 @@ The hologram now starts locked at the block you're looking at, with its handles 
 - 3D tabs in the G menu, with a preview you can turn, zoom and drag points in, and block counts, presets and Litematica export for every 3D shape (#51)
 - A settings screen for hold times, the radial menu, handle size, and the hologram's opacity and block limit. Open it from the cogwheel in the G menu, from Mod Menu on Fabric or from the mod list on NeoForge (#44)
 
+## Fixes
+
+- The line above the G menu's picture no longer runs off its edge on a narrow screen (#53)
+
 # 1.3.1
 
 Curve Generator 1.3.1 shows mod messages above the hotbar instead of in chat.
