@@ -1215,6 +1215,7 @@ public class CurveScreen extends ControlScreen {
 
     // ---------- solving ----------
     private void poll() {
+        exportHologram();
         if (mode3d) { poll3(); return; }
         if (job != null && job.isDone()) {
             try { result = job.get(); } catch (Exception e) { flash("Couldn't build this shape: " + e.getMessage()); }
@@ -1471,7 +1472,22 @@ public class CurveScreen extends ControlScreen {
         Editor.start();
     }
 
+    /** Set by Export while a hologram is out and its blocks are still catching up with a change made here. */
+    private boolean exporting;
+
+    /** A hologram exports as it stands in the world, turned and tipped, as the radial menu's Export writes it. */
+    private void exportHologram() {
+        if (!exporting) return;
+        if (!Editor.isActive()) { exporting = false; return; }
+        if (Editor.catchingUp()) { flash("Exporting as soon as the shape in the world is ready…"); return; }
+        exporting = false;
+        String message = Editor.export();
+        flash(message);
+        Placement.say(Component.literal(message));
+    }
+
     private void export() {
+        if (Editor.isActive()) { exporting = true; exportHologram(); return; }
         if (S.is3d()) { export3(); return; }
         if (!ready()) return;
         Layout layout = Layout.of(result);
