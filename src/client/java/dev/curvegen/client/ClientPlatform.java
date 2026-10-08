@@ -14,8 +14,9 @@ import net.minecraft.world.level.block.state.BlockState;
  *
  * <p>Each loader also hooks the mouse while no screen is open: it passes button presses and releases to
  * {@code Editor.mouseButton} and wheel movement to {@code Editor.mouseScroll}, and keeps the event from the game
- * when they return true. It passes every key event to {@code StepHold.keyEvent}, and keeps a system message out of
- * chat when {@code Placement.hidesFeedback} returns true.
+ * when they return true. It passes every key event to {@code StepHold.keyEvent}, keeps a system message out of
+ * chat when {@code Placement.hidesFeedback} returns true, and calls {@code Placement.commandSent} for every command
+ * packet the client sends.
  */
 public interface ClientPlatform {
     /** Whether the server we're connected to accepts placement packets, which means it has the mod. */

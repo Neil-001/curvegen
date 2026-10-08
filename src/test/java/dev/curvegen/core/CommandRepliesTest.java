@@ -48,15 +48,38 @@ class CommandRepliesTest {
         assertFalse(r.hidesSuccess(S, 1, 2, 3));
     }
 
-    /** The player's own failed /setblock mid-run looks like the mod's. The mod's later replies still stay hidden. */
     @Test
-    void aStrayFailureDoesNotLetTheModsRepliesThrough() {
+    void thePlayersOwnFailuresShowInTheirPlaceInTheOrder() {
         CommandReplies r = new CommandReplies();
-        for (int k = 0; k < 4; k++) r.sent(k, 0, 0);
+        r.other();
+        assertEquals(0, r.awaiting(), "nothing of the mod's is out, so there's nothing to keep track of");
+        r.sent(0, 0, 0);
+        r.other();            // the player's /setblock on a block that's already there
+        r.sent(1, 0, 0);
+        r.sent(2, 0, 0);
+        r.other();            // the player's /fill somewhere that isn't loaded, twice
+        r.other();
+        r.sent(3, 0, 0);
         assertTrue(r.hidesSuccess(S, 0, 0, 0));
-        assertTrue(r.hidesFailure(CommandReplies.FAILED), "the player's, taken for the answer to the second command");
-        assertTrue(r.hidesSuccess(S, 2, 0, 0), "a success is known by its position, however many replies came before");
+        assertFalse(r.hidesFailure(CommandReplies.FAILED), "the player's");
+        assertTrue(r.hidesSuccess(S, 1, 0, 0), "the mod's next reply isn't let through by it");
+        assertTrue(r.hidesFailure(CommandReplies.FAILED), "the mod's own");
+        assertFalse(r.hidesFailure("argument.pos.unloaded"));
+        assertFalse(r.hidesFailure("argument.pos.unloaded"), "the same error again is still the player's");
         assertTrue(r.hidesSuccess(S, 3, 0, 0));
+        assertEquals(0, r.awaiting());
+    }
+
+    @Test
+    void aPlayersCommandThatPrintsNoErrorIsPassedByTheNextSuccess() {
+        CommandReplies r = new CommandReplies();
+        r.sent(0, 0, 0);
+        r.other();            // /time query, whose result isn't an error
+        r.sent(1, 0, 0);
+        r.sent(2, 0, 0);
+        assertTrue(r.hidesSuccess(S, 0, 0, 0));
+        assertTrue(r.hidesSuccess(S, 1, 0, 0));
+        assertTrue(r.hidesFailure(CommandReplies.FAILED));
         assertEquals(0, r.awaiting());
     }
 

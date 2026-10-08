@@ -3,6 +3,7 @@
   "package": "dev.curvegen.client.fabric.mixin",
   "compatibilityLevel": "JAVA_25",
   "client": [
+    "ClientCommonPacketListenerImplMixin",
     "KeyboardHandlerMixin",
     "MouseHandlerMixin"
   ],

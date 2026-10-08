@@ -51,6 +51,8 @@ public final class Placement {
     private record Command(BlockPos pos, String text) {}
     private static final ArrayDeque<Command> commandQueue = new ArrayDeque<>();
     private static final CommandReplies REPLIES = new CommandReplies();
+    /** Set while the mod sends a command of its own. */
+    private static boolean sending;
 
     /** Where the shape may put a block when "Replace" is off: air and things like grass, water or snow layers. */
     private static boolean free(BlockState current) { return current.isAir() || current.canBeReplaced(); }
@@ -64,9 +66,15 @@ public final class Placement {
             for (int i = 0; i < COMMANDS_PER_TICK && !commandQueue.isEmpty(); i++) {
                 Command c = commandQueue.poll();
                 REPLIES.sent(c.pos.getX(), c.pos.getY(), c.pos.getZ());
-                mc.getConnection().sendCommand(c.text);
+                sending = true;
+                try { mc.getConnection().sendCommand(c.text); } finally { sending = false; }
             }
         REPLIES.tick();
+    }
+
+    /** Each loader calls this for every command the client sends to the server, so the replies to the player's own aren't taken for the mod's. */
+    public static void commandSent() {
+        if (!sending) REPLIES.other();
     }
 
     /**

@@ -7,10 +7,11 @@ import java.util.Set;
 /**
  * Which of a server's chat lines answer the {@code /setblock} commands the mod sent itself, so the client can keep
  * them out of chat. A line is known by its translation key. The server answers commands in the order they were
- * sent, and this keeps the positions of the ones still unanswered in that order. A success is the mod's only if it
- * names one of those positions. An error names nothing, so one that {@code /setblock} can give counts as the answer
- * to the oldest command. The player's own failed {@code /setblock} in the same few seconds can't be told apart
- * from the mod's and is hidden too.
+ * sent, and this keeps the ones still unanswered in that order: the mod's by position, and a mark for each command
+ * anything else sent in between. A success is the mod's only if it names one of those positions. An error names
+ * nothing, so it answers the oldest command, and shows if that one isn't the mod's.
+ *
+ * <p>A command of the player's that prints no error leaves its mark, so one error of the mod's after it can show.
  */
 public final class CommandReplies {
     public static final String SUCCESS = "commands.setblock.success", FAILED = "commands.setblock.failed", HERE = "command.context.here";
@@ -20,7 +21,9 @@ public final class CommandReplies {
     static final int TIMEOUT = 200, GRACE = 40;
 
     private record Pos(int x, int y, int z) {}
-    private final ArrayDeque<Pos> sent = new ArrayDeque<>();
+    /** Stands in the queue for a command that isn't the mod's. */
+    private static final Object OTHER = new Object();
+    private final ArrayDeque<Object> sent = new ArrayDeque<>();
     /** The errors already shown since the commands started. */
     private final Set<String> shown = new HashSet<>();
     private int idle, grace;
@@ -32,6 +35,11 @@ public final class CommandReplies {
         idle = 0;
     }
 
+    /** Call when the client sends any other command, the player's or another mod's. */
+    public void other() {
+        if (!sent.isEmpty()) sent.add(OTHER);
+    }
+
     /** Call once a client tick. */
     public void tick() {
         if (!sent.isEmpty()) {
@@ -40,11 +48,12 @@ public final class CommandReplies {
     }
 
     /** How many commands haven't been answered yet. */
-    public int awaiting() { return sent.size(); }
+    public int awaiting() { return (int) sent.stream().filter(c -> c != OTHER).count(); }
 
     /**
      * Whether to hide a line that says a command worked, by its translation key. Only "Changed the block" at a
      * position one of the mod's unanswered commands went to. The commands sent before that one have been answered too.
+     * A success of the player's own for the very block the mod is still setting is hidden with them.
      */
     public boolean hidesSuccess(String key, int x, int y, int z) {
         Pos p = new Pos(x, y, z);
@@ -55,15 +64,17 @@ public final class CommandReplies {
     }
 
     /**
-     * Whether to hide a line that says a command failed, by its translation key. "Could not set the block" is
-     * hidden. Any other error {@code /setblock} can give, such as a position that isn't loaded, shows the first time
-     * and is hidden after that. {@link #HERE} is the second line a syntax error comes with, for a line that points
-     * at a {@code /setblock}.
+     * Whether to hide a line that says a command failed, by its translation key. Never when the oldest unanswered
+     * command isn't the mod's. Otherwise "Could not set the block" is hidden, and any other error {@code /setblock}
+     * can give, such as a position that isn't loaded, shows the first time and is hidden after that. {@link #HERE}
+     * is the second line a syntax error comes with, for a line that points at a {@code /setblock}.
      */
     public boolean hidesFailure(String key) {
         if (key == null) return false;
         if (key.equals(HERE)) return (!sent.isEmpty() || grace > 0) && !shown.add(key);
-        if (sent.isEmpty() || !key.equals(FAILED) && !isError(key)) return false;
+        if (sent.isEmpty()) return false;
+        if (sent.peek() == OTHER) { sent.remove(); answered(); return false; }
+        if (!key.equals(FAILED) && !isError(key)) return false;
         sent.remove();
         answered();
         return key.equals(FAILED) || !shown.add(key);
