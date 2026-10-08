@@ -44,9 +44,8 @@ class HoldTimerTest {
     void holdingOpensTheNumberBoxOnce() {
         HoldTimer t = new HoldTimer();
         assertEquals(Event.STEP, t.update(1, true, 0, HOLD));
-        // The game repeats a held key. The repeats don't act again.
-        for (long now = 50; now < 3000; now += 50) assertEquals(Event.NONE, t.update(1, true, now, HOLD));
-        assertEquals(Event.OPEN, t.update(1, true, 3000, HOLD));
+        for (long now = 50; now < 3000; now += 50) assertEquals(Event.NONE, t.update(-1, true, now, HOLD));
+        assertEquals(Event.OPEN, t.update(-1, true, 3000, HOLD));
         assertEquals(1, t.key(), "the key the box is for");
         t.opened();
         assertEquals(-1, t.key());
@@ -54,24 +53,38 @@ class HoldTimerTest {
     }
 
     @Test
-    void aRepeatThatArrivesWithTheReleaseDoesNotActAgain() {
+    void aKeyLetGoAndPressedAgainBetweenTwoTicksActsAgainAndStartsItsHoldAfresh() {
         HoldTimer t = new HoldTimer();
-        assertEquals(Event.STEP, t.update(1, true, 0, HOLD));
-        assertEquals(Event.NONE, t.update(1, false, 600, HOLD), "the key repeated and came up within one tick");
-        assertEquals(-1, t.key());
-        assertEquals(Event.STEP, t.update(1, true, 700, HOLD), "a new press acts");
+        t.press(1);
+        assertEquals(Event.STEP, t.update(t.takePress(), true, 0, HOLD));
+        // It came up and went down again before the next tick, so it looks held throughout.
+        t.press(1);
+        assertEquals(Event.STEP, t.update(t.takePress(), true, 600, HOLD));
+        assertEquals(1, t.key());
+        assertEquals(Event.NONE, t.update(t.takePress(), true, 3000, HOLD), "the hold counts from the second press");
+        assertEquals(Event.OPEN, t.update(t.takePress(), true, 3600, HOLD));
     }
 
     @Test
-    void aCancelledHoldOpensNothingAndStillIgnoresRepeats() {
+    void aTapAndAnotherWithinOneTickEachAct() {
+        HoldTimer t = new HoldTimer();
+        assertEquals(Event.STEP, t.update(1, false, 0, HOLD));
+        assertEquals(Event.STEP, t.update(1, false, 50, HOLD));
+        assertEquals(Event.NONE, t.update(-1, false, 100, HOLD));
+        assertEquals(-1, t.progress(400, DELAY, HOLD), "neither is being held");
+    }
+
+    @Test
+    void aCancelledHoldOpensNothingUntilAKeyIsPressedAgain() {
         HoldTimer t = new HoldTimer();
         t.update(1, true, 0, HOLD);
         t.cancel();
         assertEquals(-1, t.progress(2000, DELAY, HOLD));
-        assertEquals(Event.NONE, t.update(1, true, 2000, HOLD));
-        assertEquals(Event.NONE, t.update(1, true, 5000, HOLD));
-        assertEquals(Event.NONE, t.update(-1, false, 5050, HOLD));
-        assertEquals(Event.STEP, t.update(1, true, 5100, HOLD), "the next press starts a hold of its own");
+        assertEquals(Event.NONE, t.update(-1, true, 2000, HOLD));
+        assertEquals(Event.NONE, t.update(-1, true, 5000, HOLD));
+        // Pressed again without ever looking let go: a fresh press, which starts a hold of its own.
+        assertEquals(Event.STEP, t.update(1, true, 5100, HOLD));
+        assertTrue(t.progress(5600, DELAY, HOLD) > 0);
         assertEquals(Event.OPEN, t.update(-1, true, 8100, HOLD));
     }
 
