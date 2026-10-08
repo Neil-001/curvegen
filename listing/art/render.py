@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Draws the listing artwork in listing/media, and the mod's icon, from the mod's own solver.
+"""Draws the listing artwork in listing/media, and the mod's icon, from the mod's own solvers.
 
     python3 listing/art/render.py
 
 Needs JDK 25 and Pillow. Compiles dev.curvegen.core with Dump.java, solves every shape through it, and paints the
-results the way PreviewTexture does. The banner's title goes through the solver too, as a stencil of the Righteous
+results the way PreviewTexture does. 3D shapes go through Solver3, and Dump draws them with Mesh3 and Raster3 as
+the menu's 3D preview does. The banner's title goes through the solver too, as a stencil of the Righteous
 typeface. The stone brick texture comes from the Minecraft client jar in the Gradle cache (run ./gradlew build once
 first), and the font is downloaded on first use.
 """
@@ -19,7 +20,7 @@ import tempfile
 import urllib.request
 import zipfile
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageChops, ImageDraw, ImageFont
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 ART = os.path.join(ROOT, "listing", "art")
@@ -34,6 +35,9 @@ AXIS, AXIS_ALPHA = (0x6E, 0xA0, 0xFF), 0xAA / 255
 CURVE = (0xFF, 0x4D, 0x73)
 TEXT = (0xDD, 0xE3, 0xEA)
 DIM = (0x8B, 0x95, 0xA5)
+STONE = "A9AAA6"
+# Editor's handle colours: face, edge, corner.
+FACE, EDGE, CORNER = (0xF2, 0xF2, 0xF2), (0x7F, 0xD4, 0xFF), (0xFF, 0xA6, 0x46)
 
 CELL = 16
 
@@ -43,7 +47,7 @@ CELL = 16
 def start_solver():
     classes = os.path.join(CACHE, "classes")
     os.makedirs(classes, exist_ok=True)
-    core = glob.glob(os.path.join(ROOT, "src/main/java/dev/curvegen/core/*.java"))
+    core = glob.glob(os.path.join(ROOT, "src/main/java/dev/curvegen/core/**/*.java"), recursive=True)
     tools = [os.path.join(ART, "Dump.java"), os.path.join(ART, "dev/curvegen/core/Stencil.java")]
     subprocess.run(["javac", "-nowarn", "-d", classes, *core, *tools], check=True,
                    stderr=subprocess.DEVNULL)
@@ -58,9 +62,24 @@ def solve(**settings):
     SOLVER.stdin.write(";".join(f"{k}={v}" for k, v in settings.items()) + "\n")
     SOLVER.stdin.flush()
     scene = json.loads(SOLVER.stdout.readline())
-    if scene["error"]:
+    if scene.get("error"):
         sys.exit(f"{settings}: {scene['error']}")
     return scene
+
+
+def solve3(w, h, **settings):
+    """Solves a 3D shape and draws it w × h pixels, as the menu's 3D preview does. Returns the picture and the solve."""
+    path = os.path.join(CACHE, "view.argb")
+    scene = solve(viewOut=path, viewW=w, viewH=h, viewBg="%02X%02X%02X" % BG, **settings)
+    with open(path, "rb") as f:
+        img = Image.frombuffer("RGBA", (w, h), f.read(), "raw", "ARGB", 0, 1).convert("RGB")
+    return img, scene
+
+
+def status3(scene):
+    """The line CurveScreen shows above the 3D preview."""
+    pct = scene["err"] / scene["volume"] * 100 if scene["volume"] > 0 else 0
+    return f"{scene['blocks']} blocks in {scene['nx']}×{scene['ny']}×{scene['nz']}, mismatch {scene['err']:.1f} blocks³ ({pct:.1f}%)"
 
 
 def status(scene):
@@ -280,6 +299,24 @@ def wordmark():
     return solve(stencil=path, trap="false", shelf="false", fence="false", pane="false")
 
 
+def banner_frame3(name, label, **settings):
+    """A banner frame with a 3D shape on the stage, drawn as the menu's 3D preview draws it."""
+    img = Image.new("RGB", (W, H), BG)
+    pieces(img, name, (COLS - name["nx"]) // 2 * CELL, CELL, color=TEXT)
+    grid(img)
+    view, scene = solve3(W, STAGE_ROWS * CELL, **settings)
+    img.paste(view, (0, STAGE_TOP * CELL), shape_mask(view))
+    d = ImageDraw.Draw(img)
+    write(d, (2 * CELL, H - CELL), label, 22, CURVE)
+    write(d, (W - 2 * CELL, H - CELL), status3(scene), 18, DIM, "r")
+    return img
+
+
+def shape_mask(view):
+    """Everything in a 3D picture but its background, so it can go over graph paper."""
+    return Image.eval(ImageChops.difference(view, Image.new("RGB", view.size, BG)).convert("L"), lambda v: 255 if v else 0)
+
+
 def banner_frame(name, scene, label, pts=None):
     img = Image.new("RGB", (W, H), BG)
     pieces(img, name, (COLS - name["nx"]) // 2 * CELL, CELL, color=TEXT)
@@ -328,9 +365,16 @@ def banner():
         pts = [(x0 + (x1 - x0) * u, y0 + (y1 - y0) * u) for (x0, y0), (x1, y1) in zip(a, b)]
         scene = solve(gen="BEZIER", bW=76, bH=17, pts=" ".join(f"{x},{y}" for x, y in pts))
         add(scene, "Bézier", n in (0, steps), pts)
+    flat = len(frames) - 1
+
+    # A torus, turned a quarter of the way round. It looks the same again after that.
+    turns = 18
+    for n in range(turns + 1):
+        frames.append(banner_frame3(name, "Torus, 25 × 9 × 25", gen="TORUS", viewYaw=-35 + 90 * n / turns, viewMargin=10))
+        times.append(1700 if n == turns else 80)
 
     # One palette for every frame, so colours don't shift as the shapes change.
-    keys = [still, still + len(amps), still + len(amps) + len(widths), len(frames) - 1]
+    keys = [still, still + len(amps), still + len(amps) + len(widths), flat, len(frames) - 1]
     sheet = Image.new("RGB", (W, H * len(keys)))
     for n, k in enumerate(keys):
         sheet.paste(frames[k], (0, H * n))
@@ -365,6 +409,54 @@ def shapes():
         paper(solve(gen="BEZIER", bW=30, bH=22, bMode="FILLED", pts=" ".join(f"{x},{y}" for x, y in pts)), 32, 24, pts=pts),
     ]
     save(side_by_side(cards, 16), "shapes.png")
+
+
+def stacked(rows, gap):
+    out = Image.new("RGBA", (max(r.width for r in rows), sum(r.height for r in rows) + gap * (len(rows) - 1)), (0, 0, 0, 0))
+    y = 0
+    for r in rows:
+        out.paste(r, ((out.width - r.width) // 2, y))
+        y += r.height + gap
+    return out
+
+
+def card3(label, w=512, h=384, **settings):
+    """A 3D shape in one colour, as the 3D preview's Stone colouring shows it, with its name underneath."""
+    img, _ = solve3(w, h, viewColour=STONE, **settings)
+    write(ImageDraw.Draw(img), (16, h - 20), label, 20, TEXT)
+    return img
+
+
+def shapes3d():
+    """One picture for each 3D tab, and a hollow ellipsoid cut open to show its wall."""
+    wave = dict(gen="EQUATION3", src3="z = sin(x) cos(y)", viewMargin=24)
+    tube = dict(gen="BEZIER3", b3T=3, viewMargin=24)
+    rows = [
+        [card3("Ellipsoid", gen="ELLIPSOID", e3W=25, e3H=19, e3D=25, viewMargin=28),
+         card3("Hollow, cut open", gen="ELLIPSOID", e3W=25, e3H=19, e3D=25, e3Mode="INWARDS", e3T=2, viewCut="true",
+               viewWires="false", viewMargin=28),
+         card3("Torus", gen="TORUS", viewMargin=28)],
+        [card3("3D equation: z = sin(x) cos(y)", **wave), card3("3D Bézier curve", **tube), card3("Bézier surface", gen="SURFACE", viewMargin=24)],
+    ]
+    save(stacked([side_by_side(r, 16) for r in rows], 16), "shapes3d.png")
+
+
+def editor():
+    """The in-world editor's box round an ellipsoid, with its 26 handles in the editor's colours."""
+    w, h = 1000, 520
+    img, _ = solve3(w, h, gen="ELLIPSOID", e3W=17, e3H=11, e3D=13, viewColour=STONE, viewWires="false", viewHandles="true",
+                    viewHandleSize=13, viewMargin=56)
+    out = Image.new("RGB", (w + 440, h), BG)
+    out.paste(img, (0, 0))
+    d = ImageDraw.Draw(out)
+    rows = [(FACE, "Face", "moves along one axis"), (EDGE, "Edge", "moves along two axes"),
+            (CORNER, "Corner", "moves along two, scroll for the third")]
+    for n, (colour, name, does) in enumerate(rows):
+        y = h // 2 + (n - 1) * 84
+        d.rectangle([w - 20, y - 22, w - 2, y - 4], fill=colour, outline=darken(BG, .6), width=2)
+        write(d, (w + 14, y - 13), name, 26, TEXT)
+        write(d, (w - 20, y + 20), does, 20, DIM)
+    save(rounded(out), "editor.png")
 
 
 def families():
@@ -417,6 +509,8 @@ if __name__ == "__main__":
     banner()
     compare()
     shapes()
+    shapes3d()
+    editor()
     families()
     divider()
     icon()

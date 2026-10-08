@@ -55,8 +55,8 @@ public class BlockPickerScreen extends Screen {
         setInitialFocus(search);
         addRenderableWidget(CycleButton.<Sort>builder(s -> Component.literal(s == Sort.NAME ? "Name" : "Closest colour"), sort)
                 .withValues(Sort.values())
-                .create(M + 186, 24, 140, 20, Component.literal("Sort"), (b, v) -> { sort = v; refilter(); }));
-        addRenderableWidget(Button.builder(Component.literal("Cancel"), b -> onClose()).bounds(width - M - 80, height - 26, 80, 20).build());
+                .create(M + 186, 24, 140, 20, Component.literal("Sort"), (_, v) -> { sort = v; refilter(); }));
+        addRenderableWidget(Button.builder(Component.literal("Cancel"), _ -> onClose()).bounds(width - M - 80, height - 26, 80, 20).build());
         refilter();
     }
 

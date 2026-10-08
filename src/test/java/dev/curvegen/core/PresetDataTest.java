@@ -107,11 +107,11 @@ class PresetDataTest {
         s.chain = s.rod = true;
         Map<String, String> saved = PresetData.captureBlocks(s, f -> "test:" + f.name().toLowerCase());
         ShapeSettings t = new ShapeSettings();
-        PresetData.applyBlocks(saved, t, (f, id) -> { });
+        PresetData.applyBlocks(saved, t, (_, _) -> { });
         assertTrue(t.chain && t.rod, "a preset saved with them on turns them on");
 
         for (String k : new String[]{"chain", "chainUsed", "rod", "rodUsed"}) saved.remove(k);
-        PresetData.applyBlocks(saved, t, (f, id) -> { });
+        PresetData.applyBlocks(saved, t, (_, _) -> { });
         assertFalse(t.chain || t.rod, "an older preset turns them off");
         assertTrue(t.shelf && t.wall);
     }
