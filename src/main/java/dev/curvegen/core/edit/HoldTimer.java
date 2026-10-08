@@ -10,8 +10,10 @@ public final class HoldTimer {
 
     private int key = -1;
     private long since;
-    /** Set when the hold was called off: the key is still down and still ignored, but no bar shows and no box opens. */
+    /** Set when the hold was called off: the key is still down, but no bar shows and no box opens. */
     private boolean cancelled;
+    /** A bit for each key that went down afresh since the last {@link #takePress}. */
+    private long fresh;
 
     /** The key being held, or -1. */
     public int key() { return key; }
@@ -19,21 +21,20 @@ public final class HoldTimer {
     public void reset() { key = -1; }
 
     /**
-     * Calls the hold off without forgetting the key, whose repeats must still be ignored until it comes up. Undo and
-     * redo do this, because the number box would otherwise replace a step that is no longer the last edit.
+     * Calls the hold off: no bar shows and no box opens until a key is pressed again. Undo and redo do this, because
+     * the number box would otherwise replace a step that is no longer the last edit.
      */
     public void cancel() { cancelled = true; }
 
     /**
-     * Call every tick. {@code pressed} is a key that went down since the last call, or -1, and {@code down} whether
-     * the key being held still is. STEP means {@code key()} should act once. OPEN means the number box should open
+     * Call every tick. {@code pressed} is a key that went down afresh since the last call, from {@link #takePress},
+     * or -1, and {@code down} whether the key being held still is. A held key's repeats aren't presses and mustn't be
+     * passed. Every press acts and starts a hold of its own, the held key's too: it was let go in between. STEP means {@code key()} should act once. OPEN means the number box should open
      * for the key this returned STEP for, which is then no longer held.
      */
     public Event update(int pressed, boolean down, long nowMillis, double holdSeconds) {
-        // A press of the key that was held is one of its repeats, even if the key has come up since.
-        int held = key;
         if (key >= 0 && !down) key = -1;
-        if (pressed >= 0 && pressed != held) {
+        if (pressed >= 0) {
             key = pressed;
             since = nowMillis;
             cancelled = false;
@@ -45,6 +46,24 @@ public final class HoldTimer {
 
     /** Call after acting on OPEN. */
     public void opened() { key = -1; }
+
+    /**
+     * A key went down afresh, not as one of a held key's repeats. Call this from the key event itself. The game also
+     * queues a "click" for every repeat, and nothing read later can tell those from presses: a key still down when
+     * the number box closes goes on repeating, and would act again.
+     */
+    public void press(int key) { fresh |= 1L << key; }
+
+    /**
+     * The key to pass to {@link #update} as pressed: one that went down since the last call, or -1. With several,
+     * any other than the key being held comes first.
+     */
+    public int takePress() {
+        int pressed = -1;
+        for (int k = 0; k < 64; k++) if ((fresh >> k & 1) != 0 && (pressed < 0 || pressed == key)) pressed = k;
+        fresh = 0;
+        return pressed;
+    }
 
     /** How full the progress bar is, from 0 to 1, or -1 while it doesn't show. */
     public double progress(long nowMillis, double barDelaySeconds, double holdSeconds) {

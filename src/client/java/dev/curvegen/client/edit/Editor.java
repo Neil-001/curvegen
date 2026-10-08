@@ -65,6 +65,8 @@ public final class Editor {
     /** How far a handle can be dragged from the player, and how far away the look ray can find the ground. */
     private static final double REACH = 256;
     private static final int UNDO_LIMIT = 100;
+    /** Above this many blocks the HUD warns that placing will take a long time. */
+    private static final int VERY_LARGE = 1_000_000;
 
     /** Everything undo puts back. */
     private record Snapshot(ShapeSettings settings, Box box, Orient orient, int[] follow, int[] pivot) {}
@@ -92,7 +94,9 @@ public final class Editor {
      * {@link #STARVED_MS} of that the next one runs to its end, so a long drag of a slow shape still shows blocks.
      */
     private static long droppingSince;
-    private static final long STARVED_MS = 400;
+    private static final long STARVED_MS = 400, SLOW_MS = 1000;
+    /** When the running solve started, and how long the last one to finish took. */
+    private static long jobStarted, lastSolveMillis;
     /** The settings of the running solve, and the settings and block choices the hologram was last built from. */
     private static ShapeSettings jobSettings, shown;
     private static Map<Pieces.Family, Block> shownChoices;
@@ -279,11 +283,22 @@ public final class Editor {
     }
 
     /** Whether the hologram was built from other shape settings or block choices than the ones set now. */
-    private static boolean stale() {
-        if (shown == null || !BlockChoices.CHOICE.equals(shownChoices)) return true;
+    private static boolean stale() { return !solvedFor(true); }
+
+    /**
+     * Whether the hologram's blocks, or with {@code shownOnly} unset the ones a running solve is about to give, are
+     * for the shape settings and block choices as they are now.
+     */
+    private static boolean solvedFor(boolean shownOnly) {
+        boolean running = !shownOnly && job != null && !jobCancelled.get();
+        ShapeSettings ref = running ? jobSettings : shown;
+        // A running solve's blocks get the choices as they are when it finishes, so only the ones on show can be out of date.
+        if (ref == null || !running && !BlockChoices.CHOICE.equals(shownChoices)) return false;
         ShapeSettings now = S.copy();
-        now.overwrite = shown.overwrite; now.carve = shown.carve;   // neither changes which blocks the shape has
-        return !now.same(shown);
+        now.overwrite = ref.overwrite;   // Replace doesn't change which blocks the shape has
+        // Nor does Carve, but a shape that only works out what to clear while it's on needs a solve when it comes on.
+        if (shownOnly || !shape.solveUsesCarve() || !S.carve) now.carve = ref.carve;
+        return now.same(ref);
     }
 
     // ---------- state ----------
@@ -360,7 +375,17 @@ public final class Editor {
             editGroup = group; editStep = before;
         }
         rebase = true;
+        reshape();
+        settle();
         adopt();
+    }
+
+    /** After an edit that can leave control points outside the box: grows it to hold them, where they are in the world. */
+    private static void settle() {
+        int[] shift = shape.settle();
+        if (shift == null) return;
+        Box grown = box.regrown(orient, shift, shape.size());
+        if (!grown.equals(box)) { box = grown; pivot = null; }
     }
 
     /** Moves the box and everything drawn relative to it. */
@@ -477,27 +502,43 @@ public final class Editor {
     public static void addPoint() {
         if (!locked || drag != null) return;
         if (shape.points().isEmpty()) { Placement.say(Component.literal("Only curves made of points can take another.")); return; }
-        edit(null, Editor::insertAtLook);
+        boolean alt = sneaking();
+        edit(null, () -> insertAtLook(alt));
     }
 
-    /** Where the player looks at the curve, or null when they aren't looking at it. */
+    /** Sneaking turns an edit of a surface's row into one of its column. */
+    private static boolean sneaking() { return Minecraft.getInstance().options.keyShift.isDown(); }
+    private static boolean grid() { return shape.pointColumns() > 0; }
+    private static String line(boolean alt) { return alt ? "column" : "row"; }
+    private static String full(boolean alt) { return grid() ? "The surface can't take another " + line(alt) + "." : "This curve can't take any more points."; }
+    private static String least(boolean alt) { return grid() ? "The surface needs the " + line(alt) + "s it has left." : "The shape needs the points it has left."; }
+    private static String lookHere() { return grid() ? "Look at the surface where you want the new points." : "Look at the curve where you want the new point."; }
+
+    /** Where the player looks at the curve or surface, in the shape's own axes, or null when they aren't looking at it. */
     private static double[] lookOnCurve() {
-        double[] segs = worldCurve();
-        double[] near = segs == null ? null : HandleMath.nearestOnSegments(eye, look, segs);
-        return near == null || near[3] > HandleMath.scaled(ModSettings.pickRadius * 2, near[4]) ? null : near;
+        double[] from = toOwn(eye), to = toOwn(new double[]{eye[0] + look[0], eye[1] + look[1], eye[2] + look[2]});
+        double[] near = shape.lookAt(from, new double[]{to[0] - from[0], to[1] - from[1], to[2] - from[2]});
+        if (near == null) {
+            double[] segs = worldCurve();
+            double[] world = segs == null ? null : HandleMath.nearestOnSegments(eye, look, segs);
+            if (world == null) return null;
+            double[] own = toOwn(world);
+            near = new double[]{own[0], own[1], own[2], world[3], world[4]};
+        }
+        return near[3] > HandleMath.scaled(ModSettings.pickRadius * 2, near[4]) ? null : near;
     }
 
-    private static void insertAtLook() {
+    private static void insertAtLook(boolean alt) {
         double[] near = lookOnCurve();
-        if (near == null) Placement.say(Component.literal("Look at the curve where you want the new point."));
-        else if (shape.insertPoint(toOwn(near)) < 0) Placement.say(Component.literal("This curve can't take any more points."));
+        if (near == null) Placement.say(Component.literal(lookHere()));
+        else if (shape.insertPoint(near, alt) < 0) Placement.say(Component.literal(full(alt)));
     }
 
     /** Removes the point the player looks at. */
     public static void removePoint() {
         if (!locked || drag != null) return;
         if (hover == null || !hover.isPoint()) { Placement.say(Component.literal("Look at a point to remove it.")); return; }
-        removePoint(hover.point);
+        removePoint(hover.point, sneaking());
     }
 
     /**
@@ -507,10 +548,11 @@ public final class Editor {
     public static List<Option> options() {
         if (!active) return List.of();
         List<Option> out = new ArrayList<>(shape.options());
-        if (!shape.points().isEmpty()) {
+        // A surface lists its rows and columns as numbers of its own.
+        if (!grid() && !shape.points().isEmpty()) {
             String unlocked = locked ? null : "Lock the shape first.";
             out.add(new Option.Action("Add point", unlocked != null ? unlocked
-                    : lookOnCurve() == null ? "Look at the curve where you want the new point, then open this menu." : null, Editor::insertAtLook));
+                    : lookOnCurve() == null ? "Look at the curve where you want the new point, then open this menu." : null, () -> insertAtLook(false)));
             Handle aimed = hover;
             out.add(new Option.Action("Remove point", unlocked != null ? unlocked
                     : aimed == null || !aimed.isPoint() ? "Look at the point to remove, then open this menu." : null, () -> {
@@ -533,9 +575,10 @@ public final class Editor {
         return null;
     }
 
-    private static void removePoint(int index) {
+    private static void removePoint(int index, boolean alt) {
         Snapshot before = snapshot();
-        if (!shape.removePoint(index)) { Placement.say(Component.literal("The shape needs the points it has left.")); return; }
+        if (!shape.removePoint(index, alt)) { Placement.say(Component.literal(least(alt))); return; }
+        settle();
         record(before);
         hover = null;
         dirty = true;
@@ -560,11 +603,12 @@ public final class Editor {
         if (drag != null) took = true;   // a stray click mid-drag shouldn't break a block
         else if (hover != null) {
             if (button == InputConstants.MOUSE_BUTTON_LEFT) { beginDrag(hover, button, false); took = true; }
-            else if (hover.isPoint() && button == InputConstants.MOUSE_BUTTON_RIGHT) { removePoint(hover.point); took = true; }
+            else if (hover.isPoint() && button == InputConstants.MOUSE_BUTTON_RIGHT) { removePoint(hover.point, sneaking()); took = true; }
             else if (hover.isPoint() && button == InputConstants.MOUSE_BUTTON_MIDDLE) {
                 Snapshot before = snapshot();
-                int copy = shape.duplicatePoint(hover.point);
-                if (copy < 0) Placement.say(Component.literal("This curve can't take any more points."));
+                boolean alt = sneaking();
+                int copy = shape.duplicatePoint(hover.point, alt);
+                if (copy < 0) Placement.say(Component.literal(full(alt)));
                 else {
                     record(before);
                     dirty = true;
@@ -721,7 +765,10 @@ public final class Editor {
             beforeScreen = null;
             S.fullConnects = BlockChoices.fullBlockConnects();
             before.settings.fullConnects = S.fullConnects;   // it follows the blocks, which undo doesn't put back
-            adopt();   // block choices aren't settings, and they may have changed too
+            boolean wasDirty = dirty;
+            adopt();
+            // A screen that changed nothing, such as chat, shouldn't cost a solve, which can take seconds for a large shape.
+            if (!wasDirty && solvedFor(false)) dirty = false;
             if (!S.same(before.settings)) record(before);
         }
         screenOpen = open;
@@ -746,6 +793,7 @@ public final class Editor {
             job = null; jobOrigin = null;
             if (result != null) {
                 solved = result;
+                lastSolveMillis = System.currentTimeMillis() - jobStarted;
                 shown = jobSettings;
                 droppingSince = 0;
                 // The solve may have settled a size the settings left open, such as an equation's locked height.
@@ -759,7 +807,8 @@ public final class Editor {
             // The shape has moved on from what's being solved. A slow solve is dropped, unless that has gone on too long.
             long now = System.currentTimeMillis();
             if (droppingSince == 0) droppingSince = now;
-            if (now - droppingSince < STARVED_MS) jobCancelled.set(true);
+            // A solve that takes seconds is always dropped: by the time it finished, its blocks would be long out of date.
+            if (lastSolveMillis > SLOW_MS || now - jobStarted > SLOW_MS || now - droppingSince < STARVED_MS) jobCancelled.set(true);
         }
         if (dirty && job == null) {
             dirty = false;
@@ -769,6 +818,7 @@ public final class Editor {
             Orient o = jobOrient = orient;
             jobOrigin = new int[]{box.x(), box.y(), box.z()};
             AtomicBoolean cancelled = jobCancelled = new AtomicBoolean();
+            jobStarted = System.currentTimeMillis();
             job = EXEC.submit(() -> solver.solve(copy, o, cancelled::get));
         }
 
@@ -875,12 +925,16 @@ public final class Editor {
             for (int k = 0; k + 5 < curve.length; k += 6)
                 solid.add(curve[k] - ox, curve[k + 1] - oy, curve[k + 2] - oz, curve[k + 3] - ox, curve[k + 4] - oy, curve[k + 5] - oz, CURVE);
         if (editing) {
-            // The control polygon: straight lines from each point to the next.
-            double[] prev = null;
-            for (int k = 0; k < handles.size() && handles.get(k).isPoint(); k++) {
+            // The control polygon: straight lines from each point to the next, and for a grid of points to the one in the next row too.
+            int points = 0, cols = shape.pointColumns();
+            while (points < handles.size() && handles.get(points).isPoint()) points++;
+            for (int k = 0; k < points; k++) {
                 double[] p = at.get(k);
-                if (prev != null) faint.add(prev[0] - ox, prev[1] - oy, prev[2] - oz, p[0] - ox, p[1] - oy, p[2] - oz, POLYGON);
-                prev = p;
+                for (int next : new int[]{cols > 0 && (k + 1) % cols == 0 ? -1 : k + 1, cols > 0 ? k + cols : -1}) {
+                    if (next < 0 || next >= points) continue;
+                    double[] q = at.get(next);
+                    faint.add(p[0] - ox, p[1] - oy, p[2] - oz, q[0] - ox, q[1] - oy, q[2] - oz, POLYGON);
+                }
             }
         }
         if (drag != null) grid(faint, ox, oy, oz);
@@ -956,6 +1010,9 @@ public final class Editor {
             if (dirty || job != null) what += "  Updating…";
             lines.add(Component.literal(what).withStyle(ChatFormatting.WHITE));
             if (!hologram.isDrawn()) lines.add(Component.literal("Large shape: only its outline is previewed.").withStyle(ChatFormatting.YELLOW));
+            if (hologram.size() > VERY_LARGE)
+                lines.add(Component.literal(String.format(java.util.Locale.ROOT, "%.1f million blocks. Placing this will take a long time.", hologram.size() / 1e6))
+                        .withStyle(ChatFormatting.YELLOW));
         }
         if (!Placement.canPlace(mc))
             lines.add(Component.literal("Placing needs operator permissions. You can still edit and export.").withStyle(ChatFormatting.RED));
@@ -972,9 +1029,15 @@ public final class Editor {
         if (locked) {
             hints.add("drag a handle to resize, sneak for both sides");
             if (!shape.points().isEmpty()) {
-                hints.add("drag a point, right-click removes it, middle-click copies it");
-                hints.add(key(CurveGenClient.ADD_POINT) + " add a point");
-                hints.add(key(CurveGenClient.REMOVE_POINT) + " remove a point");
+                if (grid()) {
+                    hints.add("drag a point, right-click removes its row, middle-click adds one, sneak for a column");
+                    hints.add(key(CurveGenClient.ADD_POINT) + " add a row where you look");
+                    hints.add(key(CurveGenClient.REMOVE_POINT) + " remove a row");
+                } else {
+                    hints.add("drag a point, right-click removes it, middle-click copies it");
+                    hints.add(key(CurveGenClient.ADD_POINT) + " add a point");
+                    hints.add(key(CurveGenClient.REMOVE_POINT) + " remove a point");
+                }
             }
         }
         StringBuilder line = new StringBuilder();

@@ -10,6 +10,14 @@ public final class Shapes3 {
     private static int size(int v) { return Math.max(1, Math.min(Shape3.MAX_SIZE, v)); }
 
     /**
+     * A size in blocks times the ratio of two ranges, as a size: what the same-scale lock gives an equation's other
+     * sides. Ranges can differ by any factor, so it's kept within the limits before it's made a whole number.
+     */
+    public static int scaled(int size, double range, double of) {
+        return (int) Math.max(1, Math.min(Shape3.MAX_SIZE, Math.round(size * range / of)));
+    }
+
+    /**
      * Signed distance to an axis-aligned ellipsoid with semi-axes a, b and c (negative inside). The nearest surface
      * point is e²y/(t + e²) on each axis, for the largest root t of Σ(e·y/(t + e²))² = 1. Newton's method reaches
      * it from the left without overshooting, because the sum is convex and falling there.
@@ -210,8 +218,8 @@ public final class Shapes3 {
                 Expr.Equation3 eq = Expr.parseEquation3(s.src3);
                 fn = eq.f(); rel = eq.rel();
                 if (s.q3Lock) {
-                    d = size((int) Math.round(w * (r[3] - r[2]) / (r[1] - r[0])));
-                    h = size((int) Math.round(w * (r[5] - r[4]) / (r[1] - r[0])));
+                    d = scaled(w, r[3] - r[2], r[1] - r[0]);
+                    h = scaled(w, r[5] - r[4], r[1] - r[0]);
                 }
             } catch (Expr.ParseException e) {
                 err = e.getMessage();

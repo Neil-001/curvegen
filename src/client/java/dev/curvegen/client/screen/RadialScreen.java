@@ -56,8 +56,8 @@ public class RadialScreen extends Screen {
     /** The 3D shapes in the plan. A null kind is a shape that hasn't been built yet. */
     private record Kind(String label, Gen gen) {}
     private static final List<Kind> KINDS_2D = List.of(new Kind("Ellipse", Gen.ELLIPSE), new Kind("Equation", Gen.EQUATION), new Kind("Bézier curve", Gen.BEZIER)),
-            KINDS_3D = List.of(new Kind("Ellipsoid", Gen.ELLIPSOID), new Kind("Torus", Gen.TORUS), new Kind("3D equation", null),
-                    new Kind("3D Bézier", null), new Kind("Surface", null));
+            KINDS_3D = List.of(new Kind("Ellipsoid", Gen.ELLIPSOID), new Kind("Torus", Gen.TORUS), new Kind("3D equation", Gen.EQUATION3),
+                    new Kind("3D Bézier", Gen.BEZIER3), new Kind("Surface", Gen.SURFACE));
 
     /** Whether the menu can put this kind of shape in the world. The full menu's Place follows it. */
     static boolean offers(Gen gen) {

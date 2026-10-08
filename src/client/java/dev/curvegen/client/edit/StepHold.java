@@ -1,13 +1,16 @@
 package dev.curvegen.client.edit;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import dev.curvegen.client.CurveGenClient;
 import dev.curvegen.client.CurveGenClient.StepKey;
 import dev.curvegen.client.ModSettings;
 import dev.curvegen.client.screen.InputScreen;
 import dev.curvegen.core.edit.HoldTimer;
 import java.util.List;
+import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.input.KeyEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Util;
 
@@ -29,13 +32,13 @@ public final class StepHold {
     /** Call every client tick, with or without a hologram. */
     public static void tick(Minecraft mc) {
         List<StepKey> keys = CurveGenClient.STEP_KEYS;
-        int pressed = -1;
         for (int k = 0; k < keys.size(); k++) {
             boolean clicked = false;
             while (keys.get(k).key().consumeClick()) clicked = true;
-            // A held key repeats, so another key's press counts before its own.
-            if (clicked && (pressed < 0 || pressed == TIMER.key())) pressed = k;
+            // A keyboard key's clicks include its repeats, so its presses come from keyEvent. A mouse button doesn't repeat.
+            if (clicked && !onKeyboard(keys.get(k).key())) TIMER.press(k);
         }
+        int pressed = TIMER.takePress();
         if (!Editor.isActive() || mc.gui.screen() != null) { TIMER.reset(); return; }
 
         int held = TIMER.key();
@@ -60,6 +63,20 @@ public final class StepHold {
             }
             default -> { }
         }
+    }
+
+    /**
+     * Every key event, with or without a screen open: each loader passes them on. {@code action} is 0 for a release,
+     * 1 for a press and 2 for a repeat. Only a press with no screen open counts, as the game's own key clicks do.
+     */
+    public static void keyEvent(KeyEvent event, int action) {
+        if (action != 1 || Minecraft.getInstance().gui.screen() != null) return;
+        List<StepKey> keys = CurveGenClient.STEP_KEYS;
+        for (int k = 0; k < keys.size(); k++) if (onKeyboard(keys.get(k).key()) && keys.get(k).key().matches(event)) TIMER.press(k);
+    }
+
+    private static boolean onKeyboard(KeyMapping mapping) {
+        return InputConstants.getKey(mapping.saveString()).getType() == InputConstants.Type.KEYBOARD;
     }
 
     /** Calls off the hold in progress. The key that is down does nothing more until it's pressed again. */
