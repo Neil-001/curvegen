@@ -17,6 +17,7 @@ Both jars target 26.3 only. Minecraft is unobfuscated, so use its own names with
 Both loaders compile the shared `src/main` and `src/client` code with their own entrypoints and metadata. Fabric also compiles `src/test`. Fabric splits common and client source sets with Loom's `splitEnvironmentSourceSets()`; NeoForge combines them in one jar. Common code must never touch client classes.
 
 - `dev/curvegen/core/` must have no Minecraft imports. `Pieces` defines the 16×16 states, masks, mirrors and sturdy faces; `Target` builds the shapes and carve regions; `Solver` selects pieces. `Expr` compiles Desmos-style equations to lambdas without `eval`; only `parseEquation3` knows z, so 2D equations parse as they always did. Run the solver on a worker thread with a `ShapeSettings.copy()`. `Silhouette` shares piece pixels and outlines between the preview and Count icons. Those classes are 2D. 3D shapes have their own: `Pieces3`, `Shape3`, `Shapes3`, `Bezier3` and `Solver3`, described under "Volumetric solver".
+- `core/Mesh3`, `Raster3` and `Count3` are the G menu's 3D preview and Count rows, and `core/edit/Orbit` its camera. See "G menu".
 - `dev/curvegen/core/edit/` is the in-world editor's maths, also free of Minecraft imports: `HandleMath` (ray to axis, ray to plane, picking), `Box` (the 26 box handles, drag and fit rules), `Orient` (which way a shape's own axes point), `Edit2D` and `Edit3D` (what handles and keys do to a 2D or 3D shape's `ShapeSettings`) and `Turned` (a `Shape3` with its own axes pointing another way). `Radial` (which wedge the cursor points at, where labels go, wedge ids and their order), `HoldTimer` (tap or hold for the move keys) and `Option` (one entry of "Shape options") are there too.
 - Only `fabric/src/` and `neoforge/src/` may import their loader's classes. Shared client code uses `ClientPlatform`; changes to that contract must go into both loaders. Each loader also passes in-world mouse buttons and scrolling to `Editor.mouseButton` and `Editor.mouseScroll` and cancels the event when they return true: NeoForge through `InputEvent`, Fabric through `MouseHandlerMixin`, because Fabric API has no such event.
 - `CurveGen.java` handles server placement through `net/PlaceBlocksPayload.java` and checks `Permissions.COMMANDS_GAMEMASTER`.
@@ -24,7 +25,7 @@ Both loaders compile the shared `src/main` and `src/client` code with their own 
 - `client/edit/` is the in-world editor. See "In-world editor" below.
 - `client/screen/RadialScreen` is the radial menu on V, `InputScreen` the number box and one-line text box, and `WedgeOrderScreen` the settings screen's wedge order. See "Radial menu" below.
 - `ModSettings` holds the mod's own options as static fields, loaded at client start and saved atomically to `config/curvegen/settings.json`. A missing, mistyped or out-of-range value gets its default.
-- `client/screen/CurveScreen` is the main UI; `PreviewTexture` draws the solved grid into a dynamic texture. `SettingsScreen` edits `ModSettings` and opens from the main UI's cogwheel, from Mod Menu on Fabric and from the mod list's Config button on NeoForge. Both extend `ControlScreen`, which has the shared controls.
+- `client/screen/CurveScreen` is the main UI, described under "G menu"; `PreviewTexture` draws a solved 2D grid into a dynamic texture and `Preview3` a solved 3D shape. `SettingsScreen` edits `ModSettings` and opens from the main UI's cogwheel, from Mod Menu on Fabric and from the mod list's Config button on NeoForge. Both extend `ControlScreen`, which has the shared controls.
 - Mod Menu is optional. Fabric compiles against it, and only `ModMenuIntegration`, which Mod Menu itself loads, may refer to it.
 - `listing/` holds the Modrinth and CurseForge descriptions, which must say the same thing, and their artwork. `listing/art/render.py` redraws the artwork from the solver.
 
@@ -112,7 +113,7 @@ Place in the G menu spawns one hologram, locked at the block the player looks at
 - Face handles move along one axis, edge handles in the plane across their edge, and corners in the axis-aligned plane facing the camera, with scrolling for the third axis. Sneak resizes about the centre. `Editor.mouseButton` returns true only for a click on a highlighted handle or during a drag.
 - Nudge and bump keys are `CurveGenClient.STEP_KEYS`, each with an action that takes a number of blocks. Hold-to-type calls that action with the typed amount.
 - Turning rounds when width and depth differ in parity, so `Editor` turns about a pivot kept from before the first turn (`Box.about`). Anything else that resizes the box clears it.
-- `Editor.export()` writes the hologram's blocks to a Litematica schematic as they stand in the world. The radial menu's Export uses it, and so does the G menu's for 3D shapes.
+- `Editor.export()` writes the hologram's blocks to a Litematica schematic as they stand in the world. The radial menu's Export uses it. The G menu's Export writes the shape it shows, unturned, whether or not a hologram is out.
 - Opening a screen mid-edit keeps the hologram. When it closes, `Editor` re-reads the settings and records one undo step if they changed. Changes `Editor` recorded itself while the screen was open, such as the radial menu's, don't count towards that step.
 - Anything outside the editor that changes the settings of a hologram calls `Editor.edit(group, change)`. It records the undo step, takes the shape and orientation the settings now call for and fits the box. Edits in a row with the same non-null `group` share one undo step, which is how scrolling a value several notches is one step.
 - `StepHold` runs hold-to-type for every key in `STEP_KEYS`: the press acts at once with 1, `Editor.renderHud` draws the progress bar after `barDelaySeconds`, and at `holdSeconds` the number box opens. The typed amount replaces the press's step through `Editor.lastStep` and `Editor.retract`, so the two are one undo step. Undo and redo call a hold in progress off. A held key repeats, so `InputScreen.ignoring` keeps the repeats out of the box.
@@ -133,7 +134,23 @@ Place in the G menu spawns one hologram, locked at the block the player looks at
 
 A 3D shape's box leaves out the room an outwards shell adds (`Shape3.pad()`), so its blocks and wireframe are offset by that much. A torus's handles and bump keys change only its box (`tW`, `tH`, `tD`): the ring and tube sizes describe the round ring that is stretched to fill it. `Edit3D.setRing` and `setTube` change those and scale the box with them.
 
-Until the G menu has 3D tabs, it opens on Blocks for a 3D shape and shows the shape's preset buttons and its colour face (`ShapeSettings.topColours`) where the 2D preview goes. `ColorIndex.of(Block)` follows that switch for 3D shapes and `floor` for 2D ones.
+`ColorIndex.of(Block)` follows the colour face (`ShapeSettings.topColours`) for 3D shapes and `floor` for 2D ones.
+
+### G menu
+
+`CurveScreen` has two sets of shape tabs, 2D and 3D, with a button to switch. `mode3d` always agrees with `ShapeSettings.is3d()`, and switching goes back to the shape that set was last on. Blocks and Count belong to both. Opened mid-edit, it shows the hologram's shape, and `Editor` takes up the changes when it closes.
+
+- The 3D shapes have two more tabs than fit beside the view options, so their Colour button and the colour face switch sit in a row under the picture (`py1()`).
+- A 3D tab's rows come from `rows3`, which closes them up on a short screen, and its fields from `whole`, `thickness` and `sizes3`. Those `bind` each field to the setting it shows: every frame an unfocused field takes the setting's value, and a field that doesn't apply is greyed out with its reason. That is how a dragged point, an equation's locked sizes and a torus's box reach their fields. Add a control the same way and set `dirty` when it changes the shape.
+- A torus's ring and tube fields scale its box, so each keystroke starts again from the sizes as they were before the field was clicked. Otherwise typing 25 would pass through 2 and lose the tube.
+- The 3D picture is drawn without the graphics card. `Mesh3` lists the faces of a solve that aren't against a neighbour filling the face they share, once per solve, on the worker thread. `Raster3` draws them into an array of pixels with a depth for each, lit by which way they face, and `Preview3` uploads that to a texture, only when the camera, shape or colours changed. `Orbit` is the camera. It has no perspective, so every face looking one way is the same parallelogram and a dragged point stays under the cursor. A hollow sphere 256 across is about 2 million faces: 80 ms to list and 17 ms to draw. `Preview3Timing` prints those.
+- The picture is in blocks from the lowest corner of the box the player set, without `Shape3.pad()`, so it doesn't jump when a thickness changes. `Preview3` shifts the mesh and the outline by their own padding. The outline (`Shape3.wireframe`) comes from the live settings, so it moves at once while the blocks catch up.
+- A solve of a superseded shape is cancelled, and after 400 ms of that the next one runs to its end, as in `Editor`.
+- Dragging empty space turns the picture, a right or middle drag slides it, scrolling zooms about the cursor and a double click fits it again. On the Bézier and Surface tabs a left drag on a point moves it in the plane through it that faces the camera (`Orbit.unproject` at the point's depth), kept inside the box and on half blocks with Snap on.
+- "Add point" on a 3D curve raises its degree and "Remove" lowers it, so the curve stays put. The × beside a point takes that one out. A surface has Rows and Columns instead.
+- `Count3` groups `Pieces3`'s states into the Count tab's rows for a 3D shape.
+- Place is greyed out for a 3D shape the radial menu doesn't offer (`RadialScreen.offers`).
+- `PresetsScreen` shows a 3D preset through `Preview3` too, and dragging that picture turns it.
 
 ### Radial menu
 
@@ -152,7 +169,7 @@ Until the G menu has 3D tabs, it opens on Blocks for a 3D shape and shows the sh
 - Size buttons with `tw(...)` and the fitting loops in `CurveScreen.init`. Nothing may overlap at 427 px wide, as in 1280×720 at GUI scale 3. New controls must take space from existing ones.
 - Use plain, sentence case UI copy without jargon.
 - Visual fixes must preserve other behaviour. Prove it, for example by comparing pixels across all pieces as in `SilhouetteTest`.
-- Test new core logic. Change `SolverRegressionTest`, `Solver3Test` and `Shapes3Test` reference numbers only on purpose.
+- Test new core logic. `OrbitTest` and `Preview3Test` cover the 3D preview's camera, picking, faces and drawing. Change `SolverRegressionTest`, `Solver3Test` and `Shapes3Test` reference numbers only on purpose.
 
 ## Placement and rendering
 
