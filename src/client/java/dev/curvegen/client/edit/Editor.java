@@ -863,26 +863,38 @@ public final class Editor {
          * still show. {@code cam} is the camera and {@code forward} the way it looks, and {@code spread} is how
          * wide half the line is one block in front of the camera, so the strip is as wide as a line on screen.
          */
+        /** Lines are cut off this close in front of the camera, just short of the game's own near plane. */
+        private static final double NEAR = 0.04;
+
         void submit(SubmitNodeCollector out, PoseStack ms, double[] cam, double[] forward, double spread) {
             if (n == 0) return;
             Hologram.submit(out, ms, RenderTypes.debugFilledBox(), true, (pose, vc) -> {
                 for (int k = 0; k < n; k++) {
                     int o = k * 6;
-                    double dx = xyz[o + 3] - xyz[o], dy = xyz[o + 4] - xyz[o + 1], dz = xyz[o + 5] - xyz[o + 2];
-                    double ax = cam[0] - xyz[o], ay = cam[1] - xyz[o + 1], az = cam[2] - xyz[o + 2];
+                    double x1 = xyz[o], y1 = xyz[o + 1], z1 = xyz[o + 2], x2 = xyz[o + 3], y2 = xyz[o + 4], z2 = xyz[o + 5];
+                    // How far in front of the camera each end is. The part behind it is cut off here: a strip that
+                    // crossed the camera's own plane would turn inside out there and smear across the screen.
+                    double near = (x1 - cam[0]) * forward[0] + (y1 - cam[1]) * forward[1] + (z1 - cam[2]) * forward[2];
+                    double far = (x2 - cam[0]) * forward[0] + (y2 - cam[1]) * forward[1] + (z2 - cam[2]) * forward[2];
+                    if (near < NEAR && far < NEAR) continue;
+                    if (near < NEAR) {
+                        double t = (NEAR - near) / (far - near);
+                        x1 += (x2 - x1) * t; y1 += (y2 - y1) * t; z1 += (z2 - z1) * t; near = NEAR;
+                    } else if (far < NEAR) {
+                        double t = (NEAR - far) / (near - far);
+                        x2 += (x1 - x2) * t; y2 += (y1 - y2) * t; z2 += (z1 - z2) * t; far = NEAR;
+                    }
+                    double dx = x2 - x1, dy = y2 - y1, dz = z2 - z1, ax = cam[0] - x1, ay = cam[1] - y1, az = cam[2] - z1;
                     // Across the line as the camera sees it. It's the same from either end.
                     double px = dy * az - dz * ay, py = dz * ax - dx * az, pz = dx * ay - dy * ax;
                     double len = Math.sqrt(px * px + py * py + pz * pz);
                     if (len < 1e-9) continue;   // no length, or seen end on
-                    // The width grows with the depth, and goes negative behind the camera, which keeps the part in view right.
-                    double near = -(ax * forward[0] + ay * forward[1] + az * forward[2]);
-                    double far = near + dx * forward[0] + dy * forward[1] + dz * forward[2];
-                    float a = (float) (near * spread / len), b = (float) (far * spread / len);
-                    float ux = (float) px, uy = (float) py, uz = (float) pz;
-                    vc.addVertex(pose, xyz[o] - ux * a, xyz[o + 1] - uy * a, xyz[o + 2] - uz * a).setColor(color[k]);
-                    vc.addVertex(pose, xyz[o] + ux * a, xyz[o + 1] + uy * a, xyz[o + 2] + uz * a).setColor(color[k]);
-                    vc.addVertex(pose, xyz[o + 3] + ux * b, xyz[o + 4] + uy * b, xyz[o + 5] + uz * b).setColor(color[k]);
-                    vc.addVertex(pose, xyz[o + 3] - ux * b, xyz[o + 4] - uy * b, xyz[o + 5] - uz * b).setColor(color[k]);
+                    // The width grows with the distance in front of the camera, which keeps it the same on screen.
+                    double a = near * spread / len, b = far * spread / len;
+                    vc.addVertex(pose, (float) (x1 - px * a), (float) (y1 - py * a), (float) (z1 - pz * a)).setColor(color[k]);
+                    vc.addVertex(pose, (float) (x1 + px * a), (float) (y1 + py * a), (float) (z1 + pz * a)).setColor(color[k]);
+                    vc.addVertex(pose, (float) (x2 + px * b), (float) (y2 + py * b), (float) (z2 + pz * b)).setColor(color[k]);
+                    vc.addVertex(pose, (float) (x2 - px * b), (float) (y2 - py * b), (float) (z2 - pz * b)).setColor(color[k]);
                 }
             });
         }
