@@ -167,9 +167,10 @@ public class RadialScreen extends Screen {
         return Radial.stretch(r[0], r[1]);
     }
 
-    /** The wedge under the cursor, measured from the whole pixel the ring and the labels are drawn around. */
+    /** The wedge under the cursor, measured from {@link Radial#centre}. */
     private int hovered(double mx, double my) {
-        return Radial.wedgeAt(mx - width / 2, my - height / 2, wedges.size(), Radial.RING_IN, stretch(), ModSettings.radialRound);
+        boolean round = ModSettings.radialRound;
+        return Radial.wedgeAt(mx - Radial.centre(width, round), my - Radial.centre(height, round), wedges.size(), Radial.RING_IN, stretch(), round);
     }
 
     /** Chooses a wedge. {@code released} says the menu's key coming up chose it, which closes the menu unless a submenu opened. */

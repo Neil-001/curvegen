@@ -45,6 +45,13 @@ public final class Radial {
         return Math.floorMod((int) Math.round(turn * n), n);
     }
 
+    /**
+     * Where along a screen {@code size} pixels wide or high the cursor is measured from. The ring and the labels are
+     * drawn around the whole pixel at {@code size / 2}, and the round ring picks from there. The stretched ring picks
+     * from the middle of the screen, as it always has, which is half a pixel further on a screen of odd size.
+     */
+    public static double centre(int size, boolean round) { return round ? size / 2 : size / 2.0; }
+
     /** Half the ring's width in pixels. It's always {@link #RING} high each way from its centre. */
     public static int ringHalf(double stretch, boolean round) { return round ? RING : (int) Math.ceil(RING * stretch); }
 

@@ -186,6 +186,19 @@ class RadialTest {
         }
     }
 
+    @Test
+    void theStretchedRingPicksFromTheMiddleOfTheScreenAsItDid() {
+        assertEquals(213.5, Radial.centre(427, false));
+        assertEquals(213, Radial.centre(427, true));
+        assertEquals(120, Radial.centre(240, false));
+        assertEquals(120, Radial.centre(240, true));
+        // A 427 by 240 screen with four wedges: these two cursors are where the half pixel shows.
+        int[] r = Radial.radii(427, 240);
+        double stretch = Radial.stretch(r[0], r[1]);
+        assertEquals(0, Radial.wedgeAt(247 - Radial.centre(427, false), 103 - Radial.centre(240, false), 4, Radial.RING_IN, stretch, false));
+        assertEquals(-1, Radial.wedgeAt(231 - Radial.centre(427, false), 120 - Radial.centre(240, false), 4, Radial.RING_IN, stretch, false));
+    }
+
     /** The round ring's slices are uneven on a stretched menu, which is what the stretched ring is for. */
     @Test
     void onlyTheRoundRingsSlicesAreUneven() {
