@@ -32,14 +32,13 @@ public final class StepHold {
     /** Call every client tick, with or without a hologram. */
     public static void tick(Minecraft mc) {
         List<StepKey> keys = CurveGenClient.STEP_KEYS;
-        int pressed = -1;
-        TIMER.release(k -> k < keys.size() && physicallyDown(keys.get(k).key()));
         for (int k = 0; k < keys.size(); k++) {
             boolean clicked = false;
-            while (keys.get(k).key().consumeClick()) clicked = !TIMER.spent(k);   // a key that opened the box and is still down only repeats
-            // A held key repeats, so another key's press counts before its own.
-            if (clicked && (pressed < 0 || pressed == TIMER.key())) pressed = k;
+            while (keys.get(k).key().consumeClick()) clicked = true;
+            // A keyboard key's clicks include its repeats, so its presses come from keyEvent. A mouse button doesn't repeat.
+            if (clicked && !onKeyboard(keys.get(k).key())) TIMER.press(k);
         }
+        int pressed = TIMER.takePress();
         if (!Editor.isActive() || mc.gui.screen() != null) { TIMER.reset(); return; }
 
         int held = TIMER.key();
@@ -68,19 +67,16 @@ public final class StepHold {
 
     /**
      * Every key event, with or without a screen open: each loader passes them on. {@code action} is 0 for a release,
-     * 1 for a press and 2 for a repeat. A release or a fresh press of a key that opened the number box ends its
-     * being spent, and only repeats leave it so.
+     * 1 for a press and 2 for a repeat. Only a press with no screen open counts, as the game's own key clicks do.
      */
     public static void keyEvent(KeyEvent event, int action) {
-        if (action != 0 && action != 1) return;
+        if (action != 1 || Minecraft.getInstance().gui.screen() != null) return;
         List<StepKey> keys = CurveGenClient.STEP_KEYS;
-        for (int k = 0; k < keys.size(); k++) if (keys.get(k).key().matches(event)) TIMER.released(k);
+        for (int k = 0; k < keys.size(); k++) if (onKeyboard(keys.get(k).key()) && keys.get(k).key().matches(event)) TIMER.press(k);
     }
 
-    /** Whether the key itself is down, whatever screen is open. A mouse button doesn't repeat, so it counts as up. */
-    private static boolean physicallyDown(KeyMapping mapping) {
-        InputConstants.Key key = InputConstants.getKey(mapping.saveString());
-        return key.getType() == InputConstants.Type.KEYBOARD && InputConstants.isKeyDown(key.getValue());
+    private static boolean onKeyboard(KeyMapping mapping) {
+        return InputConstants.getKey(mapping.saveString()).getType() == InputConstants.Type.KEYBOARD;
     }
 
     /** Calls off the hold in progress. The key that is down does nothing more until it's pressed again. */

@@ -12,8 +12,8 @@ public final class HoldTimer {
     private long since;
     /** Set when the hold was called off: the key is still down and still ignored, but no bar shows and no box opens. */
     private boolean cancelled;
-    /** A bit for each key that opened the number box and hasn't been seen up since. */
-    private long spent;
+    /** A bit for each key that went down afresh since the last {@link #takePress}. */
+    private long fresh;
 
     /** The key being held, or -1. */
     public int key() { return key; }
@@ -45,29 +45,26 @@ public final class HoldTimer {
         return Event.NONE;
     }
 
-    /** Call after acting on OPEN. The key is probably still down, and stays {@link #spent} until it's let go. */
-    public void opened() { spent |= 1L << key; key = -1; }
+    /** Call after acting on OPEN. */
+    public void opened() { key = -1; }
 
     /**
-     * A spent key came up, or went down afresh, which means it came up first. Call this from the key events
-     * themselves: a key let go and pressed again between two ticks looks held to anything that only checks now and then.
+     * A key went down afresh, not as one of a held key's repeats. Call this from the key event itself. The game also
+     * queues a "click" for every repeat, and nothing read later can tell those from presses: a key still down when
+     * the number box closes goes on repeating, and would act again.
      */
-    public void released(int key) { spent &= ~(1L << key); }
+    public void press(int key) { fresh |= 1L << key; }
 
     /**
-     * Forgets every spent key that is up, for a release no event told of, such as one while the window had lost
-     * focus. {@code down} says whether a key is physically down now, which the game's own "is this key pressed"
-     * doesn't while a screen is open.
+     * The key to pass to {@link #update} as pressed: one that went down since the last call, or -1. With several,
+     * any other than the key being held comes first.
      */
-    public void release(java.util.function.IntPredicate down) {
-        for (int k = 0; k < 64; k++) if ((spent >> k & 1) != 0 && !down.test(k)) spent &= ~(1L << k);
+    public int takePress() {
+        int pressed = -1;
+        for (int k = 0; k < 64; k++) if ((fresh >> k & 1) != 0 && (pressed < 0 || pressed == key)) pressed = k;
+        fresh = 0;
+        return pressed;
     }
-
-    /**
-     * Whether a key opened the number box and has been down ever since. The game goes on repeating it once the box
-     * closes, and those presses aren't new ones.
-     */
-    public boolean spent(int key) { return (spent >> key & 1) != 0; }
 
     /** How full the progress bar is, from 0 to 1, or -1 while it doesn't show. */
     public double progress(long nowMillis, double barDelaySeconds, double holdSeconds) {

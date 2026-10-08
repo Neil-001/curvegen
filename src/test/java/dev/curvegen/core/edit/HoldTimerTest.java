@@ -104,50 +104,41 @@ class HoldTimerTest {
     }
 
     @Test
-    void aKeyThatOpenedTheBoxIsSpentUntilItComesUp() {
+    void onlyAFreshPressCounts() {
         HoldTimer t = new HoldTimer();
-        assertFalse(t.spent(3));
-        assertEquals(Event.STEP, t.update(3, true, 0, 3));
-        assertEquals(Event.OPEN, t.update(-1, true, 3000, 3));
+        assertEquals(-1, t.takePress());
+        t.press(3);
+        assertEquals(3, t.takePress());
+        assertEquals(-1, t.takePress(), "taken once");
+    }
+
+    @Test
+    void aKeyHeldThroughTheNumberBoxDoesNothingMoreUntilItIsPressedAgain() {
+        HoldTimer t = new HoldTimer();
+        t.press(3);
+        assertEquals(Event.STEP, t.update(t.takePress(), true, 0, 3));
+        assertEquals(Event.OPEN, t.update(t.takePress(), true, 3000, 3));
         t.opened();
         t.reset();   // the box is a screen, which resets the timer every tick
-        t.release(k -> true);
-        assertTrue(t.spent(3), "still down when the box closes: its repeats aren't presses");
-        assertFalse(t.spent(4));
-        t.release(k -> false);
-        assertFalse(t.spent(3), "let go");
-        t.release(k -> true);
-        assertFalse(t.spent(3), "and pressed again, which counts");
+        // The box closes with the key still down. It repeats, and is let go before the next tick: neither is a press.
+        assertEquals(Event.NONE, t.update(t.takePress(), false, 4000, 3));
+        assertEquals(Event.NONE, t.update(t.takePress(), false, 4050, 3));
+        // Let go and pressed again, even within one tick, is.
+        t.press(3);
+        assertEquals(Event.STEP, t.update(t.takePress(), true, 4100, 3));
     }
 
     @Test
-    void aFreshPressEndsAKeysBeingSpentEvenIfItNeverLookedUp() {
+    void anotherKeysPressComesBeforeTheHeldKeysOwn() {
         HoldTimer t = new HoldTimer();
-        t.update(3, true, 0, 3);
-        t.update(-1, true, 3000, 3);
-        t.opened();
-        t.release(k -> true);
-        assertTrue(t.spent(3));
-        t.released(3);   // the release and the new press both arrived before anything looked again
-        t.release(k -> true);
-        assertFalse(t.spent(3));
-        assertEquals(Event.STEP, t.update(3, true, 5000, 3));
-    }
-
-    @Test
-    void twoKeysCanBeSpentAtOnce() {
-        HoldTimer t = new HoldTimer();
-        t.update(3, true, 0, 3);
-        t.update(-1, true, 3000, 3);
-        t.opened();
-        t.release(k -> true);
-        assertEquals(Event.STEP, t.update(5, true, 4000, 3));
-        assertEquals(Event.OPEN, t.update(-1, true, 7000, 3));
-        t.opened();
-        t.release(k -> true);
-        assertTrue(t.spent(3) && t.spent(5));
-        t.release(k -> k == 3);
-        assertTrue(t.spent(3));
-        assertFalse(t.spent(5));
+        t.press(5);
+        assertEquals(Event.STEP, t.update(t.takePress(), true, 0, 3));
+        t.press(5);
+        t.press(2);
+        assertEquals(Event.STEP, t.update(t.takePress(), true, 100, 3));
+        assertEquals(2, t.key());
+        t.press(2);
+        t.press(5);
+        assertEquals(5, t.takePress(), "2 is the key held now");
     }
 }
