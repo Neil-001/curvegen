@@ -1,14 +1,18 @@
 package dev.curvegen.client.screen;
 
 import com.mojang.blaze3d.platform.InputConstants;
+import dev.curvegen.core.edit.Stepper;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.DoubleSupplier;
 import java.util.function.Function;
+import java.util.function.IntConsumer;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.AbstractButton;
 import net.minecraft.client.gui.components.AbstractWidget;
@@ -40,6 +44,12 @@ abstract class ControlScreen extends Screen {
 
     private record Spinner(Arrow up, Arrow down, DoubleSupplier value, double min, double max, BooleanSupplier enabled) {}
     private final List<Spinner> spinners = new ArrayList<>();
+
+    /** A field the mouse wheel changes while the cursor is between x0 and x1 of its row: {@code turn} gets 1 for up, -1 for down. */
+    private record Wheel(EditBox field, int x0, int x1, IntConsumer turn, BooleanSupplier enabled) {}
+    private final List<Wheel> wheels = new ArrayList<>();
+    /** Fields the wheel only changes while they have the keyboard, because the wheel over them means something else. */
+    private final Set<EditBox> focusOnly = new HashSet<>();
 
     /** A small up or down arrow. Drawn by hand so it stays crisp at 8 pixels, and greyed out when it can't go further. */
     private static final class Arrow extends AbstractButton {
@@ -74,6 +84,7 @@ abstract class ControlScreen extends Screen {
     /**
      * A number field of total width w whose right edge holds up/down arrows (taken from the field, not added to it).
      * The arrows step the value within [min, max] and grey out at the ends or when the field doesn't apply.
+     * Scrolling over the field or its arrows does the same, a step to a notch.
      */
     protected EditBox spin(int x, int y, int w, int h, String value, Consumer<String> onChange,
                            DoubleSupplier current, double step, double min, double max, BooleanSupplier enabled, boolean integer) {
@@ -96,12 +107,46 @@ abstract class ControlScreen extends Screen {
         Spinner sp = new Spinner(up, down, current, min, max, enabled);
         spinners.add(sp);
         refresh(sp);
+        wheels.add(new Wheel(f, f.getX(), ax + ARROW_SLOT - 1, dir -> nudge(f, current, dir * step, min, max, integer), enabled));
+    }
+
+    /** Has the wheel change a field without arrows: {@code turn} gets 1 for a notch up and -1 for a notch down. */
+    protected void wheel(EditBox f, IntConsumer turn, BooleanSupplier enabled) {
+        wheels.add(new Wheel(f, f.getX(), f.getX() + f.getWidth(), turn, enabled));
+    }
+
+    /**
+     * For a field in a list that scrolls: the wheel changes it only once it has been clicked into, and scrolls the
+     * list otherwise. The screen has to ask {@link #wheelTurned} before it scrolls the list.
+     */
+    protected void wheelNeedsFocus(EditBox f) { focusOnly.add(f); }
+
+    /** Writes a number into a field, whose own listener then applies it. */
+    protected static void write(EditBox f, double v, boolean integer) {
+        f.setValue(integer ? String.valueOf(Math.round(v)) : coord(v));
+    }
+
+    /** Steps the field under the cursor, if the wheel changes one there. A screen with its own use for the wheel asks this first. */
+    protected boolean wheelTurned(double mx, double my, double v) {
+        if (v == 0) return false;
+        for (Wheel w : wheels) {
+            EditBox f = w.field;
+            if (!f.visible || mx < w.x0 || mx >= w.x1 || my < f.getY() || my >= f.getY() + f.getHeight()) continue;
+            if (!w.enabled.getAsBoolean() || focusOnly.contains(f) && !f.isFocused()) return false;
+            w.turn.accept(v > 0 ? 1 : -1);
+            return true;
+        }
+        return false;
+    }
+
+    @Override
+    public boolean mouseScrolled(double mx, double my, double h, double v) {
+        return wheelTurned(mx, my, v) || super.mouseScrolled(mx, my, h, v);
     }
 
     /** Steps the value and writes it into the field, whose own listener then applies it (clamped to the limits). */
     private void nudge(EditBox f, DoubleSupplier current, double step, double min, double max, boolean integer) {
-        double v = Math.max(min, Math.min(max, current.getAsDouble() + step));
-        f.setValue(integer ? String.valueOf(Math.round(v)) : coord(v));
+        write(f, Stepper.step(current.getAsDouble(), step, min, max), integer);
     }
 
     private static void refresh(Spinner sp) {
@@ -134,6 +179,8 @@ abstract class ControlScreen extends Screen {
         super.clearWidgets();
         reverse.clear();
         spinners.clear();
+        wheels.clear();
+        focusOnly.clear();
     }
 
     @Override

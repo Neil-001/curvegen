@@ -170,6 +170,7 @@ A 3D shape's box leaves out the room an outwards shell adds (`Shape3.pad()`), so
 
 - Grey out inapplicable controls with a tooltip explaining why. Don't hide them.
 - Use `ControlScreen`'s `cycler(...)` or `toggle(...)` for options so right-click steps backwards, and `spin(...)` for numbers.
+- The mouse wheel steps a `spin(...)` field while the cursor is over it or its arrows, a notch to an arrow click, and leaves a greyed-out one alone. `ControlScreen.wheelTurned` does it, and a screen with its own use for the wheel asks it first, as `CurveScreen.mouseScrolled` does before it zooms or scrolls a list. A field without arrows gets the wheel from `wheel(...)`. A field in a list that scrolls is marked with `wheelNeedsFocus`: the wheel changes it only after the player has clicked into it, and scrolls the list otherwise. The 3D point lists' fields step by a block, or to the next half block with Snap on. `core/edit/Stepper` has the sums.
 - Size buttons with `tw(...)` and the fitting loops in `CurveScreen.init`. Nothing may overlap at 427 px wide, as in 1280×720 at GUI scale 3. New controls must take space from existing ones.
 - Use plain, sentence case UI copy without jargon.
 - Visual fixes must preserve other behaviour. Prove it, for example by comparing pixels across all pieces as in `SilhouetteTest`.
