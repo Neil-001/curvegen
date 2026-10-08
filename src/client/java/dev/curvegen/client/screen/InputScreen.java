@@ -29,7 +29,7 @@ public class InputScreen extends Screen {
     private KeyMapping held;
 
     private static final int H = 58;
-    private static final String HINT = "Enter applies it, Escape cancels.";
+    private static final String HINT = "Enter to apply, Escape to cancel.";
 
     private InputScreen(String title, String initial, int wantW, boolean number, UnaryOperator<String> check, Consumer<String> onConfirm) {
         super(Component.literal(title));
@@ -58,7 +58,7 @@ public class InputScreen extends Screen {
         try {
             double v = Double.parseDouble(text.trim().replace(',', '.'));
             return Double.isFinite(v) && v >= min && v <= max && (!whole || v == Math.rint(v)) ? v : null;
-        } catch (NumberFormatException e) {
+        } catch (NumberFormatException _) {
             return null;
         }
     }

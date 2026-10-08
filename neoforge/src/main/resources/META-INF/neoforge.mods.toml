@@ -12,6 +12,9 @@ iconFile = "assets/curvegen/icon.png"
 authors = "Neil C."
 description = '''Turn ellipses, equations, Bézier curves and 3D shapes into full blocks, slabs, stairs, trapdoors, fences, glass panes and walls. Edit them as a hologram in the world, then place them or export them to Litematica.'''
 
+[[mixins]]
+config = "curvegen.neoforge.mixins.json"
+
 [[dependencies.curvegen]]
 modId = "neoforge"
 type = "required"

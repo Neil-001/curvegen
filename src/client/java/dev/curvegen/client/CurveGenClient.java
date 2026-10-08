@@ -79,12 +79,13 @@ public final class CurveGenClient {
     /** Call at the end of every client tick. */
     public static void tick(Minecraft mc) {
         while (OPEN.consumeClick()) mc.gui.setScreen(new CurveScreen());
-        // Z takes back an edit while there's a hologram, and the last placement otherwise.
+        // Z takes back an edit while there's a hologram, and the last placement otherwise. Y puts either back.
         while (UNDO.consumeClick()) { if (Editor.isActive()) Editor.undo(); else Placement.undo(); }
+        while (REDO.consumeClick()) { if (Editor.isActive()) Editor.redo(); else Placement.redo(); }
         while (RADIAL.consumeClick()) if (mc.gui.screen() == null && mc.player != null) mc.gui.setScreen(new RadialScreen());
         StepHold.tick(mc);
         for (KeyMapping k : KEYS) {
-            if (k == OPEN || k == UNDO || k == RADIAL) continue;
+            if (k == OPEN || k == UNDO || k == REDO || k == RADIAL) continue;
             while (k.consumeClick()) if (Editor.isActive()) press(k);   // otherwise drained, so it doesn't fire when a hologram appears
         }
         Placement.tick(mc);
@@ -97,7 +98,6 @@ public final class CurveGenClient {
         else if (k == LOCK) Editor.toggleLock();
         else if (k == ROTATE) Editor.rotate();
         else if (k == TIP) Editor.tip();
-        else if (k == REDO) Editor.redo();
         else if (k == REPLACE) Editor.toggleReplace();
         else if (k == CARVE) Editor.toggleCarve();
         else if (k == ADD_POINT) Editor.addPoint();

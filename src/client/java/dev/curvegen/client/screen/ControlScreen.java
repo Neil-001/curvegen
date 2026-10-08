@@ -115,7 +115,7 @@ abstract class ControlScreen extends Screen {
     protected <T> CycleButton<T> cycler(List<T> values, T initial, Function<T, Component> names,
                                         int x, int y, int w, String label, Consumer<T> onChange) {
         CycleButton<T> b = CycleButton.builder(names, initial).withValues(values)
-                .create(x, y, w, 20, Component.literal(label), (btn, v) -> onChange.accept(v));
+                .create(x, y, w, 20, Component.literal(label), (_, v) -> onChange.accept(v));
         reverse.put(b, () -> {
             T prev = values.get((values.indexOf(b.getValue()) - 1 + values.size()) % values.size());
             b.setValue(prev);

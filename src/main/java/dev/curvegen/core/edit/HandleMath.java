@@ -88,6 +88,12 @@ public final class HandleMath {
         return best;
     }
 
+    /** How much of its opacity a handle keeps while another one is dragged. */
+    public static final double DIMMED = 0.3;
+
+    /** A handle's ARGB colour while another handle is dragged: the same colour, fainter. */
+    public static int dimmed(int argb) { return (int) Math.round((argb >>> 24) * DIMMED) << 24 | argb & 0xFFFFFF; }
+
     /**
      * The point on a set of line segments {x1,y1,z1,x2,y2,z2,...} that the ray passes closest to.
      * Returns {x, y, z, distance from the ray, distance along the ray, segment index}, or null without segments.

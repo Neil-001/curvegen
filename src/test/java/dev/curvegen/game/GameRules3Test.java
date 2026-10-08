@@ -48,21 +48,20 @@ class GameRules3Test {
         SharedConstants.tryDetectVersion();
         Bootstrap.bootStrap();
         // Tags come from data packs, which aren't loaded here. Walls and fences find each other by tag.
-        tag(Blocks.COBBLESTONE_WALL, BlockTags.WALLS);
-        tag(Blocks.OAK_FENCE, BlockTags.FENCES, BlockTags.WOODEN_FENCES);
-        tag(Blocks.OAK_LEAVES, BlockTags.LEAVES);
+        tag(Blocks.COBBLESTONE_WALL, List.of(BlockTags.WALLS));
+        tag(Blocks.OAK_FENCE, List.of(BlockTags.FENCES, BlockTags.WOODEN_FENCES));
+        tag(Blocks.OAK_LEAVES, List.of(BlockTags.LEAVES));
         BlockChoices.CHOICE.putAll(Map.of(Pieces.Family.SLAB, Blocks.STONE_SLAB, Pieces.Family.STAIRS, Blocks.STONE_STAIRS,
                 Pieces.Family.TRAPDOOR, Blocks.OAK_TRAPDOOR, Pieces.Family.SHELF, Blocks.OAK_SHELF, Pieces.Family.FENCE, Blocks.OAK_FENCE,
                 Pieces.Family.PANE, Blocks.GLASS_PANE, Pieces.Family.WALL, Blocks.COBBLESTONE_WALL, Pieces.Family.CHAIN, Blocks.IRON_CHAIN,
                 Pieces.Family.ROD, Blocks.END_ROD));
     }
 
-    @SafeVarargs
     @SuppressWarnings("deprecation")
-    private static void tag(Block b, TagKey<Block>... tags) throws ReflectiveOperationException {
+    private static void tag(Block b, List<TagKey<Block>> tags) throws ReflectiveOperationException {
         Method bind = Holder.Reference.class.getDeclaredMethod("bindTags", Collection.class);
         bind.setAccessible(true);
-        bind.invoke(b.builtInRegistryHolder(), List.of(tags));
+        bind.invoke(b.builtInRegistryHolder(), tags);
     }
 
     /** The block state for a piece state, from the client's own mapping with these blocks chosen. */
@@ -116,7 +115,7 @@ class GameRules3Test {
     }
 
     private static final ScheduledTickAccess NO_TICKS = (ScheduledTickAccess) Proxy.newProxyInstance(ScheduledTickAccess.class.getClassLoader(),
-            new Class<?>[]{ScheduledTickAccess.class}, (proxy, method, args) -> { throw new UnsupportedOperationException(method.toString()); });
+            new Class<?>[]{ScheduledTickAccess.class}, (_, method, _) -> { throw new UnsupportedOperationException(method.toString()); });
 
     /** The state after the game has told the block about each of its six neighbours. */
     private static BlockState updated(LevelReader level, BlockPos pos) {

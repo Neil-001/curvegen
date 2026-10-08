@@ -20,7 +20,7 @@
   "key.curvegen.add_point": "Add a point to the curve",
   "key.curvegen.remove_point": "Remove a point from the curve",
   "key.curvegen.undo": "Undo last edit or placement",
-  "key.curvegen.redo": "Redo last edit",
+  "key.curvegen.redo": "Redo last edit or placement",
   "key.curvegen.replace": "Turn Replace on or off",
   "key.curvegen.carve": "Turn Carve on or off"
 }

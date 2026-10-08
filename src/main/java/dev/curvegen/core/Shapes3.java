@@ -760,8 +760,10 @@ public final class Shapes3 {
         private volatile Built built;
         private volatile List<double[]> wires;
 
-        /** The samples: nu + 1 along a row by nv + 1 across, each 18 numbers: the point, then its slopes and bends per sample step. */
-        /** {@code coarse} holds the samples {@code near} knows, by their place in {@code at}; {@code apart} is how far a point of the patch can be from the nearest of them. */
+        /**
+         * The samples in {@code at}: nu + 1 along a row by nv + 1 across, each 18 numbers: the point, then its slopes and bends per sample step.
+         * {@code coarse} holds the samples {@code near} knows, by their place in {@code at}; {@code apart} is how far a point of the patch can be from the nearest of them.
+         */
         private record Built(int nu, int nv, double[] at, int[] coarse, Near3 near, double span, double apart, double acrossU, double acrossV) {
             double d2(int k, double x, double y, double z) {
                 double ex = at[k * 18] - x, ey = at[k * 18 + 1] - y, ez = at[k * 18 + 2] - z;

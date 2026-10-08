@@ -66,8 +66,6 @@ public class RadialScreen extends Screen {
         return false;
     }
 
-    private static final int RING_OUT = Radial.RING, RING_IN = 9;
-
     private Page page = Page.ROOT;
     /** True once the menu no longer closes when its key comes up: from the start with "Press", or after a submenu opened. */
     private boolean latched = ModSettings.radialToggle;
@@ -155,7 +153,7 @@ public class RadialScreen extends Screen {
             off = "From above, " + name.toLowerCase(Locale.ROOT) + " look like full blocks, so flat builds don't use them.";
         boolean full = f == Family.FULL;
         return new Wedge(name, full ? "Always on" : S.allows(f) ? "ON" : "OFF", off, block.getName().getString(),
-                new ItemStack(block), full ? null : d -> Editor.edit(new Group(this, name), () -> S.allow(f, !S.allows(f))), Stay.NEVER,
+                new ItemStack(block), full ? null : _ -> Editor.edit(new Group(this, name), () -> S.allow(f, !S.allows(f))), Stay.NEVER,
                 () -> minecraft.gui.setScreen(new BlockPickerScreen(null, f, chosen -> {
                     BlockChoices.CHOICE.put(f, chosen);
                     S.fullConnects = BlockChoices.fullBlockConnects();
@@ -169,7 +167,8 @@ public class RadialScreen extends Screen {
         return Radial.stretch(r[0], r[1]);
     }
 
-    private int hovered(double mx, double my) { return Radial.wedgeAt(mx - width / 2.0, my - height / 2.0, wedges.size(), RING_IN, stretch()); }
+    /** The wedge under the cursor, measured from the whole pixel the ring and the labels are drawn around. */
+    private int hovered(double mx, double my) { return Radial.wedgeAt(mx - width / 2, my - height / 2, wedges.size(), Radial.RING_IN, stretch()); }
 
     /** Chooses a wedge. {@code released} says the menu's key coming up chose it, which closes the menu unless a submenu opened. */
     private void choose(int index, boolean released) {
@@ -252,28 +251,10 @@ public class RadialScreen extends Screen {
 
     // ---------- drawing ----------
 
-    /**
-     * Which wedge each pixel of the ring belongs to, or -1, for a ring of n wedges that is {@code half} pixels from
-     * its centre to its side. Row by row from the top left.
-     */
-    private static byte[] ring(int n, int half, double stretch) {
-        byte[] out = new byte[2 * half * 2 * RING_OUT];
-        for (int j = 0; j < 2 * RING_OUT; j++)
-            for (int i = 0; i < 2 * half; i++) {
-                double dx = i + 0.5 - half, dy = j + 0.5 - RING_OUT, u = dx / stretch, r = Math.hypot(u, dy);
-                byte w = -1;
-                if (r >= RING_IN && r <= RING_OUT) {
-                    // About a pixel of gap between two wedges.
-                    double part = Math.atan2(u, -dy) / (2 * Math.PI) * n, edge = 0.5 - Math.abs(part - Math.rint(part));
-                    if (n == 1 || edge * 2 * Math.PI * r / n >= 0.6) w = (byte) Radial.wedgeAt(dx, dy, n, 0, stretch);
-                }
-                out[j * 2 * half + i] = w;
-            }
-        return out;
-    }
-
+    /** The ring's pixels from {@link Radial#ring}, and the wedge count and stretch they're for. */
     private byte[] ring;
-    private int ringFor, ringHalf;
+    private int ringFor;
+    private double ringStretch;
 
     private String fit(String text, int room) {
         return font.width(text) <= room ? text : font.plainSubstrByWidth(text, room - font.width("…")) + "…";
@@ -283,14 +264,14 @@ public class RadialScreen extends Screen {
     public void extractRenderState(GuiGraphicsExtractor ctx, int mx, int my, float delta) {
         wedges = build();
         int n = wedges.size(), cx = width / 2, cy = height / 2, hot = hovered(mx, my);
-        int half = (int) Math.ceil(RING_OUT * stretch()), ringW = 2 * half;
-        if (ring == null || ringFor != n || ringHalf != half) { ring = ring(n, half, stretch()); ringFor = n; ringHalf = half; }
-        for (int j = 0; j < 2 * RING_OUT; j++)
+        int half = Radial.RING, ringW = 2 * half;
+        if (ring == null || ringFor != n || ringStretch != stretch()) { ring = Radial.ring(n, stretch()); ringFor = n; ringStretch = stretch(); }
+        for (int j = 0; j < ringW; j++)
             for (int i = 0; i < ringW; ) {
                 byte w = ring[j * ringW + i];
                 int end = i + 1;
                 while (end < ringW && ring[j * ringW + end] == w) end++;
-                if (w >= 0) ctx.fill(cx - half + i, cy - RING_OUT + j, cx - half + end, cy - RING_OUT + j + 1,
+                if (w >= 0) ctx.fill(cx - half + i, cy - half + j, cx - half + end, cy - half + j + 1,
                         w != hot ? 0xB0202830 : wedges.get(w).off != null ? 0xC0808A96 : 0xF0FFFFFF);
                 i = end;
             }

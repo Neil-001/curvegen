@@ -69,7 +69,7 @@ public final class Count3 {
     static {
         Map<String, List<Integer>> byName = new LinkedHashMap<>();
         for (int s = 1; s < Pieces3.COUNT; s++)
-            byName.computeIfAbsent(Pieces3.FAMILY[s].ordinal() + "/" + name(s), k -> new ArrayList<>()).add(s);
+            byName.computeIfAbsent(Pieces3.FAMILY[s].ordinal() + "/" + name(s), _ -> new ArrayList<>()).add(s);
         List<Group> out = new ArrayList<>();
         for (Family f : Family.values())
             for (List<Integer> states : byName.values()) {

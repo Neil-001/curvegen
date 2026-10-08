@@ -6,14 +6,14 @@ The hologram now starts locked at the block you're looking at, with its handles 
 
 ## Features
 
-- Edit 2D shapes in the world: drag the box's handles to resize, drag Bézier points, move with Page Up and Page Down, resize with Home and End, rotate with R, tip with U, and undo and redo edits with Z and Y (#46)
+- Edit 2D shapes in the world: drag the box's handles to resize, drag Bézier points, move with Page Up and Page Down, resize with Home and End, rotate with R, tip with U, and undo and redo edits with Z and Y. With no hologram out, Z undoes the last placement and Y puts it back (#46)
 - A radial menu on V that starts a shape, changes its options and blocks, and places, exports or cancels it. You can put its wedges in your own order. Hold a move or resize key to type an exact number of blocks (#47)
 - Ellipsoids and toruses, filled or hollow, built by a new 3D solver that uses every piece type and Minecraft's own rules for stair corners, fences, panes and walls (#45)
 - Edit ellipsoids and toruses in the world, and turn or tip them a quarter turn at a time (#48)
 - 3D equations in x, y and z, 3D Bézier curves as round tubes, and Bézier surfaces of 2 to 6 rows and columns of points (#49)
 - Edit 3D equations, 3D Bézier curves and Bézier surfaces in the world, with a handle on every control point (#50)
 - 3D tabs in the G menu, with a preview you can turn, zoom and drag points in, and block counts, presets and Litematica export for every 3D shape (#51)
-- A settings screen for hold times, the radial menu, handle size, and the hologram's opacity and block limit. Open it from the cogwheel in the G menu, from Mod Menu on Fabric or from the mod list on NeoForge (#44)
+- A settings screen for hold times, the radial menu, handle size, the hologram's opacity and block limit, and whether the key hints and shape information show on screen. Open it from the cogwheel in the G menu, from Mod Menu on Fabric or from the mod list on NeoForge (#44)
 
 ## Fixes
 

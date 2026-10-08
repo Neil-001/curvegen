@@ -190,7 +190,7 @@ public final class PresetData {
             boolean ok = true;
             try {
                 for (int k = 0; k < dims; k++) { v[k] = Double.parseDouble(parts[k].trim()); ok &= Double.isFinite(v[k]); }
-            } catch (NumberFormatException e) { ok = false; }
+            } catch (NumberFormatException _) { ok = false; }
             if (ok) pts.add(v);
         }
         return pts;
@@ -313,15 +313,15 @@ public final class PresetData {
         return t.endsWith(".") ? t.substring(0, t.length() - 1) : t;
     }
     private static int integer(Map<String, String> d, String k, int lo, int hi, int def) {
-        try { return Math.max(lo, Math.min(hi, Integer.parseInt(d.get(k).trim()))); } catch (Exception e) { return def; }
+        try { return Math.max(lo, Math.min(hi, Integer.parseInt(d.get(k).trim()))); } catch (Exception _) { return def; }
     }
     private static double decimal(Map<String, String> d, String k, double lo, double hi, double def) {
         try {
             double v = Double.parseDouble(d.get(k).trim());
             return Double.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : def;
-        } catch (Exception e) { return def; }
+        } catch (Exception _) { return def; }
     }
     private static <E extends Enum<E>> E enumOf(Class<E> c, String v, E def) {
-        try { return Enum.valueOf(c, v); } catch (Exception e) { return def; }
+        try { return Enum.valueOf(c, v); } catch (Exception _) { return def; }
     }
 }

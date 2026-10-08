@@ -60,7 +60,7 @@ The shape appears in your world as a hologram before anything is built. You drag
 
 - Bézier curves and surfaces have a handle on every control point. Drag one the same way as a box handle. Right-click removes a point and middle-click copies it. **Insert** adds a point where you look at the curve, and **Delete** removes the one you look at. On a surface these add and remove a whole row, or a column while you sneak.
 - Hold a move or resize key instead of tapping it and a number box opens after 3 seconds. Type 10 to move exactly 10 blocks, or a negative number to go the other way.
-- **Z** undoes the last drag, move or option change, and **Y** redoes it. With no hologram out, **Z** undoes the last placement.
+- **Z** undoes the last drag, move or option change, and **Y** redoes it. With no hologram out, **Z** undoes the last placement and **Y** puts it back.
 - **K** unlocks the hologram so it follows where you look, and locks it again.
 - **H** turns Replace on or off, which decides whether the shape replaces blocks already there. **J** turns Carve on or off, which clears the space the shape encloses.
 - **Last shape** in the radial menu brings back the hologram you last placed or cancelled, where it was.
@@ -95,6 +95,7 @@ The cogwheel in the full menu opens the settings. On Fabric they are also in Mod
 - how big the handles are and how close you must look to grab one
 - how solid the hologram looks, and how many blocks it shows before it falls back to an outline
 - which way scrolling moves a handle you're dragging
+- whether the key hints and the shape's size and block counts show on screen
 
 Every key can be rebound under Options → Controls → Key Binds → Curve Generator. There are also six unbound keys that move the shape north, south, east, west, up and down.
 

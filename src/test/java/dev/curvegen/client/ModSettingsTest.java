@@ -26,6 +26,8 @@ class ModSettingsTest {
         assertEquals(0.45, ModSettings.hologramOpacity);
         assertEquals(30000, ModSettings.hologramBlockLimit);
         assertFalse(ModSettings.invertDragScroll);
+        assertTrue(ModSettings.showKeyHints);
+        assertTrue(ModSettings.showShapeInfo);
     }
 
     @Test
@@ -43,6 +45,8 @@ class ModSettingsTest {
         ModSettings.hologramOpacity = 0.8;
         ModSettings.hologramBlockLimit = 5000;
         ModSettings.invertDragScroll = true;
+        ModSettings.showKeyHints = false;
+        ModSettings.showShapeInfo = false;
         ModSettings.save(file);
         try (var files = Files.list(file.getParent())) {
             assertEquals(List.of(file), files.toList(), "the temporary file is gone");
@@ -59,6 +63,8 @@ class ModSettingsTest {
         assertEquals(0.8, ModSettings.hologramOpacity);
         assertEquals(5000, ModSettings.hologramBlockLimit);
         assertTrue(ModSettings.invertDragScroll);
+        assertFalse(ModSettings.showKeyHints);
+        assertFalse(ModSettings.showShapeInfo);
     }
 
     @Test
@@ -73,7 +79,7 @@ class ModSettingsTest {
         assertTrue(ModSettings.read("""
                 {"holdSeconds": "long", "barDelaySeconds": -1, "radialToggle": 1, "radialOrder": ["a", 3, "a", null, "b"],
                  "handleSize": 50, "pickRadius": 0.75, "hologramOpacity": null, "hologramBlockLimit": 12.5,
-                 "invertDragScroll": true, "somethingNewer": {"x": 1}}"""));
+                 "invertDragScroll": true, "showKeyHints": "no", "showShapeInfo": false, "somethingNewer": {"x": 1}}"""));
         assertEquals(3.0, ModSettings.holdSeconds);
         assertEquals(0.3, ModSettings.barDelaySeconds);
         assertFalse(ModSettings.radialToggle);
@@ -83,6 +89,8 @@ class ModSettingsTest {
         assertEquals(0.45, ModSettings.hologramOpacity);
         assertEquals(30000, ModSettings.hologramBlockLimit);
         assertTrue(ModSettings.invertDragScroll);
+        assertTrue(ModSettings.showKeyHints);
+        assertFalse(ModSettings.showShapeInfo);
     }
 
     @Test

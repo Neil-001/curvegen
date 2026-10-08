@@ -35,7 +35,7 @@ public final class Turned implements Shape3 {
         boolean plain;
         try {
             plain = in.getClass().getMethod("uniform", int.class, int.class, int.class).getDeclaringClass() == Shape3.class;
-        } catch (NoSuchMethodException e) {
+        } catch (NoSuchMethodException _) {
             plain = false;
         }
         this.plain = plain;
