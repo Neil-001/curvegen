@@ -1,8 +1,7 @@
 package dev.curvegen.client;
 
-import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.blaze3d.vertex.VertexConsumer;
-import dev.curvegen.core.Layout;
+import dev.curvegen.core.CommandReplies;
+import dev.curvegen.core.LastPlacement;
 import dev.curvegen.net.PlaceBlocksPayload;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -14,330 +13,121 @@ import java.util.Set;
 import java.util.function.Predicate;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.renderer.SubmitNodeCollector;
-import net.minecraft.client.renderer.SubmitNodeStorage;
-import net.minecraft.client.renderer.feature.CustomFeatureRenderer;
-import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.commands.arguments.blocks.BlockStateParser;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.contents.PlainTextContents;
+import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.server.permissions.Permissions;
-import net.minecraft.tags.FluidTags;
-import net.minecraft.util.ARGB;
-import net.minecraft.world.level.EmptyBlockGetter;
 import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.FallingBlock;
 import net.minecraft.world.level.block.LiquidBlock;
 import net.minecraft.world.level.block.SnowLayerBlock;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.material.FogType;
-import net.minecraft.world.phys.AABB;
-import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.HitResult;
-import net.minecraft.world.phys.Vec3;
-import net.minecraft.world.phys.shapes.Shapes;
 
-/** After "Place": a translucent preview follows the crosshair until the player confirms or cancels. */
+/**
+ * Puts blocks into the world, takes the last placement back and puts it there again. The server does it when it has
+ * the mod; otherwise the client sends {@code /setblock} commands and keeps their replies out of chat. The in-world
+ * editor ({@link dev.curvegen.client.edit.Editor}) decides what to place.
+ */
 public final class Placement {
     private Placement() {}
 
-    private record Entry(int dx, int dy, int dz, BlockState state, List<AABB> boxes, float r, float g, float b) {}
-
-    /** Above this many blocks the hologram shows only the bounding box, to keep frame rates sane. */
-    private static final int HOLOGRAM_LIMIT = 30000;
     private static final int COMMANDS_PER_TICK = 40;
 
-    private static Layout layout;
-    private static int depth = 1, rotation = 0;
-    /** How far the player has moved the shape from the block they're aiming at. */
-    private static BlockPos nudge = BlockPos.ZERO;
-    private static boolean active, overwrite = true, carve = false, floor = false;
-    /** Carve offsets (relative to the anchor) for the current facing. */
-    private static List<BlockPos> carveOffsets = List.of();
-    /** Refreshed a few times a second: which offsets would really change the world right now. */
-    private static List<Entry> toPlace = List.of();
-    private static List<BlockPos> toBreak = List.of();
-    /** The same two lists, split by whether the spot is under water. The hologram draws each half at a different time. */
-    private static List<Entry> placeWet = List.of(), placeDry = List.of();
-    private static List<BlockPos> breakWet = List.of(), breakDry = List.of();
-    private static BlockPos viewAnchor;
-    private static Direction viewFacing;
-    private static int viewAge;
-    private static BlockPos lockedAnchor, anchor;
-    /** While locked, the direction the player was facing when they locked, so looking around doesn't turn the shape. */
-    private static Direction lockedFacing;
-    private static Direction cachedFacing;
-    private static List<Entry> entries = List.of();
-    private static int minDx, minDy, minDz, maxDx, maxDy, maxDz;
-
-    private static List<BlockPos> undoPositions;
-    private static List<BlockState> undoStates;
     /**
-     * Blocks next to the last placement that could break because of it, such as a torch on a carved wall or sand above
-     * a carved hole. Undo puts back the ones that are gone.
+     * A placement: the states set at each position and the ones that were there before. {@code nearby} holds blocks
+     * next to it that could break because of it, such as a torch on a carved wall or sand above a carved hole. Undo
+     * puts back the ones that are gone.
      */
-    private static Map<BlockPos, BlockState> undoNearby = Map.of();
-    /** A cap on that list, so a placement beside a huge field of plants stays cheap. */
+    private record Placed(List<BlockPos> pos, List<BlockState> states, List<BlockState> old, Map<BlockPos, BlockState> nearby) {}
+    private static final LastPlacement<Placed> LAST = new LastPlacement<>();
+    /** A cap on a placement's nearby blocks, so one beside a huge field of plants stays cheap. */
     private static final int NEARBY_LIMIT = 20000;
-    private static final ArrayDeque<String> commandQueue = new ArrayDeque<>();
 
-    public static boolean isActive() { return active; }
-
-    public static void start(Layout l, int d, boolean overwriteBlocks, boolean carveSpace, boolean flat) {
-        layout = l; depth = Math.max(1, d); overwrite = overwriteBlocks; carve = carveSpace; floor = flat;
-        rotation = 0; nudge = BlockPos.ZERO; lockedAnchor = null; lockedFacing = null; cachedFacing = null; viewAnchor = null; active = true;
-    }
+    /** A {@code /setblock} waiting to be sent to a server without the mod. */
+    private record Command(BlockPos pos, String text) {}
+    private static final ArrayDeque<Command> commandQueue = new ArrayDeque<>();
+    private static final CommandReplies REPLIES = new CommandReplies();
+    /** Set while the mod sends a command of its own. */
+    private static boolean sending;
 
     /** Where the shape may put a block when "Replace" is off: air and things like grass, water or snow layers. */
     private static boolean free(BlockState current) { return current.isAir() || current.canBeReplaced(); }
 
-    public static void cancel() {
-        if (!active) return;
-        active = false;
-        say(Component.literal("Placement cancelled."));
+    public static boolean canPlace(Minecraft mc) {
+        return mc.player != null && mc.player.permissions().hasPermission(Permissions.COMMANDS_GAMEMASTER);
     }
-
-    public static void rotate() { rotation = (rotation + 1) & 3; }
-    public static void move(Direction d) { nudge = nudge.relative(d); }
-    /** Moves one block along whichever of the six directions the player is looking closest to, or the opposite way. */
-    public static void moveWithView(boolean forwards) {
-        Minecraft mc = Minecraft.getInstance();
-        if (mc.player == null) return;
-        Direction d = mc.player.getNearestViewDirection();
-        move(forwards ? d : d.getOpposite());
-    }
-    /** Freezes (or releases) both where the shape is and which way it faces. R still rotates it while locked. */
-    public static void toggleLock() {
-        Minecraft mc = Minecraft.getInstance();
-        if (lockedAnchor == null && mc.player != null) {
-            lockedAnchor = baseTarget(mc);
-            lockedFacing = mc.player.getDirection();
-        } else {
-            lockedAnchor = null;
-            lockedFacing = null;
-        }
-    }
-
-    private static Direction facing(Minecraft mc) {
-        Direction f = lockedFacing != null ? lockedFacing : mc.player.getDirection();
-        for (int i = 0; i < rotation; i++) f = f.getClockWise();
-        return f;
-    }
-
-    private static BlockPos baseTarget(Minecraft mc) {
-        if (mc.player == null) return null;
-        HitResult hit = mc.player.pick(128, 1f, false);
-        if (hit instanceof BlockHitResult b && hit.getType() == HitResult.Type.BLOCK) return b.getBlockPos().relative(b.getDirection());
-        return BlockPos.containing(hit.getLocation());
-    }
-
-    /**
-     * Upright: the drawing stands facing the player, its bottom-middle on the targeted block, extruded away from them.
-     * Flat: the drawing lies on the ground centred on the targeted block, its "up" pointing away from the player,
-     * with layers stacking upwards.
-     */
-    private static BlockPos offset(int x, int y, int k, Direction right, Direction forward) {
-        int u = x - layout.width() / 2;
-        if (floor) {
-            int v = y - layout.height() / 2;
-            return new BlockPos(right.getStepX() * u + forward.getStepX() * v, k, right.getStepZ() * u + forward.getStepZ() * v);
-        }
-        return new BlockPos(right.getStepX() * u + forward.getStepX() * k, y, right.getStepZ() * u + forward.getStepZ() * k);
-    }
-
-    private static void rebuild(Direction forward) {
-        Direction right = forward.getClockWise();
-        List<Entry> out = new ArrayList<>(layout.cells().size() * depth);
-        minDx = minDy = minDz = Integer.MAX_VALUE; maxDx = maxDy = maxDz = Integer.MIN_VALUE;
-        for (Layout.Cell c : layout.cells())
-            for (int k = 0; k < depth; k++) {
-                BlockPos o = offset(c.x(), c.y(), k, right, forward);
-                BlockState st = BlockChoices.stateFor(c.piece(), c.above(), right, forward, k, depth, floor);
-                List<AABB> boxes = out.size() < HOLOGRAM_LIMIT
-                        ? st.getShape(EmptyBlockGetter.INSTANCE, BlockPos.ZERO).toAabbs() : List.of();
-                int rgb = ColorIndex.of(st.getBlock(), floor);
-                out.add(new Entry(o.getX(), o.getY(), o.getZ(), st, boxes,
-                        ((rgb >> 16) & 0xFF) / 255f, ((rgb >> 8) & 0xFF) / 255f, (rgb & 0xFF) / 255f));
-                minDx = Math.min(minDx, o.getX()); maxDx = Math.max(maxDx, o.getX());
-                minDy = Math.min(minDy, o.getY()); maxDy = Math.max(maxDy, o.getY());
-                minDz = Math.min(minDz, o.getZ()); maxDz = Math.max(maxDz, o.getZ());
-            }
-        entries = out;
-        List<BlockPos> cv = new ArrayList<>();
-        if (carve)
-            for (Layout.Cell c : layout.carve())
-                for (int k = 0; k < depth; k++) cv.add(offset(c.x(), c.y(), k, right, forward));
-        carveOffsets = cv;
-        cachedFacing = forward;
-        viewAnchor = null;
-    }
-
-    /** Works out what placing right now would actually do, given the blocks already in the world. */
-    private static void refreshView(Minecraft mc) {
-        boolean drawn = entries.size() <= HOLOGRAM_LIMIT;   // the split is only for drawing the boxes
-        List<Entry> place = new ArrayList<>(), wet = new ArrayList<>(), dry = new ArrayList<>();
-        for (Entry e : entries) {
-            BlockPos p = anchor.offset(e.dx, e.dy, e.dz);
-            if (!overwrite && !free(mc.level.getBlockState(p))) continue;
-            place.add(e);
-            if (drawn) (underWater(mc, p) ? wet : dry).add(e);
-        }
-        List<BlockPos> brk = new ArrayList<>(), brkWet = new ArrayList<>(), brkDry = new ArrayList<>();
-        for (BlockPos o : carveOffsets) {
-            BlockPos p = anchor.offset(o);
-            if (mc.level.getBlockState(p).isAir()) continue;
-            brk.add(o);
-            if (drawn) (underWater(mc, p) ? brkWet : brkDry).add(o);
-        }
-        toPlace = place; toBreak = brk;
-        placeWet = wet; placeDry = dry; breakWet = brkWet; breakDry = brkDry;
-        viewAnchor = anchor; viewFacing = cachedFacing; viewAge = 0;
-    }
-
-    private static boolean underWater(Minecraft mc, BlockPos p) { return mc.level.getFluidState(p).is(FluidTags.WATER); }
 
     public static void tick(Minecraft mc) {
         if (mc.player != null && mc.getConnection() != null)
-            for (int i = 0; i < COMMANDS_PER_TICK && !commandQueue.isEmpty(); i++)
-                mc.getConnection().sendCommand(commandQueue.poll());
-        if (!active || mc.player == null) return;
-        Direction f = facing(mc);
-        if (f != cachedFacing) rebuild(f);
-        BlockPos base = lockedAnchor != null ? lockedAnchor : baseTarget(mc);
-        anchor = base == null ? null : base.offset(nudge);
-        if (anchor != null && mc.level != null && (!anchor.equals(viewAnchor) || viewFacing != cachedFacing || ++viewAge >= 10))
-            refreshView(mc);
-    }
-
-    // ---------- rendering ----------
-
-    /**
-     * Submits the hologram for this frame. {@code ms} is the world's pose stack and {@code cam} the camera position.
-     * The game draws the submitted boxes later in the frame, so they only capture this frame's lists.
-     */
-    public static void render(SubmitNodeCollector out, PoseStack ms, Vec3 cam) {
-        if (!active || anchor == null || entries.isEmpty() || !anchor.equals(viewAnchor)) return;
-        // The camera, in the hologram's own coordinates.
-        double cx = cam.x - anchor.getX(), cy = cam.y - anchor.getY(), cz = cam.z - anchor.getZ();
-        ms.pushPose();
-        ms.translate(-cx, -cy, -cz);
-
-        if (entries.size() <= HOLOGRAM_LIMIT) {
-            // Water is drawn between the two phases. Boxes on the camera's side of the surface go after it, so they
-            // draw over water behind them. Boxes on the far side go before it, so they show through the surface.
-            boolean clear = toBreak.size() <= HOLOGRAM_LIMIT;
-            boolean camWet = Minecraft.getInstance().gameRenderer.mainCamera().getFluidInCamera() == FogType.WATER;
-            submitBoxes(out, ms, camWet ? placeWet : placeDry, !clear ? List.of() : camWet ? breakWet : breakDry, true, cx, cy, cz);
-            submitBoxes(out, ms, camWet ? placeDry : placeWet, !clear ? List.of() : camWet ? breakDry : breakWet, false, cx, cy, cz);
-        }
-        float width = Minecraft.getInstance().getWindow().getAppropriateLineWidth();
-        AABB bounds = new AABB(minDx, minDy, minDz, maxDx + 1, maxDy + 1, maxDz + 1);
-        out.submitShapeOutline(ms, Shapes.create(bounds), RenderTypes.lines(), ARGB.colorFromFloat(0.9f, 1f, 1f, 1f), width, true);
-        out.submitShapeOutline(ms, Shapes.create(new AABB(0, 0, 0, 1, 1, 1).inflate(0.02)), RenderTypes.lines(),
-                ARGB.colorFromFloat(1f, 1f, 0.3f, 0.45f), width, true);   // the anchor block
-        ms.popPose();
-    }
-
-    private static void submitBoxes(SubmitNodeCollector out, PoseStack ms, List<Entry> place, List<BlockPos> clear, boolean afterWater,
-                                    double cx, double cy, double cz) {
-        if (place.isEmpty() && clear.isEmpty()) return;
-        SubmitNodeCollector.CustomGeometryRenderer boxes = (pose, fill) -> {
-            for (Entry e : place) {
-                int color = ARGB.colorFromFloat(0.45f, e.r, e.g, e.b);
-                for (AABB b : e.boxes)
-                    filledBox(pose, fill, e.dx + b.minX, e.dy + b.minY, e.dz + b.minZ, e.dx + b.maxX, e.dy + b.maxY, e.dz + b.maxZ, color, cx, cy, cz);
+            for (int i = 0; i < COMMANDS_PER_TICK && !commandQueue.isEmpty(); i++) {
+                Command c = commandQueue.poll();
+                REPLIES.sent(c.pos.getX(), c.pos.getY(), c.pos.getZ());
+                sending = true;
+                try { mc.getConnection().sendCommand(c.text); } finally { sending = false; }
             }
-            // Blocks carving will remove, in red. Slightly larger than the block, or a full block would hide its own box.
-            int red = ARGB.colorFromFloat(0.28f, 1f, 0.2f, 0.25f);
-            for (BlockPos o : clear)
-                filledBox(pose, fill, o.getX() - .005, o.getY() - .005, o.getZ() - .005, o.getX() + 1.005, o.getY() + 1.005, o.getZ() + 1.005, red, cx, cy, cz);
-        };
-        // submitCustomGeometry draws before translucent terrain. The after-terrain phase is only reachable on the game's
-        // own collector, so a collector from another mod gets everything before the water.
-        if (afterWater && out instanceof SubmitNodeStorage storage)
-            storage.order(0).afterTerrain.submit(new CustomFeatureRenderer.Submit(ms.last().copy(), RenderTypes.debugFilledBox(), boxes));
-        else out.submitCustomGeometry(ms, RenderTypes.debugFilledBox(), boxes);
+        REPLIES.tick();
     }
 
     /**
-     * The faces of a box that the camera at (cx, cy, cz) can see. The filled-box render type no longer culls back faces,
-     * and drawing them too would blend every box twice.
+     * Each loader calls this for every command the client sends to the server, with its text without the slash, so
+     * the replies to the player's own aren't taken for the mod's.
      */
-    private static void filledBox(PoseStack.Pose pose, VertexConsumer vc, double x0, double y0, double z0, double x1, double y1, double z1,
-                                  int color, double cx, double cy, double cz) {
-        float a = (float) x0, b = (float) y0, c = (float) z0, d = (float) x1, e = (float) y1, f = (float) z1;
-        if (cy < y0) quad(pose, vc, color, a, b, c, d, b, c, d, b, f, a, b, f);   // down
-        if (cy > y1) quad(pose, vc, color, a, e, c, a, e, f, d, e, f, d, e, c);   // up
-        if (cz < z0) quad(pose, vc, color, a, b, c, a, e, c, d, e, c, d, b, c);   // north
-        if (cz > z1) quad(pose, vc, color, a, b, f, d, b, f, d, e, f, a, e, f);   // south
-        if (cx < x0) quad(pose, vc, color, a, b, c, a, b, f, a, e, f, a, e, c);   // west
-        if (cx > x1) quad(pose, vc, color, d, b, c, d, e, c, d, e, f, d, b, f);   // east
+    public static void commandSent(String command) {
+        if (!sending) REPLIES.other(command);
     }
 
-    private static void quad(PoseStack.Pose pose, VertexConsumer vc, int color, float... xyz) {
-        for (int i = 0; i < 12; i += 3) vc.addVertex(pose, xyz[i], xyz[i + 1], xyz[i + 2]).setColor(color);
+    /**
+     * Whether to keep a message from the server out of chat, because it answers one of the mod's own
+     * {@code /setblock} commands. Each loader asks this for every system message. A success and "could not set the
+     * block" are hidden. Another error, such as having no permission, shows the first time.
+     */
+    public static boolean hidesFeedback(Component message, boolean overlay) { return !overlay && hides(REPLIES, message); }
+
+    /** Whether {@code replies} hides a message, read the way the game builds a command's success and its errors. */
+    static boolean hides(CommandReplies replies, Component message) {
+        if (message.getContents() instanceof TranslatableContents t) {
+            int[] at = position(t);
+            return message.getSiblings().isEmpty() && at != null && replies.hidesSuccess(t.getKey(), at[0], at[1], at[2]);
+        }
+        // An error comes wrapped in an empty red line.
+        if (!empty(message) || message.getSiblings().size() != 1) return false;
+        Component error = message.getSiblings().get(0);
+        if (error.getContents() instanceof TranslatableContents t) return error.getSiblings().isEmpty() && replies.hidesFailure(t.getKey());
+        // A syntax error has a second line, wrapped the same way: the command, then "<--[HERE]".
+        List<Component> parts = error.getSiblings();
+        return empty(error) && !parts.isEmpty() && parts.get(parts.size() - 1).getContents() instanceof TranslatableContents t
+                && t.getKey().equals(CommandReplies.HERE) && error.getStyle().getClickEvent() instanceof ClickEvent.SuggestCommand(String command)
+                && command.startsWith("/setblock ") && replies.hidesFailure(CommandReplies.HERE);
     }
 
-    public static void renderHud(GuiGraphicsExtractor dc) {
-        if (!active) return;
-        Minecraft mc = Minecraft.getInstance();
-        if (mc.player == null) return;
-        var tr = mc.font;
-        List<Component> lines = new ArrayList<>();
-        lines.add(Component.literal("Curve Generator: " + (floor
-                ? "floor, " + layout.width() + " by " + layout.height() + ", " + depth + (depth == 1 ? " layer" : " layers") + " high"
-                : layout.width() + " wide, " + layout.height() + " tall, " + depth + " deep")).withStyle(ChatFormatting.WHITE));
-        String what = toPlace.size() + " blocks to place" + (toPlace.size() < entries.size() ? " (" + (entries.size() - toPlace.size()) + " skipped, Replace is off)" : "");
-        if (carve) what += ", " + toBreak.size() + " to clear (shown in red)";
-        lines.add(Component.literal(what).withStyle(ChatFormatting.WHITE));
-        lines.add(Component.literal(key(CurveGenClient.CONFIRM) + " place, " + key(CurveGenClient.ROTATE) + " rotate, "
-                + key(CurveGenClient.FORWARD) + "/" + key(CurveGenClient.BACK) + " move forwards or back, "
-                + key(CurveGenClient.LOCK) + (lockedAnchor != null ? " unlock (follow your view again)" : " lock position and direction") + ", "
-                + key(CurveGenClient.CANCEL) + " cancel").withStyle(ChatFormatting.GRAY));
-        if (entries.size() > HOLOGRAM_LIMIT) lines.add(Component.literal("Large shape: only its outline is previewed.").withStyle(ChatFormatting.YELLOW));
-        if (!mc.player.permissions().hasPermission(Permissions.COMMANDS_GAMEMASTER))
-            lines.add(Component.literal("You need operator permissions to place blocks here. Cancel and use Export instead.").withStyle(ChatFormatting.RED));
-        int y = 6;
-        for (Component t : lines) {
-            dc.fill(4, y - 2, 8 + tr.width(t), y + 10, 0x90000000);
-            dc.text(tr, t, 6, y, 0xFFFFFFFF);
-            y += 13;
+    private static boolean empty(Component c) { return c.getContents() instanceof PlainTextContents plain && plain.text().isEmpty(); }
+
+    /** The position a "Changed the block at x, y, z" names, or null. */
+    private static int[] position(TranslatableContents t) {
+        if (!t.getKey().equals(CommandReplies.SUCCESS) || t.getArgs().length != 3) return null;
+        int[] at = new int[3];
+        try {
+            for (int k = 0; k < 3; k++)
+                at[k] = t.getArgs()[k] instanceof Number n ? n.intValue()
+                        : Integer.parseInt(t.getArgs()[k] instanceof Component c ? c.getString() : String.valueOf(t.getArgs()[k]));
+        } catch (NumberFormatException _) {
+            return null;
         }
+        return at;
     }
 
-    private static String key(net.minecraft.client.KeyMapping k) { return k.getTranslatedKeyMessage().getString(); }
+    /** Sets {@code states} at {@code pos} and remembers {@code old}, the states there now, for undo. */
+    public static void place(Minecraft mc, List<BlockPos> pos, List<BlockState> states, List<BlockState> old) {
+        place(new Placed(pos, states, old, dependents(mc, pos)), "placing ");
+    }
 
-    // ---------- placing ----------
-
-    public static void confirm() {
-        Minecraft mc = Minecraft.getInstance();
-        if (!active || anchor == null || mc.player == null || mc.level == null) return;
-        if (!mc.player.permissions().hasPermission(Permissions.COMMANDS_GAMEMASTER)) {
-            say(Component.literal("You need operator permissions to place. Use Export instead.").withStyle(ChatFormatting.RED));
-            return;
-        }
-        List<BlockPos> pos = new ArrayList<>(entries.size());
-        List<BlockState> states = new ArrayList<>(entries.size()), old = new ArrayList<>(entries.size());
-        // Clear first, so carving never removes anything the shape itself places.
-        for (BlockPos o : carveOffsets) {
-            BlockPos p = anchor.offset(o);
-            BlockState cur = mc.level.getBlockState(p);
-            if (!cur.isAir()) { pos.add(p); states.add(Blocks.AIR.defaultBlockState()); old.add(cur); }
-        }
-        for (Entry e : entries) {
-            BlockPos p = anchor.offset(e.dx, e.dy, e.dz);
-            BlockState cur = mc.level.getBlockState(p);
-            if (!overwrite && !free(cur)) continue;
-            pos.add(p); states.add(e.state); old.add(cur);
-        }
-        if (pos.isEmpty()) { say(Component.literal("Nothing to place: every spot is taken and Replace is off.")); return; }
-        undoPositions = pos; undoStates = old;
-        undoNearby = dependents(mc, pos);
-        send(pos, states, false);
-        active = false;
+    private static void place(Placed p, String doing) {
+        LAST.placed(p);
+        send(p.pos, p.states, false, doing);
     }
 
     /** Whether a block could break or fall when a block beside it changes: anything that isn't a plain full block. */
@@ -373,20 +163,46 @@ public final class Placement {
         return found;
     }
 
-    public static void undo() {
-        Minecraft mc = Minecraft.getInstance();
-        if (undoPositions == null || mc.level == null) { say(Component.literal("Nothing to undo.")); return; }
-        List<BlockPos> pos = new ArrayList<>(undoPositions);
-        List<BlockState> states = new ArrayList<>(undoStates);
-        // A nearby block is only put back if its spot is empty now, so anything built there since is left alone.
-        undoNearby.forEach((p, state) -> {
-            if (free(mc.level.getBlockState(p))) { pos.add(p); states.add(state); }
-        });
-        send(pos, states, true);
-        undoPositions = null; undoStates = null; undoNearby = Map.of();
+    /**
+     * Says so and returns false when the player has lost the operator rights a placement needs. The server would
+     * refuse anyway, and one without the mod kicks a player who sends it that many commands it won't run.
+     */
+    private static boolean allowed(Minecraft mc, String doing) {
+        if (canPlace(mc)) return true;
+        say(Component.literal(doing + " a placement needs operator permissions.").withStyle(ChatFormatting.RED));
+        return false;
     }
 
-    private static void send(List<BlockPos> pos, List<BlockState> states, boolean undo) {
+    public static void undo() {
+        Minecraft mc = Minecraft.getInstance();
+        if (!allowed(mc, "Undoing")) return;
+        Placed last = mc.level == null ? null : LAST.undo();
+        if (last == null) { say(Component.literal("Nothing to undo.")); return; }
+        List<BlockPos> pos = new ArrayList<>(last.pos);
+        List<BlockState> states = new ArrayList<>(last.old);
+        // A nearby block is only put back if its spot is empty now, so anything built there since is left alone.
+        last.nearby.forEach((p, state) -> {
+            if (free(mc.level.getBlockState(p))) { pos.add(p); states.add(state); }
+        });
+        send(pos, states, true, "undoing ");
+    }
+
+    /**
+     * Puts back the placement that undo took away, so undo can take it back again. The blocks around it that need
+     * support are looked for again, and the ones the first placement found are kept: one the placement broke may not
+     * be back yet when this runs straight after an undo.
+     */
+    public static void redo() {
+        Minecraft mc = Minecraft.getInstance();
+        if (!allowed(mc, "Redoing")) return;
+        Placed last = mc.level == null ? null : LAST.redo();
+        if (last == null) { say(Component.literal("Nothing to redo.")); return; }
+        Map<BlockPos, BlockState> nearby = new LinkedHashMap<>(last.nearby);
+        dependents(mc, last.pos).forEach(nearby::putIfAbsent);
+        place(new Placed(last.pos, last.states, last.old, nearby), "redoing ");
+    }
+
+    private static void send(List<BlockPos> pos, List<BlockState> states, boolean undo, String doing) {
         if (pos.isEmpty()) return;
         if (CurveGenClient.platform.canSendToServer()) {
             BlockPos origin = pos.get(0);
@@ -409,11 +225,11 @@ public final class Placement {
                 BlockPos p = pos.get(i);
                 // Undo uses strict mode, which sets the block without block updates, as the server-side handler does first.
                 // Commands can't run the handler's second step, so blocks around the restored ones keep their state.
-                commandQueue.add("setblock " + p.getX() + " " + p.getY() + " " + p.getZ() + " "
-                        + BlockStateParser.serialize(states.get(i)) + (undo ? " strict" : ""));
+                commandQueue.add(new Command(p, "setblock " + p.getX() + " " + p.getY() + " " + p.getZ() + " "
+                        + BlockStateParser.serialize(states.get(i)) + (undo ? " strict" : "")));
             }
             int seconds = (int) Math.ceil(pos.size() / (COMMANDS_PER_TICK * 20.0));
-            say(Component.literal("No server mod: " + (undo ? "undoing " : "placing ") + pos.size()
+            say(Component.literal("No server mod: " + doing + pos.size()
                     + " blocks with /setblock, about " + seconds + " s."));
         }
     }

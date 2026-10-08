@@ -14,6 +14,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
@@ -53,6 +54,14 @@ public class PresetsScreen extends Screen {
     private record Key(Preset preset, boolean blocks) {}
     private final Map<Key, Solver.Result> results = new HashMap<>();
     private final Map<Key, Future<Solver.Result>> jobs = new HashMap<>();
+    /** A 3D preset's picture is solved the same way, and a solve is dropped when the mouse has moved on to another preset. */
+    private record Job3(Future<CurveScreen.Solved3> future, AtomicBoolean cancelled) {}
+    private final Map<Key, CurveScreen.Solved3> solved3 = new HashMap<>();
+    private final Map<Key, Job3> jobs3 = new HashMap<>();
+    private final Preview3 picture = new Preview3();
+    private Key pictureFor;
+    private int[] pictureIn;
+    private boolean turning;
 
     private static final int ROW = 20, ICON = 12;
     // 9×9 pixel icons
@@ -64,7 +73,9 @@ public class PresetsScreen extends Screen {
             "...###...", "#########", ".#######.", ".#.#.#.#.", ".#.#.#.#.", ".#.#.#.#.", ".#.#.#.#.", ".#.#.#.#.", "..#####.."};
 
     public PresetsScreen(Screen parent, ShapeSettings.Gen gen, BiConsumer<Preset, Boolean> onLoad) {
-        super(Component.literal("Load a preset: " + switch (gen) { case ELLIPSE -> "ellipse"; case EQUATION -> "equation"; case BEZIER -> "Bézier curve"; }));
+        super(Component.literal("Load a preset: " + switch (gen) { case ELLIPSE -> "ellipse"; case EQUATION -> "equation"; case BEZIER -> "Bézier curve";
+            case ELLIPSOID -> "ellipsoid"; case TORUS -> "torus"; case EQUATION3 -> "3D equation"; case BEZIER3 -> "3D Bézier curve";
+            case SURFACE -> "Bézier surface"; }));
         this.parent = parent; this.gen = gen; this.onLoad = onLoad;
     }
 
@@ -90,15 +101,15 @@ public class PresetsScreen extends Screen {
 
         int by = height - 26, bw = Math.max(60, font.width("Preview") + 20);
         int blocksW = font.width("Blocks: OFF") + 20, x = width - 8 - 3 * bw - blocksW - 12;
-        previewButton = Button.builder(Component.literal("Preview"), b -> previewed = selected).bounds(x, by, bw, 20).build();
+        previewButton = Button.builder(Component.literal("Preview"), _ -> previewed = selected).bounds(x, by, bw, 20).build();
         blocksButton = CycleButton.onOffBuilder(loadBlocks).create(x + bw + 4, by, blocksW, 20, Component.literal("Blocks"),
-                (b, v) -> { loadBlocks = v; textureFor = null; });
-        loadButton = Button.builder(Component.literal("Load"), b -> { if (selected != null) load(selected); })
+                (_, v) -> { loadBlocks = v; textureFor = null; pictureFor = null; });
+        loadButton = Button.builder(Component.literal("Load"), _ -> { if (selected != null) load(selected); })
                 .bounds(x + bw + blocksW + 8, by, bw, 20).build();
         addRenderableWidget(previewButton);
         addRenderableWidget(blocksButton);
         addRenderableWidget(loadButton);
-        addRenderableWidget(Button.builder(Component.literal("Cancel"), b -> onClose()).bounds(width - 8 - bw, by, bw, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Cancel"), _ -> onClose()).bounds(width - 8 - bw, by, bw, 20).build());
         refilter();
     }
 
@@ -131,6 +142,8 @@ public class PresetsScreen extends Screen {
         return s;
     }
 
+    private boolean is3d() { return ShapeSettings.is3d(gen); }
+
     private Solver.Result resultFor(Preset p) {
         Key k = new Key(p, withBlocks(p));
         Solver.Result r = results.get(k);
@@ -139,9 +152,50 @@ public class PresetsScreen extends Screen {
         if (job == null) { ShapeSettings s = settingsFor(p); jobs.put(k, CurveScreen.EXEC.submit(() -> Solver.run(s))); return null; }
         if (!job.isDone()) return null;
         jobs.remove(k);
-        try { r = job.get(); } catch (Exception e) { return null; }
+        try { r = job.get(); } catch (Exception _) { return null; }
         results.put(k, r);
         return r;
+    }
+
+    private CurveScreen.Solved3 solved3For(Preset p) {
+        Key k = new Key(p, withBlocks(p));
+        jobs3.entrySet().removeIf(e -> {
+            if (e.getKey().equals(k)) return false;
+            e.getValue().cancelled.set(true);
+            return true;
+        });
+        CurveScreen.Solved3 r = solved3.get(k);
+        if (r != null) return r;
+        Job3 job = jobs3.get(k);
+        if (job == null) {
+            ShapeSettings s = settingsFor(p);
+            AtomicBoolean cancelled = new AtomicBoolean();
+            jobs3.put(k, new Job3(CurveScreen.EXEC.submit(() -> CurveScreen.solve3(s, cancelled::get)), cancelled));
+            return null;
+        }
+        if (!job.future.isDone()) return null;
+        jobs3.remove(k);
+        try { r = job.future.get(); } catch (Exception _) { return null; }
+        if (r != null) solved3.put(k, r);
+        return r;
+    }
+
+    /** Draws a solved 3D preset, seen from the same side each time until the player turns it. */
+    private void draw3(GuiGraphicsExtractor ctx, Preset target, CurveScreen.Solved3 r, int x0, int y0, int x1, int y1) {
+        Key k = new Key(target, withBlocks(target));
+        int[] in = {x0, y0, x1, y1};
+        // A resized window moves the picture's place, and the view goes with it.
+        if (!k.equals(pictureFor) || !java.util.Arrays.equals(in, pictureIn)) {
+            pictureFor = k; pictureIn = in;
+            var shape = r.result().shape();
+            picture.mesh(r.mesh(), shape.pad());
+            picture.wires(List.of(), 0);
+            picture.palette(Preview3.palette(CurveScreen.colors, choiceFor(target), CurveGenClient.SETTINGS.topColours));
+            picture.fit(shape.nx(), shape.ny(), shape.nz(), shape.pad(), x0, y0, x1, y1);
+        }
+        ctx.enableScissor(x0, y0, x1, y1);
+        picture.draw(ctx, x0, y0, x1, y1);
+        ctx.disableScissor();
     }
 
     // ---------- rendering ----------
@@ -229,9 +283,15 @@ public class PresetsScreen extends Screen {
             ctx.textWithWordWrap(font, Component.literal("Hover a preset to preview it, or select one and press Preview."),
                     px0 + 8, py0 + 8, px1 - px0 - 16, 0xFF9AA5B3, false);
         } else {
-            Solver.Result r = resultFor(target);
+            Solver.Result r = is3d() ? null : resultFor(target);
+            CurveScreen.Solved3 r3 = is3d() ? solved3For(target) : null;
             int infoH = 24;
-            if (r == null) ctx.text(font, "Working…", px0 + 8, py0 + 8, 0xFF9AA5B3, false);
+            if (is3d()) {
+                if (r3 == null) ctx.text(font, "Working…", px0 + 8, py0 + 8, 0xFF9AA5B3, false);
+                else if (r3.error() != null) ctx.textWithWordWrap(font, Component.literal(r3.error()), px0 + 8, py0 + 8, px1 - px0 - 16, 0xFFFF8098, false);
+                else draw3(ctx, target, r3, px0, py0, px1, py1 - infoH);
+            }
+            else if (r == null) ctx.text(font, "Working…", px0 + 8, py0 + 8, 0xFF9AA5B3, false);
             else if (r.target().error != null)
                 ctx.textWithWordWrap(font, Component.literal(r.target().error), px0 + 8, py0 + 8, px1 - px0 - 16, 0xFFFF8098, false);
             else {
@@ -269,6 +329,7 @@ public class PresetsScreen extends Screen {
     public boolean mouseClicked(MouseButtonEvent event, boolean doubled) {
         double mx = event.x(), my = event.y(); int button = event.button();
         if (super.mouseClicked(event, doubled)) return true;
+        if (is3d() && previewed != null && mx >= pvX0() && mx < pvX1() && my >= pvY0() && my < pvY1()) { turning = true; return true; }
         int row = rowAt(mx, my);
         if (row < 0 || button != InputConstants.MOUSE_BUTTON_LEFT) return false;
         Preset p = shown.get(row);
@@ -284,6 +345,19 @@ public class PresetsScreen extends Screen {
         selected = p;
         setFocused(null);
         return true;
+    }
+
+    /** Dragging a 3D preset's picture turns it. */
+    @Override
+    public boolean mouseDragged(MouseButtonEvent event, double dx, double dy) {
+        if (turning) { picture.cam.orbit(dx, dy); return true; }
+        return super.mouseDragged(event, dx, dy);
+    }
+
+    @Override
+    public boolean mouseReleased(MouseButtonEvent event) {
+        turning = false;
+        return super.mouseReleased(event);
     }
 
     @Override
@@ -317,6 +391,7 @@ public class PresetsScreen extends Screen {
                 if (selected == p) selected = null;
                 if (previewed == p) previewed = null;
                 results.keySet().removeIf(k -> k.preset() == p);
+                solved3.keySet().removeIf(k -> k.preset() == p);
                 refilter();
             }
             minecraft.gui.setScreen(this);
@@ -329,6 +404,9 @@ public class PresetsScreen extends Screen {
     public void removed() {
         texture.close();
         textureFor = null;
+        picture.close();
+        for (Job3 j : jobs3.values()) j.cancelled.set(true);
+        jobs3.clear();
         super.removed();
     }
 
@@ -336,5 +414,5 @@ public class PresetsScreen extends Screen {
     public void onClose() { minecraft.gui.setScreen(parent); }
 
     @Override
-    public boolean isPauseScreen() { return parent.isPauseScreen(); }
+    public boolean isPauseScreen() { return parent != null && parent.isPauseScreen(); }
 }
