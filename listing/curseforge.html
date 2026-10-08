@@ -1,31 +1,65 @@
-<p style="text-align: center;"><img src="https://raw.githubusercontent.com/Neil-001/curvegen/main/listing/media/banner.gif" alt="Curve Generator, spelled out in blocks. Below it, an ellipse, a sine wave, a heart and a Bézier curve, each built from blocks." width="100%" /></p>
+<p style="text-align: center;"><img src="https://raw.githubusercontent.com/Neil-001/curvegen/main/listing/media/banner.gif" alt="Curve Generator, spelled out in blocks. Below it, an ellipse, a sine wave, a heart and a Bézier curve, each built from blocks, and then a torus turning." width="100%" /></p>
 <p style="text-align: center;"><a href="https://fabricmc.net/"><img src="https://cdn.jsdelivr.net/npm/@intergrav/devins-badges@3/assets/cozy/supported/fabric_64h.png" alt="Supported on Fabric" height="48" /></a> <a href="https://neoforged.net/"><img src="https://cdn.jsdelivr.net/npm/@intergrav/devins-badges@3/assets/cozy/supported/neoforge_64h.png" alt="Supported on NeoForge" height="48" /></a> <a href="https://www.curseforge.com/minecraft/mc-mods/fabric-api"><img src="https://cdn.jsdelivr.net/npm/@intergrav/devins-badges@3/assets/cozy/requires/fabric-api_64h.png" alt="Requires Fabric API" height="48" /></a> <a href="https://github.com/Neil-001/curvegen/wiki"><img src="https://cdn.jsdelivr.net/npm/@intergrav/devins-badges@3/assets/cozy/documentation/generic_64h.png" alt="Read the wiki" height="48" /></a> <a href="https://github.com/Neil-001/curvegen"><img src="https://cdn.jsdelivr.net/npm/@intergrav/devins-badges@3/assets/cozy/available/github_64h.png" alt="Source on GitHub" height="48" /></a></p>
-<p>Curve Generator turns ellipses, equations and Bézier curves into blocks. For every cell along the curve it picks the full block, slab, stair, trapdoor, shelf, fence, glass pane or wall that matches the curve most closely, so a circle looks rounder than one built from full blocks alone.</p>
+<p>Curve Generator turns shapes into blocks. In 2D it builds ellipses, equations and Bézier curves. In 3D it builds ellipsoids, toruses, equations in x, y and z, Bézier curves and Bézier surfaces. For every block along the shape it picks the full block, slab, stair, trapdoor, shelf, fence, glass pane or wall that matches most closely, so a circle looks rounder than one built from full blocks alone.</p>
 <p style="text-align: center;"><img src="https://raw.githubusercontent.com/Neil-001/curvegen/main/listing/media/compare.png" alt="Two stone brick circles with the true circle drawn over them. The one made of full blocks has stepped edges. The one with slabs, stairs and walls follows the circle more closely." width="100%" /></p>
-<p>You see the result in a preview before anything is built. Then you place it in your world, or export it as a Litematica schematic.</p>
+<p>The shape appears in your world as a hologram before anything is built. You drag its handles to resize it and its points to bend it, and the blocks update as you go. Then you place it, or export it as a Litematica schematic.</p>
 <p style="text-align: center;"><img src="https://raw.githubusercontent.com/Neil-001/curvegen/main/listing/media/shapes.png" alt="Three previews: a thin ellipse, the area under a parabola, and a filled Bézier curve with four numbered handles." width="100%" /></p>
-<p style="text-align: center;"><em>The preview on the Ellipse, Equation and Bézier tabs. The pink line is the true curve.</em></p>
+<p style="text-align: center;"><em>The 2D shapes in the menu's preview: ellipse, equation and Bézier curve. The pink line is the true curve.</em></p>
+<p style="text-align: center;"><img src="https://raw.githubusercontent.com/Neil-001/curvegen/main/listing/media/shapes3d.png" alt="Six pictures of shapes built from blocks: an ellipsoid, a hollow ellipsoid cut open to show its wall, a torus, a wavy surface from the equation z = sin(x) cos(y), a curved tube and a domed sheet." width="100%" /></p>
+<p style="text-align: center;"><em>The 3D shapes in the menu's preview: ellipsoid, torus, 3D equation, 3D Bézier curve and Bézier surface. The pink lines are the true shape.</em></p>
 <p style="text-align: center;"><img src="https://raw.githubusercontent.com/Neil-001/curvegen/main/listing/media/divider.png" alt="A wave built from blocks." width="100%" /></p>
 <h2>How to use it</h2>
 <ol>
-<li>Press <strong>G</strong> to open the generator.</li>
-<li>Pick a tab: <strong>Ellipse</strong>, <strong>Equation</strong> or <strong>Bézier</strong>. Equations use Desmos-style syntax, like <code>y = 2sin(x)</code>, <code>x^2 + y^2 = 16</code> or <code>y &lt; 9 - x^2/4</code>. On the Bézier tab, drag the numbered handles in the preview.</li>
-<li>On the <strong>Blocks</strong> tab, choose a block for each piece type, or use <strong>Match a colour…</strong> to pick blocks whose textures are closest to a colour.</li>
-<li>Choose <strong>Upright</strong> to build it like a wall or <strong>Flat</strong> to build it like a floor.</li>
-<li>Check the <strong>Count</strong> tab to see how many of each block you'll need.</li>
-<li>Press <strong>Place</strong> to position a hologram in the world, then press Enter to build it. Or press <strong>Export</strong> to save a <code>.litematic</code> file.</li>
+<li>Hold <strong>V</strong> to open the radial menu. Point at <strong>2D shapes</strong> or <strong>3D shapes</strong> and let go, then click a shape. Its hologram appears at the block you're looking at.</li>
+<li>Look at a handle on the hologram's box so it lights up, hold the left mouse button and look where it should go. Hold sneak to move the opposite side too.</li>
+<li>Press <strong>Page Up</strong> and <strong>Page Down</strong> to move the shape away from you and back. <strong>Home</strong> and <strong>End</strong> push out and pull in the side you're facing. <strong>R</strong> rotates the shape and <strong>U</strong> tips it over.</li>
+<li>Open the radial menu again for <strong>Shape options</strong>, such as the fill, thickness or equation, and for <strong>Blocks</strong>, where you choose a block for each piece type. Scroll over a wedge to change its value without leaving the menu.</li>
+<li>Press <strong>Enter</strong> to place the shape, or choose <strong>Export</strong> in the radial menu to save a <code>.litematic</code> file. <strong>Backspace</strong> cancels.</li>
 </ol>
+<p style="text-align: center;"><img src="https://raw.githubusercontent.com/Neil-001/curvegen/main/listing/media/editor.png" alt="A block ellipsoid inside a white box. The box has a white handle in the middle of each face, a blue one on each edge and an orange one at each corner." width="100%" /></p>
+<p style="text-align: center;"><em>The hologram's box. A face handle moves along one axis, an edge handle along two, and a corner handle in the plane facing you, with scrolling for the third axis.</em></p>
+<h2>Editing in the world</h2>
+<ul>
+<li>Bézier curves and surfaces have a handle on every control point. Drag one the same way as a box handle. Right-click removes a point and middle-click copies it. <strong>Insert</strong> adds a point where you look at the curve, and <strong>Delete</strong> removes the one you look at. On a surface these add and remove a whole row, or a column while you sneak.</li>
+<li>Hold a move or resize key instead of tapping it and a number box opens after 3 seconds. Type 10 to move exactly 10 blocks, or a negative number to go the other way.</li>
+<li><strong>Z</strong> undoes the last drag, move or option change, and <strong>Y</strong> redoes it. With no hologram out, <strong>Z</strong> undoes the last placement.</li>
+<li><strong>K</strong> unlocks the hologram so it follows where you look, and locks it again.</li>
+<li><strong>H</strong> turns Replace on or off, which decides whether the shape replaces blocks already there. <strong>J</strong> turns Carve on or off, which clears the space the shape encloses.</li>
+<li><strong>Last shape</strong> in the radial menu brings back the hologram you last placed or cancelled, where it was.</li>
+</ul>
+<h2>The full menu</h2>
+<p>Press <strong>G</strong> for the full menu, with or without a hologram out. It has every setting for every shape, and a button that switches its tabs between 2D and 3D.</p>
+<ul>
+<li>Equations use Desmos-style syntax, like <code>y = 2sin(x)</code>, <code>x^2 + y^2 = 16</code> or <code>y &lt; 9 - x^2/4</code>. A 3D equation can use x, y and z, like <code>z = sin(x) cos(y)</code> or <code>x^2 + y^2 + z^2 &lt; 9</code>, where z is height.</li>
+<li>The 2D preview shows the pieces on graph paper. The 3D preview shows the blocks from any side: drag to turn it, scroll to zoom, and drag a Bézier point to move it.</li>
+<li>On the <strong>Blocks</strong> tab, choose a block for each piece type, or use <strong>Match a colour…</strong> to pick blocks whose textures are closest to a colour.</li>
+<li>2D shapes are built <strong>Upright</strong> like a wall or <strong>Flat</strong> like a floor, and can be several blocks deep.</li>
+<li>The <strong>Count</strong> tab shows how many of each block you'll need.</li>
+<li><strong>Presets</strong> save a shape with its block choices.</li>
+<li><strong>Place</strong> puts the shape in the world as a hologram. <strong>Export</strong> saves it as a <code>.litematic</code> file.</li>
+</ul>
 <p style="text-align: center;"><img src="https://raw.githubusercontent.com/Neil-001/curvegen/main/listing/media/pieces.png" alt="A full block, slab, stair, trapdoor, shelf, fence, glass pane and wall, seen from the side." width="100%" /></p>
 <p style="text-align: center;"><em>The pieces it chooses from: full block, slab, stair, trapdoor, shelf, fence, glass pane and wall.</em></p>
+<h2>Settings</h2>
+<p>The cogwheel in the full menu opens the settings. On Fabric they are also in Mod Menu, if you have it, and on NeoForge behind the Config button in the mod list. You can change:</p>
+<ul>
+<li>how long to hold a key before the number box opens, and before its progress bar shows</li>
+<li>whether the radial menu stays open while you hold its key, or opens and closes with a press</li>
+<li>the order of the radial menu's wedges</li>
+<li>how big the handles are and how close you must look to grab one</li>
+<li>how solid the hologram looks, and how many blocks it shows before it falls back to an outline</li>
+<li>which way scrolling moves a handle you're dragging</li>
+</ul>
+<p>Every key can be rebound under Options → Controls → Key Binds → Curve Generator. There are also six unbound keys that move the shape north, south, east, west, up and down.</p>
 <h2>Good to know</h2>
 <ul>
-<li>Placing needs operator permissions, the same as <code>/setblock</code>. In singleplayer, cheats must be on. Exporting works anywhere.</li>
+<li>Placing needs operator permissions, the same as <code>/setblock</code>. In singleplayer, cheats must be on. Editing and exporting work anywhere.</li>
 <li>The mod runs on the client. A server doesn't need it. If the server has it too, large builds place faster.</li>
-<li>It follows Minecraft's connection rules, so fences, panes and walls join in the preview the same way they join in the world.</li>
+<li>It follows Minecraft's connection rules, so fences, panes, walls and stair corners join in the hologram the same way they join in the world.</li>
+<li>A 3D shape's box can be up to 256 blocks along each side. A shell that thickens outwards adds its thickness beyond that. A hologram of more than 30,000 blocks shows only its outline unless you raise the limit in the settings.</li>
 <li>Chains and end rods are there for thin lines. They start switched off; turn them on in the <strong>Blocks</strong> tab.</li>
-<li>Presets save a shape with its block choices.</li>
-<li>Resource packs and modded blocks work. Colour matching reads the textures you have loaded.</li>
-<li>You can rebind every key under Options → Controls → Key Binds → Curve Generator.</li>
+<li>Resource packs and modded blocks work. Colour matching reads the textures you have loaded. For 3D shapes it matches the side of each block, or the top if you choose that.</li>
+<li>Version 2.0 is for Minecraft 26.3. Earlier versions of the mod, without the in-world editor and 3D shapes, are available for older Minecraft versions.</li>
 </ul>
-<p>The <a href="https://github.com/Neil-001/curvegen/wiki">wiki</a> covers placement keys, Replace and Carve, presets and exporting.</p>
+<p>The <a href="https://github.com/Neil-001/curvegen/wiki">wiki</a> covers Replace and Carve, presets, exporting, and how resource packs and modded blocks work.</p>
 <p style="text-align: center;"><img src="https://raw.githubusercontent.com/Neil-001/curvegen/main/listing/media/divider.png" alt="A wave built from blocks." width="100%" /></p>
