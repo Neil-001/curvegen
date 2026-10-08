@@ -121,6 +121,16 @@ public final class Solver3 {
         // refinement scratch
         int[] aff = new int[64];
         int affN;
+        /** Which cells are in {@link #aff}, so a tall column isn't searched for every cell added to it. */
+        boolean[] inAff;
+        /**
+         * The states of walls already worked out since a token last changed: {@link #wallAt} holds the state of a
+         * cell whose {@link #wallSeen} equals {@link #stamp}. A wall takes its heights and post from the state above
+         * it, so without this each wall in a tall column would work out every wall above it again.
+         */
+        int[] wallSeen;
+        short[] wallAt;
+        int stamp = 1;
 
         Run(Shape3 sh, ShapeSettings s, BooleanSupplier cancelled) {
             this.sh = sh; this.s = s; this.cancelled = cancelled;
@@ -396,10 +406,13 @@ public final class Solver3 {
             if (!dependent(t)) return t;
             if (t < FENCE) return stairState(p, t);
             int kind = t >= WALL ? 2 : t >= PANE ? 1 : 0, bits = 0;
+            if (kind == 2 && wallSeen[p] == stamp) return wallAt[p];
             for (int d = 0; d < 4; d++) if (connects(kind, p + off[d], d)) bits |= 1 << d;
             if (kind < 2) return t + bits;
             int above = resolve(p + up);
-            return wallState(bits, COVER[above], isWall(above) && Pieces3.up(above));
+            int state = wallState(bits, COVER[above], isWall(above) && Pieces3.up(above));
+            wallSeen[p] = stamp; wallAt[p] = (short) state;
+            return state;
         }
 
         // ---------- solving ----------
@@ -473,18 +486,23 @@ public final class Solver3 {
                 if (mz) v = MZ[v];
                 tok[at(mx ? im : i, my ? jm : j, mz ? km : k)] = (short) v;
             }
+            // Any wall's state may have changed with it.
+            if (++stamp == 0 && wallSeen != null) { Arrays.fill(wallSeen, 0); stamp = 1; }
         }
 
         /** Returns how many passes it made, or -1 if cancelled. */
         int refine(List<int[]> orbits) {
             if (!(s.stair || s.fence || s.pane || s.wall)) return 0;
+            // Only now, so a solve dropped while sampling never asks for them.
+            inAff = new boolean[tok.length];
+            if (s.wall) { wallSeen = new int[tok.length]; wallAt = new short[tok.length]; }
             for (int sweep = 0; sweep < MAX_SWEEPS; sweep++) {
                 boolean changed = false;
-                int n = 0;
                 for (int[] o : orbits) {
-                    if ((n++ & 1023) == 0 && cancelled.getAsBoolean()) return -1;
+                    if (cancelled.getAsBoolean()) return -1;   // every cell: one in a tall column of walls is slow to pick
                     int i = o[0], j = o[1], k = o[2], c = at(i, j, k);
                     int twin = sy && 2 * j + 1 != ny ? at(i, ny - 1 - j, k) : -1;
+                    for (int q = 0; q < affN; q++) inAff[aff[q]] = false;
                     affN = 0;
                     gather(i, k, c);
                     if (twin >= 0) gather(i, k, twin);
@@ -531,10 +549,9 @@ public final class Solver3 {
 
         void column(int p) {
             do {
-                boolean seen = false;
-                for (int q = 0; q < affN && !seen; q++) seen = aff[q] == p;
-                if (!seen) {
+                if (!inAff[p]) {
                     if (affN == aff.length) aff = Arrays.copyOf(aff, affN * 2);
+                    inAff[p] = true;
                     aff[affN++] = p;
                 }
                 p += down;

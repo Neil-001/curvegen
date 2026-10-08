@@ -1309,8 +1309,9 @@ public class CurveScreen extends ControlScreen {
             int total = 0;
             for (int p = 1; p < Pieces.COUNT; p++) total += result.counts()[p];
             double pct = result.area() > 0 ? result.err() / result.area() * 100 : 0;
-            line = (result.floor() ? "Seen from above: " : "") + total + " pieces on " + result.nx() + "×" + result.ny() + String.format(", mismatch %.2f blocks² (%.1f%%)", result.err(), pct)
-                    + (job != null ? "  Updating…" : "");
+            String size = (result.floor() ? "Seen from above: " : "") + total + " pieces on " + result.nx() + "×" + result.ny(), busy = job != null ? "  Updating…" : "";
+            line = size + String.format(", mismatch %.2f blocks² (%.1f%%)", result.err(), pct) + busy;
+            if (tw(line) > x1 - x0 - 6) line = size + String.format(", mismatch %.1f%%", pct) + busy;
         }
         if (status != null && System.currentTimeMillis() < statusUntil) { line = status; color = 0xFFFFE08A; }
         ctx.fill(x0, y0, x1, y0 + 12, 0xB0000000);

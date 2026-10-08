@@ -163,6 +163,23 @@ class Solver3Test {
     }
 
     @Test
+    void aSheetOfWallsStopsAtAnyCell() {
+        // Beside an asymptote the filled side narrows to a sliver, which is walls in columns as tall as the shape, and a
+        // pick in one weighs the whole column. So a solve asks whether it's still wanted at every cell, not every so many.
+        ShapeSettings s = Shapes3Test.equation("z = tan(x)", ShapeSettings.Eq3Mode.BELOW, 1, 40, "-4", "4", "-4", "4", "-4", "4");
+        s.slab = s.stair = s.trap = s.shelf = s.fence = s.pane = false;
+        AtomicInteger checks = new AtomicInteger();
+        Solver3.Result r = Solver3.solve(Shape3.of(s), s, () -> checks.incrementAndGet() < 0);
+        int walls = 0;
+        for (int p = WALL; p < COUNT; p++) walls += r.counts()[p];
+        assertTrue(walls > 1000, walls + " walls");
+        assertTrue(r.sweeps() <= Solver3.MAX_SWEEPS, "refinement didn't settle");
+        // Once when a cell is sampled and once in each pass of refinement.
+        assertTrue(checks.get() >= 2 * walls, checks.get() + " checks for " + walls + " walls");
+        assertNull(Solver3.carve(Shape3.of(ellipsoid(20, 20, 20, ShapeSettings.EllipseMode.THIN, 1)), () -> true));
+    }
+
+    @Test
     void aSupersededSolveStops() {
         ShapeSettings s = ellipsoid(20, 20, 20, ShapeSettings.EllipseMode.MIDDLE, 2);
         assertNull(Solver3.solve(Shape3.of(s), s, () -> true));
