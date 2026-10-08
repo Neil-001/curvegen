@@ -74,17 +74,26 @@ public final class Placement {
      * {@code /setblock} commands. Each loader asks this for every system message. A success and "could not set the
      * block" are hidden. Another error, such as having no permission, shows the first time.
      */
-    public static boolean hidesFeedback(Component message, boolean overlay) {
-        if (overlay) return false;
-        List<Component> parts = message.getSiblings();
-        if (message.getContents() instanceof TranslatableContents t) return parts.isEmpty() && REPLIES.hides(t.getKey(), position(t));
-        if (parts.isEmpty() || !(message.getContents() instanceof PlainTextContents plain) || !plain.text().isEmpty()) return false;
-        // An error comes wrapped in an empty red line. A syntax error has a second line: the command, then "<--[HERE]".
-        if (!(parts.get(parts.size() - 1).getContents() instanceof TranslatableContents t)) return false;
-        if (parts.size() == 1) return REPLIES.hides(t.getKey(), null);
-        return t.getKey().equals(CommandReplies.HERE) && message.getStyle().getClickEvent() instanceof ClickEvent.SuggestCommand(String command)
-                && command.startsWith("/setblock ") && REPLIES.hides(CommandReplies.HERE, null);
+    public static boolean hidesFeedback(Component message, boolean overlay) { return !overlay && hides(REPLIES, message); }
+
+    /** Whether {@code replies} hides a message, read the way the game builds a command's success and its errors. */
+    static boolean hides(CommandReplies replies, Component message) {
+        if (message.getContents() instanceof TranslatableContents t) {
+            int[] at = position(t);
+            return message.getSiblings().isEmpty() && at != null && replies.hidesSuccess(t.getKey(), at[0], at[1], at[2]);
+        }
+        // An error comes wrapped in an empty red line.
+        if (!empty(message) || message.getSiblings().size() != 1) return false;
+        Component error = message.getSiblings().get(0);
+        if (error.getContents() instanceof TranslatableContents t) return error.getSiblings().isEmpty() && replies.hidesFailure(t.getKey());
+        // A syntax error has a second line, wrapped the same way: the command, then "<--[HERE]".
+        List<Component> parts = error.getSiblings();
+        return empty(error) && !parts.isEmpty() && parts.get(parts.size() - 1).getContents() instanceof TranslatableContents t
+                && t.getKey().equals(CommandReplies.HERE) && error.getStyle().getClickEvent() instanceof ClickEvent.SuggestCommand(String command)
+                && command.startsWith("/setblock ") && replies.hidesFailure(CommandReplies.HERE);
     }
+
+    private static boolean empty(Component c) { return c.getContents() instanceof PlainTextContents plain && plain.text().isEmpty(); }
 
     /** The position a "Changed the block at x, y, z" names, or null. */
     private static int[] position(TranslatableContents t) {

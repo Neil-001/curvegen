@@ -1,70 +1,81 @@
 package dev.curvegen.core;
 
-import java.util.HashMap;
+import java.util.ArrayDeque;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 
 /**
  * Which of a server's chat lines answer the {@code /setblock} commands the mod sent itself, so the client can keep
- * them out of chat. A line is known by its translation key. Only as many lines are hidden as commands were sent, and
- * a success only for a position a command went to, so what the player's own commands print still shows.
+ * them out of chat. A line is known by its translation key. The server answers commands in the order they were
+ * sent, and this keeps the positions of the ones still unanswered in that order. A success is the mod's only if it
+ * names one of those positions. An error names nothing, so one that {@code /setblock} can give counts as the answer
+ * to the oldest command. The player's own failed {@code /setblock} in the same few seconds can't be told apart
+ * from the mod's and is hidden too.
  */
 public final class CommandReplies {
     public static final String SUCCESS = "commands.setblock.success", FAILED = "commands.setblock.failed", HERE = "command.context.here";
+    /** What an error's key starts with when {@code /setblock} can give it: no such command without permission, a position the server won't take, a block it doesn't know. */
+    private static final String[] ERRORS = {"command.unknown.", "argument.pos.", "argument.block.", "argument.id."};
     /** Ticks without a command sent or a reply seen before the rest are given up on, and how long the last error's second line may take. */
     static final int TIMEOUT = 200, GRACE = 40;
 
     private record Pos(int x, int y, int z) {}
-    private final Map<Pos, Integer> sent = new HashMap<>();
+    private final ArrayDeque<Pos> sent = new ArrayDeque<>();
     /** The errors already shown since the commands started. */
     private final Set<String> shown = new HashSet<>();
-    private int awaiting, idle, grace;
+    private int idle, grace;
 
     /** Call for each command as it's sent. */
     public void sent(int x, int y, int z) {
-        if (awaiting == 0 && grace == 0) shown.clear();
-        sent.merge(new Pos(x, y, z), 1, Integer::sum);
-        awaiting++;
+        if (sent.isEmpty() && grace == 0) shown.clear();
+        sent.add(new Pos(x, y, z));
         idle = 0;
     }
 
     /** Call once a client tick. */
     public void tick() {
-        if (awaiting > 0) {
-            if (++idle > TIMEOUT) { awaiting = 0; sent.clear(); }
+        if (!sent.isEmpty()) {
+            if (++idle > TIMEOUT) sent.clear();
         } else if (grace > 0) grace--;
     }
 
     /** How many commands haven't been answered yet. */
-    public int awaiting() { return awaiting; }
+    public int awaiting() { return sent.size(); }
 
     /**
-     * Whether to hide a line with this translation key. {@code at} is the position a success names, or null.
-     * Successes and "could not set the block" are hidden. Any other command error, such as having no permission,
-     * shows the first time and is hidden after that. {@link #HERE} is the second line such an error comes with.
+     * Whether to hide a line that says a command worked, by its translation key. Only "Changed the block" at a
+     * position one of the mod's unanswered commands went to. The commands sent before that one have been answered too.
      */
-    public boolean hides(String key, int[] at) {
+    public boolean hidesSuccess(String key, int x, int y, int z) {
+        Pos p = new Pos(x, y, z);
+        if (!SUCCESS.equals(key) || !sent.contains(p)) return false;
+        while (!sent.remove().equals(p)) { }
+        answered();
+        return true;
+    }
+
+    /**
+     * Whether to hide a line that says a command failed, by its translation key. "Could not set the block" is
+     * hidden. Any other error {@code /setblock} can give, such as a position that isn't loaded, shows the first time
+     * and is hidden after that. {@link #HERE} is the second line a syntax error comes with, for a line that points
+     * at a {@code /setblock}.
+     */
+    public boolean hidesFailure(String key) {
         if (key == null) return false;
-        if (key.equals(HERE)) return (awaiting > 0 || grace > 0) && !shown.add(key);
-        if (awaiting == 0) return false;
-        if (key.equals(SUCCESS)) {
-            if (at == null) return false;
-            Pos p = new Pos(at[0], at[1], at[2]);
-            Integer n = sent.get(p);
-            if (n == null) return false;
-            if (n == 1) sent.remove(p); else sent.put(p, n - 1);
-            answered();
-            return true;
-        }
-        if (!key.startsWith("command.") && !key.startsWith("commands.") && !key.startsWith("argument.")
-                && !key.startsWith("parsing.") && !key.startsWith("permissions.")) return false;
+        if (key.equals(HERE)) return (!sent.isEmpty() || grace > 0) && !shown.add(key);
+        if (sent.isEmpty() || !key.equals(FAILED) && !isError(key)) return false;
+        sent.remove();
         answered();
         return key.equals(FAILED) || !shown.add(key);
     }
 
+    private static boolean isError(String key) {
+        for (String start : ERRORS) if (key.startsWith(start)) return true;
+        return false;
+    }
+
     private void answered() {
         idle = 0;
-        if (--awaiting == 0) { sent.clear(); grace = GRACE; }
+        if (sent.isEmpty()) grace = GRACE;
     }
 }

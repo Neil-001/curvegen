@@ -5,15 +5,15 @@ import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.Test;
 
 class CommandRepliesTest {
-    private static final String NO_COMMAND = "command.unknown.command";
+    private static final String NO_COMMAND = "command.unknown.command", S = CommandReplies.SUCCESS;
 
     @Test
     void nothingIsHiddenUntilTheModSendsCommands() {
         CommandReplies r = new CommandReplies();
-        assertFalse(r.hides(CommandReplies.SUCCESS, new int[]{1, 2, 3}));
-        assertFalse(r.hides(CommandReplies.FAILED, null));
-        assertFalse(r.hides(NO_COMMAND, null));
-        assertFalse(r.hides(CommandReplies.HERE, null));
+        assertFalse(r.hidesSuccess(S, 1, 2, 3));
+        assertFalse(r.hidesFailure(CommandReplies.FAILED));
+        assertFalse(r.hidesFailure(NO_COMMAND));
+        assertFalse(r.hidesFailure(CommandReplies.HERE));
     }
 
     @Test
@@ -22,17 +22,20 @@ class CommandRepliesTest {
         r.sent(1, 2, 3);
         r.sent(1, 2, 4);
         r.sent(1, 2, 5);
-        assertFalse(r.hides(CommandReplies.SUCCESS, new int[]{9, 9, 9}), "the player's own /setblock somewhere else");
-        assertFalse(r.hides("chat.type.text", null), "not a command's reply");
-        assertFalse(r.hides(null, null));
-        assertTrue(r.hides(CommandReplies.SUCCESS, new int[]{1, 2, 3}));
-        assertFalse(r.hides(CommandReplies.SUCCESS, new int[]{1, 2, 3}), "only one command went there");
-        assertTrue(r.hides(CommandReplies.FAILED, null), "the block was already there");
+        assertFalse(r.hidesSuccess(S, 9, 9, 9), "the player's own /setblock somewhere else");
+        assertFalse(r.hidesSuccess("commands.time.query", 1, 2, 3), "another command's result");
+        assertFalse(r.hidesFailure("commands.fill.failed"), "an error /setblock can't give");
+        assertFalse(r.hidesFailure("commands.time.query"));
+        assertFalse(r.hidesFailure(null));
+        assertEquals(3, r.awaiting(), "none of those used up a reply");
+        assertTrue(r.hidesSuccess(S, 1, 2, 3));
+        assertFalse(r.hidesSuccess(S, 1, 2, 3), "only one command went there");
+        assertTrue(r.hidesFailure(CommandReplies.FAILED), "the block was already there");
         assertEquals(1, r.awaiting());
-        assertTrue(r.hides(CommandReplies.SUCCESS, new int[]{1, 2, 5}));
+        assertTrue(r.hidesSuccess(S, 1, 2, 5));
         assertEquals(0, r.awaiting());
-        assertFalse(r.hides(CommandReplies.FAILED, null), "every command has been answered");
-        assertFalse(r.hides(CommandReplies.SUCCESS, new int[]{1, 2, 4}));
+        assertFalse(r.hidesFailure(CommandReplies.FAILED), "every command has been answered");
+        assertFalse(r.hidesSuccess(S, 1, 2, 4));
     }
 
     @Test
@@ -40,9 +43,30 @@ class CommandRepliesTest {
         CommandReplies r = new CommandReplies();
         r.sent(1, 2, 3);
         r.sent(1, 2, 3);
-        assertTrue(r.hides(CommandReplies.SUCCESS, new int[]{1, 2, 3}));
-        assertTrue(r.hides(CommandReplies.SUCCESS, new int[]{1, 2, 3}));
-        assertFalse(r.hides(CommandReplies.SUCCESS, new int[]{1, 2, 3}));
+        assertTrue(r.hidesSuccess(S, 1, 2, 3));
+        assertTrue(r.hidesSuccess(S, 1, 2, 3));
+        assertFalse(r.hidesSuccess(S, 1, 2, 3));
+    }
+
+    /** The player's own failed /setblock mid-run looks like the mod's. The mod's later replies still stay hidden. */
+    @Test
+    void aStrayFailureDoesNotLetTheModsRepliesThrough() {
+        CommandReplies r = new CommandReplies();
+        for (int k = 0; k < 4; k++) r.sent(k, 0, 0);
+        assertTrue(r.hidesSuccess(S, 0, 0, 0));
+        assertTrue(r.hidesFailure(CommandReplies.FAILED), "the player's, taken for the answer to the second command");
+        assertTrue(r.hidesSuccess(S, 2, 0, 0), "a success is known by its position, however many replies came before");
+        assertTrue(r.hidesSuccess(S, 3, 0, 0));
+        assertEquals(0, r.awaiting());
+    }
+
+    @Test
+    void aSuccessAnswersTheCommandsBeforeItToo() {
+        CommandReplies r = new CommandReplies();
+        for (int k = 0; k < 3; k++) r.sent(k, 0, 0);
+        assertTrue(r.hidesSuccess(S, 1, 0, 0), "the first one's reply never came");
+        assertEquals(1, r.awaiting());
+        assertFalse(r.hidesSuccess(S, 0, 0, 0));
     }
 
     @Test
@@ -50,30 +74,30 @@ class CommandRepliesTest {
         CommandReplies r = new CommandReplies();
         for (int k = 0; k < 3; k++) r.sent(k, 0, 0);
         // Without permission every command gets the error and a second line pointing at the command.
-        assertFalse(r.hides(NO_COMMAND, null));
-        assertFalse(r.hides(CommandReplies.HERE, null));
+        assertFalse(r.hidesFailure(NO_COMMAND));
+        assertFalse(r.hidesFailure(CommandReplies.HERE));
         for (int k = 1; k < 3; k++) {
-            assertTrue(r.hides(NO_COMMAND, null));
-            assertTrue(r.hides(CommandReplies.HERE, null), "also after the last command's error");
+            assertTrue(r.hidesFailure(NO_COMMAND));
+            assertTrue(r.hidesFailure(CommandReplies.HERE), "also after the last command's error");
         }
         assertEquals(0, r.awaiting());
-        assertFalse(r.hides(NO_COMMAND, null), "the player's own mistake afterwards");
+        assertFalse(r.hidesFailure(NO_COMMAND), "the player's own mistake afterwards");
         // A different error is news.
         r.sent(0, 0, 0);
         r.sent(0, 0, 1);
-        assertTrue(r.hides(NO_COMMAND, null), "still the same run of commands");
-        assertFalse(r.hides("argument.pos.unloaded", null));
+        assertTrue(r.hidesFailure(NO_COMMAND), "still the same run of commands");
+        assertFalse(r.hidesFailure("argument.pos.unloaded"));
     }
 
     @Test
     void theNextRunShowsItsErrorAgain() {
         CommandReplies r = new CommandReplies();
         r.sent(0, 0, 0);
-        assertFalse(r.hides(NO_COMMAND, null));
+        assertFalse(r.hidesFailure(NO_COMMAND));
         for (int t = 0; t <= CommandReplies.GRACE; t++) r.tick();
-        assertFalse(r.hides(CommandReplies.HERE, null), "too late to belong to the mod's command");
+        assertFalse(r.hidesFailure(CommandReplies.HERE), "too late to belong to the mod's command");
         r.sent(0, 0, 0);
-        assertFalse(r.hides(NO_COMMAND, null));
+        assertFalse(r.hidesFailure(NO_COMMAND));
     }
 
     @Test
@@ -82,9 +106,9 @@ class CommandRepliesTest {
         r.sent(1, 2, 3);
         r.sent(1, 2, 4);
         for (int t = 0; t < CommandReplies.TIMEOUT; t++) r.tick();
-        assertTrue(r.hides(CommandReplies.SUCCESS, new int[]{1, 2, 3}), "a reply restarts the wait");
+        assertTrue(r.hidesSuccess(S, 1, 2, 3), "a reply restarts the wait");
         for (int t = 0; t <= CommandReplies.TIMEOUT; t++) r.tick();
         assertEquals(0, r.awaiting());
-        assertFalse(r.hides(CommandReplies.SUCCESS, new int[]{1, 2, 4}));
+        assertFalse(r.hidesSuccess(S, 1, 2, 4));
     }
 }
