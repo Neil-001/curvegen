@@ -17,6 +17,9 @@ import java.util.regex.Pattern;
  * <p>When it can't tell, the line shows. A command of the player's that prints no error stays in the queue, so the
  * error after it is taken for its reply. From then on nothing says which command an error answers, and every error
  * shows until a success of the mod's gives the place in the order again.
+ *
+ * <p>It's a best effort. One command can print several successes, as {@code execute at @a run setblock} does with
+ * several players, and those after the first can be taken for the mod's if it has a command out for the same block.
  */
 public final class CommandReplies {
     public static final String SUCCESS = "commands.setblock.success", FAILED = "commands.setblock.failed", HERE = "command.context.here";
