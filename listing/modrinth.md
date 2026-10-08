@@ -91,6 +91,7 @@ The cogwheel in the full menu opens the settings. On Fabric they are also in Mod
 
 - how long to hold a key before the number box opens, and before its progress bar shows
 - whether the radial menu stays open while you hold its key, or opens and closes with a press
+- whether the ring in the middle of the radial menu is stretched like the menu, with even slices, or round
 - the order of the radial menu's wedges
 - how big the handles are and how close you must look to grab one
 - how solid the hologram looks, and how many blocks it shows before it falls back to an outline
