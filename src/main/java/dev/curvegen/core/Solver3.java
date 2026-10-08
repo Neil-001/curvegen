@@ -74,14 +74,18 @@ public final class Solver3 {
     }
 
     /** The cells carving clears: those whose centre is in the space the shape encloses. Indexed like the grid; null if there's none. */
-    public static BitSet carve(Shape3 sh) {
+    public static BitSet carve(Shape3 sh) { return carve(sh, () -> false); }
+
+    /** The same, giving up with null once {@code cancelled} reports true. */
+    public static BitSet carve(Shape3 sh, BooleanSupplier cancelled) {
         double[] band = sh.carve();
         if (band == null || sh.error() != null) return null;
         int nx = sh.nx(), ny = sh.ny(), nz = sh.nz();
         int i0 = sh.symX() ? nx / 2 : 0, j0 = sh.symY() ? ny / 2 : 0, k0 = sh.symZ() ? nz / 2 : 0;
         BitSet out = new BitSet(nx * ny * nz);
         for (int j = j0; j < ny; j++)
-            for (int k = k0; k < nz; k++)
+            for (int k = k0; k < nz; k++) {
+                if (cancelled.getAsBoolean()) return null;
                 for (int i = i0; i < nx; i++) {
                     double d = sh.field(i + .5, j + .5, k + .5);
                     if (!(d > band[0] && d < band[1])) continue;
@@ -91,6 +95,7 @@ public final class Solver3 {
                         out.set((y * nz + z) * nx + x);
                     }
                 }
+            }
         return out;
     }
 
@@ -141,12 +146,14 @@ public final class Solver3 {
             int[] counts = new int[COUNT];
             if (sh.error() != null) { counts[AIR] = grid.length; return new Result(grid, nx, ny, nz, 0, 0, counts, sh, 0); }
             if (!sample()) return null;
-            int sweeps = refine(start());
+            List<int[]> orbits = start();
+            int sweeps = orbits == null ? -1 : refine(orbits);
             if (sweeps < 0) return null;
 
             short[] st = new short[tok.length];
             double err = 0, volume = 0;
-            for (int j = 0; j < ny; j++)
+            for (int j = 0; j < ny; j++) {
+                if (cancelled.getAsBoolean()) return null;
                 for (int k = 0; k < nz; k++)
                     for (int i = 0; i < nx; i++) {
                         int p = at(i, j, k);
@@ -157,7 +164,9 @@ public final class Solver3 {
                         err += weight * error(p, st[p]);
                         volume += weight * (ref[p] >= 0 ? count[ref[p]] : ref[p] == SOLID ? 4096 : 0);
                     }
-            for (int j = 0; j < ny; j++)
+            }
+            for (int j = 0; j < ny; j++) {
+                if (cancelled.getAsBoolean()) return null;
                 for (int k = 0; k < nz; k++)
                     for (int i = 0; i < nx; i++) {
                         int p = at(i, j, k), v = st[p];
@@ -165,6 +174,7 @@ public final class Solver3 {
                         grid[(j * nz + k) * nx + i] = (short) v;
                         counts[v]++;
                     }
+            }
             if (cancelled.getAsBoolean()) return null;
             return new Result(grid, nx, ny, nz, err / 4096, volume / 4096, counts, sh, sweeps);
         }
@@ -207,13 +217,15 @@ public final class Solver3 {
             }
             // Cells outside the scored quarter only need to know what kind they are.
             if (sx || sz)
-                for (int j = 0; j < ny; j++)
+                for (int j = 0; j < ny; j++) {
+                    if (cancelled.getAsBoolean()) return false;
                     for (int k = 0; k < nz; k++)
                         for (int i = 0; i < nx; i++) {
                             if (!(sx && i < i0) && !(sz && k < k0)) continue;
                             int r = ref[at(sx && i < i0 ? nx - 1 - i : i, j, sz && k < k0 ? nz - 1 - k : k)];
                             ref[at(i, j, k)] = r >= 0 ? NO_DATA : r;
                         }
+                }
             return true;
         }
 
@@ -240,6 +252,8 @@ public final class Solver3 {
                             for (int e = Math.min(nx, i + run); i < e; i++) solid(i, j, jm, k);
                             continue;
                         }
+                        // A block that's sampled can take a while, so one row of them is too long to wait for.
+                        if (cancelled.getAsBoolean()) { stopped = true; return; }
                         int c = sampleCell(i, j, k);
                         if (c == 4096) solid(i, j, jm, k);
                         else if (c > 0) {
@@ -390,7 +404,7 @@ public final class Solver3 {
 
         // ---------- solving ----------
 
-        /** Gives every mixed cell its lowest-error token and returns the cells to refine, as {x, y, z, candidate list}. */
+        /** Gives every mixed cell its lowest-error token and returns the cells to refine, as {x, y, z, candidate list}, or null if cancelled. */
         List<int[]> start() {
             List<Integer> ids = new ArrayList<>(List.of(AIR, FULL));
             if (s.slab) ids.addAll(List.of(SLAB_B, SLAB_T));
@@ -410,7 +424,8 @@ public final class Solver3 {
                         .filter(t -> ((mm & 1) == 0 || MX[t] == t) && ((mm & 2) == 0 || MY[t] == t) && ((mm & 4) == 0 || MZ[t] == t)).toArray();
             }
             List<int[]> orbits = new ArrayList<>();
-            for (int j = j0; j < ny; j++)
+            for (int j = j0; j < ny; j++) {
+                if (cancelled.getAsBoolean()) return null;
                 for (int k = k0; k < nz; k++)
                     for (int i = i0; i < nx; i++) {
                         int p = at(i, j, k);
@@ -430,6 +445,7 @@ public final class Solver3 {
                         place(i, j, k, best);
                         orbits.add(new int[]{i, j, k, list});
                     }
+            }
             return orbits;
         }
 
