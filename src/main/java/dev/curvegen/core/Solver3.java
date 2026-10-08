@@ -74,14 +74,18 @@ public final class Solver3 {
     }
 
     /** The cells carving clears: those whose centre is in the space the shape encloses. Indexed like the grid; null if there's none. */
-    public static BitSet carve(Shape3 sh) {
+    public static BitSet carve(Shape3 sh) { return carve(sh, () -> false); }
+
+    /** The same, giving up with null once {@code cancelled} reports true. */
+    public static BitSet carve(Shape3 sh, BooleanSupplier cancelled) {
         double[] band = sh.carve();
         if (band == null || sh.error() != null) return null;
         int nx = sh.nx(), ny = sh.ny(), nz = sh.nz();
         int i0 = sh.symX() ? nx / 2 : 0, j0 = sh.symY() ? ny / 2 : 0, k0 = sh.symZ() ? nz / 2 : 0;
         BitSet out = new BitSet(nx * ny * nz);
         for (int j = j0; j < ny; j++)
-            for (int k = k0; k < nz; k++)
+            for (int k = k0; k < nz; k++) {
+                if (cancelled.getAsBoolean()) return null;
                 for (int i = i0; i < nx; i++) {
                     double d = sh.field(i + .5, j + .5, k + .5);
                     if (!(d > band[0] && d < band[1])) continue;
@@ -91,6 +95,7 @@ public final class Solver3 {
                         out.set((y * nz + z) * nx + x);
                     }
                 }
+            }
         return out;
     }
 
@@ -116,6 +121,16 @@ public final class Solver3 {
         // refinement scratch
         int[] aff = new int[64];
         int affN;
+        /** Which cells are in {@link #aff}, so a tall column isn't searched for every cell added to it. */
+        boolean[] inAff;
+        /**
+         * The states of walls already worked out since a token last changed: {@link #wallAt} holds the state of a
+         * cell whose {@link #wallSeen} equals {@link #stamp}. A wall takes its heights and post from the state above
+         * it, so without this each wall in a tall column would work out every wall above it again.
+         */
+        int[] wallSeen;
+        short[] wallAt;
+        int stamp = 1;
 
         Run(Shape3 sh, ShapeSettings s, BooleanSupplier cancelled) {
             this.sh = sh; this.s = s; this.cancelled = cancelled;
@@ -141,12 +156,14 @@ public final class Solver3 {
             int[] counts = new int[COUNT];
             if (sh.error() != null) { counts[AIR] = grid.length; return new Result(grid, nx, ny, nz, 0, 0, counts, sh, 0); }
             if (!sample()) return null;
-            int sweeps = refine(start());
+            List<int[]> orbits = start();
+            int sweeps = orbits == null ? -1 : refine(orbits);
             if (sweeps < 0) return null;
 
             short[] st = new short[tok.length];
             double err = 0, volume = 0;
-            for (int j = 0; j < ny; j++)
+            for (int j = 0; j < ny; j++) {
+                if (cancelled.getAsBoolean()) return null;
                 for (int k = 0; k < nz; k++)
                     for (int i = 0; i < nx; i++) {
                         int p = at(i, j, k);
@@ -157,7 +174,9 @@ public final class Solver3 {
                         err += weight * error(p, st[p]);
                         volume += weight * (ref[p] >= 0 ? count[ref[p]] : ref[p] == SOLID ? 4096 : 0);
                     }
-            for (int j = 0; j < ny; j++)
+            }
+            for (int j = 0; j < ny; j++) {
+                if (cancelled.getAsBoolean()) return null;
                 for (int k = 0; k < nz; k++)
                     for (int i = 0; i < nx; i++) {
                         int p = at(i, j, k), v = st[p];
@@ -165,6 +184,7 @@ public final class Solver3 {
                         grid[(j * nz + k) * nx + i] = (short) v;
                         counts[v]++;
                     }
+            }
             if (cancelled.getAsBoolean()) return null;
             return new Result(grid, nx, ny, nz, err / 4096, volume / 4096, counts, sh, sweeps);
         }
@@ -207,13 +227,15 @@ public final class Solver3 {
             }
             // Cells outside the scored quarter only need to know what kind they are.
             if (sx || sz)
-                for (int j = 0; j < ny; j++)
+                for (int j = 0; j < ny; j++) {
+                    if (cancelled.getAsBoolean()) return false;
                     for (int k = 0; k < nz; k++)
                         for (int i = 0; i < nx; i++) {
                             if (!(sx && i < i0) && !(sz && k < k0)) continue;
                             int r = ref[at(sx && i < i0 ? nx - 1 - i : i, j, sz && k < k0 ? nz - 1 - k : k)];
                             ref[at(i, j, k)] = r >= 0 ? NO_DATA : r;
                         }
+                }
             return true;
         }
 
@@ -240,6 +262,8 @@ public final class Solver3 {
                             for (int e = Math.min(nx, i + run); i < e; i++) solid(i, j, jm, k);
                             continue;
                         }
+                        // A block that's sampled can take a while, so one row of them is too long to wait for.
+                        if (cancelled.getAsBoolean()) { stopped = true; return; }
                         int c = sampleCell(i, j, k);
                         if (c == 4096) solid(i, j, jm, k);
                         else if (c > 0) {
@@ -382,15 +406,18 @@ public final class Solver3 {
             if (!dependent(t)) return t;
             if (t < FENCE) return stairState(p, t);
             int kind = t >= WALL ? 2 : t >= PANE ? 1 : 0, bits = 0;
+            if (kind == 2 && wallSeen[p] == stamp) return wallAt[p];
             for (int d = 0; d < 4; d++) if (connects(kind, p + off[d], d)) bits |= 1 << d;
             if (kind < 2) return t + bits;
             int above = resolve(p + up);
-            return wallState(bits, COVER[above], isWall(above) && Pieces3.up(above));
+            int state = wallState(bits, COVER[above], isWall(above) && Pieces3.up(above));
+            wallSeen[p] = stamp; wallAt[p] = (short) state;
+            return state;
         }
 
         // ---------- solving ----------
 
-        /** Gives every mixed cell its lowest-error token and returns the cells to refine, as {x, y, z, candidate list}. */
+        /** Gives every mixed cell its lowest-error token and returns the cells to refine, as {x, y, z, candidate list}, or null if cancelled. */
         List<int[]> start() {
             List<Integer> ids = new ArrayList<>(List.of(AIR, FULL));
             if (s.slab) ids.addAll(List.of(SLAB_B, SLAB_T));
@@ -410,7 +437,8 @@ public final class Solver3 {
                         .filter(t -> ((mm & 1) == 0 || MX[t] == t) && ((mm & 2) == 0 || MY[t] == t) && ((mm & 4) == 0 || MZ[t] == t)).toArray();
             }
             List<int[]> orbits = new ArrayList<>();
-            for (int j = j0; j < ny; j++)
+            for (int j = j0; j < ny; j++) {
+                if (cancelled.getAsBoolean()) return null;
                 for (int k = k0; k < nz; k++)
                     for (int i = i0; i < nx; i++) {
                         int p = at(i, j, k);
@@ -430,6 +458,7 @@ public final class Solver3 {
                         place(i, j, k, best);
                         orbits.add(new int[]{i, j, k, list});
                     }
+            }
             return orbits;
         }
 
@@ -457,18 +486,23 @@ public final class Solver3 {
                 if (mz) v = MZ[v];
                 tok[at(mx ? im : i, my ? jm : j, mz ? km : k)] = (short) v;
             }
+            // Any wall's state may have changed with it.
+            if (++stamp == 0 && wallSeen != null) { Arrays.fill(wallSeen, 0); stamp = 1; }
         }
 
         /** Returns how many passes it made, or -1 if cancelled. */
         int refine(List<int[]> orbits) {
             if (!(s.stair || s.fence || s.pane || s.wall)) return 0;
+            // Only now, so a solve dropped while sampling never asks for them.
+            inAff = new boolean[tok.length];
+            if (s.wall) { wallSeen = new int[tok.length]; wallAt = new short[tok.length]; }
             for (int sweep = 0; sweep < MAX_SWEEPS; sweep++) {
                 boolean changed = false;
-                int n = 0;
                 for (int[] o : orbits) {
-                    if ((n++ & 1023) == 0 && cancelled.getAsBoolean()) return -1;
+                    if (cancelled.getAsBoolean()) return -1;   // every cell: one in a tall column of walls is slow to pick
                     int i = o[0], j = o[1], k = o[2], c = at(i, j, k);
                     int twin = sy && 2 * j + 1 != ny ? at(i, ny - 1 - j, k) : -1;
+                    for (int q = 0; q < affN; q++) inAff[aff[q]] = false;
                     affN = 0;
                     gather(i, k, c);
                     if (twin >= 0) gather(i, k, twin);
@@ -515,10 +549,9 @@ public final class Solver3 {
 
         void column(int p) {
             do {
-                boolean seen = false;
-                for (int q = 0; q < affN && !seen; q++) seen = aff[q] == p;
-                if (!seen) {
+                if (!inAff[p]) {
                     if (affN == aff.length) aff = Arrays.copyOf(aff, affN * 2);
+                    inAff[p] = true;
                     aff[affN++] = p;
                 }
                 p += down;

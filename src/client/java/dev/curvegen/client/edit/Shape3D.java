@@ -84,8 +84,10 @@ final class Shape3D implements EditShape {
         Shape3 own = Shape3.of(copy), shape = Turned.of(own, orient);
         Solver3.Result r = Solver3.solve(shape, copy, cancelled);
         if (r == null) return null;
+        BitSet carve = copy.carve ? Solver3.carve(shape, cancelled) : null;
+        if (cancelled.getAsBoolean()) return null;
         if (own.error() == null) own.wireframe();   // traced here, off the client thread, and kept by the shape
-        return new Solved(r, copy.carve ? Solver3.carve(shape) : null, copy.topColours, own, copy.gen, Edit3D.size(copy));
+        return new Solved(r, carve, copy.topColours, own, copy.gen, Edit3D.size(copy));
     }
 
     @Override

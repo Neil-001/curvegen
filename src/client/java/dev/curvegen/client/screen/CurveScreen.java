@@ -1215,6 +1215,7 @@ public class CurveScreen extends ControlScreen {
 
     // ---------- solving ----------
     private void poll() {
+        exportHologram();
         if (mode3d) { poll3(); return; }
         if (job != null && job.isDone()) {
             try { result = job.get(); } catch (Exception e) { flash("Couldn't build this shape: " + e.getMessage()); }
@@ -1308,8 +1309,9 @@ public class CurveScreen extends ControlScreen {
             int total = 0;
             for (int p = 1; p < Pieces.COUNT; p++) total += result.counts()[p];
             double pct = result.area() > 0 ? result.err() / result.area() * 100 : 0;
-            line = (result.floor() ? "Seen from above: " : "") + total + " pieces on " + result.nx() + "×" + result.ny() + String.format(", mismatch %.2f blocks² (%.1f%%)", result.err(), pct)
-                    + (job != null ? "  Updating…" : "");
+            String size = (result.floor() ? "Seen from above: " : "") + total + " pieces on " + result.nx() + "×" + result.ny(), busy = job != null ? "  Updating…" : "";
+            line = size + String.format(", mismatch %.2f blocks² (%.1f%%)", result.err(), pct) + busy;
+            if (tw(line) > x1 - x0 - 6) line = size + String.format(", mismatch %.1f%%", pct) + busy;
         }
         if (status != null && System.currentTimeMillis() < statusUntil) { line = status; color = 0xFFFFE08A; }
         ctx.fill(x0, y0, x1, y0 + 12, 0xB0000000);
@@ -1471,7 +1473,22 @@ public class CurveScreen extends ControlScreen {
         Editor.start();
     }
 
+    /** Set by Export while a hologram is out and its blocks are still catching up with a change made here. */
+    private boolean exporting;
+
+    /** A hologram exports as it stands in the world, turned and tipped, as the radial menu's Export writes it. */
+    private void exportHologram() {
+        if (!exporting) return;
+        if (!Editor.isActive()) { exporting = false; return; }
+        if (Editor.catchingUp()) { flash("Exporting as soon as the shape in the world is ready…"); return; }
+        exporting = false;
+        String message = Editor.export();
+        flash(message);
+        Placement.say(Component.literal(message));
+    }
+
     private void export() {
+        if (Editor.isActive()) { exporting = true; exportHologram(); return; }
         if (S.is3d()) { export3(); return; }
         if (!ready()) return;
         Layout layout = Layout.of(result);

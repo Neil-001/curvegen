@@ -269,8 +269,7 @@ public final class Editor {
         Minecraft mc = Minecraft.getInstance();
         if (!active) return "There's no shape in the world to export.";
         // With the menu open, the hologram may still be the shape or the blocks from before a change made there.
-        if (hologram != null && !dirty && job == null && stale()) adopt();
-        if (hologram == null || dirty || job != null) return "Still working on the shape, try again in a moment.";
+        if (catchingUp()) return "Still working on the shape, try again in a moment.";
         if (hologram.error != null) return "Fix the shape first: " + hologram.error;
         if (hologram.size() == 0) return "The shape is empty, so there's nothing to export.";
         try {
@@ -280,6 +279,16 @@ public final class Editor {
         } catch (Exception e) {
             return "Export failed: " + e.getMessage();
         }
+    }
+
+    /**
+     * Whether the hologram's blocks are still behind the settings. A screen that changes them asks this before it
+     * exports, and asking has the hologram take the changes up, which it otherwise does when the screen closes.
+     */
+    public static boolean catchingUp() {
+        if (!active) return false;
+        if (hologram != null && !dirty && job == null && stale()) adopt();
+        return hologram == null || dirty || job != null;
     }
 
     /** Whether the hologram was built from other shape settings or block choices than the ones set now. */
@@ -848,17 +857,44 @@ public final class Editor {
             color[n++] = argb;
         }
 
-        void submit(SubmitNodeCollector out, PoseStack ms, boolean translucent, float width) {
+        /**
+         * Draws each segment as a strip facing the camera, in the handles' render type. The game's own line types
+         * fade into fog, which at a short render distance hides the far side of a large shape while its handles
+         * still show. {@code cam} is the camera and {@code forward} the way it looks, and {@code spread} is how
+         * wide half the line is one block in front of the camera, so the strip is as wide as a line on screen.
+         */
+        /** Lines are cut off this close in front of the camera, just short of the game's own near plane. */
+        private static final double NEAR = 0.04;
+
+        void submit(SubmitNodeCollector out, PoseStack ms, double[] cam, double[] forward, double spread) {
             if (n == 0) return;
-            Hologram.submit(out, ms, translucent ? RenderTypes.linesTranslucent() : RenderTypes.lines(), true, (pose, vc) -> {
+            Hologram.submit(out, ms, RenderTypes.debugFilledBox(), true, (pose, vc) -> {
                 for (int k = 0; k < n; k++) {
                     int o = k * 6;
-                    float dx = xyz[o + 3] - xyz[o], dy = xyz[o + 4] - xyz[o + 1], dz = xyz[o + 5] - xyz[o + 2];
-                    float len = (float) Math.sqrt(dx * dx + dy * dy + dz * dz);
-                    if (len < 1e-6f) continue;
-                    dx /= len; dy /= len; dz /= len;
-                    vc.addVertex(pose, xyz[o], xyz[o + 1], xyz[o + 2]).setColor(color[k]).setNormal(pose, dx, dy, dz).setLineWidth(width);
-                    vc.addVertex(pose, xyz[o + 3], xyz[o + 4], xyz[o + 5]).setColor(color[k]).setNormal(pose, dx, dy, dz).setLineWidth(width);
+                    double x1 = xyz[o], y1 = xyz[o + 1], z1 = xyz[o + 2], x2 = xyz[o + 3], y2 = xyz[o + 4], z2 = xyz[o + 5];
+                    // How far in front of the camera each end is. The part behind it is cut off here: a strip that
+                    // crossed the camera's own plane would turn inside out there and smear across the screen.
+                    double near = (x1 - cam[0]) * forward[0] + (y1 - cam[1]) * forward[1] + (z1 - cam[2]) * forward[2];
+                    double far = (x2 - cam[0]) * forward[0] + (y2 - cam[1]) * forward[1] + (z2 - cam[2]) * forward[2];
+                    if (near < NEAR && far < NEAR) continue;
+                    if (near < NEAR) {
+                        double t = (NEAR - near) / (far - near);
+                        x1 += (x2 - x1) * t; y1 += (y2 - y1) * t; z1 += (z2 - z1) * t; near = NEAR;
+                    } else if (far < NEAR) {
+                        double t = (NEAR - far) / (near - far);
+                        x2 += (x1 - x2) * t; y2 += (y1 - y2) * t; z2 += (z1 - z2) * t; far = NEAR;
+                    }
+                    double dx = x2 - x1, dy = y2 - y1, dz = z2 - z1, ax = cam[0] - x1, ay = cam[1] - y1, az = cam[2] - z1;
+                    // Across the line as the camera sees it. It's the same from either end.
+                    double px = dy * az - dz * ay, py = dz * ax - dx * az, pz = dx * ay - dy * ax;
+                    double len = Math.sqrt(px * px + py * py + pz * pz);
+                    if (len < 1e-9) continue;   // no length, or seen end on
+                    // The width grows with the distance in front of the camera, which keeps it the same on screen.
+                    double a = near * spread / len, b = far * spread / len;
+                    vc.addVertex(pose, (float) (x1 - px * a), (float) (y1 - py * a), (float) (z1 - pz * a)).setColor(color[k]);
+                    vc.addVertex(pose, (float) (x1 + px * a), (float) (y1 + py * a), (float) (z1 + pz * a)).setColor(color[k]);
+                    vc.addVertex(pose, (float) (x2 + px * b), (float) (y2 + py * b), (float) (z2 + pz * b)).setColor(color[k]);
+                    vc.addVertex(pose, (float) (x2 - px * b), (float) (y2 - py * b), (float) (z2 - pz * b)).setColor(color[k]);
                 }
             });
         }
@@ -938,8 +974,11 @@ public final class Editor {
             }
         }
         if (drag != null) grid(faint, ox, oy, oz);
-        solid.submit(out, ms, false, width);
-        faint.submit(out, ms, true, width);
+        // Half a line's width, in blocks, one block in front of the camera.
+        double spread = width / 2 * Math.tan(Math.toRadians(mc.gameRenderer.mainCamera().getFov()) / 2) * 2 / mc.getWindow().getHeight();
+        double[] camHere = {cx, cy, cz};
+        solid.submit(out, ms, camHere, look, spread);
+        faint.submit(out, ms, camHere, look, spread);
 
         if (!handles.isEmpty()) {
             double base = ModSettings.handleSize;
