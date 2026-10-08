@@ -50,14 +50,20 @@ public class SettingsScreen extends ControlScreen {
         radial.setTooltip(Tooltip.create(Component.literal(
                 "Hold: the menu stays open while you hold its key. Press: one press opens it and another closes it.")));
         addRenderableWidget(radial);
+        CycleButton<Boolean> ring = cycler(List.of(false, true), ModSettings.radialRound, v -> Component.literal(v ? "Round" : "Stretched"),
+                left, row(3), colW, "Ring shape", v -> ModSettings.radialRound = v);
+        ring.setTooltip(Tooltip.create(Component.literal(
+                "Stretched: the ring in the middle of the radial menu is an oval with even slices. "
+                + "Round: it's a circle, so the slices at the top and bottom are wider than the ones at the sides.")));
+        addRenderableWidget(ring);
         Button order = Button.builder(Component.literal("Wedge order: " + (ModSettings.radialOrder.isEmpty() ? "Default" : "Custom") + "…"),
-                _ -> minecraft.gui.setScreen(new WedgeOrderScreen(this))).bounds(left, row(3), colW, 20).build();
+                _ -> minecraft.gui.setScreen(new WedgeOrderScreen(this))).bounds(left, row(4), colW, 20).build();
         order.setTooltip(Tooltip.create(Component.literal("Choose where each wedge of the radial menu goes.")));
         addRenderableWidget(order);
-        CycleButton<Boolean> hints = toggle(ModSettings.showKeyHints, left, row(4), colW, "Key hints", v -> ModSettings.showKeyHints = v);
+        CycleButton<Boolean> hints = toggle(ModSettings.showKeyHints, left, row(5), colW, "Key hints", v -> ModSettings.showKeyHints = v);
         hints.setTooltip(Tooltip.create(Component.literal("Lists a shape's keys on screen while you edit it.")));
         addRenderableWidget(hints);
-        CycleButton<Boolean> info = toggle(ModSettings.showShapeInfo, left, row(5), colW, "Shape info", v -> ModSettings.showShapeInfo = v);
+        CycleButton<Boolean> info = toggle(ModSettings.showShapeInfo, left, row(6), colW, "Shape info", v -> ModSettings.showShapeInfo = v);
         info.setTooltip(Tooltip.create(Component.literal(
                 "Shows a shape's kind, size and block counts on screen while you edit it. Warnings and errors always show.")));
         addRenderableWidget(info);

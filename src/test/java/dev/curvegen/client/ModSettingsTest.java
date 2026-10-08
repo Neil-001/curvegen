@@ -20,6 +20,7 @@ class ModSettingsTest {
         assertEquals(3.0, ModSettings.holdSeconds);
         assertEquals(0.3, ModSettings.barDelaySeconds);
         assertFalse(ModSettings.radialToggle);
+        assertFalse(ModSettings.radialRound, "the stretched ring is the default");
         assertEquals(List.of(), ModSettings.radialOrder);
         assertEquals(0.25, ModSettings.handleSize);
         assertEquals(0.4, ModSettings.pickRadius);
@@ -39,6 +40,7 @@ class ModSettingsTest {
         ModSettings.holdSeconds = 1.5;
         ModSettings.barDelaySeconds = 0;
         ModSettings.radialToggle = true;
+        ModSettings.radialRound = true;
         ModSettings.radialOrder = new ArrayList<>(List.of("place", "blocks"));
         ModSettings.handleSize = 0.5;
         ModSettings.pickRadius = 1.25;
@@ -57,6 +59,7 @@ class ModSettingsTest {
         assertEquals(1.5, ModSettings.holdSeconds);
         assertEquals(0.0, ModSettings.barDelaySeconds);
         assertTrue(ModSettings.radialToggle);
+        assertTrue(ModSettings.radialRound);
         assertEquals(List.of("place", "blocks"), ModSettings.radialOrder);
         assertEquals(0.5, ModSettings.handleSize);
         assertEquals(1.25, ModSettings.pickRadius);
@@ -77,12 +80,13 @@ class ModSettingsTest {
     @Test
     void badValuesFallBackOneByOne() {
         assertTrue(ModSettings.read("""
-                {"holdSeconds": "long", "barDelaySeconds": -1, "radialToggle": 1, "radialOrder": ["a", 3, "a", null, "b"],
+                {"holdSeconds": "long", "barDelaySeconds": -1, "radialToggle": 1, "radialRound": "yes", "radialOrder": ["a", 3, "a", null, "b"],
                  "handleSize": 50, "pickRadius": 0.75, "hologramOpacity": null, "hologramBlockLimit": 12.5,
                  "invertDragScroll": true, "showKeyHints": "no", "showShapeInfo": false, "somethingNewer": {"x": 1}}"""));
         assertEquals(3.0, ModSettings.holdSeconds);
         assertEquals(0.3, ModSettings.barDelaySeconds);
         assertFalse(ModSettings.radialToggle);
+        assertFalse(ModSettings.radialRound);
         assertEquals(List.of("a", "b"), ModSettings.radialOrder);
         assertEquals(0.25, ModSettings.handleSize);
         assertEquals(0.75, ModSettings.pickRadius);

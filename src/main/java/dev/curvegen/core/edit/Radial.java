@@ -33,32 +33,49 @@ public final class Radial {
      * straight up and the rest follow clockwise. -1 within {@code dead} of the centre, where no direction is clear.
      *
      * <p>The labels sit round an oval, wider than it is tall: {@code stretch} is how many times wider, from
-     * {@link #stretch}. Wedges are even slices of that oval, which keeps every label inside its own wedge. On the
-     * round ring in the middle they're the same directions, so the slices at the sides are wider than the ones at
-     * the top and bottom.
+     * {@link #stretch}. Wedges are even slices of that oval, which keeps every label inside its own wedge. The ring in
+     * the middle is either that oval too, with a hole of the same proportions, or with {@code round} a circle with a
+     * round hole. The round ring's slices are the same directions, so the ones at the top and bottom are wider than the
+     * ones at the sides.
      */
-    public static int wedgeAt(double dx, double dy, int n, double dead, double stretch) {
+    public static int wedgeAt(double dx, double dy, int n, double dead, double stretch, boolean round) {
         double u = dx / stretch;
-        if (n <= 0 || Math.hypot(dx, dy) < dead) return -1;
+        if (n <= 0 || Math.hypot(round ? dx : u, dy) < dead) return -1;
         double turn = Math.atan2(u, -dy) / (2 * Math.PI);   // 0 straight up, a quarter to the right
         return Math.floorMod((int) Math.round(turn * n), n);
     }
 
+    /** Half the ring's width in pixels. It's always {@link #RING} high each way from its centre. */
+    public static int ringHalf(double stretch, boolean round) { return round ? RING : (int) Math.ceil(RING * stretch); }
+
     /**
-     * The ring's pixels: which of {@code n} wedges each belongs to, or -1 for none. It's a circle {@link #RING}
-     * across each way from its centre, whatever the stretch, row by row from the top left. A pixel's wedge is the one
-     * {@link #wedgeAt} gives a cursor anywhere on it. A pixel that two wedges share is left empty, which draws the
-     * line between them.
+     * The ring's pixels: which of {@code n} wedges each belongs to, or -1 for none, row by row from the top left of a
+     * box 2 × {@link #ringHalf} wide and 2 × {@link #RING} high.
+     *
+     * <p>The round ring is a circle whatever the stretch. A pixel's wedge is the one {@link #wedgeAt} gives a cursor
+     * anywhere on it, and a pixel that two wedges share is left empty, which draws the line between them. The
+     * stretched ring is an oval in the labels' proportions with even slices, about a pixel apart, and a pixel's wedge
+     * is the one at its centre.
      */
-    public static byte[] ring(int n, double stretch) {
-        byte[] out = new byte[4 * RING * RING];
+    public static byte[] ring(int n, double stretch, boolean round) {
+        int half = ringHalf(stretch, round);
+        byte[] out = new byte[2 * half * 2 * RING];
         for (int j = 0; j < 2 * RING; j++)
-            for (int i = 0; i < 2 * RING; i++) {
-                double dx = i + 0.5 - RING, dy = j + 0.5 - RING, r = Math.hypot(dx, dy);
-                int w = r > RING ? -1 : wedgeAt(dx, dy, n, RING_IN, stretch);
-                for (int c = 0; c < 4 && w >= 0; c++)
-                    if (wedgeAt(dx + (c & 1) - 0.5, dy + (c >> 1) - 0.5, n, 0, stretch) != w) w = -1;
-                out[j * 2 * RING + i] = (byte) w;
+            for (int i = 0; i < 2 * half; i++) {
+                double dx = i + 0.5 - half, dy = j + 0.5 - RING;
+                int w = -1;
+                if (round) {
+                    w = Math.hypot(dx, dy) > RING ? -1 : wedgeAt(dx, dy, n, RING_IN, stretch, true);
+                    for (int c = 0; c < 4 && w >= 0; c++)
+                        if (wedgeAt(dx + (c & 1) - 0.5, dy + (c >> 1) - 0.5, n, 0, stretch, true) != w) w = -1;
+                } else {
+                    double u = dx / stretch, r = Math.hypot(u, dy);
+                    if (r >= RING_IN && r <= RING) {
+                        double part = Math.atan2(u, -dy) / (2 * Math.PI) * n, edge = 0.5 - Math.abs(part - Math.rint(part));
+                        if (n == 1 || edge * 2 * Math.PI * r / n >= 0.6) w = wedgeAt(dx, dy, n, 0, stretch, false);
+                    }
+                }
+                out[j * 2 * half + i] = (byte) w;
             }
         return out;
     }

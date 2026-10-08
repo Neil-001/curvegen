@@ -32,6 +32,8 @@ public final class ModSettings {
     public static double barDelaySeconds;
     /** False: the radial menu is open while its key is held. True: one press opens it and another closes it. */
     public static boolean radialToggle;
+    /** False: the radial menu's ring is an oval stretched like the menu, with even slices. True: it's a circle, with uneven ones. */
+    public static boolean radialRound;
     /** The radial menu's wedge ids in display order. Empty means the default order. */
     public static List<String> radialOrder;
     /** The size of the in-world drag handles, in blocks. */
@@ -54,6 +56,7 @@ public final class ModSettings {
         holdSeconds = 3.0;
         barDelaySeconds = 0.3;
         radialToggle = false;
+        radialRound = false;
         radialOrder = new ArrayList<>();
         handleSize = 0.25;
         pickRadius = 0.4;
@@ -116,6 +119,7 @@ public final class ModSettings {
         holdSeconds = number(o, "holdSeconds", HOLD_MIN, HOLD_MAX, holdSeconds);
         barDelaySeconds = number(o, "barDelaySeconds", 0, BAR_DELAY_MAX, barDelaySeconds);
         radialToggle = flag(o, "radialToggle", radialToggle);
+        radialRound = flag(o, "radialRound", radialRound);
         if (o.get("radialOrder") instanceof JsonArray order)
             for (JsonElement e : order)
                 if (e.isJsonPrimitive() && e.getAsJsonPrimitive().isString() && !radialOrder.contains(e.getAsString())) radialOrder.add(e.getAsString());
@@ -135,6 +139,7 @@ public final class ModSettings {
         o.addProperty("holdSeconds", holdSeconds);
         o.addProperty("barDelaySeconds", barDelaySeconds);
         o.addProperty("radialToggle", radialToggle);
+        o.addProperty("radialRound", radialRound);
         JsonArray order = new JsonArray();
         for (String id : radialOrder) order.add(id);
         o.add("radialOrder", order);

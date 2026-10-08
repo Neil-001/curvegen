@@ -10,49 +10,64 @@ class RadialTest {
     @Test
     void theCursorsDirectionPicksTheWedge() {
         // Four wedges: up, right, down, left. Screen y runs downwards.
-        assertEquals(0, Radial.wedgeAt(0, -50, 4, 9, 1));
-        assertEquals(1, Radial.wedgeAt(50, 0, 4, 9, 1));
-        assertEquals(2, Radial.wedgeAt(0, 50, 4, 9, 1));
-        assertEquals(3, Radial.wedgeAt(-50, 0, 4, 9, 1));
+        assertEquals(0, Radial.wedgeAt(0, -50, 4, 9, 1, true));
+        assertEquals(1, Radial.wedgeAt(50, 0, 4, 9, 1, true));
+        assertEquals(2, Radial.wedgeAt(0, 50, 4, 9, 1, true));
+        assertEquals(3, Radial.wedgeAt(-50, 0, 4, 9, 1, true));
         // A wedge reaches halfway to its neighbours, however far out the cursor is.
-        assertEquals(0, Radial.wedgeAt(40, -50, 4, 9, 1));
-        assertEquals(1, Radial.wedgeAt(50, -40, 4, 9, 1));
-        assertEquals(0, Radial.wedgeAt(-400, -500, 4, 9, 1));
-        assertEquals(3, Radial.wedgeAt(-500, -400, 4, 9, 1));
+        assertEquals(0, Radial.wedgeAt(40, -50, 4, 9, 1, true));
+        assertEquals(1, Radial.wedgeAt(50, -40, 4, 9, 1, true));
+        assertEquals(0, Radial.wedgeAt(-400, -500, 4, 9, 1, true));
+        assertEquals(3, Radial.wedgeAt(-500, -400, 4, 9, 1, true));
     }
 
     @Test
     void theCentreAndAnEmptyMenuPickNothing() {
-        assertEquals(-1, Radial.wedgeAt(0, 0, 4, 9, 1));
-        assertEquals(-1, Radial.wedgeAt(6, -6, 4, 9, 1));
-        assertEquals(0, Radial.wedgeAt(0, -9, 4, 9, 1));
-        assertEquals(-1, Radial.wedgeAt(0, -50, 0, 9, 1));
-        assertEquals(0, Radial.wedgeAt(30, 30, 1, 9, 1), "a single wedge is every direction");
+        assertEquals(-1, Radial.wedgeAt(0, 0, 4, 9, 1, true));
+        assertEquals(-1, Radial.wedgeAt(6, -6, 4, 9, 1, true));
+        assertEquals(0, Radial.wedgeAt(0, -9, 4, 9, 1, true));
+        assertEquals(-1, Radial.wedgeAt(0, -50, 0, 9, 1, true));
+        assertEquals(0, Radial.wedgeAt(30, 30, 1, 9, 1, true), "a single wedge is every direction");
     }
 
     @Test
     void aStretchedMenusWedgesAreSlicesOfAnOval() {
         // Twice as wide as tall: the corner of a square is now in the top wedge. The dead centre stays round.
-        assertEquals(1, Radial.wedgeAt(50, -40, 4, 9, 1));
-        assertEquals(0, Radial.wedgeAt(50, -40, 4, 9, 2));
-        assertEquals(1, Radial.wedgeAt(90, -40, 4, 9, 2));
-        assertEquals(-1, Radial.wedgeAt(8, 0, 4, 9, 2));
-        assertEquals(1, Radial.wedgeAt(10, 0, 4, 9, 2));
-        assertEquals(-1, Radial.wedgeAt(0, -8, 4, 9, 2));
-        assertEquals(0, Radial.wedgeAt(0, -10, 4, 9, 2));
+        assertEquals(1, Radial.wedgeAt(50, -40, 4, 9, 1, true));
+        assertEquals(0, Radial.wedgeAt(50, -40, 4, 9, 2, true));
+        assertEquals(1, Radial.wedgeAt(90, -40, 4, 9, 2, true));
+        assertEquals(-1, Radial.wedgeAt(8, 0, 4, 9, 2, true));
+        assertEquals(1, Radial.wedgeAt(10, 0, 4, 9, 2, true));
+        assertEquals(-1, Radial.wedgeAt(0, -8, 4, 9, 2, true));
+        assertEquals(0, Radial.wedgeAt(0, -10, 4, 9, 2, true));
+    }
+
+    @Test
+    void theStretchedRingsDeadCentreIsAnOvalToo() {
+        // The same directions as the round ring's, but the dead centre is twice as wide as it is tall.
+        assertEquals(0, Radial.wedgeAt(50, -40, 4, 9, 2, false));
+        assertEquals(1, Radial.wedgeAt(90, -40, 4, 9, 2, false));
+        assertEquals(-1, Radial.wedgeAt(17, 0, 4, 9, 2, false));
+        assertEquals(1, Radial.wedgeAt(19, 0, 4, 9, 2, false));
+        assertEquals(-1, Radial.wedgeAt(0, -8, 4, 9, 2, false));
+        assertEquals(0, Radial.wedgeAt(0, -10, 4, 9, 2, false));
+        // Unstretched, the two rings pick alike.
+        for (double x = -30; x <= 30; x += 1.5)
+            for (double y = -30; y <= 30; y += 1.5)
+                assertEquals(Radial.wedgeAt(x, y, 5, 9, 1, true), Radial.wedgeAt(x, y, 5, 9, 1, false));
     }
 
     /** Screens of several shapes and GUI scales, as the size the menu is laid out in. */
     private static final int[][] SCREENS = {{427, 240}, {320, 240}, {640, 360}, {960, 540}, {1920, 1080}, {860, 360}, {300, 500}};
 
     @Test
-    void theRingIsACircleOnEveryScreen() {
+    void theRoundRingIsACircleOnEveryScreen() {
         int size = 2 * Radial.RING;
         for (int[] screen : SCREENS) {
             int[] r = Radial.radii(screen[0], screen[1]);
             double stretch = Radial.stretch(r[0], r[1]);
             for (int n = 1; n <= Radial.MAX_WEDGES; n++) {
-                byte[] ring = Radial.ring(n, stretch);
+                byte[] ring = Radial.ring(n, stretch, true);
                 assertEquals(size * size, ring.length);
                 int[] lo = {size, size}, hi = {-1, -1};
                 for (int j = 0; j < size; j++)
@@ -72,13 +87,13 @@ class RadialTest {
     }
 
     @Test
-    void theRingShowsTheWedgeTheCursorPicks() {
+    void theRoundRingShowsTheWedgeTheCursorPicks() {
         int size = 2 * Radial.RING;
         for (int[] screen : SCREENS) {
             int[] r = Radial.radii(screen[0], screen[1]);
             double stretch = Radial.stretch(r[0], r[1]);
             for (int n = 1; n <= Radial.MAX_WEDGES; n++) {
-                byte[] ring = Radial.ring(n, stretch);
+                byte[] ring = Radial.ring(n, stretch, true);
                 int[] pixels = new int[n];
                 for (int j = 0; j < size; j++)
                     for (int i = 0; i < size; i++) {
@@ -87,7 +102,7 @@ class RadialTest {
                         pixels[w]++;
                         // Anywhere on the pixel, not only at its centre.
                         for (double[] in : new double[][]{{0.5, 0.5}, {0.05, 0.05}, {0.95, 0.05}, {0.05, 0.95}, {0.95, 0.95}})
-                            assertEquals(w, Radial.wedgeAt(i + in[0] - Radial.RING, j + in[1] - Radial.RING, n, 0, stretch),
+                            assertEquals(w, Radial.wedgeAt(i + in[0] - Radial.RING, j + in[1] - Radial.RING, n, 0, stretch, true),
                                     screen[0] + " wide, " + n + " wedges: pixel " + i + ", " + j);
                     }
                 for (int k = 0; k < n; k++) assertTrue(pixels[k] >= 20, screen[0] + " wide, " + n + " wedges: wedge " + k + " has a slice to show");
@@ -104,12 +119,112 @@ class RadialTest {
     }
 
     @Test
+    void theStretchedRingIsAnOvalInTheMenusProportions() {
+        int high = 2 * Radial.RING;
+        for (int[] screen : SCREENS) {
+            int[] r = Radial.radii(screen[0], screen[1]);
+            double stretch = Radial.stretch(r[0], r[1]);
+            int half = Radial.ringHalf(stretch, false), wide = 2 * half;
+            assertEquals((int) Math.ceil(Radial.RING * stretch), half);
+            assertEquals(Radial.RING, Radial.ringHalf(stretch, true), "the round ring's box is square");
+            for (int n = 1; n <= Radial.MAX_WEDGES; n++) {
+                byte[] ring = Radial.ring(n, stretch, false);
+                assertEquals(wide * high, ring.length);
+                int[] lo = {wide, high}, hi = {-1, -1};
+                for (int j = 0; j < high; j++)
+                    for (int i = 0; i < wide; i++) {
+                        double d = Math.hypot((i + 0.5 - half) / stretch, j + 0.5 - Radial.RING);
+                        boolean drawn = ring[j * wide + i] >= 0;
+                        if (d > Radial.RING || d < Radial.RING_IN) assertFalse(drawn, "nothing outside the ring or in its hole");
+                        else if (n == 1) assertTrue(drawn, "one wedge fills the ring");
+                        if (!drawn) continue;
+                        lo[0] = Math.min(lo[0], i); hi[0] = Math.max(hi[0], i);
+                        lo[1] = Math.min(lo[1], j); hi[1] = Math.max(hi[1], j);
+                    }
+                // The oval can end up to a pixel inside its box, which is a whole number of pixels wide.
+                assertTrue(lo[0] <= 1 && hi[0] >= wide - 2, screen[0] + " wide, " + n + " wedges: it reaches its box's sides");
+                assertArrayEquals(new int[]{0, high - 1}, new int[]{lo[1], hi[1]}, "and its top and bottom");
+            }
+        }
+    }
+
+    @Test
+    void theStretchedRingShowsTheWedgeTheCursorPicksInEvenSlices() {
+        int high = 2 * Radial.RING;
+        for (int[] screen : SCREENS) {
+            int[] r = Radial.radii(screen[0], screen[1]);
+            double stretch = Radial.stretch(r[0], r[1]);
+            int half = Radial.ringHalf(stretch, false), wide = 2 * half;
+            for (int n = 1; n <= Radial.MAX_WEDGES; n++) {
+                byte[] ring = Radial.ring(n, stretch, false);
+                int[] pixels = new int[n];
+                for (int j = 0; j < high; j++)
+                    for (int i = 0; i < wide; i++) {
+                        int w = ring[j * wide + i];
+                        if (w < 0) continue;
+                        pixels[w]++;
+                        // The gap between two slices is about a pixel, so most of a drawn pixel is inside its wedge.
+                        for (double[] in : new double[][]{{0.5, 0.5}, {0.25, 0.25}, {0.75, 0.25}, {0.25, 0.75}, {0.75, 0.75}})
+                            assertEquals(w, Radial.wedgeAt(i + in[0] - half, j + in[1] - Radial.RING, n, 0, stretch, false),
+                                    screen[0] + " wide, " + n + " wedges: pixel " + i + ", " + j);
+                        // The hole is the picking's dead centre.
+                        assertEquals(w, Radial.wedgeAt(i + 0.5 - half, j + 0.5 - Radial.RING, n, Radial.RING_IN, stretch, false));
+                    }
+                int least = Integer.MAX_VALUE, most = 0;
+                for (int k = 0; k < n; k++) { least = Math.min(least, pixels[k]); most = Math.max(most, pixels[k]); }
+                assertTrue(least >= 20, screen[0] + " wide, " + n + " wedges: every wedge has a slice to show");
+                assertTrue(most - least <= 0.15 * most, screen[0] + " wide, " + n + " wedges: slices of " + least + " to " + most + " pixels are even");
+                // Each slice points at its own label.
+                int[][] at = Radial.labels(n, 0, 0, r[0], r[1]);
+                for (int k = 0; k < n; k++) {
+                    double lx = (at[k][0] + Radial.LABEL_W / 2.0) / stretch, ly = at[k][1] + Radial.LABEL_H / 2.0, far = Math.hypot(lx, ly);
+                    double px = lx / far * (Radial.RING + Radial.RING_IN) / 2.0 * stretch, py = ly / far * (Radial.RING + Radial.RING_IN) / 2.0;
+                    assertEquals(k, ring[(int) Math.floor(py + Radial.RING) * wide + (int) Math.floor(px + half)],
+                            screen[0] + " wide, " + n + " wedges: the ring towards label " + k);
+                }
+            }
+        }
+    }
+
+    /** The round ring's slices are uneven on a stretched menu, which is what the stretched ring is for. */
+    @Test
+    void onlyTheRoundRingsSlicesAreUneven() {
+        int[] r = Radial.radii(427, 240);
+        byte[] ring = Radial.ring(4, Radial.stretch(r[0], r[1]), true);
+        int[] pixels = new int[4];
+        for (byte w : ring) if (w >= 0) pixels[w]++;
+        assertTrue(pixels[0] > 1.5 * pixels[1], "the top slice of " + pixels[0] + " pixels is wider than the side one of " + pixels[1]);
+    }
+
+    /**
+     * The stretched ring's pixels and picking are as they were before the round ring came: these two numbers were
+     * worked out with that code. Change them only on purpose.
+     */
+    @Test
+    void theStretchedRingIsAsItWas() {
+        int pixels = 0;
+        long picks = 0;
+        for (int[] screen : SCREENS) {
+            int[] r = Radial.radii(screen[0], screen[1]);
+            double stretch = Radial.stretch(r[0], r[1]);
+            for (int n = 1; n <= Radial.MAX_WEDGES; n++) {
+                pixels = 31 * pixels + java.util.Arrays.hashCode(Radial.ring(n, stretch, false));
+                for (double y = -40; y <= 40; y += 0.25)
+                    for (double x = -120; x <= 120; x += 0.25)
+                        picks = 31 * picks + Radial.wedgeAt(x, y, n, Radial.RING_IN, stretch, false);
+            }
+        }
+        assertEquals(368694880, pixels);
+        assertEquals(619584678303506043L, picks);
+    }
+
+    @Test
     void everyDirectionBelongsToOneWedgeAndTheyGoClockwise() {
         for (int n = 1; n <= Radial.MAX_WEDGES; n++) {
             int last = 0, turns = 0;
             for (int step = 0; step < 720; step++) {
                 double a = Math.toRadians(step / 2.0);
-                int w = Radial.wedgeAt(100 * Math.sin(a), -100 * Math.cos(a), n, 9, 1);
+                int w = Radial.wedgeAt(100 * Math.sin(a), -100 * Math.cos(a), n, 9, 1, true);
                 assertTrue(w >= 0 && w < n);
                 if (w != last) { assertEquals((last + 1) % n, w); turns++; }
                 last = w;
@@ -129,8 +244,11 @@ class RadialTest {
                 int x = at[a][0], y = at[a][1];
                 assertTrue(x >= 0 && x + Radial.LABEL_W <= width && y >= 0, n + " wedges: label " + a + " is on the screen");
                 assertTrue(y + Radial.LABEL_H <= height - Radial.FOOT, n + " wedges: label " + a + " is clear of the text at the bottom");
-                assertFalse(overlap(x, y, Radial.LABEL_W, Radial.LABEL_H, width / 2 - ring, height / 2 - ring, 2 * ring, 2 * ring),
-                        n + " wedges: label " + a + " is clear of the ring");
+                for (boolean round : new boolean[]{false, true}) {
+                    int ringW = Radial.ringHalf(Radial.stretch(r[0], r[1]), round);
+                    assertFalse(overlap(x, y, Radial.LABEL_W, Radial.LABEL_H, width / 2 - ringW, height / 2 - ring, 2 * ringW, 2 * ring),
+                            n + " wedges: label " + a + " is clear of the " + (round ? "round" : "stretched") + " ring");
+                }
                 for (int b = a + 1; b < n; b++)
                     assertFalse(overlap(x, y, Radial.LABEL_W, Radial.LABEL_H, at[b][0], at[b][1], Radial.LABEL_W, Radial.LABEL_H),
                             n + " wedges: labels " + a + " and " + b + " overlap");
@@ -148,8 +266,9 @@ class RadialTest {
         for (int n = 1; n <= Radial.MAX_WEDGES; n++) {
             int[][] at = Radial.labels(n, 213, 120, r[0], r[1]);
             for (int k = 0; k < n; k++)
-                assertEquals(k, Radial.wedgeAt(at[k][0] + Radial.LABEL_W / 2.0 - 213, at[k][1] + Radial.LABEL_H / 2.0 - 120, n, 9, Radial.stretch(r[0], r[1])),
-                        n + " wedges: pointing at label " + k + " picks its wedge");
+                for (boolean round : new boolean[]{false, true})
+                    assertEquals(k, Radial.wedgeAt(at[k][0] + Radial.LABEL_W / 2.0 - 213, at[k][1] + Radial.LABEL_H / 2.0 - 120, n, 9, Radial.stretch(r[0], r[1]), round),
+                            n + " wedges: pointing at label " + k + " picks its wedge");
         }
     }
 
