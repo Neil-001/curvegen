@@ -28,6 +28,7 @@ import dev.curvegen.core.Solver;
 import dev.curvegen.core.Solver3;
 import dev.curvegen.core.edit.Edit3D;
 import dev.curvegen.core.edit.HandleMath;
+import dev.curvegen.core.edit.Stepper;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -472,6 +473,7 @@ public class CurveScreen extends ControlScreen {
                 // Arrows step by half a block and keep the point inside the grid.
                 arrows(f, (axis == 0 ? M + 17 : M + 78) + 50 - ARROW_SLOT + 1, y, 16,
                         () -> idx < S.pts.size() ? S.pts.get(idx)[a] : 0, 0.5, 0, a == 0 ? S.bW : S.bH, () -> true, false);
+                wheelNeedsFocus(f);
             }
             pointFields.add(new EditBox[]{fx, fy});
         }
@@ -980,6 +982,13 @@ public class CurveScreen extends ControlScreen {
                 });
                 addRenderableWidget(f);
                 bind(f, () -> idx < pts.size() ? coord(pts.get(idx)[a]) : "", ALWAYS, null, null);
+                // No room for arrows, so the wheel is the only way to step these: a block, or to the next half block with Snap on.
+                wheel(f, dir -> {
+                    if (idx >= pts.size()) return;
+                    double v = pts.get(idx)[a], max = (tab == Tab.BEZIER3 ? new int[]{S.b3W, S.b3H, S.b3D} : new int[]{S.sW, S.sH, S.sD})[a];
+                    write(f, S.snap ? Stepper.next(v, 0.5, dir, 0, max) : Stepper.step(v, dir, 0, max), false);
+                }, ALWAYS);
+                wheelNeedsFocus(f);
             }
             if (grid) continue;
             Button x = Button.builder(Component.literal("×"), _ -> {
@@ -1430,6 +1439,7 @@ public class CurveScreen extends ControlScreen {
 
     @Override
     public boolean mouseScrolled(double mx, double my, double h, double v) {
+        if (wheelTurned(mx, my, v)) return true;
         if (tab == Tab.COUNT && mx < M + PANEL_W + 4 && my >= top()) {
             countScroll = Math.max(0, Math.min(Math.max(0, countContentH - (height - 30 - top())), countScroll - (int) Math.round(v * 24)));
             return true;
