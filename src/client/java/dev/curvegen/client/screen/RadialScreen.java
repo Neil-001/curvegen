@@ -53,7 +53,7 @@ public class RadialScreen extends Screen {
     /** Names the value a run of scrolling changes, so the run is one undo step. */
     private record Group(Object menu, String label) {}
 
-    /** The 3D shapes in the plan. A null kind is a shape that hasn't been built yet. */
+    /** The shapes the menu starts. A kind with a null {@code gen} would be one the editor can't edit yet, shown greyed out. */
     private record Kind(String label, Gen gen) {}
     private static final List<Kind> KINDS_2D = List.of(new Kind("Ellipse", Gen.ELLIPSE), new Kind("Equation", Gen.EQUATION), new Kind("Bézier curve", Gen.BEZIER)),
             KINDS_3D = List.of(new Kind("Ellipsoid", Gen.ELLIPSOID), new Kind("Torus", Gen.TORUS), new Kind("3D equation", Gen.EQUATION3),

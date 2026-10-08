@@ -3,7 +3,7 @@
   "id": "curvegen",
   "version": "${version}",
   "name": "Curve Generator",
-  "description": "Turn ellipses, equations and Bézier curves into full blocks, slabs, stairs, trapdoors, fences, glass panes and walls, then place them with a hologram or export them to Litematica.",
+  "description": "Turn ellipses, equations, Bézier curves and 3D shapes into full blocks, slabs, stairs, trapdoors, fences, glass panes and walls. Edit them as a hologram in the world, then place them or export them to Litematica.",
   "authors": ["Neil C."],
   "contact": {
     "homepage": "https://modrinth.com/mod/curvegen",
