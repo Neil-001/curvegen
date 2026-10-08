@@ -14,10 +14,12 @@ The hologram now starts locked at the block you're looking at, with its handles 
 - Edit 3D equations, 3D Bézier curves and Bézier surfaces in the world, with a handle on every control point (#50)
 - 3D tabs in the G menu, with a preview you can turn, zoom and drag points in, and block counts, presets and Litematica export for every 3D shape (#51)
 - A settings screen for hold times, the radial menu, handle size, the hologram's opacity and block limit, and whether the key hints and shape information show on screen. Open it from the cogwheel in the G menu, from Mod Menu on Fabric or from the mod list on NeoForge (#44)
+- Scroll over a number field in the G menu or the settings to change it (#56)
 
 ## Fixes
 
 - The line above the G menu's picture no longer runs off its edge on a narrow screen (#53)
+- On a server without the mod, placing or undoing a shape no longer fills chat with a line for every block (#54)
 
 # 1.3.1
 
