@@ -30,7 +30,7 @@ public class NameDialogScreen extends Screen {
     private static final int W = 240, OPTION_H = 26;
 
     public NameDialogScreen(Screen parent, String title, String initial, Function<String, Check> check, Consumer<String> onConfirm) {
-        this(parent, title, initial, check, null, null, (name, opt) -> onConfirm.accept(name));
+        this(parent, title, initial, check, null, null, (name, _) -> onConfirm.accept(name));
     }
 
     /** With an on/off option under the name field, on at first; onConfirm gets the name and the option. */
@@ -56,19 +56,19 @@ public class NameDialogScreen extends Screen {
         field.setValue(text);
         field.setCursorPosition(0);               // select it all, so typing replaces the suggestion
         field.setHighlightPos(text.length());
-        field.setResponder(v -> refresh());
+        field.setResponder(_ -> refresh());
         addRenderableWidget(field);
         setInitialFocus(field);
         if (optionLabel != null) {
             CycleButton<Boolean> opt = CycleButton.onOffBuilder(option)
-                    .create(x, y + 26, W - 20, 20, Component.literal(optionLabel), (b, v) -> option = v);
+                    .create(x, y + 26, W - 20, 20, Component.literal(optionLabel), (_, v) -> option = v);
             if (optionTip != null) opt.setTooltip(Tooltip.create(Component.literal(optionTip)));
             addRenderableWidget(opt);
         }
         int by = y0() + h() - 28, bw = (W - 30) / 2;
-        confirm = Button.builder(Component.literal("Save"), b -> submit()).bounds(x, by, bw, 20).build();
+        confirm = Button.builder(Component.literal("Save"), _ -> submit()).bounds(x, by, bw, 20).build();
         addRenderableWidget(confirm);
-        addRenderableWidget(Button.builder(Component.literal("Cancel"), b -> onClose()).bounds(x + bw + 10, by, bw, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Cancel"), _ -> onClose()).bounds(x + bw + 10, by, bw, 20).build());
         refresh();
     }
 

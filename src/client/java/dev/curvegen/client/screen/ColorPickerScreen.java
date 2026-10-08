@@ -50,14 +50,14 @@ public class ColorPickerScreen extends Screen {
                 float[] hsv = rgbToHsv(Integer.parseInt(h, 16));
                 hue = hsv[0]; sat = hsv[1]; val = hsv[2];
                 refreshPreview();
-            } catch (NumberFormatException ignored) { }
+            } catch (NumberFormatException _) { }
         });
         addRenderableWidget(hex);
         syncHex();
         int by = height - 28;
-        addRenderableWidget(Button.builder(Component.literal("Use these blocks"), b -> { onApply.accept(rgb()); onClose(); })
+        addRenderableWidget(Button.builder(Component.literal("Use these blocks"), _ -> { onApply.accept(rgb()); onClose(); })
                 .bounds(width / 2 - 124, by, 120, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Cancel"), b -> onClose()).bounds(width / 2 + 4, by, 120, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Cancel"), _ -> onClose()).bounds(width / 2 + 4, by, 120, 20).build());
         refreshPreview();
     }
 

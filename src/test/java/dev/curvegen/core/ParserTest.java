@@ -55,6 +55,48 @@ class ParserTest {
     }
 
     @Test
+    void threeDEquationsKnowZ() throws Exception {
+        Expr.Equation3 e = Expr.parseEquation3("x^2 + y^2 + z^2 = 16");
+        assertEquals("=", e.rel());
+        assertEquals(1 + 4 + 9 - 16, e.f().eval(1, 2, 3), 1e-12);
+        // A bare expression means z = expression, and may use x and y.
+        e = Expr.parseEquation3("2sin(x) + y");
+        assertNull(e.rel());
+        assertEquals(5 - (2 * Math.sin(1) + 3), e.f().eval(1, 3, 5), 1e-12);
+        assertEquals("<", Expr.parseEquation3("z < xy").rel());
+        assertEquals(">=", Expr.parseEquation3("x ≥ z²").rel());
+        // Letters run together still split into names, z among them.
+        assertEquals(2 * 3 * 5 - 1, Expr.parseEquation3("xyz = 1").f().eval(2, 3, 5), 1e-12);
+        assertEquals(Math.sin(12), -Expr.parseEquation3("0 = sin z y").f().eval(0, 3, 4), 1e-12);      // sin(zy), as sin x y is sin(xy)
+        assertEquals(7, Expr.parseEquation3("z = 7").f().eval(0, 0, 14), 1e-12);
+        try {
+            Expr.parseEquation3("x + z");
+            fail("expected an error");
+        } catch (Expr.ParseException ex) {
+            assertEquals("Add an = sign, for example x^2 + y^2 + z^2 = 9.", ex.getMessage());
+        }
+        try {
+            Expr.parseEquation3("z = w");
+            fail("expected an error");
+        } catch (Expr.ParseException ex) {
+            assertEquals("\"w\" isn't something I know. Use x, y, z, pi, e or a function name.", ex.getMessage());
+        }
+        assertThrows(Expr.ParseException.class, () -> Expr.parseEquation3(" "));
+    }
+
+    @Test
+    void twoDEquationsStillDont() {
+        try {
+            Expr.parseEquation("y = z");
+            fail("expected an error");
+        } catch (Expr.ParseException ex) {
+            assertEquals("\"z\" isn't something I know. Use x, y, pi, e or a function name.", ex.getMessage());
+        }
+        assertThrows(Expr.ParseException.class, () -> Expr.parseEquation("x^2 + z^2 = 4"));
+        assertThrows(Expr.ParseException.class, () -> Expr.constant("z", "x to"));
+    }
+
+    @Test
     void constants() throws Exception {
         assertEquals(2 * Math.PI, Expr.constant("2pi", "x to"), 1e-12);
         assertEquals(-3.5, Expr.constant("-3.5", "y from"), 1e-12);

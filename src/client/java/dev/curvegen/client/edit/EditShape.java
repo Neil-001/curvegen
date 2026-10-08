@@ -1,0 +1,142 @@
+package dev.curvegen.client.edit;
+
+import dev.curvegen.core.ShapeSettings;
+import dev.curvegen.core.edit.Option;
+import dev.curvegen.core.edit.Orient;
+import java.util.List;
+import java.util.function.BooleanSupplier;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.block.state.BlockState;
+
+/**
+ * The part of the in-world editor that depends on the kind of shape: which handles it has, what dragging or bumping
+ * them does to {@link ShapeSettings}, and how it becomes blocks. {@link Editor} does the rest, for any shape.
+ *
+ * <p>A shape has its own axes x, y and z and a box measured along them, in blocks from its own minimum corner.
+ * An {@link Orient} says which way those axes point in the world. Everything a shape takes or returns here is in its
+ * own axes, except {@link Content}, which is in world axes because that's what gets placed.
+ *
+ * <p>Edits change the live settings ({@code CurveGenClient.SETTINGS}). While a handle is dragged, the editor puts the
+ * settings back as they were when the drag started before every call, so each call starts from the same state and
+ * needn't be reversible.
+ */
+public interface EditShape {
+    /** One block of a solved shape: its offset from the minimum corner of the shape's box in world axes, and what goes there. */
+    record Placed(int dx, int dy, int dz, BlockState state) {}
+
+    /**
+     * What a solve hands the hologram. {@code carve} lists the offsets Carve clears, {@code topColours} says whether
+     * the hologram tints blocks by their top texture rather than their side, and {@code error} is a message for the
+     * player when the shape couldn't be solved (the lists are then empty), or null.
+     */
+    record Content(List<Placed> blocks, List<BlockPos> carve, boolean topColours, String error) {}
+
+    /** The shape for the current settings. */
+    static EditShape of(ShapeSettings s) { return s.is3d() ? new Shape3D(s) : new Shape2D(s); }
+
+    /**
+     * Whether the in-world editor can edit this kind of shape. The radial menu greys out the ones it can't. A kind
+     * that has no {@link ShapeSettings.Gen} yet is listed there with null, which this refuses.
+     */
+    static boolean supports(ShapeSettings.Gen gen) { return gen != null; }
+
+    /** The box the handles sit on, along the shape's own axes. */
+    int[] size();
+
+    /**
+     * Asks for a new box. {@code dragged} says which own axes the player moved; a shape may change the others to keep
+     * its proportions. The shape applies what its limits allow, and the editor reads {@link #size} back.
+     */
+    void resize(int[] want, boolean[] dragged);
+
+    /**
+     * Bumps the side of the box at the low ({@code side} -1) or high (1) end of an own axis by {@code amount} blocks,
+     * for a shape that does something other than {@link #resize}: a curve stretches its control points' bounding
+     * box. Returns how many cells the box's own minimum corner moved along each own axis, or null to have the editor
+     * resize the box instead.
+     */
+    default int[] bump(int axis, int side, int amount) { return null; }
+
+    /** The orientation these settings allow that is closest to {@code current}. Called after anything changes them. */
+    default Orient orient(Orient current) { return current; }
+
+    /** A quarter-turn tip for a player facing the horizontal direction {@code forward}. May change the settings. */
+    default Orient tip(Orient current, int forward) { return current.tip(forward); }
+
+    /** Control points the player can drag, as {x, y, z} in own axes. Empty for shapes without any. */
+    default List<double[]> points() { return List.of(); }
+
+    /** The own axis the points can't move along, for a shape drawn on a plane, or -1 when they move freely. */
+    default int pointPlane() { return -1; }
+
+    /**
+     * Moves a point, applying the shape's own snapping. Returns how many cells the box's own minimum corner moved
+     * along each own axis, for a shape that grows to keep the point inside, or null when it didn't move.
+     */
+    default int[] movePoint(int index, double[] to) { return null; }
+
+    /** Removes a point (a whole row or column, on a surface). False when the shape can't lose one. */
+    default boolean removePoint(int index) { return false; }
+
+    /** Adds a point where the player looks at the curve. Returns its index, or -1 when the shape can't take one. */
+    default int insertPoint(double[] at) { return -1; }
+
+    /** Copies a point, half a block towards the next. Returns the copy's index, or -1 when the shape can't take one. */
+    default int duplicatePoint(int index) { return -1; }
+
+    /**
+     * How many points make a row, for a shape whose points are a grid, row after row: a surface. 0 for points in one
+     * line. On a grid the three edits above act on a whole row, or on a column while the player sneaks, which is
+     * what {@code alt} says in the variants below. Other shapes ignore it.
+     */
+    default int pointColumns() { return 0; }
+    default boolean removePoint(int index, boolean alt) { return removePoint(index); }
+    default int insertPoint(double[] at, boolean alt) { return insertPoint(at); }
+    default int duplicatePoint(int index, boolean alt) { return duplicatePoint(index); }
+
+    /**
+     * Called after an edit that can leave control points outside the box, such as taking a row out of a surface.
+     * Grows the box to hold them and returns how many cells its own minimum corner moved along each own axis, like
+     * {@link #movePoint}, or null when there's nothing to do.
+     */
+    default int[] settle() { return null; }
+
+    /**
+     * Where a look ray, in own axes, meets the shape, for adding a point there: {x, y, z, distance from the ray,
+     * distance along the ray}. Null has the editor look for the nearest spot on {@link #curve} instead.
+     */
+    default double[] lookAt(double[] origin, double[] dir) { return null; }
+
+    /**
+     * The ideal curve as line segments {x1,y1,z1,x2,y2,z2,...} in own axes, or null. The editor draws it every frame,
+     * so this has to be cheap. {@code solved} is the last result of {@link #solve}, or null before the first.
+     */
+    double[] curve(Object solved);
+
+    /**
+     * Solves the shape. Runs on a worker thread with a private copy of the settings, so it mustn't touch the game or
+     * the live settings. The result goes to {@link #build} and {@link #curve}. Once {@code cancelled} reports true
+     * the result is no longer wanted, and a slow solve should return null instead of finishing.
+     */
+    Object solve(ShapeSettings copy, Orient orient, BooleanSupplier cancelled);
+
+    /** True when {@link #solve} only works out what Carve clears while Carve is on, so switching it on needs a new solve. */
+    default boolean solveUsesCarve() { return false; }
+
+    /** False when {@link #solve} ignores the orientation, so turning the shape only needs {@link #build} again. */
+    default boolean solveUsesOrient() { return true; }
+
+    /** Turns a solve into blocks for an orientation. Runs on the client thread, once per solve or turn. */
+    Content build(Object solved, Orient orient);
+
+    /**
+     * The shape's own settings for the radial menu's "Shape options": fill type, thickness and the like, in the order
+     * the wedges should go. Sizes belong to the box and aren't listed. The editor adds "Add point" and "Remove point"
+     * itself for a shape with {@link #points}. The menu calls this every frame, so build the list from the live
+     * settings and keep it cheap. A menu holds at most {@code Radial.MAX_WEDGES} wedges, one of which is "Back".
+     */
+    default List<Option> options() { return List.of(); }
+
+    /** One line for the HUD that names the shape and its size. */
+    String describe();
+}

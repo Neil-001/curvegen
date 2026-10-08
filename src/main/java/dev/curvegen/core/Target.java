@@ -67,6 +67,11 @@ public final class Target {
             case ELLIPSE -> ellipse(s);
             case EQUATION -> equation(s);
             case BEZIER -> bezier(s);
+            default -> {   // 3D shapes go through Shape3 and Solver3
+                Target t = new Target(1, 1);
+                t.error = "This is a 3D shape.";
+                yield t;
+            }
         };
     }
 
@@ -289,7 +294,7 @@ public final class Target {
         ShapeSettings.EqMode mode = eq.rel() == null || eq.rel().equals("=") ? s.qMode
                 : eq.rel().startsWith("<") ? ShapeSettings.EqMode.UNDER : ShapeSettings.EqMode.OVER;
         int W = s.qW;
-        int H = s.qLock ? (int) Math.min(400, Math.max(1, Math.round(W * (ymax - ymin) / (xmax - xmin)))) : s.qH;
+        int H = s.qLock ? lockedHeight(W, xmin, xmax, ymin, ymax) : s.qH;
         if (s.qLock) s.qH = H;
         Target t = new Target(W, H);
         double sx = (xmax - xmin) / W, sy = (ymax - ymin) / H;
@@ -349,6 +354,11 @@ public final class Target {
         t.overlay.add(sa);
         t.hasMath = true; t.mx0 = xmin; t.msx = sx; t.my0 = ymin; t.msy = sy;
         return t;
+    }
+
+    /** The height that gives an equation the same scale on both axes. */
+    public static int lockedHeight(int width, double xmin, double xmax, double ymin, double ymax) {
+        return (int) Math.min(400, Math.max(1, Math.round(width * (ymax - ymin) / (xmax - xmin))));
     }
 
     private static int st(double v, boolean under) { return Double.isNaN(v) ? 2 : (under ? v <= 0 : v >= 0) ? 1 : 0; }
