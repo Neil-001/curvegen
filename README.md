@@ -16,7 +16,7 @@ Version 2 is for Minecraft 26.3. Earlier versions, without the in-world editor a
 
 1. Hold **V** to open the radial menu. Point at **2D shapes** or **3D shapes** and let go, then click a shape. Its hologram appears at the block you're looking at.
 2. Look at a handle on the hologram's box so it lights up, hold the left mouse button and look where it should go. Face handles move along one axis, edge handles along two, and corner handles in the plane facing you, with scrolling for the third axis. Hold sneak to move the opposite side too.
-3. On a Bézier curve or surface, drag the control points the same way. Right-click removes a point, middle-click copies it, and **Insert** adds one where you look at the curve.
+3. On a Bézier curve or surface, drag the control points the same way. Right-click removes a point, middle-click copies it, and **Insert** adds one where you look at the curve. On a surface these add and remove a whole row, or a column while you sneak.
 4. Press **Page Up** and **Page Down** to move the shape away from you and back. **Home** and **End** push out and pull in the side you're facing. **R** rotates and **U** tips. Hold one of the move or resize keys for 3 seconds to type an exact number of blocks.
 5. Open the radial menu again for **Shape options** and **Blocks**. Scroll over a wedge to change its value.
 6. Press **Enter** to place the shape or **Backspace** to cancel. **Z** undoes an edit and **Y** redoes it. With no hologram out, **Z** undoes the last placement.
