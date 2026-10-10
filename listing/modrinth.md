@@ -40,52 +40,6 @@ The shape appears in your world as a hologram before anything is built. You drag
 <img alt="A wave built from blocks." width="100%" src="https://raw.githubusercontent.com/Neil-001/curvegen/main/listing/media/divider.png">
 </center>
 
-## Screenshots
-
-<center>
-
-<img alt="A teal planet with a pale ring and a small moon, all built from blocks, floating over a canyon at sunset." width="100%" src="https://raw.githubusercontent.com/Neil-001/curvegen/main/listing/media/shot-planet.jpg">
-
-*An ellipsoid for the planet, a torus squashed flat for its ring and a small ellipsoid for the moon.*
-
-</center>
-
-<center>
-
-<img alt="Three purple tentacles built from blocks rise out of a shallow sea. A fourth is a pink hologram inside a white box with coloured handles." width="100%" src="https://raw.githubusercontent.com/Neil-001/curvegen/main/listing/media/shot-tentacles.jpg">
-
-*Tentacles from 3D Bézier curves. The fourth is still a hologram, with a handle on each of its six points.*
-
-</center>
-
-<center>
-
-<img alt="A white ball full of winding tunnels, hanging over a meadow beside a village." width="100%" src="https://raw.githubusercontent.com/Neil-001/curvegen/main/listing/media/shot-gyroid.jpg">
-
-*A gyroid cut to a ball, from the 3D equation `max(abs(sin(x)cos(y) + sin(y)cos(z) + sin(z)cos(x)) - 0.34, x^2 + y^2 + z^2 - 78) < 0`.*
-
-</center>
-
-<center>
-
-<img alt="Three orange rings, one level and two upright, around a glowing ball. They stand on an iceberg." width="100%" src="https://raw.githubusercontent.com/Neil-001/curvegen/main/listing/media/shot-armillary.jpg">
-
-*Three 2D ellipses, one flat and two upright, each three blocks deep, around a small ellipsoid.*
-
-</center>
-
-<center>
-
-<img alt="A teal wave built from blocks curls over a desert pyramid, inside a box with coloured handles. The radial menu is open, with wedges for Shape options, Blocks, Presets, Export, Full menu, Place and Cancel." width="100%" src="https://raw.githubusercontent.com/Neil-001/curvegen/main/listing/media/shot-wave.jpg">
-
-*A Bézier surface as a breaking wave, with the radial menu open over its hologram.*
-
-</center>
-
-<center>
-<img alt="A wave built from blocks." width="100%" src="https://raw.githubusercontent.com/Neil-001/curvegen/main/listing/media/divider.png">
-</center>
-
 ## How to use it
 
 1. Hold **V** to open the radial menu. Point at **2D shapes** or **3D shapes** and let go, then click a shape. Its hologram appears at the block you're looking at.
