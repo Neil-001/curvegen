@@ -35,7 +35,7 @@ public final class CurveGen {
     public static void place(ServerPlayer player, PlaceBlocksPayload payload) {
         if (!player.permissions().hasPermission(Permissions.COMMANDS_GAMEMASTER)) {
             if (payload.last())
-                player.sendOverlayMessage(Component.literal("Placing needs operator permissions. You can still export.").withStyle(ChatFormatting.RED));
+                player.sendOverlayMessage(Component.translatable("curvegen.placement.permission").withStyle(ChatFormatting.RED));
             return;
         }
         ServerLevel world = player.level();
@@ -66,9 +66,10 @@ public final class CurveGen {
             }
         }
         if (payload.last()) {
-            String what = payload.undo() ? "Undid the last placement" : "Placed " + payload.total() + " blocks";
+            String key = payload.undo() ? "curvegen.placement.undone" : "curvegen.placement.placed";
+            if (skipped > 0) key += ".skipped";
             // Shown above the hotbar on one line that doesn't wrap, so it has to stay short.
-            player.sendOverlayMessage(Component.literal(what + (skipped > 0 ? ", skipped at least " + skipped + " unloaded or out of range" : "") + "."));
+            player.sendOverlayMessage(Component.translatable(key, payload.total(), skipped));
         }
     }
 }

@@ -39,7 +39,7 @@ public record PlaceBlocksPayload(BlockPos origin, int[] offsets, int[] states, b
     private static PlaceBlocksPayload read(FriendlyByteBuf buf) {
         BlockPos origin = buf.readBlockPos();
         int n = buf.readVarInt();
-        if (n < 0 || n > MAX_PER_BATCH) throw new IllegalArgumentException("Too many blocks in one batch: " + n);
+        if (n < 0 || n > MAX_PER_BATCH) throw new IllegalArgumentException(dev.curvegen.core.Message.of("curvegen.diagnostic.batch_size", n).toString());
         int[] off = new int[n * 3], st = new int[n];
         for (int i = 0; i < n; i++) {
             off[3 * i] = unzig(buf.readVarInt());

@@ -200,7 +200,7 @@ public final class Shapes3 {
 
         private final int nx, ny, nz;
         private final Expr.Fn3 f;
-        private final String error;
+        private final Message error;
         private final ShapeSettings.Eq3Mode mode;
         private final double x0, y1, z0, sx, sy, sz, half, lo, hi;
         private volatile List<double[]> wires;
@@ -209,12 +209,13 @@ public final class Shapes3 {
             int w = size(s.q3W), d = size(s.q3D), h = size(s.q3H);
             double[] r = new double[6];
             Expr.Fn3 fn = null;
-            String err = null, rel = null;
+            Message err = null;
+            String rel = null;
             try {
                 String[] src = {s.x3min, s.x3max, s.y3min, s.y3max, s.z3min, s.z3max};
-                for (int k = 0; k < 6; k++) r[k] = Expr.constant(src[k], "xyz".charAt(k / 2) + (k % 2 == 0 ? " from" : " to"));
+                for (int k = 0; k < 6; k++) r[k] = Expr.constant(src[k], "curvegen.range." + "xyz".charAt(k / 2) + (k % 2 == 0 ? "_from" : "_to"));
                 for (int k = 0; k < 3; k++)
-                    if (!(r[2 * k + 1] > r[2 * k])) throw new Expr.ParseException("The " + "xyz".charAt(k) + " range must end higher than it starts.");
+                    if (!(r[2 * k + 1] > r[2 * k])) throw new Expr.ParseException(Message.of("curvegen.error.range_order", String.valueOf("xyz".charAt(k))));
                 Expr.Equation3 eq = Expr.parseEquation3(s.src3);
                 fn = eq.f(); rel = eq.rel();
                 if (s.q3Lock) {
@@ -222,7 +223,7 @@ public final class Shapes3 {
                     h = scaled(w, r[5] - r[4], r[1] - r[0]);
                 }
             } catch (Expr.ParseException e) {
-                err = e.getMessage();
+                err = e.text();
             }
             nx = w; ny = h; nz = d; f = fn; error = err;
             mode = rel == null || rel.equals("=") ? s.q3Mode : rel.startsWith("<") ? ShapeSettings.Eq3Mode.BELOW : ShapeSettings.Eq3Mode.ABOVE;
@@ -238,7 +239,7 @@ public final class Shapes3 {
         @Override public int nz() { return nz; }
         @Override public double lo() { return lo; }
         @Override public double hi() { return hi; }
-        @Override public String error() { return error; }
+        @Override public Message error() { return error; }
         @Override public double inset() { return INSET; }
         /** Which side is filled, or Surface: the equation's own < or > overrides the setting, as in 2D. */
         public ShapeSettings.Eq3Mode mode() { return mode; }
@@ -613,7 +614,7 @@ public final class Shapes3 {
         private final int nx, ny, nz, pad;
         private final double hi, cap;
         private final List<double[]> pts = new ArrayList<>();
-        private final String error;
+        private final Message error;
         /** The pieces, each as {x, y, z, dx, dy, dz, 1/length²}. */
         private volatile double[] segs;
         private volatile Near3 near;
@@ -623,7 +624,7 @@ public final class Shapes3 {
             pad = (int) Math.ceil(hi);
             nx = size(s.b3W) + 2 * pad; ny = size(s.b3H) + 2 * pad; nz = size(s.b3D) + 2 * pad;
             for (double[] p : s.pts3) pts.add(new double[]{p[0] + pad, p[1] + pad, p[2] + pad});
-            error = pts.size() < 2 ? "A curve needs at least two points." : pts.size() > Bezier3.MAX_POINTS ? "A curve can have " + Bezier3.MAX_POINTS + " points at most." : null;
+            error = pts.size() < 2 ? Message.of("curvegen.error.curve_min_points") : pts.size() > Bezier3.MAX_POINTS ? Message.of("curvegen.error.curve_max_points", Bezier3.MAX_POINTS) : null;
         }
 
         @Override public int nx() { return nx; }
@@ -631,7 +632,7 @@ public final class Shapes3 {
         @Override public int nz() { return nz; }
         @Override public int pad() { return pad; }
         @Override public double hi() { return hi; }
-        @Override public String error() { return error; }
+        @Override public Message error() { return error; }
         // The field creases on the curve itself, and interpolating across that makes a tube under a block thick visibly thinner.
         @Override public boolean smooth() { return hi >= 0.5; }
 
@@ -756,7 +757,7 @@ public final class Shapes3 {
         private final int nx, ny, nz, pad, rows, cols;
         private final double hi, cap;
         private final List<double[]> pts = new ArrayList<>();
-        private final String error;
+        private final Message error;
         private volatile Built built;
         private volatile List<double[]> wires;
 
@@ -796,7 +797,7 @@ public final class Shapes3 {
             rows = s.sRows; cols = s.sCols;
             for (double[] p : s.sPts) pts.add(new double[]{p[0] + pad, p[1] + pad, p[2] + pad});
             error = rows < Bezier3.MIN_GRID || cols < Bezier3.MIN_GRID || rows > Bezier3.MAX_GRID || cols > Bezier3.MAX_GRID || pts.size() != rows * cols
-                    ? "A surface needs " + Bezier3.MIN_GRID + " to " + Bezier3.MAX_GRID + " rows and columns of points." : null;
+                    ? Message.of("curvegen.error.surface_grid", Bezier3.MIN_GRID, Bezier3.MAX_GRID) : null;
         }
 
         @Override public int nx() { return nx; }
@@ -805,7 +806,7 @@ public final class Shapes3 {
         @Override public int pad() { return pad; }
         @Override public double lo() { return -hi; }
         @Override public double hi() { return hi; }
-        @Override public String error() { return error; }
+        @Override public Message error() { return error; }
 
         private double[] p(int r, int c) { return pts.get(r * cols + c); }
 

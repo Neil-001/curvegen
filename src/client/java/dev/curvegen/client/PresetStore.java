@@ -1,5 +1,7 @@
 package dev.curvegen.client;
 
+import static dev.curvegen.client.Lang.tr;
+
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
@@ -60,7 +62,7 @@ public final class PresetStore {
             try (Stream<Path> s = Files.list(dir)) {
                 files = s.filter(f -> f.getFileName().toString().endsWith(".json")).sorted().toList();
             } catch (IOException e) {
-                dev.curvegen.CurveGen.LOGGER.warn("Couldn't list the presets folder", e);
+                dev.curvegen.CurveGen.LOGGER.warn(tr("curvegen.log.presets_list"), e);
                 return presets;
             }
             // Files that can't be read are skipped and left alone: new presets never take their names.
@@ -71,7 +73,7 @@ public final class PresetStore {
                     JsonElement v = root.isJsonObject() ? root.getAsJsonObject().get("version") : null;
                     int version = v != null && v.isJsonPrimitive() && v.getAsJsonPrimitive().isNumber() ? v.getAsInt() : FORMAT_VERSION;
                     if (version > FORMAT_VERSION) {
-                        dev.curvegen.CurveGen.LOGGER.warn("Skipped preset {}, which is from a newer version of Curve Generator (format {})", f.getFileName(), version);
+                        dev.curvegen.CurveGen.LOGGER.warn(tr("curvegen.log.preset_newer", f.getFileName().toString(), version));
                         continue;
                     }
                     Preset p = GSON.fromJson(root, Preset.class);
@@ -79,10 +81,10 @@ public final class PresetStore {
                         p.file = f;
                         presets.add(p);
                     } else {
-                        dev.curvegen.CurveGen.LOGGER.warn("Skipped preset {}, which is missing its name, kind or settings", f.getFileName());
+                        dev.curvegen.CurveGen.LOGGER.warn(tr("curvegen.log.preset_missing", f.getFileName().toString()));
                     }
                 } catch (Exception e) {
-                    dev.curvegen.CurveGen.LOGGER.warn("Couldn't read preset {}, so it was skipped", f.getFileName(), e);
+                    dev.curvegen.CurveGen.LOGGER.warn(tr("curvegen.log.preset_read", f.getFileName().toString()), e);
                 }
             }
         } else {
@@ -90,7 +92,7 @@ public final class PresetStore {
             List<PresetData.Example> ex = PresetData.examples();
             for (int i = 0; i < ex.size(); i++) {
                 Preset p = new Preset();
-                p.name = ex.get(i).name(); p.gen = ShapeSettings.Gen.EQUATION.name(); p.data = new LinkedHashMap<>(ex.get(i).data());
+                p.name = tr(ex.get(i).name()); p.gen = ShapeSettings.Gen.EQUATION.name(); p.data = new LinkedHashMap<>(ex.get(i).data());
                 p.saved = t - i;   // keeps the examples in their original order
                 presets.add(p);
                 write(p);
@@ -139,7 +141,7 @@ public final class PresetStore {
         try {
             Files.deleteIfExists(p.file);
         } catch (IOException e) {
-            dev.curvegen.CurveGen.LOGGER.warn("Couldn't delete preset {}", p.file.getFileName(), e);
+            dev.curvegen.CurveGen.LOGGER.warn(tr("curvegen.log.preset_delete", p.file.getFileName().toString()), e);
         }
     }
 
@@ -177,7 +179,7 @@ public final class PresetStore {
             if (p.file != null && !p.file.equals(f)) Files.deleteIfExists(p.file);
             p.file = f;
         } catch (IOException e) {
-            dev.curvegen.CurveGen.LOGGER.warn("Couldn't save preset {}", p.name, e);
+            dev.curvegen.CurveGen.LOGGER.warn(tr("curvegen.log.preset_save", p.name), e);
         }
     }
 }

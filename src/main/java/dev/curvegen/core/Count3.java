@@ -17,7 +17,7 @@ public final class Count3 {
      * One row: a piece family, what to call these states within it, the states, and the one whose view from the
      * south says most about the piece, for the row's icon.
      */
-    public record Group(Family family, String name, int[] states, int icon) {
+    public record Group(Family family, Message name, int[] states, int icon) {
         public int count(int[] counts) {
             int n = 0;
             for (int s : states) n += counts[s];
@@ -31,28 +31,29 @@ public final class Count3 {
     private static final String[] FACING = {"north", "east", "south", "west", "down", "up"};
 
     /** What a state is called within its family. */
-    public static String name(int s) {
-        return switch (Pieces3.FAMILY[s]) {
-            case FULL -> "Full block";
-            case SLAB -> Pieces3.half(s) == 1 ? "Top" : "Bottom";
-            case STAIRS -> (Pieces3.half(s) == 1 ? "Upside-down" : "Upright") + switch (Pieces3.stairShape(s)) {
-                case Pieces3.STRAIGHT -> ", straight";
-                case Pieces3.INNER_LEFT, Pieces3.INNER_RIGHT -> ", inner corner";
-                default -> ", outer corner";
+    public static Message name(int s) {
+        String key = switch (Pieces3.FAMILY[s]) {
+            case FULL -> "full";
+            case SLAB -> Pieces3.half(s) == 1 ? "slab.top" : "slab.bottom";
+            case STAIRS -> "stairs." + (Pieces3.half(s) == 1 ? "inverted." : "upright.") + switch (Pieces3.stairShape(s)) {
+                case Pieces3.STRAIGHT -> "straight";
+                case Pieces3.INNER_LEFT, Pieces3.INNER_RIGHT -> "inner";
+                default -> "outer";
             };
-            case TRAPDOOR -> Pieces3.open(s) ? "Open" : Pieces3.half(s) == 1 ? "Closed, top" : "Closed, bottom";
-            case SHELF -> "Facing " + FACING[Pieces3.facing(s)];
-            case CHAIN -> switch (Pieces3.axis(s)) { case 0 -> "East to west"; case 1 -> "Up and down"; default -> "North to south"; };
-            case ROD -> "Pointing " + FACING[Pieces3.facing(s)];
+            case TRAPDOOR -> Pieces3.open(s) ? "trapdoor.open" : Pieces3.half(s) == 1 ? "trapdoor.top" : "trapdoor.bottom";
+            case SHELF -> "shelf." + FACING[Pieces3.facing(s)];
+            case CHAIN -> switch (Pieces3.axis(s)) { case 0 -> "chain.x"; case 1 -> "chain.y"; default -> "chain.z"; };
+            case ROD -> "rod." + FACING[Pieces3.facing(s)];
             case FENCE, PANE, WALL -> {
                 int n = 0;
                 for (int d = 0; d < 4; d++) if (Pieces3.side(s, d) > 0) n++;
                 boolean straight = n == 2 && (Pieces3.side(s, Pieces3.N) > 0) == (Pieces3.side(s, Pieces3.S) > 0);
-                String sides = n == 0 ? "Post only" : n == 1 ? "1 side" : n == 2 ? (straight ? "Straight" : "Corner") : n + " sides";
-                yield Pieces3.isWall(s) && n > 0 && !Pieces3.up(s) ? sides + ", no post" : sides;
+                String sides = switch (n) { case 0 -> "post"; case 1 -> "one"; case 2 -> straight ? "straight" : "corner"; case 3 -> "three"; default -> "four"; };
+                yield "connector." + sides + (Pieces3.isWall(s) && n > 0 && !Pieces3.up(s) ? ".no_post" : "");
             }
-            default -> "Air";
+            default -> "air";
         };
+        return Message.of("curvegen.count3." + key);
     }
 
     /** How much of a block's face the state covers seen from the south, in 256ths. */

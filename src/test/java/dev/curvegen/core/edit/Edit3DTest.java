@@ -41,7 +41,8 @@ class Edit3DTest {
         assertArrayEquals(new int[]{40, 12, 25}, Edit3D.size(s));
         assertEquals(25, s.tRing);
         assertEquals(9, s.tTube);
-        assertTrue(Edit3D.describe(s).contains("stretched from a 25 ring"), Edit3D.describe(s));
+        assertEquals("curvegen.shape.torus.stretched_filled", Edit3D.describe(s).key());
+        assertEquals(25, Edit3D.describe(s).args().get(4));
         Edit3D.resize(s, new int[]{999, 12, 25}, ALL);
         assertEquals(Shape3.MAX_SIZE, s.tW);
     }
@@ -53,7 +54,7 @@ class Edit3DTest {
         assertArrayEquals(new int[]{31, 9, 31}, Edit3D.size(s));
         Edit3D.setTube(s, 11);
         assertArrayEquals(new int[]{31, 11, 31}, Edit3D.size(s));
-        assertFalse(Edit3D.describe(s).contains("stretched"));
+        assertEquals("curvegen.shape.torus.filled", Edit3D.describe(s).key());
     }
 
     @Test
@@ -312,7 +313,7 @@ class Edit3DTest {
             ShapeSettings s = of(gen);
             java.util.List<Option> options = Edit3D.options(s);
             assertTrue(options.size() >= 3 && options.size() <= Radial.MAX_WEDGES - 5, gen + ": " + options.size());
-            for (Option o : options) assertTrue(o.label().length() <= 13, o.label());
+            for (Option o : options) assertTrue(o.label().startsWith("curvegen.option."), o.label());
             Option.Cycler face = (Option.Cycler) options.get(options.size() - 1);
             face.set().accept(1);
             assertTrue(s.topColours, gen.toString());

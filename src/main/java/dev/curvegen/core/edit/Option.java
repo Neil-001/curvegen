@@ -8,7 +8,9 @@ import java.util.function.DoubleSupplier;
 import java.util.function.IntConsumer;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
-import java.util.function.UnaryOperator;
+import java.util.function.Function;
+
+import dev.curvegen.core.Message;
 
 /**
  * One of a shape's own settings, as the radial menu's "Shape options" shows it. A shape lists its options and the
@@ -18,10 +20,10 @@ import java.util.function.UnaryOperator;
  * records the undo step and fits the box afterwards.
  */
 public sealed interface Option {
-    /** The wedge's name. Keep it under about 13 characters, or the wedge cuts it short. */
+    /** The wedge's translation key. Keep its translated name under about 13 characters. */
     String label();
 
-    /** Null while the option applies. Otherwise why it doesn't, for the greyed-out wedge's tooltip. */
+    /** Null while the option applies. Otherwise a translation key for the greyed-out wedge's tooltip. */
     String off();
 
     /**
@@ -40,13 +42,13 @@ public sealed interface Option {
     record Cycler(String label, String off, List<String> names, IntSupplier get, IntConsumer set) implements Option {}
 
     /** A line of text, typed into the text box. {@code check} returns what is wrong with a text, or null when it's fine. */
-    record Text(String label, String off, Supplier<String> get, Consumer<String> set, UnaryOperator<String> check) implements Option {}
+    record Text(String label, String off, Supplier<String> get, Consumer<String> set, Function<String, Message> check) implements Option {}
 
     /** Something to do rather than a value, such as adding a point. */
     record Action(String label, String off, Runnable run) implements Option {}
 
     /** A choice between off and on. */
     static Cycler toggle(String label, String off, BooleanSupplier get, Consumer<Boolean> set) {
-        return new Cycler(label, off, List.of("OFF", "ON"), () -> get.getAsBoolean() ? 1 : 0, v -> set.accept(v == 1));
+        return new Cycler(label, off, List.of("curvegen.choice.off", "curvegen.choice.on"), () -> get.getAsBoolean() ? 1 : 0, v -> set.accept(v == 1));
     }
 }

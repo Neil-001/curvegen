@@ -21,7 +21,7 @@ public final class Target {
     public Double axisX, axisY;
     /** Cells whose centre lies in the space the shape encloses; cleared to air when carving (null = never carve). */
     public boolean[] carve;
-    public String error;
+    public Message error;
     /** For equations: block → math coordinates. */
     public double mx0, msx, my0, msy;
     public boolean hasMath;
@@ -69,7 +69,7 @@ public final class Target {
             case BEZIER -> bezier(s);
             default -> {   // 3D shapes go through Shape3 and Solver3
                 Target t = new Target(1, 1);
-                t.error = "This is a 3D shape.";
+                t.error = Message.of("curvegen.error.shape_is_3d");
                 yield t;
             }
         };
@@ -281,14 +281,14 @@ public final class Target {
     static Target equation(ShapeSettings s) {
         double xmin, xmax, ymin, ymax; Expr.Equation eq;
         try {
-            xmin = Expr.constant(s.xmin, "x from"); xmax = Expr.constant(s.xmax, "x to");
-            ymin = Expr.constant(s.ymin, "y from"); ymax = Expr.constant(s.ymax, "y to");
-            if (!(xmax > xmin)) throw new Expr.ParseException("The x range must end higher than it starts.");
-            if (!(ymax > ymin)) throw new Expr.ParseException("The y range must end higher than it starts.");
+            xmin = Expr.constant(s.xmin, "curvegen.range.x_from"); xmax = Expr.constant(s.xmax, "curvegen.range.x_to");
+            ymin = Expr.constant(s.ymin, "curvegen.range.y_from"); ymax = Expr.constant(s.ymax, "curvegen.range.y_to");
+            if (!(xmax > xmin)) throw new Expr.ParseException(Message.of("curvegen.error.range_order", "x"));
+            if (!(ymax > ymin)) throw new Expr.ParseException(Message.of("curvegen.error.range_order", "y"));
             eq = Expr.parseEquation(s.src);
         } catch (Expr.ParseException e) {
             Target t = new Target(s.qW, Math.max(1, s.qH));
-            t.error = e.getMessage();
+            t.error = e.text();
             return t;
         }
         ShapeSettings.EqMode mode = eq.rel() == null || eq.rel().equals("=") ? s.qMode

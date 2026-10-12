@@ -51,7 +51,7 @@ public class NameDialogScreen extends Screen {
     protected void init() {
         int x = x0() + 10, y = y0() + 24;
         String text = field != null ? field.getValue() : initial;
-        field = new EditBox(font, x, y, W - 20, 20, Component.literal("Preset name"));
+        field = new EditBox(font, x, y, W - 20, 20, Component.translatable("curvegen.screen.preset_name"));
         field.setMaxLength(80);
         field.setValue(text);
         field.setCursorPosition(0);               // select it all, so typing replaces the suggestion
@@ -66,9 +66,9 @@ public class NameDialogScreen extends Screen {
             addRenderableWidget(opt);
         }
         int by = y0() + h() - 28, bw = (W - 30) / 2;
-        confirm = Button.builder(Component.literal("Save"), _ -> submit()).bounds(x, by, bw, 20).build();
+        confirm = Button.builder(Component.translatable("curvegen.screen.save"), _ -> submit()).bounds(x, by, bw, 20).build();
         addRenderableWidget(confirm);
-        addRenderableWidget(Button.builder(Component.literal("Cancel"), _ -> onClose()).bounds(x + bw + 10, by, bw, 20).build());
+        addRenderableWidget(Button.builder(Component.translatable("curvegen.screen.cancel"), _ -> onClose()).bounds(x + bw + 10, by, bw, 20).build());
         refresh();
     }
 

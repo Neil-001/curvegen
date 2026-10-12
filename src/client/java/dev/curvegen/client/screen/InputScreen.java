@@ -1,5 +1,7 @@
 package dev.curvegen.client.screen;
 
+import static dev.curvegen.client.Lang.tr;
+
 import com.mojang.blaze3d.platform.InputConstants;
 import java.util.function.Consumer;
 import java.util.function.DoubleConsumer;
@@ -29,7 +31,7 @@ public class InputScreen extends Screen {
     private KeyMapping held;
 
     private static final int H = 58;
-    private static final String HINT = "Enter to apply, Escape to cancel.";
+    private static final String HINT = "curvegen.screen.enter_to_apply_escape_to_cancel";
 
     private InputScreen(String title, String initial, int wantW, boolean number, UnaryOperator<String> check, Consumer<String> onConfirm) {
         super(Component.literal(title));
@@ -38,7 +40,7 @@ public class InputScreen extends Screen {
 
     /** A box for a number from {@code min} to {@code max}, whole if {@code whole} is set. */
     public static InputScreen number(String title, String initial, boolean whole, double min, double max, DoubleConsumer onConfirm) {
-        String range = (whole ? "A whole number" : "A number") + " from " + fmt(min) + " to " + fmt(max) + ".";
+        String range = tr(whole ? "curvegen.screen.a_whole_number_from_s_to_s" : "curvegen.screen.a_number_from_s_to_s", fmt(min), fmt(max));
         return new InputScreen(title, initial, 150, true, v -> parse(v, whole, min, max) == null ? range : null,
                 v -> onConfirm.accept(parse(v, whole, min, max)));
     }
@@ -69,7 +71,7 @@ public class InputScreen extends Screen {
         return String.format(java.util.Locale.ROOT, "%.4f", v).replaceAll("0+$", "");
     }
 
-    private int w() { return Math.min(width - 12, Math.max(wantW, Math.max(font.width(title), font.width(HINT)) + 16)); }
+    private int w() { return Math.min(width - 12, Math.max(wantW, Math.max(font.width(title), font.width(tr(HINT))) + 16)); }
     private int x0() { return (width - w()) / 2; }
     private int y0() { return (height - H) / 2; }
 
@@ -127,7 +129,7 @@ public class InputScreen extends Screen {
         ctx.fill(x - 1, y - 1, x + w + 1, y + H + 1, 0xFF5A6472);
         ctx.fill(x, y, x + w, y + H, 0xFF1F252C);
         ctx.text(font, font.plainSubstrByWidth(title.getString(), w - 16), x + 8, y + 7, 0xFFFFFFFF);
-        String note = problem != null ? problem : HINT;
+        String note = problem != null ? problem : tr(HINT);
         ctx.text(font, font.plainSubstrByWidth(note, w - 16), x + 8, y + 45, problem != null ? 0xFFFF8098 : 0xFF9AA5B3, false);
         super.extractRenderState(ctx, mx, my, delta);
     }

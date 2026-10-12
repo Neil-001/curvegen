@@ -51,7 +51,7 @@ public final class Bezier3 {
      */
     public static List<double[]> reduce(List<double[]> p) {
         int n = p.size() - 1, m = n - 1;            // from degree n to degree m
-        if (m < 1) throw new IllegalArgumentException("a curve needs two control points");
+        if (m < 1) throw new IllegalArgumentException(Message.of("curvegen.diagnostic.curve_points").toString());
         double[][] q = new double[m + 1][];
         q[0] = p.get(0).clone(); q[m] = p.get(n).clone();
         int unknowns = m - 1;

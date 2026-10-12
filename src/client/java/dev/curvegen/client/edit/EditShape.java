@@ -1,5 +1,6 @@
 package dev.curvegen.client.edit;
 
+import dev.curvegen.core.Message;
 import dev.curvegen.core.ShapeSettings;
 import dev.curvegen.core.edit.Option;
 import dev.curvegen.core.edit.Orient;
@@ -29,7 +30,7 @@ public interface EditShape {
      * the hologram tints blocks by their top texture rather than their side, and {@code error} is a message for the
      * player when the shape couldn't be solved (the lists are then empty), or null.
      */
-    record Content(List<Placed> blocks, List<BlockPos> carve, boolean topColours, String error) {}
+    record Content(List<Placed> blocks, List<BlockPos> carve, boolean topColours, Message error) {}
 
     /** The shape for the current settings. */
     static EditShape of(ShapeSettings s) { return s.is3d() ? new Shape3D(s) : new Shape2D(s); }

@@ -1,5 +1,7 @@
 package dev.curvegen.client.screen;
 
+import static dev.curvegen.client.Lang.tr;
+
 import com.mojang.blaze3d.platform.InputConstants;
 import dev.curvegen.core.edit.Stepper;
 import java.util.ArrayList;
@@ -57,7 +59,7 @@ abstract class ControlScreen extends Screen {
         private final Runnable action;
 
         Arrow(int x, int y, int w, int h, boolean up, Runnable action) {
-            super(x, y, w, h, Component.literal(up ? "Increase" : "Decrease"));
+            super(x, y, w, h, Component.translatable(up ? "curvegen.screen.increase" : "curvegen.screen.decrease"));
             this.up = up; this.action = action;
         }
 

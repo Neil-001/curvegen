@@ -1,5 +1,7 @@
 package dev.curvegen.client;
 
+import static dev.curvegen.client.Lang.tr;
+
 import dev.curvegen.core.Pieces.Family;
 import dev.curvegen.core.Pieces;
 import dev.curvegen.core.Pieces3;
@@ -63,9 +65,9 @@ public final class BlockChoices {
 
     public static String familyName(Family f) {
         return switch (f) {
-            case FULL -> "Full blocks"; case SLAB -> "Slabs"; case STAIRS -> "Stairs";
-            case TRAPDOOR -> "Trapdoors"; case SHELF -> "Shelves"; case FENCE -> "Fences"; case PANE -> "Panes"; case WALL -> "Walls";
-            case CHAIN -> "Chains"; case ROD -> "End rods"; default -> "";
+            case FULL -> tr("curvegen.family.full"); case SLAB -> tr("curvegen.family.slab"); case STAIRS -> tr("curvegen.family.stairs");
+            case TRAPDOOR -> tr("curvegen.family.trapdoor"); case SHELF -> tr("curvegen.family.shelf"); case FENCE -> tr("curvegen.family.fence"); case PANE -> tr("curvegen.family.pane"); case WALL -> tr("curvegen.family.wall");
+            case CHAIN -> tr("curvegen.family.chain"); case ROD -> tr("curvegen.family.rod"); default -> "";
         };
     }
 
@@ -299,7 +301,7 @@ public final class BlockChoices {
         return switch (d) {
             case NORTH -> BlockStateProperties.NORTH_WALL; case SOUTH -> BlockStateProperties.SOUTH_WALL;
             case EAST -> BlockStateProperties.EAST_WALL; case WEST -> BlockStateProperties.WEST_WALL;
-            default -> throw new IllegalArgumentException("not horizontal: " + d);
+            default -> throw new IllegalArgumentException(tr("curvegen.diagnostic.not_horizontal", d));
         };
     }
 
@@ -307,7 +309,7 @@ public final class BlockChoices {
         return switch (d) {
             case NORTH -> BlockStateProperties.NORTH; case SOUTH -> BlockStateProperties.SOUTH;
             case EAST -> BlockStateProperties.EAST; case WEST -> BlockStateProperties.WEST;
-            default -> throw new IllegalArgumentException("not horizontal: " + d);
+            default -> throw new IllegalArgumentException(tr("curvegen.diagnostic.not_horizontal", d));
         };
     }
 

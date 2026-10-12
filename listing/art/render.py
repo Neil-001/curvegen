@@ -462,7 +462,7 @@ def editor():
 def families():
     """One piece from each family at six times preview size, in the preview's piece colours: full block, slab,
     stairs, trapdoor, shelf, fence, glass pane, wall."""
-    wall = next(s for s, p in enumerate(PIECES) if p and p["name"] == "Wall, left low, right low, with post")
+    wall = next(s for s, p in enumerate(PIECES) if p and p["name"] == "curvegen.piece.wall.low_low.with_post")
     shelf = next(s for s, p in enumerate(PIECES) if p and p["family"] == "SHELF")
     picks = [1, 2, 4, 8, shelf, 15, 17, wall]
     tile, gap, pad = 96, 76, 40

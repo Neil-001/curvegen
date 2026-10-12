@@ -88,7 +88,7 @@ public class Dump {
             System.out.println("{\"nx\":" + r.nx() + ",\"ny\":" + r.ny() + ",\"err\":" + r.err() + ",\"area\":" + r.area()
                     + ",\"grid\":" + grid + ",\"overlay\":" + lines(r.target().overlay) + ",\"dashed\":" + lines(r.target().dashed)
                     + ",\"axisX\":" + r.target().axisX + ",\"axisY\":" + r.target().axisY
-                    + ",\"error\":" + (r.target().error == null ? "null" : "\"" + r.target().error.replace("\"", "'") + "\"") + "}");
+                    + ",\"error\":" + (r.target().error == null ? "null" : "\"" + r.target().error.toString().replace("\"", "'") + "\"") + "}");
         }
     }
 
@@ -98,8 +98,8 @@ public class Dump {
     /** Solves a 3D shape and draws it as Preview3 does: the solver's blocks in their piece type colours, then the outline. */
     private static String draw3(ShapeSettings s, Map<String, String> view) throws Exception {
         Solver3.Result r = Solver3.run(s);
-        String error = r.shape().error();
-        if (error != null) return "{\"error\":\"" + error.replace("\"", "'") + "\"}";
+        dev.curvegen.core.Message error = r.shape().error();
+        if (error != null) return "{\"error\":\"" + error.toString().replace("\"", "'") + "\"}";
         int nx = r.nx(), ny = r.ny(), nz = r.nz(), blocks = 0;
         for (short c : r.grid()) if (c != Pieces3.AIR) blocks++;
         int w = Integer.parseInt(view.get("viewW")), h = Integer.parseInt(view.get("viewH"));

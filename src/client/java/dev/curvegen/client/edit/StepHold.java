@@ -1,6 +1,7 @@
 package dev.curvegen.client.edit;
 
 import com.mojang.blaze3d.platform.InputConstants;
+import dev.curvegen.client.Lang;
 import dev.curvegen.client.CurveGenClient;
 import dev.curvegen.client.CurveGenClient.StepKey;
 import dev.curvegen.client.ModSettings;
@@ -52,7 +53,7 @@ public final class StepHold {
                 StepKey key = keys.get(TIMER.key());
                 Object pressStep = step;
                 TIMER.opened();
-                mc.gui.setScreen(InputScreen.number(Component.translatable(key.key().getName()).getString() + ": how many blocks?",
+                mc.gui.setScreen(InputScreen.number(Lang.tr("curvegen.editor.step_amount", Component.translatable(key.key().getName()).getString()),
                         "1", true, -MAX_AMOUNT, MAX_AMOUNT, typed -> {
                             int n = (int) typed;
                             // The press already moved one block. Take that back if it's still the last edit. If other
