@@ -36,7 +36,10 @@ public final class Pieces {
     public enum Family { AIR, FULL, SLAB, STAIRS, TRAPDOOR, SHELF, FENCE, PANE, WALL, CHAIN, ROD }
 
     public static final Family[] FAMILY = new Family[COUNT];
+    /** Translation keys for complete piece names. */
     public static final String[] NAME = new String[COUNT];
+    /** Complete translated row labels for the Count tab. */
+    public static final String[] SHORT_NAME = new String[COUNT];
     /** Colour per state for the "piece type" colouring (0xRRGGBB). */
     public static final int[] COLOR = new int[COUNT];
     /** Rectangles {x0, y0, x1, y1} per state, in 16ths of a block. */
@@ -53,7 +56,7 @@ public final class Pieces {
     public static final boolean[][] STURDY = new boolean[COUNT][4];
 
     private static void def(int s, Family f, String name, int color, int mx, int my, int[]... rects) {
-        FAMILY[s] = f; NAME[s] = name; COLOR[s] = color; MX[s] = mx; MY[s] = my; RECTS[s] = rects;
+        FAMILY[s] = f; NAME[s] = name; SHORT_NAME[s] = name + ".short"; COLOR[s] = color; MX[s] = mx; MY[s] = my; RECTS[s] = rects;
     }
 
     // ---------- side walls ----------
@@ -91,29 +94,29 @@ public final class Pieces {
     }
 
     static {
-        def(EMPTY, Family.AIR, "Air", 0, EMPTY, EMPTY);
-        def(FULL, Family.FULL, "Full block", 0x8a96a8, FULL, FULL, new int[]{0, 0, 16, 16});
-        def(SLAB_B, Family.SLAB, "Slab, bottom", 0xe3a93b, SLAB_B, SLAB_T, new int[]{0, 0, 16, 8});
-        def(SLAB_T, Family.SLAB, "Slab, top", 0xb8641d, SLAB_T, SLAB_B, new int[]{0, 8, 16, 16});
-        def(ST_UR, Family.STAIRS, "Stairs, upright, facing right", 0x3a9e5f, ST_UL, ST_DR, new int[]{0, 0, 16, 8}, new int[]{8, 8, 16, 16});
-        def(ST_UL, Family.STAIRS, "Stairs, upright, facing left", 0x8ccf6f, ST_UR, ST_DL, new int[]{0, 0, 16, 8}, new int[]{0, 8, 8, 16});
-        def(ST_DR, Family.STAIRS, "Stairs, upside-down, facing right", 0x2a72b8, ST_DL, ST_UR, new int[]{0, 8, 16, 16}, new int[]{8, 0, 16, 8});
-        def(ST_DL, Family.STAIRS, "Stairs, upside-down, facing left", 0x6fbbe9, ST_DR, ST_UL, new int[]{0, 8, 16, 16}, new int[]{0, 0, 8, 8});
-        def(TD_B, Family.TRAPDOOR, "Trapdoor, closed, bottom", 0xa74fc9, TD_B, TD_T, new int[]{0, 0, 16, 3});
-        def(TD_T, Family.TRAPDOOR, "Trapdoor, closed, top", 0xe08ad3, TD_T, TD_B, new int[]{0, 13, 16, 16});
-        def(TD_L, Family.TRAPDOOR, "Trapdoor, open, on left side", 0xe0485f, TD_R, TD_L, new int[]{0, 0, 3, 16});
-        def(TD_R, Family.TRAPDOOR, "Trapdoor, open, on right side", 0xf28f4f, TD_L, TD_R, new int[]{13, 0, 16, 16});
+        def(EMPTY, Family.AIR, "curvegen.piece.empty", 0, EMPTY, EMPTY);
+        def(FULL, Family.FULL, "curvegen.piece.full", 0x8a96a8, FULL, FULL, new int[]{0, 0, 16, 16});
+        def(SLAB_B, Family.SLAB, "curvegen.piece.slab_b", 0xe3a93b, SLAB_B, SLAB_T, new int[]{0, 0, 16, 8});
+        def(SLAB_T, Family.SLAB, "curvegen.piece.slab_t", 0xb8641d, SLAB_T, SLAB_B, new int[]{0, 8, 16, 16});
+        def(ST_UR, Family.STAIRS, "curvegen.piece.st_ur", 0x3a9e5f, ST_UL, ST_DR, new int[]{0, 0, 16, 8}, new int[]{8, 8, 16, 16});
+        def(ST_UL, Family.STAIRS, "curvegen.piece.st_ul", 0x8ccf6f, ST_UR, ST_DL, new int[]{0, 0, 16, 8}, new int[]{0, 8, 8, 16});
+        def(ST_DR, Family.STAIRS, "curvegen.piece.st_dr", 0x2a72b8, ST_DL, ST_UR, new int[]{0, 8, 16, 16}, new int[]{8, 0, 16, 8});
+        def(ST_DL, Family.STAIRS, "curvegen.piece.st_dl", 0x6fbbe9, ST_DR, ST_UL, new int[]{0, 8, 16, 16}, new int[]{0, 0, 8, 8});
+        def(TD_B, Family.TRAPDOOR, "curvegen.piece.td_b", 0xa74fc9, TD_B, TD_T, new int[]{0, 0, 16, 3});
+        def(TD_T, Family.TRAPDOOR, "curvegen.piece.td_t", 0xe08ad3, TD_T, TD_B, new int[]{0, 13, 16, 16});
+        def(TD_L, Family.TRAPDOOR, "curvegen.piece.td_l", 0xe0485f, TD_R, TD_L, new int[]{0, 0, 3, 16});
+        def(TD_R, Family.TRAPDOOR, "curvegen.piece.td_r", 0xf28f4f, TD_L, TD_R, new int[]{13, 0, 16, 16});
         int[] post = {6, 0, 10, 16}, lL = {0, 6, 6, 9}, lH = {0, 12, 6, 15}, rL = {10, 6, 16, 9}, rH = {10, 12, 16, 15};
-        def(FENCE, Family.FENCE, "Fence, post only", 0x8d7d22, FENCE, FENCE, post);
-        def(FENCE_L, Family.FENCE, "Fence, connected left", 0xc4b13a, FENCE_R, FENCE_L, post, lL, lH);
-        def(FENCE_R, Family.FENCE, "Fence, connected right", 0x5f5616, FENCE_L, FENCE_R, post, rL, rH);
-        def(FENCE_LR, Family.FENCE, "Fence, connected both sides", 0xe4d96e, FENCE_LR, FENCE_LR, post, lL, lH, rL, rH);
-        def(PANE, Family.PANE, "Glass pane, post only", 0x16908f, PANE, PANE, new int[]{7, 0, 9, 16});
-        def(PANE_L, Family.PANE, "Glass pane, connected left", 0x4fcac0, PANE_R, PANE_L, new int[]{0, 0, 9, 16});
-        def(PANE_R, Family.PANE, "Glass pane, connected right", 0x0d5f5e, PANE_L, PANE_R, new int[]{7, 0, 16, 16});
-        def(PANE_LR, Family.PANE, "Glass pane, connected both sides", 0xa3e4de, PANE_LR, PANE_LR, new int[]{0, 0, 16, 16});
+        def(FENCE, Family.FENCE, "curvegen.piece.fence", 0x8d7d22, FENCE, FENCE, post);
+        def(FENCE_L, Family.FENCE, "curvegen.piece.fence_l", 0xc4b13a, FENCE_R, FENCE_L, post, lL, lH);
+        def(FENCE_R, Family.FENCE, "curvegen.piece.fence_r", 0x5f5616, FENCE_L, FENCE_R, post, rL, rH);
+        def(FENCE_LR, Family.FENCE, "curvegen.piece.fence_lr", 0xe4d96e, FENCE_LR, FENCE_LR, post, lL, lH, rL, rH);
+        def(PANE, Family.PANE, "curvegen.piece.pane", 0x16908f, PANE, PANE, new int[]{7, 0, 9, 16});
+        def(PANE_L, Family.PANE, "curvegen.piece.pane_l", 0x4fcac0, PANE_R, PANE_L, new int[]{0, 0, 9, 16});
+        def(PANE_R, Family.PANE, "curvegen.piece.pane_r", 0x0d5f5e, PANE_L, PANE_R, new int[]{7, 0, 16, 16});
+        def(PANE_LR, Family.PANE, "curvegen.piece.pane_lr", 0xa3e4de, PANE_LR, PANE_LR, new int[]{0, 0, 16, 16});
 
-        String[] side = {"none", "low", "tall"};
+        String[] heights = {"none", "low", "tall"};
         for (int l = 0; l < 3; l++)
             for (int r = 0; r < 3; r++)
                 for (int c = 0; c < 2; c++)
@@ -123,47 +126,46 @@ public final class Pieces {
                         if (p == 1) rects.add(new int[]{4, 0, 12, 16});
                         if (l > 0) rects.add(new int[]{0, 0, 8, l == 2 ? 16 : 14});
                         if (r > 0) rects.add(new int[]{8, 0, 16, r == 2 ? 16 : 14});
-                        String name = l == 0 && r == 0 ? "Wall, post only"
-                                : "Wall, left " + side[l] + ", right " + side[r] + (p == 1 ? ", with post" : ", no post");
+                        String name = "curvegen.piece.wall." + heights[l] + "_" + heights[r] + (p == 1 ? ".with_post" : ".no_post");
                         int base = 0x6a6f8c + 0x0c0c0c * (l + r) + (l == 2 || r == 2 ? 0x000018 : 0) + (p == 1 ? 0x080000 : 0);
                         def(s, Family.WALL, name, base, wall(r, l, c == 1, p == 1), s, rects.toArray(new int[0][]));
+                        // With no sides, both encodings share the same Count row.
+                        if (l == 0 && r == 0) SHORT_NAME[s] = "curvegen.piece.wall.none_none.with_post.short";
                     }
 
         // ---- floors (top view) ----
-        def(F_TD_U, Family.TRAPDOOR, "Trapdoor, open, on top side", 0xb85bd6, F_TD_U, F_TD_D, new int[]{0, 13, 16, 16});
-        def(F_TD_D, Family.TRAPDOOR, "Trapdoor, open, on bottom side", 0x7d3aa0, F_TD_D, F_TD_U, new int[]{0, 0, 16, 3});
-        String[] dirs = {"left", "right", "top", "bottom"};
+        def(F_TD_U, Family.TRAPDOOR, "curvegen.piece.f_td_u", 0xb85bd6, F_TD_U, F_TD_D, new int[]{0, 13, 16, 16});
+        def(F_TD_D, Family.TRAPDOOR, "curvegen.piece.f_td_d", 0x7d3aa0, F_TD_D, F_TD_U, new int[]{0, 0, 16, 3});
+        String[] connections = {"post", "left", "right", "left_right", "top", "left_top", "right_top", "left_right_top",
+                "bottom", "left_bottom", "right_bottom", "left_right_bottom", "top_bottom", "left_top_bottom", "right_top_bottom", "all"};
         for (int bits = 0; bits < 16; bits++) {
-            List<String> ds = new ArrayList<>();
-            for (int d = 0; d < 4; d++) if ((bits & (1 << d)) != 0) ds.add(dirs[d]);
-            String conn = ds.isEmpty() ? "post only" : "connected " + String.join(", ", ds);
             int mx = swapBits(bits, LEFT, RIGHT), my = swapBits(bits, TOP, BOTTOM_SIDE);
             int n = Integer.bitCount(bits);
-            def(F_FENCE + bits, Family.FENCE, "Fence (from above), " + conn, 0x8d7d22 + 0x0e0c04 * n,
+            def(F_FENCE + bits, Family.FENCE, "curvegen.piece.flat_fence." + connections[bits], 0x8d7d22 + 0x0e0c04 * n,
                     F_FENCE + mx, F_FENCE + my, arms(new int[]{6, 6, 10, 10}, bits, 7, 9));
-            def(F_PANE + bits, Family.PANE, "Glass pane (from above), " + conn, 0x16908f + 0x0e0c0c * n,
+            def(F_PANE + bits, Family.PANE, "curvegen.piece.flat_pane." + connections[bits], 0x16908f + 0x0e0c0c * n,
                     F_PANE + mx, F_PANE + my, arms(new int[]{7, 7, 9, 9}, bits, 7, 9));
             boolean hasPost = floorWallPost(bits);
-            def(F_WALL + bits, Family.WALL, "Wall (from above), " + conn + (hasPost ? "" : ", no post"), 0x6a6f8c + 0x0c0c0c * n,
+            def(F_WALL + bits, Family.WALL, "curvegen.piece.flat_wall." + connections[bits], 0x6a6f8c + 0x0c0c0c * n,
                     F_WALL + mx, F_WALL + my, arms(hasPost ? new int[]{4, 4, 12, 12} : null, bits, 5, 11));
         }
 
         // A shelf is a panel 3 thick with a lip 2 deep along its top and bottom. From above it's a strip 5 deep.
-        def(SH_L, Family.SHELF, "Shelf, on left side", 0xc98f5a, SH_R, SH_L, new int[]{0, 0, 3, 16}, new int[]{3, 0, 5, 4}, new int[]{3, 12, 5, 16});
-        def(SH_R, Family.SHELF, "Shelf, on right side", 0x8a5a33, SH_L, SH_R, new int[]{13, 0, 16, 16}, new int[]{11, 0, 13, 4}, new int[]{11, 12, 13, 16});
-        def(F_SH_L, Family.SHELF, "Shelf, on left side", 0xc98f5a, F_SH_R, F_SH_L, new int[]{0, 0, 5, 16});
-        def(F_SH_R, Family.SHELF, "Shelf, on right side", 0x8a5a33, F_SH_L, F_SH_R, new int[]{11, 0, 16, 16});
-        def(F_SH_U, Family.SHELF, "Shelf, on top side", 0xe0b98a, F_SH_U, F_SH_D, new int[]{0, 11, 16, 16});
-        def(F_SH_D, Family.SHELF, "Shelf, on bottom side", 0x6b4226, F_SH_D, F_SH_U, new int[]{0, 0, 16, 5});
+        def(SH_L, Family.SHELF, "curvegen.piece.sh_l", 0xc98f5a, SH_R, SH_L, new int[]{0, 0, 3, 16}, new int[]{3, 0, 5, 4}, new int[]{3, 12, 5, 16});
+        def(SH_R, Family.SHELF, "curvegen.piece.sh_r", 0x8a5a33, SH_L, SH_R, new int[]{13, 0, 16, 16}, new int[]{11, 0, 13, 4}, new int[]{11, 12, 13, 16});
+        def(F_SH_L, Family.SHELF, "curvegen.piece.f_sh_l", 0xc98f5a, F_SH_R, F_SH_L, new int[]{0, 0, 5, 16});
+        def(F_SH_R, Family.SHELF, "curvegen.piece.f_sh_r", 0x8a5a33, F_SH_L, F_SH_R, new int[]{11, 0, 16, 16});
+        def(F_SH_U, Family.SHELF, "curvegen.piece.f_sh_u", 0xe0b98a, F_SH_U, F_SH_D, new int[]{0, 11, 16, 16});
+        def(F_SH_D, Family.SHELF, "curvegen.piece.f_sh_d", 0x6b4226, F_SH_D, F_SH_U, new int[]{0, 0, 16, 5});
 
         // ---- chains and end rods (either view) ----
         // A chain's two crossed strips are 3 wide but turned 45°, so it looks 2 wide. A rod points away from its plate.
-        def(CHAIN_H, Family.CHAIN, "Chain, left to right", 0xc75b8e, CHAIN_H, CHAIN_H, new int[]{0, 7, 16, 9});
-        def(CHAIN_V, Family.CHAIN, "Chain, top to bottom", 0x8f3a63, CHAIN_V, CHAIN_V, new int[]{7, 0, 9, 16});
-        def(ROD_U, Family.ROD, "End rod, pointing up", 0xf5ecd0, ROD_U, ROD_D, new int[]{6, 0, 10, 1}, new int[]{7, 1, 9, 16});
-        def(ROD_D, Family.ROD, "End rod, pointing down", 0xd9cfae, ROD_D, ROD_U, new int[]{6, 15, 10, 16}, new int[]{7, 0, 9, 15});
-        def(ROD_L, Family.ROD, "End rod, pointing left", 0xbfb48f, ROD_R, ROD_L, new int[]{15, 6, 16, 10}, new int[]{0, 7, 15, 9});
-        def(ROD_R, Family.ROD, "End rod, pointing right", 0xa39873, ROD_L, ROD_R, new int[]{0, 6, 1, 10}, new int[]{1, 7, 16, 9});
+        def(CHAIN_H, Family.CHAIN, "curvegen.piece.chain_h", 0xc75b8e, CHAIN_H, CHAIN_H, new int[]{0, 7, 16, 9});
+        def(CHAIN_V, Family.CHAIN, "curvegen.piece.chain_v", 0x8f3a63, CHAIN_V, CHAIN_V, new int[]{7, 0, 9, 16});
+        def(ROD_U, Family.ROD, "curvegen.piece.rod_u", 0xf5ecd0, ROD_U, ROD_D, new int[]{6, 0, 10, 1}, new int[]{7, 1, 9, 16});
+        def(ROD_D, Family.ROD, "curvegen.piece.rod_d", 0xd9cfae, ROD_D, ROD_U, new int[]{6, 15, 10, 16}, new int[]{7, 0, 9, 15});
+        def(ROD_L, Family.ROD, "curvegen.piece.rod_l", 0xbfb48f, ROD_R, ROD_L, new int[]{15, 6, 16, 10}, new int[]{0, 7, 15, 9});
+        def(ROD_R, Family.ROD, "curvegen.piece.rod_r", 0xa39873, ROD_L, ROD_R, new int[]{0, 6, 1, 10}, new int[]{1, 7, 16, 9});
 
         for (int s = 0; s < COUNT; s++) {
             for (int[] r : RECTS[s])

@@ -1,5 +1,7 @@
 package dev.curvegen.core.edit;
 
+import dev.curvegen.core.Message;
+
 import dev.curvegen.core.Expr;
 import dev.curvegen.core.ShapeSettings;
 import dev.curvegen.core.ShapeSettings.BzMode;
@@ -26,14 +28,14 @@ public final class Edit2D {
             case ELLIPSE -> new int[]{s.eW, s.eH, s.depth};
             case EQUATION -> new int[]{s.qW, equationHeight(s), s.depth};
             case BEZIER -> new int[]{s.bW, s.bH, s.depth};
-            default -> throw new IllegalArgumentException("Not a 2D shape: " + s.gen);
+            default -> throw new IllegalArgumentException(Message.of("curvegen.diagnostic.not_shape2", s.gen).toString());
         };
     }
 
     /** An equation's ranges {x from, x to, y from, y to}, or null while they don't parse or run backwards. */
     private static double[] ranges(ShapeSettings s) {
         try {
-            double[] r = {Expr.constant(s.xmin, "x from"), Expr.constant(s.xmax, "x to"), Expr.constant(s.ymin, "y from"), Expr.constant(s.ymax, "y to")};
+            double[] r = {Expr.constant(s.xmin, "curvegen.range.x_from"), Expr.constant(s.xmax, "curvegen.range.x_to"), Expr.constant(s.ymin, "curvegen.range.y_from"), Expr.constant(s.ymax, "curvegen.range.y_to")};
             return r[1] > r[0] && r[3] > r[2] ? r : null;
         } catch (Expr.ParseException _) {
             return null;
@@ -121,28 +123,28 @@ public final class Edit2D {
         List<Option> out = new ArrayList<>();
         switch (s.gen) {
             case ELLIPSE -> {
-                out.add(new Option.Cycler("Shape", null, List.of("Thin", "Filled", "Thick out", "Thick in", "Thick middle"),
+                out.add(new Option.Cycler("curvegen.option.shape", null, List.of("curvegen.choice.thin", "curvegen.choice.filled", "curvegen.choice.thick_out", "curvegen.choice.thick_in", "curvegen.choice.thick_middle"),
                         () -> s.eMode.ordinal(), v -> s.eMode = EllipseMode.values()[v]));
                 boolean thick = s.eMode == EllipseMode.OUTWARDS || s.eMode == EllipseMode.INWARDS || s.eMode == EllipseMode.MIDDLE;
-                out.add(new Option.Number("Thickness", thick ? null : "Only a thick wall has a thickness. Change Shape first.",
+                out.add(new Option.Number("curvegen.option.thickness", thick ? null : "curvegen.option.off.thick_wall",
                         () -> s.eT, v -> s.eT = v, MIN_THICK, MAX_THICK, THICK_STEP, false));
             }
             case EQUATION -> {
                 boolean inequality = isInequality(s.src);
-                out.add(new Option.Text("Equation", null, () -> s.src, v -> s.src = v, v -> {
-                    try { Expr.parseEquation(v); return null; } catch (Expr.ParseException e) { return e.getMessage(); }
+                out.add(new Option.Text("curvegen.option.equation", null, () -> s.src, v -> s.src = v, v -> {
+                    try { Expr.parseEquation(v); return null; } catch (Expr.ParseException e) { return e.text(); }
                 }));
-                out.add(new Option.Cycler("Shape", inequality ? "Your inequality sets the shape. Use = to choose it here." : null,
-                        List.of("Line", "Fill under", "Fill over"), () -> s.qMode.ordinal(), v -> s.qMode = EqMode.values()[v]));
-                out.add(new Option.Number("Line width", inequality || s.qMode != EqMode.LINE ? "Filled shapes don't use a line width." : null,
+                out.add(new Option.Cycler("curvegen.option.shape", inequality ? "curvegen.option.off.inequality" : null,
+                        List.of("curvegen.choice.line", "curvegen.choice.fill_under", "curvegen.choice.fill_over"), () -> s.qMode.ordinal(), v -> s.qMode = EqMode.values()[v]));
+                out.add(new Option.Number("curvegen.option.line_width", inequality || s.qMode != EqMode.LINE ? "curvegen.option.off.filled_line_width" : null,
                         () -> s.qLW, v -> s.qLW = v, MIN_THICK, MAX_THICK, THICK_STEP, false));
-                out.add(Option.toggle("Same scale", null, () -> s.qLock, v -> s.qLock = v));
+                out.add(Option.toggle("curvegen.option.same_scale", null, () -> s.qLock, v -> s.qLock = v));
             }
             case BEZIER -> {
-                out.add(new Option.Cycler("Shape", null, List.of("Line", "Filled"), () -> s.bMode.ordinal(), v -> s.bMode = BzMode.values()[v]));
-                out.add(new Option.Number("Line width", s.bMode != BzMode.LINE ? "Filled shapes don't use a line width." : null,
+                out.add(new Option.Cycler("curvegen.option.shape", null, List.of("curvegen.choice.line", "curvegen.choice.filled"), () -> s.bMode.ordinal(), v -> s.bMode = BzMode.values()[v]));
+                out.add(new Option.Number("curvegen.option.line_width", s.bMode != BzMode.LINE ? "curvegen.option.off.filled_line_width" : null,
                         () -> s.bLW, v -> s.bLW = v, MIN_THICK, MAX_THICK, THICK_STEP, false));
-                out.add(Option.toggle("Snap", null, () -> s.snap, v -> s.snap = v));
+                out.add(Option.toggle("curvegen.option.snap", null, () -> s.snap, v -> s.snap = v));
             }
             default -> { }
         }

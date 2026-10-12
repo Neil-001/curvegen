@@ -1,5 +1,7 @@
 package dev.curvegen.client;
 
+import static dev.curvegen.client.Lang.tr;
+
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
@@ -80,9 +82,9 @@ public final class ModSettings {
         if (!Files.isRegularFile(file)) return;
         try {
             if (!read(Files.readString(file)))
-                dev.curvegen.CurveGen.LOGGER.warn("Couldn't understand {}, so the settings are back to their defaults", file.getFileName());
+                dev.curvegen.CurveGen.LOGGER.warn(tr("curvegen.log.settings_invalid", file.getFileName().toString()));
         } catch (IOException e) {
-            dev.curvegen.CurveGen.LOGGER.warn("Couldn't read {}, so the settings are back to their defaults", file.getFileName(), e);
+            dev.curvegen.CurveGen.LOGGER.warn(tr("curvegen.log.settings_read", file.getFileName().toString()), e);
         }
     }
 
@@ -98,7 +100,7 @@ public final class ModSettings {
                 Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING);
             }
         } catch (IOException e) {
-            dev.curvegen.CurveGen.LOGGER.warn("Couldn't save the settings", e);
+            dev.curvegen.CurveGen.LOGGER.warn(tr("curvegen.log.settings_save"), e);
         }
     }
 

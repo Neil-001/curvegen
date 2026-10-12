@@ -1,5 +1,7 @@
 package dev.curvegen.client.screen;
 
+import static dev.curvegen.client.Lang.tr;
+
 import dev.curvegen.client.BlockChoices;
 import dev.curvegen.client.ColorIndex;
 import dev.curvegen.core.Pieces.Family;
@@ -35,7 +37,7 @@ public class BlockPickerScreen extends Screen {
     private static final int CELL = 20, M = 8;
 
     public BlockPickerScreen(Screen parent, Family family, Consumer<Block> onPick) {
-        super(Component.literal("Choose " + BlockChoices.familyName(family).toLowerCase(Locale.ROOT)));
+        super(Component.translatable("curvegen.screen.choose_s", BlockChoices.familyName(family)));
         this.parent = parent; this.family = family; this.onPick = onPick;
         this.all = BlockChoices.candidates(family);
     }
@@ -47,16 +49,16 @@ public class BlockPickerScreen extends Screen {
 
     @Override
     protected void init() {
-        EditBox search = new EditBox(font, M, 24, 180, 20, Component.literal("Search"));
-        search.setHint(Component.literal("Search blocks"));
+        EditBox search = new EditBox(font, M, 24, 180, 20, Component.translatable("curvegen.screen.search"));
+        search.setHint(Component.translatable("curvegen.screen.search_blocks"));
         search.setValue(query);
         search.setResponder(v -> { query = v; scroll = 0; refilter(); });
         addRenderableWidget(search);
         setInitialFocus(search);
-        addRenderableWidget(CycleButton.<Sort>builder(s -> Component.literal(s == Sort.NAME ? "Name" : "Closest colour"), sort)
+        addRenderableWidget(CycleButton.<Sort>builder(s -> Component.literal(s == Sort.NAME ? tr("curvegen.screen.name") : tr("curvegen.screen.closest_colour")), sort)
                 .withValues(Sort.values())
-                .create(M + 186, 24, 140, 20, Component.literal("Sort"), (_, v) -> { sort = v; refilter(); }));
-        addRenderableWidget(Button.builder(Component.literal("Cancel"), _ -> onClose()).bounds(width - M - 80, height - 26, 80, 20).build());
+                .create(M + 186, 24, 140, 20, Component.translatable("curvegen.screen.sort"), (_, v) -> { sort = v; refilter(); }));
+        addRenderableWidget(Button.builder(Component.translatable("curvegen.screen.cancel"), _ -> onClose()).bounds(width - M - 80, height - 26, 80, 20).build());
         refilter();
     }
 
@@ -81,7 +83,7 @@ public class BlockPickerScreen extends Screen {
     public void extractRenderState(GuiGraphicsExtractor ctx, int mx, int my, float delta) {
         super.extractRenderState(ctx, mx, my, delta);
         ctx.text(font, title, M, 8, 0xFFFFFFFF);
-        String info = shown.size() + " of " + all.size() + " blocks";
+        String info = tr("curvegen.screen.s_of_s_blocks", shown.size(), all.size());
         ctx.text(font, info, width - M - font.width(info), 30, 0xFF9AA5B3, false);
 
         int cols = cols(), top = gridTop();
@@ -102,7 +104,7 @@ public class BlockPickerScreen extends Screen {
             if (over) { ctx.fill(x, y, x + CELL - 2, y + CELL - 2, 0x40FFFFFF); hovered = b; }
             ctx.item(new ItemStack(b), x + 1, y + 1);
         }
-        if (shown.isEmpty()) ctx.text(font, "No blocks match your search.", M, top + 4, 0xFF9AA5B3, false);
+        if (shown.isEmpty()) ctx.text(font, tr("curvegen.screen.no_blocks_match_your_search"), M, top + 4, 0xFF9AA5B3, false);
         if (maxScroll > 0) {
             int h = gridBottom() - top, bar = Math.max(10, h * visibleRows() / (maxScroll + visibleRows()));
             int by = top + (h - bar) * scroll / maxScroll;

@@ -1,5 +1,7 @@
 package dev.curvegen.client.screen;
 
+import static dev.curvegen.client.Lang.tr;
+
 import dev.curvegen.client.BlockChoices;
 import dev.curvegen.client.ColorIndex;
 import dev.curvegen.core.Pieces.Family;
@@ -29,7 +31,7 @@ public class ColorPickerScreen extends Screen {
     private static final int SQ = 120;
 
     public ColorPickerScreen(Screen parent, int rgb, IntConsumer onApply) {
-        super(Component.literal("Match blocks to a colour"));
+        super(Component.translatable("curvegen.screen.match_blocks_to_a_colour"));
         this.parent = parent; this.onApply = onApply;
         float[] hsv = rgbToHsv(rgb);
         hue = hsv[0]; sat = hsv[1]; val = hsv[2];
@@ -41,7 +43,7 @@ public class ColorPickerScreen extends Screen {
 
     @Override
     protected void init() {
-        hex = new EditBox(font, sqX(), sqY() + SQ + 10, 80, 20, Component.literal("Hex colour"));
+        hex = new EditBox(font, sqX(), sqY() + SQ + 10, 80, 20, Component.translatable("curvegen.screen.hex_colour"));
         hex.setMaxLength(7);
         hex.setResponder(v -> {
             if (updatingHex) return;
@@ -55,9 +57,9 @@ public class ColorPickerScreen extends Screen {
         addRenderableWidget(hex);
         syncHex();
         int by = height - 28;
-        addRenderableWidget(Button.builder(Component.literal("Use these blocks"), _ -> { onApply.accept(rgb()); onClose(); })
+        addRenderableWidget(Button.builder(Component.translatable("curvegen.screen.use_these_blocks"), _ -> { onApply.accept(rgb()); onClose(); })
                 .bounds(width / 2 - 124, by, 120, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Cancel"), _ -> onClose()).bounds(width / 2 + 4, by, 120, 20).build());
+        addRenderableWidget(Button.builder(Component.translatable("curvegen.screen.cancel"), _ -> onClose()).bounds(width / 2 + 4, by, 120, 20).build());
         refreshPreview();
     }
 
@@ -93,7 +95,7 @@ public class ColorPickerScreen extends Screen {
         ctx.fill(x0 + 86, y0 + SQ + 10, x0 + 106, y0 + SQ + 30, 0xFF000000 | rgb());
 
         int lx = hx + 30, ly = 16;   // level with the title, so every piece type fits on a short screen
-        ctx.text(font, "Closest blocks", lx, ly, 0xFFC8CED6, false);
+        ctx.text(font, tr("curvegen.screen.closest_blocks"), lx, ly, 0xFFC8CED6, false);
         ly += 14;
         // On a short screen the rows close up so that the last one stays above the buttons.
         int pitch = Math.min(22, (height - 30 - ly) / BlockChoices.FAMILIES.length), h = Math.min(18, pitch - 1);

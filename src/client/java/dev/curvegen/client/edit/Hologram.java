@@ -3,6 +3,7 @@ package dev.curvegen.client.edit;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import dev.curvegen.client.ColorIndex;
+import dev.curvegen.core.Message;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
@@ -42,7 +43,7 @@ public final class Hologram {
     /** False above the block limit, when only the wireframe shows. */
     private final boolean drawn;
     private final int blockLimit;
-    public final String error;
+    public final Message error;
 
     /** Refreshed a few times a second: what placing right now would change, given the blocks already in the world. */
     private List<Entry> toPlace = List.of();

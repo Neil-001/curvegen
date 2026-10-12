@@ -1,8 +1,11 @@
 package dev.curvegen.client.screen;
 
+import static dev.curvegen.client.Lang.tr;
+
 import com.mojang.blaze3d.platform.InputConstants;
 import dev.curvegen.client.BlockChoices;
 import dev.curvegen.client.CurveGenClient;
+import dev.curvegen.client.Lang;
 import dev.curvegen.client.LitematicExporter;
 import dev.curvegen.client.Placement;
 import dev.curvegen.client.PresetStore;
@@ -13,6 +16,7 @@ import dev.curvegen.core.Count3;
 import dev.curvegen.core.Layout;
 import dev.curvegen.core.Mesh3;
 import dev.curvegen.core.Pieces.Family;
+import dev.curvegen.core.Message;
 import dev.curvegen.core.Pieces;
 import dev.curvegen.core.Pieces3;
 import dev.curvegen.core.PresetData;
@@ -67,8 +71,8 @@ public class CurveScreen extends ControlScreen {
 
     private static final Tab[] TABS_2D = {Tab.ELLIPSE, Tab.EQUATION, Tab.BEZIER, Tab.BLOCKS, Tab.COUNT},
             TABS_3D = {Tab.ELLIPSOID, Tab.TORUS, Tab.EQUATION3, Tab.BEZIER3, Tab.SURFACE, Tab.BLOCKS, Tab.COUNT};
-    private static final String[] NAMES_2D = {"Ellipse", "Equation", "Bézier", "Blocks", "Count"},
-            NAMES_3D = {"Ellipsoid", "Torus", "Equation", "Bézier", "Surface", "Blocks", "Count"};
+    private static final String[] NAMES_2D = {"curvegen.screen.ellipse", "curvegen.screen.equation", "curvegen.screen.bezier", "curvegen.screen.blocks", "curvegen.screen.count"},
+            NAMES_3D = {"curvegen.screen.ellipsoid", "curvegen.screen.torus", "curvegen.screen.equation", "curvegen.screen.bezier", "curvegen.screen.surface", "curvegen.screen.blocks", "curvegen.screen.count"};
 
     private static Tab tabFor(Gen g) {
         return switch (g) {
@@ -88,7 +92,7 @@ public class CurveScreen extends ControlScreen {
 
     private static final ShapeSettings S = CurveGenClient.SETTINGS;
     static final ExecutorService EXEC = Executors.newSingleThreadExecutor(r -> {
-        Thread t = new Thread(r, "Curve Generator solver");
+        Thread t = new Thread(r, "curvegen.preview_solver");
         t.setDaemon(true);
         return t;
     });
@@ -124,7 +128,7 @@ public class CurveScreen extends ControlScreen {
     private boolean panning;
 
     public CurveScreen() {
-        super(Component.literal("Curve Generator"));
+        super(Component.translatable("curvegen.screen.title"));
         mode3d = S.is3d();
         remember();
         if (tab != Tab.BLOCKS && tab != Tab.COUNT) tab = tabFor(S.gen);
@@ -150,13 +154,13 @@ public class CurveScreen extends ControlScreen {
         // Top bar: the 2D and 3D switch and the tabs on the left, view options and the settings cog on the right, each
         // button as wide as its text needs. The 3D shapes have more tabs, so their colouring is under the picture.
         Tab[] tabs = mode3d ? TABS_3D : TABS_2D;
-        String[] names = mode3d ? NAMES_3D : NAMES_2D;
+        String[] names = java.util.Arrays.stream(mode3d ? NAMES_3D : NAMES_2D).map(key -> tr(key)).toArray(String[]::new);
         Function<PreviewTexture.Colors, Component> colourName = c -> Component.literal(switch (c) {
-            case STONE -> "Plain"; case PIECES -> "Piece types"; case BLOCKS -> "Block colours"; });
+            case STONE -> tr("curvegen.screen.plain"); case PIECES -> tr("curvegen.screen.piece_types"); case BLOCKS -> tr("curvegen.screen.block_colours"); });
         int colourText = 0;
-        for (PreviewTexture.Colors c : PreviewTexture.Colors.values()) colourText = Math.max(colourText, tw("Colour: " + colourName.apply(c).getString()));
-        int curveText = Math.max(tw("Curve: " + CommonComponents.optionStatus(true).getString()), tw("Curve: " + CommonComponents.optionStatus(false).getString()));
-        int modeText = Math.max(tw("2D"), tw("3D"));
+        for (PreviewTexture.Colors c : PreviewTexture.Colors.values()) colourText = Math.max(colourText, tw(CommonComponents.optionNameValue(Component.translatable("curvegen.screen.colour"), colourName.apply(c)).getString()));
+        int curveText = Math.max(tw(CommonComponents.optionNameValue(Component.translatable("curvegen.screen.curve"), CommonComponents.optionStatus(true)).getString()), tw(CommonComponents.optionNameValue(Component.translatable("curvegen.screen.curve"), CommonComponents.optionStatus(false)).getString()));
+        int modeText = Math.max(tw(tr("curvegen.screen.2d")), tw(tr("curvegen.screen.3d")));
         int pad = 12, gap = 4, cogW = 20;
         for (;; pad -= 2) {
             int tabsW = modeText + pad + 2;
@@ -166,10 +170,10 @@ public class CurveScreen extends ControlScreen {
             if (gap > 2) gap--;
         }
         int tx = M;
-        CycleButton<Boolean> mode = CycleButton.builder((Boolean v) -> Component.literal(v ? "3D" : "2D"), mode3d)
+        CycleButton<Boolean> mode = CycleButton.builder((Boolean v) -> Component.translatable(v ? "curvegen.screen.3d" : "curvegen.screen.2d"), mode3d)
                 .withValues(List.of(false, true)).displayOnlyValue()
-                .create(tx, 6, modeText + pad, 20, Component.literal("Shapes"), (_, v) -> setMode(v));
-        mode.setTooltip(Tooltip.create(Component.literal("Switches the tabs between flat shapes and 3D shapes.")));
+                .create(tx, 6, modeText + pad, 20, Component.translatable("curvegen.screen.shapes"), (_, v) -> setMode(v));
+        mode.setTooltip(Tooltip.create(Component.translatable("curvegen.screen.switches_the_tabs_between_flat_shapes_and_3d_shapes")));
         reverse.put(mode, () -> setMode(!mode3d));
         addRenderableWidget(mode);
         tx += modeText + pad + 2;
@@ -178,22 +182,22 @@ public class CurveScreen extends ControlScreen {
             int w = tw(names[k]) + pad;
             Button b = Button.builder(Component.literal(names[k]), _ -> switchTab(t)).bounds(tx, 6, w, 20).build();
             b.active = tab != t;
-            if (t == Tab.COUNT) b.setTooltip(Tooltip.create(Component.literal("How many of each block and orientation the shape uses.")));
+            if (t == Tab.COUNT) b.setTooltip(Tooltip.create(Component.translatable("curvegen.screen.how_many_of_each_block_and_orientation_the_shape")));
             addRenderableWidget(b);
             tx += w + 2;
         }
         int curveW = curveText + pad, colourW = colourText + pad, cogX = width - M - cogW;
         if (!mode3d) addRenderableWidget(cycler(List.of(PreviewTexture.Colors.values()), colors, colourName,
-                cogX - gap - curveW - gap - colourW, 6, colourW, "Colour", v -> { colors = v; textureDirty = true; }));
-        addRenderableWidget(toggle(showCurve, cogX - gap - curveW, 6, curveW, "Curve", v -> { showCurve = v; textureDirty = true; }));
+                cogX - gap - curveW - gap - colourW, 6, colourW, tr("curvegen.screen.colour"), v -> { colors = v; textureDirty = true; }));
+        addRenderableWidget(toggle(showCurve, cogX - gap - curveW, 6, curveW, tr("curvegen.screen.curve"), v -> { showCurve = v; textureDirty = true; }));
         addRenderableWidget(new CogButton(cogX, 6, cogW, 20, () -> minecraft.gui.setScreen(new SettingsScreen(this))));
         if (mode3d) {
-            int faceText = Math.max(tw("Match colours to: Side"), tw("Match colours to: Top")), room = cx1() - cx0(), p = 12;
+            int faceText = Math.max(tw(tr("curvegen.screen.match_colours_to_side")), tw(tr("curvegen.screen.match_colours_to_top"))), room = cx1() - cx0(), p = 12;
             while (p > 4 && colourText + faceText + 2 * p + 4 > room) p -= 2;
-            addRenderableWidget(cycler(List.of(PreviewTexture.Colors.values()), colors, colourName, cx0(), cy1() - 20, colourText + p, "Colour", v -> colors = v));
-            CycleButton<Boolean> face = cycler(List.of(false, true), S.topColours, v -> Component.literal(v ? "Top" : "Side"),
-                    cx0() + colourText + p + 4, cy1() - 20, faceText + p, "Match colours to", v -> S.topColours = v);
-            face.setTooltip(Tooltip.create(Component.literal("Which face of a block its colour is taken from: for this picture, for the shape in the world and for Match a colour.")));
+            addRenderableWidget(cycler(List.of(PreviewTexture.Colors.values()), colors, colourName, cx0(), cy1() - 20, colourText + p, tr("curvegen.screen.colour"), v -> colors = v));
+            CycleButton<Boolean> face = cycler(List.of(false, true), S.topColours, v -> Component.translatable(v ? "curvegen.screen.top" : "curvegen.screen.side"),
+                    cx0() + colourText + p + 4, cy1() - 20, faceText + p, tr("curvegen.screen.match_colours_to"), v -> S.topColours = v);
+            face.setTooltip(Tooltip.create(Component.translatable("curvegen.screen.which_face_of_a_block_its_colour_is_taken")));
             addRenderableWidget(face);
         }
 
@@ -213,9 +217,9 @@ public class CurveScreen extends ControlScreen {
         // Bottom bar: build options on the left, actions on the right, each button as wide as its text needs.
         int by = height - 26;
         String on = CommonComponents.optionStatus(true).getString(), off = CommonComponents.optionStatus(false).getString();
-        int orientText = Math.max(tw("Upright"), tw("Flat")), labelW = Math.max(tw("Depth"), tw("Height")) + 2, fieldW = 30;
-        int replaceText = Math.max(tw("Replace: " + on), tw("Replace: " + off)), carveText = Math.max(tw("Carve: " + on), tw("Carve: " + off));
-        int actionText = Math.max(tw("Place"), Math.max(tw("Export"), tw("Done")));
+        int orientText = Math.max(tw(tr("curvegen.screen.upright")), tw(tr("curvegen.screen.flat"))), labelW = Math.max(tw(tr("curvegen.screen.depth")), tw(tr("curvegen.screen.height"))) + 2, fieldW = 30;
+        int replaceText = Math.max(tw(CommonComponents.optionNameValue(Component.translatable("curvegen.screen.replace"), Component.literal(on)).getString()), tw(CommonComponents.optionNameValue(Component.translatable("curvegen.screen.replace"), Component.literal(off)).getString())), carveText = Math.max(tw(CommonComponents.optionNameValue(Component.translatable("curvegen.screen.carve"), Component.literal(on)).getString()), tw(CommonComponents.optionNameValue(Component.translatable("curvegen.screen.carve"), Component.literal(off)).getString()));
+        int actionText = Math.max(tw(tr("curvegen.screen.place")), Math.max(tw(tr("curvegen.screen.export")), tw(tr("curvegen.screen.done"))));
         int bpad = 12, bgap = 4;
         for (;; bpad -= 2) {
             int left = M + orientText + bpad + bgap + labelW + fieldW + bgap + replaceText + bpad + bgap + carveText + bpad;
@@ -224,47 +228,46 @@ public class CurveScreen extends ControlScreen {
             if (bgap > 2) bgap--;
         }
         int x = M;
-        CycleButton<Boolean> orient = CycleButton.builder((Boolean v) -> Component.literal(v ? "Flat" : "Upright"), S.floor)
+        CycleButton<Boolean> orient = CycleButton.builder((Boolean v) -> Component.translatable(v ? "curvegen.screen.flat" : "curvegen.screen.upright"), S.floor)
                 .withValues(List.of(false, true)).displayOnlyValue()
-                .create(x, by, orientText + bpad, 20, Component.literal("Build"), (_, v) -> setFloor(v));
-        orient.setTooltip(Tooltip.create(Component.literal("Upright builds a wall, drawn from the side. Flat builds a floor, drawn from above.")));
+                .create(x, by, orientText + bpad, 20, Component.translatable("curvegen.screen.build"), (_, v) -> setFloor(v));
+        orient.setTooltip(Tooltip.create(Component.translatable("curvegen.screen.upright_builds_a_wall_drawn_from_the_side_flat")));
         reverse.put(orient, () -> setFloor(!S.floor));
         if (S.is3d()) {
             orient.active = false;
-            orient.setTooltip(Tooltip.create(Component.literal("A 3D shape is turned in the world, with the rotate and tip keys.")));
+            orient.setTooltip(Tooltip.create(Component.translatable("curvegen.screen.a_3d_shape_is_turned_in_the_world_with")));
         }
         addRenderableWidget(orient);
         x += orientText + bpad + bgap;
-        labels.add(new Label(x, by + 6, S.floor ? "Height" : "Depth"));
+        labels.add(new Label(x, by + 6, S.floor ? tr("curvegen.screen.height") : tr("curvegen.screen.depth")));
         x += labelW;
         EditBox depthField = spin(x, by, fieldW, 20, String.valueOf(S.depth), v -> {
             int d = clampInt(v, 1, 64, S.depth);
             if (d != S.depth) { S.depth = d; dirty = true; }   // walls look different when more than one deep
         }, () -> S.depth, 1, 1, 64, () -> !S.is3d(), true);
-        depthField.setTooltip(Tooltip.create(Component.literal(S.is3d() ? "A 3D shape has its own depth. Resize it in the world."
-                : S.floor ? "How many layers the floor is stacked up." : "How many blocks deep the shape is built.")));
+        depthField.setTooltip(Tooltip.create(Component.literal(S.is3d() ? tr("curvegen.screen.a_3d_shape_has_its_own_depth_resize_it")
+                : S.floor ? tr("curvegen.screen.how_many_layers_the_floor_is_stacked_up") : tr("curvegen.screen.how_many_blocks_deep_the_shape_is_built"))));
         if (S.is3d()) depthField.setEditable(false);
         x += fieldW + bgap;
-        CycleButton<Boolean> replace = toggle(S.overwrite, x, by, replaceText + bpad, "Replace", v -> S.overwrite = v);
-        replace.setTooltip(Tooltip.create(Component.literal(
-                "On: the shape replaces blocks already in its way. Off: it only fills air and things like grass, water and snow layers.")));
+        CycleButton<Boolean> replace = toggle(S.overwrite, x, by, replaceText + bpad, tr("curvegen.screen.replace"), v -> S.overwrite = v);
+        replace.setTooltip(Tooltip.create(Component.translatable("curvegen.screen.on_the_shape_replaces_blocks_already_in_its_way")));
         addRenderableWidget(replace);
         x += replaceText + bpad + bgap;
-        CycleButton<Boolean> carve = toggle(S.carve, x, by, carveText + bpad, "Carve", v -> S.carve = v);
+        CycleButton<Boolean> carve = toggle(S.carve, x, by, carveText + bpad, tr("curvegen.screen.carve"), v -> S.carve = v);
         carve.setTooltip(Tooltip.create(Component.literal(
-                S.is3d() ? "Clears existing blocks from the space the shape encloses: inside a hollow ellipsoid, or the other side of a filled equation. Filled shapes, a torus, surfaces and curves don't carve."
-                : "Clears existing blocks from the space the shape encloses: inside a thin or thick ellipse, or the other side of a filled equation. Filled ellipses, lines and Bézier curves don't carve.")));
+                S.is3d() ? tr("curvegen.screen.carve_3d_tooltip")
+                : tr("curvegen.screen.carve_2d_tooltip"))));
         addRenderableWidget(carve);
         int aw = actionText + bpad + 8, bx = width - M - 3 * aw - 2 * bgap;
-        Button place = Button.builder(Component.literal("Place"), _ -> place()).bounds(bx, by, aw, 20).build();
+        Button place = Button.builder(Component.translatable("curvegen.screen.place"), _ -> place()).bounds(bx, by, aw, 20).build();
         boolean placeable = Editor.isActive() || !mode3d || RadialScreen.offers(S.gen);
         place.active = placeable;
-        place.setTooltip(Tooltip.create(Component.literal(!placeable ? "This shape can't be put in the world yet. Use Export instead."
-                : Editor.isActive() ? "Back to the shape in the world, with the changes made here."
-                : "Puts the shape in the world as a hologram you can move and resize before placing it.")));
+        place.setTooltip(Tooltip.create(Component.literal(!placeable ? tr("curvegen.screen.this_shape_can_t_be_put_in_the_world")
+                : Editor.isActive() ? tr("curvegen.screen.back_to_the_shape_in_the_world_with_the")
+                : tr("curvegen.screen.puts_the_shape_in_the_world_as_a_hologram"))));
         addRenderableWidget(place);
-        addRenderableWidget(Button.builder(Component.literal("Export"), _ -> export()).bounds(bx + aw + bgap, by, aw, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Done"), _ -> onClose()).bounds(bx + 2 * (aw + bgap), by, aw, 20).build());
+        addRenderableWidget(Button.builder(Component.translatable("curvegen.screen.export"), _ -> export()).bounds(bx + aw + bgap, by, aw, 20).build());
+        addRenderableWidget(Button.builder(Component.translatable("curvegen.screen.done"), _ -> onClose()).bounds(bx + 2 * (aw + bgap), by, aw, 20).build());
     }
 
     // ---------- presets ----------
@@ -273,25 +276,25 @@ public class CurveScreen extends ControlScreen {
 
     private void presetButtons() {
         int y = presetRowY(), w = (PANEL_W - 4) / 2;
-        Button save = Button.builder(Component.literal("Save preset"), _ -> savePreset()).bounds(M, y, w, 20).build();
-        save.setTooltip(Tooltip.create(Component.literal("Save this tab's shape settings under a name.")));
+        Button save = Button.builder(Component.translatable("curvegen.screen.save_preset"), _ -> savePreset()).bounds(M, y, w, 20).build();
+        save.setTooltip(Tooltip.create(Component.translatable("curvegen.screen.save_this_tab_s_shape_settings_under_a_name")));
         addRenderableWidget(save);
-        Button load = Button.builder(Component.literal("Load preset"),
+        Button load = Button.builder(Component.translatable("curvegen.screen.load_preset"),
                 _ -> minecraft.gui.setScreen(new PresetsScreen(this, S.gen, this::loadPreset))).bounds(M + w + 4, y, w, 20).build();
-        load.setTooltip(Tooltip.create(Component.literal("Browse, preview and load saved shapes.")));
+        load.setTooltip(Tooltip.create(Component.translatable("curvegen.screen.browse_preview_and_load_saved_shapes")));
         addRenderableWidget(load);
     }
 
     private void savePreset() {
         Gen g = S.gen;
-        String suggestion = PresetStore.unique(g, PresetData.defaultName(S, g));
-        minecraft.gui.setScreen(new NameDialogScreen(this, "Save preset", suggestion, name -> {
-            if (name.isEmpty()) return new NameDialogScreen.Check(false, "Save", "Type a name for the preset.");
-            if (PresetStore.find(g, name) != null) return new NameDialogScreen.Check(true, "Replace", "A preset with this name exists. Saving replaces it.");
-            return new NameDialogScreen.Check(true, "Save", null);
-        }, "Save blocks", "Also save the block for each piece type, and whether it's used.", (name, withBlocks) -> {
+        String suggestion = PresetStore.unique(g, Lang.text(PresetData.defaultName(S, g)));
+        minecraft.gui.setScreen(new NameDialogScreen(this, tr("curvegen.screen.save_preset"), suggestion, name -> {
+            if (name.isEmpty()) return new NameDialogScreen.Check(false, tr("curvegen.screen.save"), tr("curvegen.screen.type_a_name_for_the_preset"));
+            if (PresetStore.find(g, name) != null) return new NameDialogScreen.Check(true, tr("curvegen.screen.replace"), tr("curvegen.screen.a_preset_with_this_name_exists_saving_replaces_it"));
+            return new NameDialogScreen.Check(true, tr("curvegen.screen.save"), null);
+        }, tr("curvegen.screen.save_blocks"), tr("curvegen.screen.also_save_the_block_for_each_piece_type_and"), (name, withBlocks) -> {
             PresetStore.save(g, name, S, withBlocks);
-            flash("Saved preset \"" + name + "\"");
+            flash(tr("curvegen.screen.saved_preset_s", name));
         }));
     }
 
@@ -306,7 +309,7 @@ public class CurveScreen extends ControlScreen {
         pointScroll = 0;
         dirty = true; autoFit = true; fit3 = true;
         rebuildWidgets();
-        flash("Loaded preset \"" + p.name + "\"");
+        flash(tr("curvegen.screen.loaded_preset_s", p.name));
     }
 
     private void switchTab(Tab t) {
@@ -341,50 +344,50 @@ public class CurveScreen extends ControlScreen {
         labels.add(new Label(M + 71, row(0) + 6, "×"));
         spin(M + 86, row(0), 64, 20, String.valueOf(S.eH), v -> { S.eH = clampInt(v, 1, 400, S.eH); dirty = true; }, () -> S.eH, 1, 1, 400, () -> true, true);
         addRenderableWidget(cycler(List.of(EllipseMode.values()), S.eMode, m -> Component.literal(switch (m) {
-                    case THIN -> "Thin"; case FILLED -> "Filled"; case OUTWARDS -> "Thick outwards";
-                    case INWARDS -> "Thick inwards"; case MIDDLE -> "Thick middle"; }),
-                M, row(1), PANEL_W, "Shape", v -> { S.eMode = v; dirty = true; rebuildWidgets(); }));
-        labels.add(new Label(M, row(2) + 6, "Thickness"));
+                    case THIN -> tr("curvegen.screen.thin"); case FILLED -> tr("curvegen.screen.filled"); case OUTWARDS -> tr("curvegen.screen.thick_outwards");
+                    case INWARDS -> tr("curvegen.screen.thick_inwards"); case MIDDLE -> tr("curvegen.screen.thick_middle"); }),
+                M, row(1), PANEL_W, tr("curvegen.screen.shape"), v -> { S.eMode = v; dirty = true; rebuildWidgets(); }));
+        labels.add(new Label(M, row(2) + 6, tr("curvegen.screen.thickness")));
         boolean thick = S.eMode == EllipseMode.OUTWARDS || S.eMode == EllipseMode.INWARDS || S.eMode == EllipseMode.MIDDLE;
         EditBox t = spin(M + 60, row(2), PANEL_W - 60, 20, fmt(S.eT), v -> { S.eT = clampNum(v, 0.0625, 50, S.eT); dirty = true; },
                 () -> S.eT, 0.25, 0.0625, 50, () -> thick, false);
         t.setEditable(thick);
         hint = switch (S.eMode) {
-            case THIN -> "A hollow shell: the outer surface follows the ellipse.";
-            case FILLED -> "Everything inside the ellipse.";
-            case OUTWARDS -> "A wall that grows outwards from the ellipse.";
-            case INWARDS -> "A wall that grows inwards from the ellipse.";
-            case MIDDLE -> "A wall centred on the ellipse.";
+            case THIN -> tr("curvegen.screen.a_hollow_shell_the_outer_surface_follows_the_ellipse");
+            case FILLED -> tr("curvegen.screen.everything_inside_the_ellipse");
+            case OUTWARDS -> tr("curvegen.screen.a_wall_that_grows_outwards_from_the_ellipse");
+            case INWARDS -> tr("curvegen.screen.a_wall_that_grows_inwards_from_the_ellipse");
+            case MIDDLE -> tr("curvegen.screen.a_wall_centred_on_the_ellipse");
         };
         hintY = row(3) + 2;
     }
 
     private void initEquation() {
-        EditBox eq = new EditBox(font, M, row(0), PANEL_W, 20, Component.literal("Equation"));
+        EditBox eq = new EditBox(font, M, row(0), PANEL_W, 20, Component.translatable("curvegen.screen.equation"));
         eq.setMaxLength(256);
         eq.setValue(S.src);
         eq.setResponder(v -> { S.src = v; dirty = true; updateEquationControls(); });
         addRenderableWidget(eq);
         labels.add(new Label(M, row(1) + 6, "x"));
         addRenderableWidget(text(M + 10, row(1), 62, S.xmin, v -> { S.xmin = v; dirty = true; }));
-        labels.add(new Label(M + 76, row(1) + 6, "to"));
+        labels.add(new Label(M + 76, row(1) + 6, tr("curvegen.screen.to")));
         addRenderableWidget(text(M + 90, row(1), 60, S.xmax, v -> { S.xmax = v; dirty = true; }));
         labels.add(new Label(M, row(2) + 6, "y"));
         addRenderableWidget(text(M + 10, row(2), 62, S.ymin, v -> { S.ymin = v; dirty = true; }));
-        labels.add(new Label(M + 76, row(2) + 6, "to"));
+        labels.add(new Label(M + 76, row(2) + 6, tr("curvegen.screen.to")));
         addRenderableWidget(text(M + 90, row(2), 60, S.ymax, v -> { S.ymax = v; dirty = true; }));
-        labels.add(new Label(M, row(3) + 6, "W"));
+        labels.add(new Label(M, row(3) + 6, tr("curvegen.screen.w")));
         spin(M + 10, row(3), 62, 20, String.valueOf(S.qW), v -> { S.qW = clampInt(v, 1, 400, S.qW); dirty = true; }, () -> S.qW, 1, 1, 400, () -> true, true);
-        labels.add(new Label(M + 76, row(3) + 6, "H"));
+        labels.add(new Label(M + 76, row(3) + 6, tr("curvegen.screen.h")));
         qHField = spin(M + 90, row(3), 60, 20, String.valueOf(S.qH), v -> { if (!S.qLock) { S.qH = clampInt(v, 1, 400, S.qH); dirty = true; } },
                 () -> S.qH, 1, 1, 400, () -> !S.qLock, true);
         qHField.setEditable(!S.qLock);
-        addRenderableWidget(toggle(S.qLock, M, row(4), PANEL_W, "Same scale", v -> { S.qLock = v; qHField.setEditable(!v); dirty = true; }));
+        addRenderableWidget(toggle(S.qLock, M, row(4), PANEL_W, tr("curvegen.screen.same_scale"), v -> { S.qLock = v; qHField.setEditable(!v); dirty = true; }));
         eqShape = cycler(List.of(EqMode.values()), S.qMode, m -> Component.literal(switch (m) {
-                    case LINE -> "Line"; case UNDER -> "Fill under"; case OVER -> "Fill over"; }),
-                M, row(5), PANEL_W, "Shape", v -> { S.qMode = v; dirty = true; updateEquationControls(); });
+                    case LINE -> tr("curvegen.screen.line"); case UNDER -> tr("curvegen.screen.fill_under"); case OVER -> tr("curvegen.screen.fill_over"); }),
+                M, row(5), PANEL_W, tr("curvegen.screen.shape"), v -> { S.qMode = v; dirty = true; updateEquationControls(); });
         addRenderableWidget(eqShape);
-        labels.add(new Label(M, row(6) + 6, "Line width"));
+        labels.add(new Label(M, row(6) + 6, tr("curvegen.screen.line_width")));
         qLWField = spin(M + 60, row(6), PANEL_W - 60, 20, fmt(S.qLW), v -> { S.qLW = clampNum(v, 0.0625, 50, S.qLW); dirty = true; },
                 () -> S.qLW, 0.25, 0.0625, 50, () -> !isInequality(S.src) && S.qMode == EqMode.LINE, false);
         updateEquationControls();
@@ -398,7 +401,7 @@ public class CurveScreen extends ControlScreen {
         if (eqShape == null) return;
         boolean ineq = isInequality(S.src);
         eqShape.active = !ineq;
-        eqShape.setTooltip(ineq ? Tooltip.create(Component.literal("Your inequality sets the shape. Use = to choose it here.")) : null);
+        eqShape.setTooltip(ineq ? Tooltip.create(Component.translatable("curvegen.screen.your_inequality_sets_the_shape_use_to_choose_it")) : null);
         if (qLWField != null) qLWField.setEditable(!ineq && S.qMode == EqMode.LINE);
     }
 
@@ -406,35 +409,35 @@ public class CurveScreen extends ControlScreen {
     private void updateBezierControls() {
         boolean line = S.bMode == BzMode.LINE;
         bLWField.setEditable(line);
-        bLWField.setTooltip(line ? null : Tooltip.create(Component.literal("Filled shapes don't use a line width.")));
+        bLWField.setTooltip(line ? null : Tooltip.create(Component.translatable("curvegen.screen.filled_shapes_don_t_use_a_line_width")));
     }
 
     private void initBezier() {
         spin(M, row(0), 64, 20, String.valueOf(S.bW), v -> { S.bW = clampInt(v, 1, 400, S.bW); dirty = true; autoFit = true; }, () -> S.bW, 1, 1, 400, () -> true, true);
         labels.add(new Label(M + 71, row(0) + 6, "×"));
         spin(M + 86, row(0), 64, 20, String.valueOf(S.bH), v -> { S.bH = clampInt(v, 1, 400, S.bH); dirty = true; autoFit = true; }, () -> S.bH, 1, 1, 400, () -> true, true);
-        addRenderableWidget(cycler(List.of(BzMode.values()), S.bMode, m -> Component.literal(m == BzMode.LINE ? "Line" : "Filled"),
-                M, row(1), PANEL_W, "Shape", v -> { S.bMode = v; dirty = true; updateBezierControls(); }));
-        labels.add(new Label(M, row(2) + 6, "Line width"));
+        addRenderableWidget(cycler(List.of(BzMode.values()), S.bMode, m -> Component.literal(m == BzMode.LINE ? tr("curvegen.screen.line") : tr("curvegen.screen.filled")),
+                M, row(1), PANEL_W, tr("curvegen.screen.shape"), v -> { S.bMode = v; dirty = true; updateBezierControls(); }));
+        labels.add(new Label(M, row(2) + 6, tr("curvegen.screen.line_width")));
         bLWField = spin(M + 60, row(2), PANEL_W - 60, 20, fmt(S.bLW), v -> { S.bLW = clampNum(v, 0.0625, 50, S.bLW); dirty = true; },
                 () -> S.bLW, 0.25, 0.0625, 50, () -> S.bMode == BzMode.LINE, false);
         updateBezierControls();
-        addRenderableWidget(toggle(S.snap, M, row(3), PANEL_W, "Snap to half blocks", v -> S.snap = v));
-        Button add = Button.builder(Component.literal("Add point"), _ -> {
+        addRenderableWidget(toggle(S.snap, M, row(3), PANEL_W, tr("curvegen.screen.snap_to_half_blocks"), v -> S.snap = v));
+        Button add = Button.builder(Component.translatable("curvegen.screen.add_point"), _ -> {
             int n = S.pts.size();
             double[] a = S.pts.get(n - 2), c = S.pts.get(n - 1);
             S.pts.add(n - 1, new double[]{(a[0] + c[0]) / 2, (a[1] + c[1]) / 2});
             dirty = true; rebuildWidgets();
         }).bounds(M, row(4), 73, 20).build();
         add.active = S.pts.size() < 10;
-        Button rem = Button.builder(Component.literal("Remove"), _ -> {
+        Button rem = Button.builder(Component.translatable("curvegen.screen.remove"), _ -> {
             S.pts.remove(S.pts.size() - 2 >= 1 ? S.pts.size() - 2 : S.pts.size() - 1);
             dirty = true; rebuildWidgets();
         }).bounds(M + 77, row(4), 73, 20).build();
         rem.active = S.pts.size() > 2;
         addRenderableWidget(add);
         addRenderableWidget(rem);
-        hint = "Drag the numbered handles in the preview.";
+        hint = tr("curvegen.screen.drag_the_numbered_handles_in_the_preview");
         hintY = row(5) + 2;
 
         // Point list: number, x and y (in blocks from the bottom left), scrollable when it doesn't fit.
@@ -449,13 +452,13 @@ public class CurveScreen extends ControlScreen {
             labels.add(new Label(M, y + 4, String.valueOf(k + 1)));
             labels.add(new Label(M + 10, y + 4, "x"));
             labels.add(new Label(M + 71, y + 4, "y"));
-            EditBox fx = new EditBox(font, M + 17, y, 50 - ARROW_SLOT, 16, Component.literal("Point " + (k + 1) + " x"));
-            EditBox fy = new EditBox(font, M + 78, y, 50 - ARROW_SLOT, 16, Component.literal("Point " + (k + 1) + " y"));
+            EditBox fx = new EditBox(font, M + 17, y, 50 - ARROW_SLOT, 16, Component.translatable("curvegen.screen.point_s_x", k + 1));
+            EditBox fy = new EditBox(font, M + 78, y, 50 - ARROW_SLOT, 16, Component.translatable("curvegen.screen.point_s_y", k + 1));
             Button x = Button.builder(Component.literal("×"), _ -> {
                 if (S.pts.size() > 2) { S.pts.remove(idx); dirty = true; rebuildWidgets(); }
             }).bounds(M + 132, y, 18, 16).build();
             x.active = n > 2;
-            x.setTooltip(Tooltip.create(Component.literal(n > 2 ? "Remove point " + (k + 1) : "A curve needs at least two points")));
+            x.setTooltip(Tooltip.create(Component.literal(n > 2 ? tr("curvegen.screen.remove_point_s", k + 1) : tr("curvegen.screen.a_curve_needs_at_least_two_points"))));
             addRenderableWidget(x);
             for (int axis = 0; axis < 2; axis++) {
                 EditBox f = axis == 0 ? fx : fy;
@@ -507,15 +510,14 @@ public class CurveScreen extends ControlScreen {
             Family f = BlockChoices.FAMILIES[k];
             int y = top() + k * pitch;
             if (f == Family.FULL) {
-                labels.add(new Label(M + 4, y + (h - 8) / 2, "Use"));
+                labels.add(new Label(M + 4, y + (h - 8) / 2, tr("curvegen.screen.use")));
             } else {
                 boolean on = S.allows(f);
-                Button use = Button.builder(Component.literal(on ? "Use" : "Off"), _ -> { S.allow(f, !S.allows(f)); dirty = true; rebuildWidgets(); })
+                Button use = Button.builder(Component.translatable(on ? "curvegen.screen.use" : "curvegen.screen.off"), _ -> { S.allow(f, !S.allows(f)); dirty = true; rebuildWidgets(); })
                         .bounds(M, y, 26, h).build();
                 if (S.floor && !S.is3d() && (f == Family.SLAB || f == Family.STAIRS)) {
                     use.active = false;
-                    use.setTooltip(Tooltip.create(Component.literal("From above, " + BlockChoices.familyName(f).toLowerCase(java.util.Locale.ROOT)
-                            + " look like full blocks, so flat builds don't use them.")));
+                    use.setTooltip(Tooltip.create(Component.translatable("curvegen.screen.from_above_s_look_like_full_blocks_so_flat", BlockChoices.familyName(f))));
                 }
                 addRenderableWidget(use);
             }
@@ -531,14 +533,14 @@ public class CurveScreen extends ControlScreen {
             addRenderableWidget(pick);
             icons.add(new Icon(M + 29, y + (h - 16) / 2, new ItemStack(block)));
         }
-        addRenderableWidget(Button.builder(Component.literal("Match a colour…"), _ -> minecraft.gui.setScreen(
+        addRenderableWidget(Button.builder(Component.translatable("curvegen.screen.match_a_colour"), _ -> minecraft.gui.setScreen(
                 new ColorPickerScreen(this, BlockChoices.pickedColor >= 0 ? BlockChoices.pickedColor : 0x8E6B4A, rgb -> {
                     BlockChoices.autoSelect(rgb);
                     S.fullConnects = BlockChoices.fullBlockConnects();
                     dirty = true; textureDirty = true;
                     rebuildWidgets();
                 }))).bounds(M, top() + (rows - 1) * pitch, PANEL_W, h).build());
-        hint = "Choose a block per piece type, or match them all to one colour.";
+        hint = tr("curvegen.screen.choose_a_block_per_piece_type_or_match_them");
         hintY = top() + rows * pitch + 2;
     }
 
@@ -583,14 +585,6 @@ public class CurveScreen extends ControlScreen {
         return out;
     }
 
-    private static String shortName(int st) {
-        String n = Pieces.NAME[st];
-        if (st == Pieces.FULL) return n;
-        int c = n.indexOf(", ");
-        n = c >= 0 ? n.substring(c + 2) : n;
-        return Character.toUpperCase(n.charAt(0)) + n.substring(1);
-    }
-
     /** Grouped by piece type, then one row per state. States that look the same (and are named the same) share a row. */
     private List<CountRow> countRows() {
         Object from = mode3d ? solved3 : result;
@@ -603,23 +597,23 @@ public class CurveScreen extends ControlScreen {
         int mult = Math.max(1, S.depth);
         for (Family f : BlockChoices.FAMILIES) {
             java.util.LinkedHashMap<String, int[]> merged = new java.util.LinkedHashMap<>();
-            for (int st : statesFor(f, floor)) merged.computeIfAbsent(shortName(st), _ -> new int[]{st, 0})[1] += result.counts()[st] * mult;
+            for (int st : statesFor(f, floor)) merged.computeIfAbsent(Pieces.SHORT_NAME[st], _ -> new int[]{st, 0})[1] += result.counts()[st] * mult;
             int total = 0;
             for (int[] m : merged.values()) total += m[1];
             boolean unused = floor && (f == Family.SLAB || f == Family.STAIRS);
             String blockName = BlockChoices.CHOICE.get(f).getName().getString();
             String n = String.valueOf(total);
             int nw = tw(n);
-            String title = BlockChoices.familyName(f) + (unused ? " (not used flat)" : S.allows(f) ? "" : " (off)");
+            String title = unused ? tr("curvegen.screen.family_unused_flat", BlockChoices.familyName(f)) : S.allows(f) ? BlockChoices.familyName(f) : tr("curvegen.screen.family_off", BlockChoices.familyName(f));
             rows.add(new CountRow(true, font.plainSubstrByWidth(title, PANEL_W - nw - 6), n, nw, -1, unused || !S.allows(f), blockName, false));
             for (var e : merged.entrySet()) {
                 int st = e.getValue()[0], count = e.getValue()[1];
                 n = String.valueOf(count);
                 nw = tw(n);
-                String name = e.getKey();
+                String name = tr(e.getKey());
                 int room = PANEL_W - 20 - nw - 6;
                 if (tw(name) > room) name = font.plainSubstrByWidth(name, room - tw("…")) + "…";
-                rows.add(new CountRow(false, name, n, nw, st, count == 0, Pieces.NAME[st] + ": " + blockName + " ×" + count, false));
+                rows.add(new CountRow(false, name, n, nw, st, count == 0, tr("curvegen.screen.piece_count", tr(Pieces.NAME[st]), blockName, count), false));
             }
         }
         return rows;
@@ -635,18 +629,18 @@ public class CurveScreen extends ControlScreen {
             String blockName = BlockChoices.CHOICE.get(f).getName().getString();
             String n = String.valueOf(total);
             int nw = tw(n);
-            String title = BlockChoices.familyName(f) + (S.allows(f) ? "" : " (off)");
+            String title = S.allows(f) ? BlockChoices.familyName(f) : tr("curvegen.screen.family_off", BlockChoices.familyName(f));
             rows.add(new CountRow(true, font.plainSubstrByWidth(title, PANEL_W - nw - 6), n, nw, -1, !S.allows(f), blockName, true));
             for (Count3.Group g : Count3.GROUPS) {
                 if (g.family() != f) continue;
                 int count = g.count(counts);
                 n = String.valueOf(count);
                 nw = tw(n);
-                String name = g.name();
+                String name = Lang.text(g.name());
                 int room = PANEL_W - 20 - nw - 6;
                 if (tw(name) > room) name = font.plainSubstrByWidth(name, room - tw("…")) + "…";
-                String full = f == Family.FULL ? g.name() : BlockChoices.familyName(f) + ", " + Character.toLowerCase(g.name().charAt(0)) + g.name().substring(1);
-                rows.add(new CountRow(false, name, n, nw, g.icon(), count == 0, full + ": " + blockName + " ×" + count, true));
+                String full = f == Family.FULL ? Lang.text(g.name()) : tr("curvegen.screen.piece_family_state", BlockChoices.familyName(f), Lang.text(g.name()));
+                rows.add(new CountRow(false, name, n, nw, g.icon(), count == 0, tr("curvegen.screen.piece_count", full, blockName, count), true));
             }
         }
     }
@@ -775,7 +769,7 @@ public class CurveScreen extends ControlScreen {
     }
 
     private EditBox thickness(int row, DoubleSupplier get, DoubleConsumer set, BooleanSupplier on, String offTip) {
-        label3(M, row, "Thickness");
+        label3(M, row, tr("curvegen.screen.thickness"));
         EditBox f = spin(M + 60, r3(row), PANEL_W - 60, h3, fmt(get.getAsDouble()), v -> {
             if (syncingPoints || !on.getAsBoolean()) return;
             double n = clampNum(v, 0.0625, 50, get.getAsDouble());
@@ -794,27 +788,26 @@ public class CurveScreen extends ControlScreen {
         }
     }
 
-    private static final String[] WHD = {"W", "H", "D"};
-    private static final String VIEW_HINT = " Drag the picture to turn it, right-drag to move it and scroll to zoom.";
+    private static String[] whd() { return new String[]{tr("curvegen.screen.w"), tr("curvegen.screen.h"), tr("curvegen.screen.d")}; }
 
     private void initEllipsoid() {
         rows3(3, 46);
-        sizes3(0, WHD, new String[]{"Width, from west to east.", "Height.", "Depth, from north to south."},
+        sizes3(0, whd(), new String[]{tr("curvegen.screen.width_from_west_to_east"), tr("curvegen.screen.height_tooltip"), tr("curvegen.screen.depth_from_north_to_south")},
                 new IntSupplier[]{() -> S.e3W, () -> S.e3H, () -> S.e3D}, new IntConsumer[]{v -> S.e3W = v, v -> S.e3H = v, v -> S.e3D = v},
                 new BooleanSupplier[]{ALWAYS, ALWAYS, ALWAYS}, null);
         short3(cycler(List.of(EllipseMode.values()), S.e3Mode, m -> Component.literal(switch (m) {
-                    case THIN -> "Thin"; case FILLED -> "Filled"; case OUTWARDS -> "Thick outwards";
-                    case INWARDS -> "Thick inwards"; case MIDDLE -> "Thick middle"; }),
-                M, r3(1), PANEL_W, "Shape", v -> { S.e3Mode = v; dirty = true; rebuildWidgets(); }));
+                    case THIN -> tr("curvegen.screen.thin"); case FILLED -> tr("curvegen.screen.filled"); case OUTWARDS -> tr("curvegen.screen.thick_outwards");
+                    case INWARDS -> tr("curvegen.screen.thick_inwards"); case MIDDLE -> tr("curvegen.screen.thick_middle"); }),
+                M, r3(1), PANEL_W, tr("curvegen.screen.shape"), v -> { S.e3Mode = v; dirty = true; rebuildWidgets(); }));
         thickness(2, () -> S.e3T, v -> S.e3T = v, () -> S.e3Mode == EllipseMode.OUTWARDS || S.e3Mode == EllipseMode.INWARDS || S.e3Mode == EllipseMode.MIDDLE,
-                "Only the thick shapes have a thickness.");
+                tr("curvegen.screen.only_the_thick_shapes_have_a_thickness"));
         hint = switch (S.e3Mode) {
-            case THIN -> "A hollow shell: the outer surface follows the ellipsoid.";
-            case FILLED -> "Everything inside the ellipsoid.";
-            case OUTWARDS -> "A shell that grows outwards from the ellipsoid.";
-            case INWARDS -> "A shell that grows inwards from the ellipsoid.";
-            case MIDDLE -> "A shell centred on the ellipsoid.";
-        } + VIEW_HINT;
+            case THIN -> tr("curvegen.screen.a_hollow_shell_the_outer_surface_follows_the_ellipsoid");
+            case FILLED -> tr("curvegen.screen.everything_inside_the_ellipsoid");
+            case OUTWARDS -> tr("curvegen.screen.a_shell_that_grows_outwards_from_the_ellipsoid");
+            case INWARDS -> tr("curvegen.screen.a_shell_that_grows_inwards_from_the_ellipsoid");
+            case MIDDLE -> tr("curvegen.screen.a_shell_centred_on_the_ellipsoid");
+        };
         hintY = r3(3) + 2;
     }
 
@@ -823,26 +816,26 @@ public class CurveScreen extends ControlScreen {
 
     private void initTorus() {
         rows3(3, 46);
-        sizes3(0, WHD, new String[]{"Width of the box the ring is stretched to fill.", "Height of the box the ring is stretched to fill.",
-                        "Depth of the box the ring is stretched to fill."},
+        sizes3(0, whd(), new String[]{tr("curvegen.screen.width_of_the_box_the_ring_is_stretched_to"), tr("curvegen.screen.height_of_the_box_the_ring_is_stretched_to"),
+                        tr("curvegen.screen.depth_of_the_box_the_ring_is_stretched_to")},
                 new IntSupplier[]{() -> S.tW, () -> S.tH, () -> S.tD}, new IntConsumer[]{v -> S.tW = v, v -> S.tH = v, v -> S.tD = v},
                 new BooleanSupplier[]{ALWAYS, ALWAYS, ALWAYS}, null);
         // The ring and the tube scale the box, so a number half typed would spoil it for the digits that follow.
         // Each keystroke starts again from the sizes as they were before the field was clicked.
         int[][] before = {torus(), torus()};
-        label3(M, 1, "Ring");
+        label3(M, 1, tr("curvegen.screen.ring"));
         EditBox ring = whole(M + 24, 1, 48, () -> S.tRing, v -> { torus(before[0]); Edit3D.setRing(S, v); }, 1, Shape3.MAX_SIZE, ALWAYS,
-                "How far across the round ring is. Changing it scales the box's width and depth with it.", null);
-        label3(M + 78, 1, "Tube");
+                tr("curvegen.screen.how_far_across_the_round_ring_is_changing_it"), null);
+        label3(M + 78, 1, tr("curvegen.screen.tube"));
         EditBox tube = whole(M + 104, 1, 46, () -> S.tTube, v -> { torus(before[1]); Edit3D.setTube(S, v); }, 1, Shape3.MAX_SIZE, ALWAYS,
-                "How thick the tube is, up to the ring's size. Changing it scales the box's height with it.", null);
+                tr("curvegen.screen.how_thick_the_tube_is_up_to_the_ring"), null);
         live.add(() -> {
             if (!ring.isFocused()) before[0] = torus();
             if (!tube.isFocused()) before[1] = torus();
         });
-        short3(cycler(List.of(false, true), S.tHollow, v -> Component.literal(v ? "Hollow" : "Filled"), M, r3(2), PANEL_W, "Shape",
+        short3(cycler(List.of(false, true), S.tHollow, v -> Component.translatable(v ? "curvegen.screen.hollow" : "curvegen.screen.filled"), M, r3(2), PANEL_W, tr("curvegen.screen.shape"),
                 v -> { S.tHollow = v; dirty = true; }));
-        hint = "Ring and tube describe a round ring. The box stretches it." + VIEW_HINT;
+        hint = tr("curvegen.screen.ring_and_tube_describe_a_round_ring_the_box");
         hintY = r3(3) + 2;
     }
 
@@ -856,64 +849,64 @@ public class CurveScreen extends ControlScreen {
 
     private void initEquation3() {
         rows3(8, 0);
-        text3(M, 0, PANEL_W, 256, S.src3, "Equation", v -> { S.src3 = v; dirty = true; })
-                .setTooltip(Tooltip.create(Component.literal("Anything in x, y and z with =, < or >, where z is height. Without one of those it means z = what you typed.")));
+        text3(M, 0, PANEL_W, 256, S.src3, tr("curvegen.screen.equation"), v -> { S.src3 = v; dirty = true; })
+                .setTooltip(Tooltip.create(Component.translatable("curvegen.screen.anything_in_x_y_and_z_with_or_where")));
         String[] axis = {"x", "y", "z"};
         List<Supplier<String>> from = List.of(() -> S.x3min, () -> S.y3min, () -> S.z3min), to = List.of(() -> S.x3max, () -> S.y3max, () -> S.z3max);
         List<Consumer<String>> setFrom = List.of(v -> S.x3min = v, v -> S.y3min = v, v -> S.z3min = v), setTo = List.of(v -> S.x3max = v, v -> S.y3max = v, v -> S.z3max = v);
         for (int k = 0; k < 3; k++) {
             int a = k;
             label3(M, 1 + k, axis[k]);
-            text3(M + 10, 1 + k, 62, 64, from.get(k).get(), axis[k] + " from", v -> { setFrom.get(a).accept(v); dirty = true; });
-            label3(M + 76, 1 + k, "to");
-            text3(M + 90, 1 + k, 60, 64, to.get(k).get(), axis[k] + " to", v -> { setTo.get(a).accept(v); dirty = true; });
+            text3(M + 10, 1 + k, 62, 64, from.get(k).get(), tr("curvegen.screen.s_from", axis[k]), v -> { setFrom.get(a).accept(v); dirty = true; });
+            label3(M + 76, 1 + k, tr("curvegen.screen.to"));
+            text3(M + 90, 1 + k, 60, 64, to.get(k).get(), tr("curvegen.screen.s_to", axis[k]), v -> { setTo.get(a).accept(v); dirty = true; });
         }
         // With the same scale on every axis, the depth and height come from the width and the ranges.
         BooleanSupplier free = () -> !S.q3Lock;
-        sizes3(4, new String[]{"W", "D", "H"}, new String[]{"Width in blocks, along x.", "Depth in blocks, along y.", "Height in blocks, along z."},
+        sizes3(4, new String[]{tr("curvegen.screen.w"), tr("curvegen.screen.d"), tr("curvegen.screen.h")}, new String[]{tr("curvegen.screen.width_in_blocks_along_x"), tr("curvegen.screen.depth_in_blocks_along_y"), tr("curvegen.screen.height_in_blocks_along_z")},
                 new IntSupplier[]{() -> S.q3W, () -> S.q3Lock ? live3().nz() : S.q3D, () -> S.q3Lock ? live3().ny() : S.q3H},
                 new IntConsumer[]{v -> S.q3W = v, v -> S.q3D = v, v -> S.q3H = v}, new BooleanSupplier[]{ALWAYS, free, free},
-                "Same scale works this out from the width and the ranges.");
-        short3(toggle(S.q3Lock, M, r3(5), PANEL_W, "Same scale", v -> {
+                tr("curvegen.screen.same_scale_works_this_out_from_the_width_and"));
+        short3(toggle(S.q3Lock, M, r3(5), PANEL_W, tr("curvegen.screen.same_scale"), v -> {
             // Unlocked, the box starts out the size it was, so the shape doesn't jump.
             if (!v && live3().error() == null) { S.q3D = live3().nz(); S.q3H = live3().ny(); }
             S.q3Lock = v; dirty = true;
         }));
         CycleButton<Eq3Mode> shape = short3(cycler(List.of(Eq3Mode.values()), S.q3Mode, m -> Component.literal(switch (m) {
-                    case SURFACE -> "Surface"; case BELOW -> "Fill below"; case ABOVE -> "Fill above"; }),
-                M, r3(6), PANEL_W, "Shape", v -> { S.q3Mode = v; dirty = true; }));
+                    case SURFACE -> tr("curvegen.screen.surface"); case BELOW -> tr("curvegen.screen.fill_below"); case ABOVE -> tr("curvegen.screen.fill_above"); }),
+                M, r3(6), PANEL_W, tr("curvegen.screen.shape"), v -> { S.q3Mode = v; dirty = true; }));
         boolean[] was = {false};
         Runnable inequality = () -> {
             boolean ineq = isInequality(S.src3);
             if (ineq == was[0] && shape.active == !ineq) return;
             was[0] = ineq;
             shape.active = !ineq;
-            shape.setTooltip(ineq ? Tooltip.create(Component.literal("Your inequality sets the shape. Use = to choose it here.")) : null);
+            shape.setTooltip(ineq ? Tooltip.create(Component.translatable("curvegen.screen.your_inequality_sets_the_shape_use_to_choose_it")) : null);
         };
         inequality.run();
         live.add(inequality);
-        thickness(7, () -> S.q3T, v -> S.q3T = v, () -> !isInequality(S.src3) && S.q3Mode == Eq3Mode.SURFACE, "Only a surface has a thickness.");
+        thickness(7, () -> S.q3T, v -> S.q3T = v, () -> !isInequality(S.src3) && S.q3Mode == Eq3Mode.SURFACE, tr("curvegen.screen.only_a_surface_has_a_thickness"));
     }
 
     private void initBezier3() {
         rows3(5, 16 + 3 * POINT_ROW);
-        sizes3(0, WHD, new String[]{"Width of the box the curve is in.", "Height of the box the curve is in.", "Depth of the box the curve is in."},
+        sizes3(0, whd(), new String[]{tr("curvegen.screen.width_of_the_box_the_curve_is_in"), tr("curvegen.screen.height_of_the_box_the_curve_is_in"), tr("curvegen.screen.depth_of_the_box_the_curve_is_in")},
                 new IntSupplier[]{() -> S.b3W, () -> S.b3H, () -> S.b3D}, new IntConsumer[]{v -> S.b3W = v, v -> S.b3H = v, v -> S.b3D = v},
                 new BooleanSupplier[]{ALWAYS, ALWAYS, ALWAYS}, null);
-        CycleButton<BzMode> shape = short3(cycler(List.of(BzMode.values()), BzMode.LINE, m -> Component.literal(m == BzMode.LINE ? "Line" : "Filled"),
-                M, r3(1), PANEL_W, "Shape", _ -> { }));
+        CycleButton<BzMode> shape = short3(cycler(List.of(BzMode.values()), BzMode.LINE, m -> Component.literal(m == BzMode.LINE ? tr("curvegen.screen.line") : tr("curvegen.screen.filled")),
+                M, r3(1), PANEL_W, tr("curvegen.screen.shape"), _ -> { }));
         shape.active = false;
-        shape.setTooltip(Tooltip.create(Component.literal("A 3D curve is always a line. Only a 2D curve can be filled.")));
+        shape.setTooltip(Tooltip.create(Component.translatable("curvegen.screen.a_3d_curve_is_always_a_line_only_a")));
         thickness(2, () -> S.b3T, v -> S.b3T = v, ALWAYS, null);
-        short3(toggle(S.snap, M, r3(3), PANEL_W, "Snap to half blocks", v -> S.snap = v));
+        short3(toggle(S.snap, M, r3(3), PANEL_W, tr("curvegen.screen.snap_to_half_blocks"), v -> S.snap = v));
         int n = S.pts3.size();
-        Button add = Button.builder(Component.literal("Add point"), _ -> {
+        Button add = Button.builder(Component.translatable("curvegen.screen.add_point"), _ -> {
             if (Bezier3.insert(S.pts3, 0.5) >= 0) { dirty = true; rebuildWidgets(); }
         }).bounds(M, r3(4), 73, h3).build();
         add.active = n < Bezier3.MAX_POINTS;
-        add.setTooltip(Tooltip.create(Component.literal(add.active ? "Adds a point without changing the curve. The points between the ends all move."
-                : "A curve can have " + Bezier3.MAX_POINTS + " points at most.")));
-        Button rem = Button.builder(Component.literal("Remove"), _ -> {
+        add.setTooltip(Tooltip.create(Component.literal(add.active ? tr("curvegen.screen.adds_a_point_without_changing_the_curve_the_points")
+                : tr("curvegen.screen.a_curve_can_have_s_points_at_most", Bezier3.MAX_POINTS))));
+        Button rem = Button.builder(Component.translatable("curvegen.screen.remove"), _ -> {
             if (S.pts3.size() > 2) {
                 List<double[]> fewer = Bezier3.reduce(S.pts3);
                 S.pts3.clear(); S.pts3.addAll(fewer);
@@ -921,8 +914,8 @@ public class CurveScreen extends ControlScreen {
             }
         }).bounds(M + 77, r3(4), 73, h3).build();
         rem.active = n > 2;
-        rem.setTooltip(Tooltip.create(Component.literal(rem.active ? "Takes a point out and keeps the curve as close as one point fewer allows. Use × to remove one point and leave the rest."
-                : "A curve needs at least two points.")));
+        rem.setTooltip(Tooltip.create(Component.literal(rem.active ? tr("curvegen.screen.takes_a_point_out_and_keeps_the_curve_as")
+                : tr("curvegen.screen.curve_minimum_points_tooltip"))));
         addRenderableWidget(add);
         addRenderableWidget(rem);
         pointList3(5, S.pts3, 0);
@@ -930,16 +923,15 @@ public class CurveScreen extends ControlScreen {
 
     private void initSurface() {
         rows3(4, 16 + 3 * POINT_ROW);
-        sizes3(0, WHD, new String[]{"Width of the box the surface is in.", "Height of the box the surface is in.", "Depth of the box the surface is in."},
+        sizes3(0, whd(), new String[]{tr("curvegen.screen.width_of_the_box_the_surface_is_in"), tr("curvegen.screen.height_of_the_box_the_surface_is_in"), tr("curvegen.screen.depth_of_the_box_the_surface_is_in")},
                 new IntSupplier[]{() -> S.sW, () -> S.sH, () -> S.sD}, new IntConsumer[]{v -> S.sW = v, v -> S.sH = v, v -> S.sD = v},
                 new BooleanSupplier[]{ALWAYS, ALWAYS, ALWAYS}, null);
         thickness(1, () -> S.sT, v -> S.sT = v, ALWAYS, null);
-        short3(toggle(S.snap, M, r3(2), PANEL_W, "Snap to half blocks", v -> S.snap = v));
-        String tip = " of control points, from " + Bezier3.MIN_GRID + " to " + Bezier3.MAX_GRID + ". Adding one leaves the surface as it is. Removing one keeps it as close as it can.";
-        label3(M, 3, "Rows");
-        whole(M + 26, 3, 40, () -> S.sRows, v -> grid(v, S.sCols), Bezier3.MIN_GRID, Bezier3.MAX_GRID, ALWAYS, "Rows" + tip, null);
-        label3(M + 69, 3, "Columns");
-        whole(M + 110, 3, 40, () -> S.sCols, v -> grid(S.sRows, v), Bezier3.MIN_GRID, Bezier3.MAX_GRID, ALWAYS, "Columns" + tip, null);
+        short3(toggle(S.snap, M, r3(2), PANEL_W, tr("curvegen.screen.snap_to_half_blocks"), v -> S.snap = v));
+        label3(M, 3, tr("curvegen.screen.rows"));
+        whole(M + 26, 3, 40, () -> S.sRows, v -> grid(v, S.sCols), Bezier3.MIN_GRID, Bezier3.MAX_GRID, ALWAYS, tr("curvegen.screen.surface_rows_hint", Bezier3.MIN_GRID, Bezier3.MAX_GRID), null);
+        label3(M + 69, 3, tr("curvegen.screen.columns"));
+        whole(M + 110, 3, 40, () -> S.sCols, v -> grid(S.sRows, v), Bezier3.MIN_GRID, Bezier3.MAX_GRID, ALWAYS, tr("curvegen.screen.surface_columns_hint", Bezier3.MIN_GRID, Bezier3.MAX_GRID), null);
         pointList3(4, S.sPts, S.sCols);
     }
 
@@ -970,7 +962,7 @@ public class CurveScreen extends ControlScreen {
             labels.add(new Label(M, y + 4, name));
             for (int axis = 0; axis < 3; axis++) {
                 int a = axis;
-                EditBox f = new EditBox(font, x0 + a * step, y, fw, 16, Component.literal("Point " + name + " " + "xyz".charAt(a)));
+                EditBox f = new EditBox(font, x0 + a * step, y, fw, 16, Component.translatable("curvegen.screen.point_s_s", name, "xyz".charAt(a)));
                 f.setMaxLength(12);
                 f.setValue(coord(pts.get(k)[a]));
                 f.setResponder(v -> {
@@ -995,14 +987,14 @@ public class CurveScreen extends ControlScreen {
                 if (pts.size() > 2 && idx < pts.size()) { pts.remove(idx); dirty = true; rebuildWidgets(); }
             }).bounds(M + 133, y, 17, 16).build();
             x.active = n > 2;
-            x.setTooltip(Tooltip.create(Component.literal(n > 2 ? "Remove point " + (k + 1) : "A curve needs at least two points")));
+            x.setTooltip(Tooltip.create(Component.literal(n > 2 ? tr("curvegen.screen.remove_point_s", k + 1) : tr("curvegen.screen.a_curve_needs_at_least_two_points"))));
             addRenderableWidget(x);
         }
     }
 
     // ---------- the 3D preview ----------
     /** A solve of a 3D shape: the blocks, their faces, and how many there are. With an {@code error} the rest is null. */
-    record Solved3(Solver3.Result result, Mesh3 mesh, int blocks, String error) {}
+    record Solved3(Solver3.Result result, Mesh3 mesh, int blocks, Message error) {}
 
     private final Preview3 preview3 = new Preview3();
     private Solved3 solved3;
@@ -1035,7 +1027,7 @@ public class CurveScreen extends ControlScreen {
         syncBinds();
         if (job3 != null && job3.isDone()) {
             Solved3 r = null;
-            try { r = job3.get(); } catch (Exception e) { flash("Couldn't build this shape: " + e.getMessage()); }
+            try { r = job3.get(); } catch (Exception e) { flash(tr("curvegen.screen.couldn_t_build_this_shape_s", e.getMessage())); }
             // A solve dropped because the screen was covered leaves nothing behind, so the shape is solved again.
             if (r == null && cancel3.get()) dirty = true;
             job3 = null;
@@ -1100,7 +1092,7 @@ public class CurveScreen extends ControlScreen {
             ctx.text(font, n, x - font.width(n) / 2 + 1, y - 3, handle(0xFFFFFFFF, k), false);
         }
         if (grid && hover >= 0 && dragPoint < 0)
-            ctx.setTooltipForNextFrame(font, Component.literal("Row " + (hover / S.sCols + 1) + ", column " + (hover % S.sCols + 1)), mx, my);
+            ctx.setTooltipForNextFrame(font, Component.translatable("curvegen.screen.row_s_column_s", hover / S.sCols + 1, hover % S.sCols + 1), mx, my);
     }
 
     private boolean clicked3(double mx, double my, int button, boolean doubled) {
@@ -1143,8 +1135,8 @@ public class CurveScreen extends ControlScreen {
     }
 
     private void export3() {
-        if (solved3 == null || job3 != null || dirty) { flash("Still working on the shape, try again in a moment."); return; }
-        if (solved3.error != null) { flash("Fix the shape first: " + solved3.error); return; }
+        if (solved3 == null || job3 != null || dirty) { flash(tr("curvegen.screen.still_working_on_the_shape_try_again_in_a")); return; }
+        if (solved3.error != null) { flash(tr("curvegen.screen.fix_the_shape_first_s", Lang.text(solved3.error))); return; }
         Solver3.Result r = solved3.result;
         BlockState[] states = BlockChoices.statesFor3();
         List<EditShape.Placed> blocks = new ArrayList<>(solved3.blocks);
@@ -1152,14 +1144,14 @@ public class CurveScreen extends ControlScreen {
             for (int z = 0; z < r.nz(); z++)
                 for (int x = 0; x < r.nx(); x++, c++)
                     if (r.grid()[c] != Pieces3.AIR) blocks.add(new EditShape.Placed(x, y, z, states[r.grid()[c]]));
-        if (blocks.isEmpty()) { flash("The shape is empty, so there's nothing to export."); return; }
+        if (blocks.isEmpty()) { flash(tr("curvegen.screen.empty_export")); return; }
         try {
-            String author = minecraft.player != null ? minecraft.player.getName().getString() : "Curve Generator";
+            String author = minecraft.player != null ? minecraft.player.getName().getString() : tr("key.category.curvegen.main");
             Path file = LitematicExporter.export(blocks, LitematicExporter.defaultName(S.gen.name().toLowerCase(java.util.Locale.ROOT)), author);
-            flash("Exported to schematics/" + file.getFileName());
-            Placement.say(Component.literal("Exported to schematics/" + file.getFileName()));
+            flash(tr("curvegen.screen.exported_to_schematics_s", file.getFileName().toString()));
+            Placement.say(Component.translatable("curvegen.screen.exported_to_schematics_s", file.getFileName().toString()));
         } catch (Exception e) {
-            flash("Export failed: " + e.getMessage());
+            flash(tr("curvegen.screen.export_failed_s", e.getMessage()));
         }
     }
 
@@ -1182,9 +1174,9 @@ public class CurveScreen extends ControlScreen {
         private final Runnable action;
 
         CogButton(int x, int y, int w, int h, Runnable action) {
-            super(x, y, w, h, Component.literal("Settings"));
+            super(x, y, w, h, Component.translatable("curvegen.screen.settings"));
             this.action = action;
-            setTooltip(Tooltip.create(Component.literal("Settings")));
+            setTooltip(Tooltip.create(Component.translatable("curvegen.screen.settings")));
         }
 
         @Override public void onPress(InputWithModifiers input) { action.run(); }
@@ -1231,7 +1223,7 @@ public class CurveScreen extends ControlScreen {
         exportHologram();
         if (mode3d) { poll3(); return; }
         if (job != null && job.isDone()) {
-            try { result = job.get(); } catch (Exception e) { flash("Couldn't build this shape: " + e.getMessage()); }
+            try { result = job.get(); } catch (Exception e) { flash(tr("curvegen.screen.couldn_t_build_this_shape_s", e.getMessage())); }
             job = null;
             if (result != null) {
                 if (S.gen == Gen.EQUATION && S.qLock && result.target().error == null) {
@@ -1305,26 +1297,35 @@ public class CurveScreen extends ControlScreen {
         // status line across the top of the canvas
         String line; int color = 0xFFDDE3EA;
         if (mode3d) {
-            if (solved3 == null) line = "Working…";
-            else if (solved3.error != null) { line = solved3.error; color = 0xFFFF8098; }
+            if (solved3 == null) line = tr("curvegen.screen.working");
+            else if (solved3.error != null) { line = Lang.text(solved3.error); color = 0xFFFF8098; }
             else {
                 Solver3.Result r = solved3.result;
                 double pct = r.volume() > 0 ? r.err() / r.volume() * 100 : 0;
-                String size = solved3.blocks + " blocks in " + r.nx() + "×" + r.ny() + "×" + r.nz(), busy = job3 != null || dirty ? "  Updating…" : "";
-                line = size + String.format(", mismatch %.1f blocks³ (%.1f%%)", r.err(), pct) + busy;
+                boolean busy = job3 != null || dirty;
+                line = tr("curvegen.screen.status_3d", solved3.blocks, r.nx(), r.ny(), r.nz(), String.format(java.util.Locale.ROOT, "%.1f", r.err()), String.format(java.util.Locale.ROOT, "%.1f", pct));
+                if (busy) line = tr("curvegen.screen.status_updating", line);
                 // On a narrow screen the share alone says how close the blocks are.
-                if (tw(line) > x1 - x0 - 6) line = size + String.format(", mismatch %.1f%%", pct) + busy;
+                if (tw(line) > x1 - x0 - 6) {
+                    line = tr("curvegen.screen.status_3d_short", solved3.blocks, r.nx(), r.ny(), r.nz(), String.format(java.util.Locale.ROOT, "%.1f", pct));
+                    if (busy) line = tr("curvegen.screen.status_updating", line);
+                }
             }
         }
-        else if (result == null) line = "Working…";
-        else if (result.target().error != null) { line = result.target().error; color = 0xFFFF8098; }
+        else if (result == null) line = tr("curvegen.screen.working");
+        else if (result.target().error != null) { line = Lang.text(result.target().error); color = 0xFFFF8098; }
         else {
             int total = 0;
             for (int p = 1; p < Pieces.COUNT; p++) total += result.counts()[p];
             double pct = result.area() > 0 ? result.err() / result.area() * 100 : 0;
-            String size = (result.floor() ? "Seen from above: " : "") + total + " pieces on " + result.nx() + "×" + result.ny(), busy = job != null ? "  Updating…" : "";
-            line = size + String.format(", mismatch %.2f blocks² (%.1f%%)", result.err(), pct) + busy;
-            if (tw(line) > x1 - x0 - 6) line = size + String.format(", mismatch %.1f%%", pct) + busy;
+            line = tr("curvegen.screen.status_2d", total, result.nx(), result.ny(), String.format(java.util.Locale.ROOT, "%.2f", result.err()), String.format(java.util.Locale.ROOT, "%.1f", pct));
+            if (result.floor()) line = tr("curvegen.screen.status_above", line);
+            if (job != null) line = tr("curvegen.screen.status_updating", line);
+            if (tw(line) > x1 - x0 - 6) {
+                line = tr("curvegen.screen.status_2d_short", total, result.nx(), result.ny(), String.format(java.util.Locale.ROOT, "%.1f", pct));
+                if (result.floor()) line = tr("curvegen.screen.status_above", line);
+                if (job != null) line = tr("curvegen.screen.status_updating", line);
+            }
         }
         if (status != null && System.currentTimeMillis() < statusUntil) { line = status; color = 0xFFFFE08A; }
         ctx.fill(x0, y0, x1, y0 + 12, 0xB0000000);
@@ -1350,11 +1351,10 @@ public class CurveScreen extends ControlScreen {
         int sx = Math.round(panX + c[0] * zoom), sy = Math.round(panY + (result.ny() - 1 - c[1]) * zoom), sz = Math.max(2, Math.round(zoom));
         ctx.outline(sx, sy, sz, sz, 0xFF6EA0FF);
         int p = result.at(c[0], c[1]);
-        String txt = "Column " + (c[0] + 1) + ", row " + (c[1] + 1) + ": " + Pieces.NAME[p]
-                + (p != Pieces.EMPTY ? " (" + BlockChoices.blockFor(p).getName().getString() + ")" : "");
+        String txt = p == Pieces.EMPTY ? tr("curvegen.screen.hover_empty", c[0] + 1, c[1] + 1, tr(Pieces.NAME[p])) : tr("curvegen.screen.hover_block", c[0] + 1, c[1] + 1, tr(Pieces.NAME[p]), BlockChoices.blockFor(p).getName().getString());
         if (result.target().hasMath) {
             var t = result.target();
-            txt += String.format(", x ≈ %.2f, y ≈ %.2f", t.mx0 + (c[0] + .5) * t.msx, t.my0 + (c[1] + .5) * t.msy);
+            txt = tr("curvegen.screen.hover_math", txt, String.format(java.util.Locale.ROOT, "%.2f", t.mx0 + (c[0] + .5) * t.msx), String.format(java.util.Locale.ROOT, "%.2f", t.my0 + (c[1] + .5) * t.msy));
         }
         int y = cy1() - 12;
         ctx.fill(cx0(), y, cx1(), cy1(), 0xB0000000);
@@ -1466,8 +1466,8 @@ public class CurveScreen extends ControlScreen {
 
     // ---------- actions ----------
     private boolean ready() {
-        if (result == null || job != null || dirty) { flash("Still working on the shape, try again in a moment."); return false; }
-        if (result.target().error != null) { flash("Fix the equation first."); return false; }
+        if (result == null || job != null || dirty) { flash(tr("curvegen.screen.still_working_on_the_shape_try_again_in_a")); return false; }
+        if (result.target().error != null) { flash(tr("curvegen.screen.fix_the_equation_first")); return false; }
         return true;
     }
 
@@ -1475,14 +1475,14 @@ public class CurveScreen extends ControlScreen {
         // With a hologram already out, the changes made here show on it as soon as the screen closes.
         if (Editor.isActive()) { onClose(); return; }
         if (S.is3d()) {
-            if (!Placement.canPlace(minecraft)) Placement.say(Component.literal("You'll need operator permissions to place this."));
+            if (!Placement.canPlace(minecraft)) Placement.say(Component.translatable("curvegen.screen.you_ll_need_operator_permissions_to_place_this"));
             onClose();
             Editor.start();
             return;
         }
         if (!ready()) return;
-        if (Layout.of(result).isEmpty()) { flash("The shape is empty, so there's nothing to place."); return; }
-        if (!Placement.canPlace(minecraft)) Placement.say(Component.literal("You'll need operator permissions to place this."));
+        if (Layout.of(result).isEmpty()) { flash(tr("curvegen.screen.empty_placement")); return; }
+        if (!Placement.canPlace(minecraft)) Placement.say(Component.translatable("curvegen.screen.you_ll_need_operator_permissions_to_place_this"));
         onClose();
         Editor.start();
     }
@@ -1494,7 +1494,7 @@ public class CurveScreen extends ControlScreen {
     private void exportHologram() {
         if (!exporting) return;
         if (!Editor.isActive()) { exporting = false; return; }
-        if (Editor.catchingUp()) { flash("Exporting as soon as the shape in the world is ready…"); return; }
+        if (Editor.catchingUp()) { flash(tr("curvegen.screen.exporting_as_soon_as_the_shape_in_the_world")); return; }
         exporting = false;
         String message = Editor.export();
         flash(message);
@@ -1506,15 +1506,15 @@ public class CurveScreen extends ControlScreen {
         if (S.is3d()) { export3(); return; }
         if (!ready()) return;
         Layout layout = Layout.of(result);
-        if (layout.isEmpty()) { flash("The shape is empty, so there's nothing to export."); return; }
+        if (layout.isEmpty()) { flash(tr("curvegen.screen.empty_export")); return; }
         String kind = switch (S.gen) { case ELLIPSE -> "ellipse"; case EQUATION -> "equation"; case BEZIER -> "bezier"; default -> "shape"; };
         try {
-            String author = minecraft.player != null ? minecraft.player.getName().getString() : "Curve Generator";
+            String author = minecraft.player != null ? minecraft.player.getName().getString() : tr("key.category.curvegen.main");
             Path file = LitematicExporter.export(layout, S.depth, S.floor, LitematicExporter.defaultName(kind) + (S.floor ? "_floor" : ""), author);
-            flash("Exported to schematics/" + file.getFileName());
-            Placement.say(Component.literal("Exported to schematics/" + file.getFileName()));
+            flash(tr("curvegen.screen.exported_to_schematics_s", file.getFileName().toString()));
+            Placement.say(Component.translatable("curvegen.screen.exported_to_schematics_s", file.getFileName().toString()));
         } catch (Exception e) {
-            flash("Export failed: " + e.getMessage());
+            flash(tr("curvegen.screen.export_failed_s", e.getMessage()));
         }
     }
 

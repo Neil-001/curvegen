@@ -122,7 +122,7 @@ public final class Placement {
 
     /** Sets {@code states} at {@code pos} and remembers {@code old}, the states there now, for undo. */
     public static void place(Minecraft mc, List<BlockPos> pos, List<BlockState> states, List<BlockState> old) {
-        place(new Placed(pos, states, old, dependents(mc, pos)), "placing ");
+        place(new Placed(pos, states, old, dependents(mc, pos)), "place");
     }
 
     private static void place(Placed p, String doing) {
@@ -169,22 +169,22 @@ public final class Placement {
      */
     private static boolean allowed(Minecraft mc, String doing) {
         if (canPlace(mc)) return true;
-        say(Component.literal(doing + " a placement needs operator permissions.").withStyle(ChatFormatting.RED));
+        say(Component.translatable(doing).withStyle(ChatFormatting.RED));
         return false;
     }
 
     public static void undo() {
         Minecraft mc = Minecraft.getInstance();
-        if (!allowed(mc, "Undoing")) return;
+        if (!allowed(mc, "curvegen.placement.undo_permission")) return;
         Placed last = mc.level == null ? null : LAST.undo();
-        if (last == null) { say(Component.literal("Nothing to undo.")); return; }
+        if (last == null) { say(Component.translatable("curvegen.placement.nothing_undo")); return; }
         List<BlockPos> pos = new ArrayList<>(last.pos);
         List<BlockState> states = new ArrayList<>(last.old);
         // A nearby block is only put back if its spot is empty now, so anything built there since is left alone.
         last.nearby.forEach((p, state) -> {
             if (free(mc.level.getBlockState(p))) { pos.add(p); states.add(state); }
         });
-        send(pos, states, true, "undoing ");
+        send(pos, states, true, "undo");
     }
 
     /**
@@ -194,12 +194,12 @@ public final class Placement {
      */
     public static void redo() {
         Minecraft mc = Minecraft.getInstance();
-        if (!allowed(mc, "Redoing")) return;
+        if (!allowed(mc, "curvegen.placement.redo_permission")) return;
         Placed last = mc.level == null ? null : LAST.redo();
-        if (last == null) { say(Component.literal("Nothing to redo.")); return; }
+        if (last == null) { say(Component.translatable("curvegen.placement.nothing_redo")); return; }
         Map<BlockPos, BlockState> nearby = new LinkedHashMap<>(last.nearby);
         dependents(mc, last.pos).forEach(nearby::putIfAbsent);
-        place(new Placed(last.pos, last.states, last.old, nearby), "redoing ");
+        place(new Placed(last.pos, last.states, last.old, nearby), "redo");
     }
 
     private static void send(List<BlockPos> pos, List<BlockState> states, boolean undo, String doing) {
@@ -229,8 +229,7 @@ public final class Placement {
                         + BlockStateParser.serialize(states.get(i)) + (undo ? " strict" : "")));
             }
             int seconds = (int) Math.ceil(pos.size() / (COMMANDS_PER_TICK * 20.0));
-            say(Component.literal("No server mod: " + doing + pos.size()
-                    + " blocks with /setblock, about " + seconds + " s."));
+            say(Component.translatable("curvegen.placement.fallback." + doing, pos.size(), seconds));
         }
     }
 

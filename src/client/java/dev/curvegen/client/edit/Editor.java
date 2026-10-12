@@ -3,6 +3,7 @@ package dev.curvegen.client.edit;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
+import dev.curvegen.client.Lang;
 import dev.curvegen.client.BlockChoices;
 import dev.curvegen.client.CurveGenClient;
 import dev.curvegen.client.LitematicExporter;
@@ -57,7 +58,7 @@ public final class Editor {
 
     private static final ShapeSettings S = CurveGenClient.SETTINGS;
     private static final ExecutorService EXEC = Executors.newSingleThreadExecutor(r -> {
-        Thread t = new Thread(r, "Curve Generator hologram solver");
+        Thread t = new Thread(r, "curvegen.hologram_solver");
         t.setDaemon(true);
         return t;
     });
@@ -238,7 +239,7 @@ public final class Editor {
     public static void cancel() {
         if (!active) return;
         end();
-        Placement.say(Component.literal("Shape cancelled."));
+        Placement.say(Lang.component("curvegen.editor.cancelled"));
     }
 
     /** Places the hologram's blocks and ends it. */
@@ -246,17 +247,17 @@ public final class Editor {
         Minecraft mc = Minecraft.getInstance();
         if (!active || mc.player == null || mc.level == null) return;
         if (!Placement.canPlace(mc)) {
-            Placement.say(Component.literal("You need operator permissions to place. Use Export instead.").withStyle(ChatFormatting.RED));
+            Placement.say(Lang.component("curvegen.editor.permission_export").withStyle(ChatFormatting.RED));
             return;
         }
         if (drag != null) endDrag();
-        if (hologram == null || dirty || job != null) { Placement.say(Component.literal("Still working on the shape, try again in a moment.")); return; }
-        if (hologram.error != null) { Placement.say(Component.literal("Fix the shape first: " + hologram.error).withStyle(ChatFormatting.RED)); return; }
-        if (hologram.size() == 0) { Placement.say(Component.literal("The shape is empty, so there's nothing to place.")); return; }
+        if (hologram == null || dirty || job != null) { Placement.say(Lang.component("curvegen.editor.still_working")); return; }
+        if (hologram.error != null) { Placement.say(Lang.component("curvegen.editor.fix_shape", Lang.component(hologram.error)).withStyle(ChatFormatting.RED)); return; }
+        if (hologram.size() == 0) { Placement.say(Lang.component("curvegen.editor.empty_place")); return; }
         List<BlockPos> pos = new ArrayList<>(hologram.size());
         List<BlockState> states = new ArrayList<>(hologram.size()), old = new ArrayList<>(hologram.size());
         hologram.collect(mc, origin(), S.overwrite, S.carve, pos, states, old);
-        if (pos.isEmpty()) { Placement.say(Component.literal("Nothing to place: every spot is taken and Replace is off.")); return; }
+        if (pos.isEmpty()) { Placement.say(Lang.component("curvegen.editor.occupied")); return; }
         Placement.place(mc, pos, states, old);
         end();
     }
@@ -267,17 +268,17 @@ public final class Editor {
      */
     public static String export() {
         Minecraft mc = Minecraft.getInstance();
-        if (!active) return "There's no shape in the world to export.";
+        if (!active) return Lang.tr("curvegen.editor.no_export");
         // With the menu open, the hologram may still be the shape or the blocks from before a change made there.
-        if (catchingUp()) return "Still working on the shape, try again in a moment.";
-        if (hologram.error != null) return "Fix the shape first: " + hologram.error;
-        if (hologram.size() == 0) return "The shape is empty, so there's nothing to export.";
+        if (catchingUp()) return Lang.tr("curvegen.editor.still_working");
+        if (hologram.error != null) return Lang.tr("curvegen.editor.fix_shape", Lang.text(hologram.error));
+        if (hologram.size() == 0) return Lang.tr("curvegen.editor.empty_export");
         try {
-            String author = mc.player != null ? mc.player.getName().getString() : "Curve Generator";
+            String author = mc.player != null ? mc.player.getName().getString() : Lang.tr("key.category.curvegen.main");
             String name = LitematicExporter.defaultName(S.gen.name().toLowerCase(java.util.Locale.ROOT));
-            return "Exported to schematics/" + LitematicExporter.export(hologram.blocks(), name, author).getFileName();
+            return Lang.tr("curvegen.editor.exported", LitematicExporter.export(hologram.blocks(), name, author).getFileName().toString());
         } catch (Exception e) {
-            return "Export failed: " + e.getMessage();
+            return Lang.tr("curvegen.editor.export_failed", e.getMessage());
         }
     }
 
@@ -341,7 +342,7 @@ public final class Editor {
     public static void undo() {
         StepHold.cancel();   // the number box would replace a step that undo has just moved
         if (drag != null) endDrag();
-        if (undo.isEmpty()) { Placement.say(Component.literal("Nothing to undo on this shape.")); return; }
+        if (undo.isEmpty()) { Placement.say(Lang.component("curvegen.editor.no_undo")); return; }
         redo.push(snapshot());
         restore(undo.pop());
     }
@@ -349,7 +350,7 @@ public final class Editor {
     public static void redo() {
         StepHold.cancel();
         if (drag != null) endDrag();
-        if (redo.isEmpty()) { Placement.say(Component.literal("Nothing to redo.")); return; }
+        if (redo.isEmpty()) { Placement.say(Lang.component("curvegen.editor.no_redo")); return; }
         undo.push(snapshot());
         restore(redo.pop());
     }
@@ -488,7 +489,7 @@ public final class Editor {
         if (drag != null) endDrag();   // a drag starts again from its grab every frame, which would drop the change
         record();
         S.overwrite = !S.overwrite;
-        Placement.say(Component.literal("Replace: ").append(CommonComponents.optionStatus(S.overwrite)));
+        Placement.say(Lang.component("curvegen.editor.replace_status", CommonComponents.optionStatus(S.overwrite)));
     }
 
     public static void toggleCarve() {
@@ -496,7 +497,7 @@ public final class Editor {
         record();
         S.carve = !S.carve;
         if (S.carve && shape.solveUsesCarve()) dirty = true;
-        Placement.say(Component.literal("Carve: ").append(CommonComponents.optionStatus(S.carve)));
+        Placement.say(Lang.component("curvegen.editor.carve_status", CommonComponents.optionStatus(S.carve)));
     }
 
     /** Unlocked, the shape follows the player's view and hides its handles. Locked, it stays put and shows them. */
@@ -510,7 +511,7 @@ public final class Editor {
     /** Adds a point where the player looks at the curve. */
     public static void addPoint() {
         if (!locked || drag != null) return;
-        if (shape.points().isEmpty()) { Placement.say(Component.literal("Only curves made of points can take another.")); return; }
+        if (shape.points().isEmpty()) { Placement.say(Lang.component("curvegen.editor.points_only")); return; }
         boolean alt = sneaking();
         edit(null, () -> insertAtLook(alt));
     }
@@ -518,10 +519,15 @@ public final class Editor {
     /** Sneaking turns an edit of a surface's row into one of its column. */
     private static boolean sneaking() { return Minecraft.getInstance().options.keyShift.isDown(); }
     private static boolean grid() { return shape.pointColumns() > 0; }
-    private static String line(boolean alt) { return alt ? "column" : "row"; }
-    private static String full(boolean alt) { return grid() ? "The surface can't take another " + line(alt) + "." : "This curve can't take any more points."; }
-    private static String least(boolean alt) { return grid() ? "The surface needs the " + line(alt) + "s it has left." : "The shape needs the points it has left."; }
-    private static String lookHere() { return grid() ? "Look at the surface where you want the new points." : "Look at the curve where you want the new point."; }
+    private static String full(boolean alt) {
+        return Lang.tr(grid() ? (alt ? "curvegen.editor.full_columns" : "curvegen.editor.full_rows") : "curvegen.editor.full_points");
+    }
+    private static String least(boolean alt) {
+        return Lang.tr(grid() ? (alt ? "curvegen.editor.least_columns" : "curvegen.editor.least_rows") : "curvegen.editor.least_points");
+    }
+    private static String lookHere() {
+        return Lang.tr(grid() ? "curvegen.editor.look_surface" : "curvegen.editor.look_curve");
+    }
 
     /** Where the player looks at the curve or surface, in the shape's own axes, or null when they aren't looking at it. */
     private static double[] lookOnCurve() {
@@ -546,7 +552,7 @@ public final class Editor {
     /** Removes the point the player looks at. */
     public static void removePoint() {
         if (!locked || drag != null) return;
-        if (hover == null || !hover.isPoint()) { Placement.say(Component.literal("Look at a point to remove it.")); return; }
+        if (hover == null || !hover.isPoint()) { Placement.say(Lang.component("curvegen.editor.look_remove")); return; }
         removePoint(hover.point, sneaking());
     }
 
@@ -559,13 +565,13 @@ public final class Editor {
         List<Option> out = new ArrayList<>(shape.options());
         // A surface lists its rows and columns as numbers of its own.
         if (!grid() && !shape.points().isEmpty()) {
-            String unlocked = locked ? null : "Lock the shape first.";
-            out.add(new Option.Action("Add point", unlocked != null ? unlocked
-                    : lookOnCurve() == null ? "Look at the curve where you want the new point, then open this menu." : null, () -> insertAtLook(false)));
+            String unlocked = locked ? null : "curvegen.editor.lock_first";
+            out.add(new Option.Action("curvegen.editor.add_point", unlocked != null ? unlocked
+                    : lookOnCurve() == null ? "curvegen.editor.menu_look_add" : null, () -> insertAtLook(false)));
             Handle aimed = hover;
-            out.add(new Option.Action("Remove point", unlocked != null ? unlocked
-                    : aimed == null || !aimed.isPoint() ? "Look at the point to remove, then open this menu." : null, () -> {
-                        if (!shape.removePoint(aimed.point)) Placement.say(Component.literal("The shape needs the points it has left."));
+            out.add(new Option.Action("curvegen.editor.remove_point", unlocked != null ? unlocked
+                    : aimed == null || !aimed.isPoint() ? "curvegen.editor.menu_look_remove" : null, () -> {
+                        if (!shape.removePoint(aimed.point)) Placement.say(Lang.component("curvegen.editor.least_points"));
                         hover = null;
                     }));
         }
@@ -577,10 +583,10 @@ public final class Editor {
 
     /** Null when the hologram's blocks are ready to place or export. Otherwise why they aren't. */
     public static String notReady() {
-        if (!active) return "There's no shape out.";
-        if (hologram == null || dirty || job != null) return "Still working on the shape, try again in a moment.";
-        if (hologram.error != null) return "Fix the shape first: " + hologram.error;
-        if (hologram.size() == 0) return "The shape is empty.";
+        if (!active) return Lang.tr("curvegen.editor.no_shape");
+        if (hologram == null || dirty || job != null) return Lang.tr("curvegen.editor.still_working");
+        if (hologram.error != null) return Lang.tr("curvegen.editor.fix_shape", Lang.text(hologram.error));
+        if (hologram.size() == 0) return Lang.tr("curvegen.editor.empty");
         return null;
     }
 
@@ -797,7 +803,7 @@ public final class Editor {
         if (job != null && job.isDone()) {
             Object result = null;
             try { result = job.get(); }
-            catch (Exception e) { Placement.say(Component.literal("Couldn't build this shape: " + e.getMessage()).withStyle(ChatFormatting.RED)); }
+            catch (Exception e) { Placement.say(Lang.component("curvegen.editor.build_failed", e.getMessage()).withStyle(ChatFormatting.RED)); }
             int[] at = jobOrigin;
             job = null; jobOrigin = null;
             if (result != null) {
@@ -1043,46 +1049,53 @@ public final class Editor {
         List<Component> lines = new ArrayList<>();
         // The shape's own lines can be switched off. What's wrong or still being worked out shows either way.
         boolean info = ModSettings.showShapeInfo;
-        if (info) lines.add(Component.literal(shape.describe() + (locked ? "" : " (following your view)")).withStyle(ChatFormatting.WHITE));
-        if (hologram != null && hologram.error != null) lines.add(Component.literal(hologram.error).withStyle(ChatFormatting.RED));
-        else if (hologram == null) lines.add(Component.literal("Working…").withStyle(ChatFormatting.WHITE));
+        if (info) lines.add((locked ? Component.literal(shape.describe()) : Lang.component("curvegen.editor.following", shape.describe())).withStyle(ChatFormatting.WHITE));
+        if (hologram != null && hologram.error != null) lines.add(Lang.component(hologram.error).withStyle(ChatFormatting.RED));
+        else if (hologram == null) lines.add(Lang.component("curvegen.editor.working").withStyle(ChatFormatting.WHITE));
         else {
             int skipped = hologram.size() - hologram.placing();
-            String what = hologram.placing() + " blocks to place" + (skipped > 0 ? " (" + skipped + " skipped, Replace is off)" : "");
-            if (S.carve) what += ", " + hologram.clearing() + " to clear (in red)";
+            String what = Lang.tr(S.carve
+                    ? (skipped > 0 ? "curvegen.editor.counts_carve_skipped" : "curvegen.editor.counts_carve")
+                    : (skipped > 0 ? "curvegen.editor.counts_skipped" : "curvegen.editor.counts"),
+                    hologram.placing(), skipped, hologram.clearing());
             boolean updating = dirty || job != null;
-            if (!info) what = updating ? "Updating…" : "";
-            else if (updating) what += "  Updating…";
+            if (!info) what = updating ? Lang.tr("curvegen.editor.updating") : "";
+            else if (updating) what = Lang.tr("curvegen.editor.counts_updating", what);
             if (!what.isEmpty()) lines.add(Component.literal(what).withStyle(ChatFormatting.WHITE));
-            if (!hologram.isDrawn()) lines.add(Component.literal("Large shape: only its outline is previewed.").withStyle(ChatFormatting.YELLOW));
+            if (!hologram.isDrawn()) lines.add(Lang.component("curvegen.editor.outline_only").withStyle(ChatFormatting.YELLOW));
             if (hologram.size() > VERY_LARGE)
-                lines.add(Component.literal(String.format(java.util.Locale.ROOT, "%.1f million blocks. Placing this will take a long time.", hologram.size() / 1e6))
+                lines.add(Lang.component("curvegen.editor.million_blocks", String.format(java.util.Locale.ROOT, "%.1f", hologram.size() / 1e6))
                         .withStyle(ChatFormatting.YELLOW));
         }
         if (!Placement.canPlace(mc))
-            lines.add(Component.literal("Placing needs operator permissions. You can still edit and export.").withStyle(ChatFormatting.RED));
+            lines.add(Lang.component("curvegen.editor.permission_edit").withStyle(ChatFormatting.RED));
 
         // Key hints, flowed into as many lines as the screen's width needs.
         List<String> hints = new ArrayList<>(List.of(
-                key(CurveGenClient.RADIAL) + " menu", key(CurveGenClient.CONFIRM) + " place", key(CurveGenClient.CANCEL) + " cancel",
-                key(CurveGenClient.LOCK) + (locked ? " unlock" : " lock"), key(CurveGenClient.ROTATE) + " rotate", key(CurveGenClient.TIP) + " tip",
-                key(CurveGenClient.FORWARD) + "/" + key(CurveGenClient.BACK) + " move",
-                key(CurveGenClient.BUMP_OUT) + "/" + key(CurveGenClient.BUMP_IN) + " resize the side you face",
-                key(CurveGenClient.UNDO) + " undo", key(CurveGenClient.REDO) + " redo",
-                key(CurveGenClient.REPLACE) + " Replace: " + CommonComponents.optionStatus(S.overwrite).getString(),
-                key(CurveGenClient.CARVE) + " Carve: " + CommonComponents.optionStatus(S.carve).getString()));
+                Lang.tr("curvegen.editor.hint.menu", key(CurveGenClient.RADIAL)),
+                Lang.tr("curvegen.editor.hint.place", key(CurveGenClient.CONFIRM)),
+                Lang.tr("curvegen.editor.hint.cancel", key(CurveGenClient.CANCEL)),
+                Lang.tr(locked ? "curvegen.editor.hint.unlock" : "curvegen.editor.hint.lock", key(CurveGenClient.LOCK)),
+                Lang.tr("curvegen.editor.hint.rotate", key(CurveGenClient.ROTATE)),
+                Lang.tr("curvegen.editor.hint.tip", key(CurveGenClient.TIP)),
+                Lang.tr("curvegen.editor.hint.move", key(CurveGenClient.FORWARD), key(CurveGenClient.BACK)),
+                Lang.tr("curvegen.editor.hint.resize", key(CurveGenClient.BUMP_OUT), key(CurveGenClient.BUMP_IN)),
+                Lang.tr("curvegen.editor.hint.undo", key(CurveGenClient.UNDO)),
+                Lang.tr("curvegen.editor.hint.redo", key(CurveGenClient.REDO)),
+                Lang.tr("curvegen.editor.hint.replace", key(CurveGenClient.REPLACE), CommonComponents.optionStatus(S.overwrite).getString()),
+                Lang.tr("curvegen.editor.hint.carve", key(CurveGenClient.CARVE), CommonComponents.optionStatus(S.carve).getString())));
         if (!ModSettings.showKeyHints) hints.clear();
         else if (locked) {
-            hints.add("drag a handle to resize, sneak for both sides");
+            hints.add(Lang.tr("curvegen.editor.hint.drag_handle"));
             if (!shape.points().isEmpty()) {
                 if (grid()) {
-                    hints.add("drag a point, right-click removes its row, middle-click adds one, sneak for a column");
-                    hints.add(key(CurveGenClient.ADD_POINT) + " add a row where you look");
-                    hints.add(key(CurveGenClient.REMOVE_POINT) + " remove a row");
+                    hints.add(Lang.tr("curvegen.editor.hint.drag_surface_point"));
+                    hints.add(Lang.tr("curvegen.editor.hint.add_row", key(CurveGenClient.ADD_POINT)));
+                    hints.add(Lang.tr("curvegen.editor.hint.remove_row", key(CurveGenClient.REMOVE_POINT)));
                 } else {
-                    hints.add("drag a point, right-click removes it, middle-click copies it");
-                    hints.add(key(CurveGenClient.ADD_POINT) + " add a point");
-                    hints.add(key(CurveGenClient.REMOVE_POINT) + " remove a point");
+                    hints.add(Lang.tr("curvegen.editor.hint.drag_point"));
+                    hints.add(Lang.tr("curvegen.editor.hint.add_point", key(CurveGenClient.ADD_POINT)));
+                    hints.add(Lang.tr("curvegen.editor.hint.remove_point", key(CurveGenClient.REMOVE_POINT)));
                 }
             }
         }

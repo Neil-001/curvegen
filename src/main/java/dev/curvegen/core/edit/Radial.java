@@ -21,9 +21,9 @@ public final class Radial {
 
     public static String name(String id) {
         return switch (id) {
-            case "2d" -> "2D shapes"; case "3d" -> "3D shapes"; case "presets" -> "Presets"; case "last" -> "Last shape";
-            case "options" -> "Shape options"; case "blocks" -> "Blocks"; case "export" -> "Export"; case "full" -> "Full menu";
-            case "place" -> "Place"; case "cancel" -> "Cancel";
+            case "2d" -> "curvegen.radial.2d"; case "3d" -> "curvegen.radial.3d"; case "presets" -> "curvegen.radial.presets"; case "last" -> "curvegen.radial.last";
+            case "options" -> "curvegen.radial.options"; case "blocks" -> "curvegen.radial.blocks"; case "export" -> "curvegen.radial.export"; case "full" -> "curvegen.radial.full";
+            case "place" -> "curvegen.radial.place"; case "cancel" -> "curvegen.radial.cancel";
             default -> id;
         };
     }
