@@ -1,3 +1,12 @@
+# 2.1.0
+
+Curve Generator 2.1.0 adds translations for nine languages. Menus, tooltips, editor hints and messages now follow Minecraft's language setting. This version is for Minecraft 26.3 on Fabric and NeoForge.
+
+## Features
+
+- Make the mod's menus, hints and messages translatable (#66)
+- Add German, Spanish, French, Japanese, Korean, Polish, Brazilian Portuguese, Russian and Simplified Chinese translations (#67)
+
 # 2.0.0
 
 Curve Generator 2.0.0 adds 3D shapes and an editor in the world. A shape now appears as a hologram with handles you drag to resize it and points you drag to bend it, and the blocks update as you go. The new shapes are ellipsoids, toruses, 3D equations, 3D Bézier curves and Bézier surfaces. A radial menu on V starts shapes and changes their options without leaving the world. This version is for Minecraft 26.3 on Fabric and NeoForge.

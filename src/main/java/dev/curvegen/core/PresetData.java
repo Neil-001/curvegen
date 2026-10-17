@@ -231,48 +231,41 @@ public final class PresetData {
 
     private static String key(Pieces.Family f) { return f.name().toLowerCase(Locale.ROOT); }
 
-    /** A name describing the shape, used to pre-fill the Save dialog. */
-    public static String defaultName(ShapeSettings s, ShapeSettings.Gen gen) {
+    /** A translatable name describing the shape, used to pre-fill the Save dialog. */
+    public static Message defaultName(ShapeSettings s, ShapeSettings.Gen gen) {
         return switch (gen) {
-            case ELLIPSE -> "Ellipse " + s.eW + "×" + s.eH + ", " + switch (s.eMode) {
-                case THIN -> "thin"; case FILLED -> "filled";
-                case OUTWARDS -> "thick outwards " + num(s.eT); case INWARDS -> "thick inwards " + num(s.eT);
-                case MIDDLE -> "thick middle " + num(s.eT);
-            };
-            case EQUATION -> {
-                String eq = s.src.trim().replaceAll("\\s+", " ");
-                if (eq.length() > 32) eq = eq.substring(0, 31) + "…";
-                boolean ineq = eq.contains("<") || eq.contains(">") || eq.contains("≤") || eq.contains("≥");
-                String shape = ineq ? "" : ", " + switch (s.qMode) {
-                    case LINE -> "line " + num(s.qLW); case UNDER -> "fill under"; case OVER -> "fill over"; };
-                yield eq + shape + ", " + s.qW + " wide";
-            }
-            case BEZIER -> {
-                int n = s.pts.size();
-                String kind = n == 2 ? "Straight line" : n == 3 ? "Quadratic Bézier" : n == 4 ? "Cubic Bézier" : n + "-point Bézier";
-                yield kind + " " + s.bW + "×" + s.bH + ", " + (s.bMode == ShapeSettings.BzMode.LINE ? "line " + num(s.bLW) : "filled");
-            }
-            case ELLIPSOID -> "Ellipsoid " + s.e3W + "×" + s.e3H + "×" + s.e3D + ", " + switch (s.e3Mode) {
-                case THIN -> "thin"; case FILLED -> "filled";
-                case OUTWARDS -> "thick outwards " + num(s.e3T); case INWARDS -> "thick inwards " + num(s.e3T);
-                case MIDDLE -> "thick middle " + num(s.e3T);
-            };
-            case TORUS -> "Torus " + s.tW + "×" + s.tH + "×" + s.tD + ", tube " + s.tTube + (s.tHollow ? ", hollow" : ", filled");
-            case EQUATION3 -> {
-                String eq = s.src3.trim().replaceAll("\\s+", " ");
-                if (eq.length() > 32) eq = eq.substring(0, 31) + "…";
-                boolean ineq = eq.contains("<") || eq.contains(">") || eq.contains("≤") || eq.contains("≥");
-                String shape = ineq ? "" : ", " + switch (s.q3Mode) {
-                    case SURFACE -> "surface " + num(s.q3T); case BELOW -> "fill below"; case ABOVE -> "fill above"; };
-                yield eq + shape + ", " + s.q3W + " wide";
-            }
-            case BEZIER3 -> {
-                int n = s.pts3.size();
-                String kind = n == 2 ? "Straight line" : n == 3 ? "Quadratic 3D Bézier" : n == 4 ? "Cubic 3D Bézier" : n + "-point 3D Bézier";
-                yield kind + " " + s.b3W + "×" + s.b3H + "×" + s.b3D + ", thickness " + num(s.b3T);
-            }
-            case SURFACE -> "Bézier surface " + s.sRows + "×" + s.sCols + " points, " + s.sW + "×" + s.sH + "×" + s.sD + ", thickness " + num(s.sT);
+            case ELLIPSE -> ellipseName(s.eMode, false, s.eW, s.eH, 0, s.eT);
+            case ELLIPSOID -> ellipseName(s.e3Mode, true, s.e3W, s.e3H, s.e3D, s.e3T);
+            case EQUATION -> equationName(s.src, false, s.qMode.ordinal(), s.qW, s.qLW);
+            case EQUATION3 -> equationName(s.src3, true, s.q3Mode.ordinal(), s.q3W, s.q3T);
+            case BEZIER -> curveName(s.pts.size(), false, s.bMode == ShapeSettings.BzMode.FILLED, s.bW, s.bH, 0, s.bLW);
+            case BEZIER3 -> curveName(s.pts3.size(), true, false, s.b3W, s.b3H, s.b3D, s.b3T);
+            case TORUS -> Message.of(s.tHollow ? "curvegen.shape.torus.hollow" : "curvegen.shape.torus.filled", s.tW, s.tH, s.tD, s.tTube);
+            case SURFACE -> Message.of("curvegen.shape.surface", s.sRows, s.sCols, s.sW, s.sH, s.sD, num(s.sT));
         };
+    }
+
+    private static Message ellipseName(ShapeSettings.EllipseMode mode, boolean volume, int w, int h, int d, double thickness) {
+        String key = "curvegen.shape." + (volume ? "ellipsoid." : "ellipse.") + mode.name().toLowerCase(Locale.ROOT);
+        return volume ? Message.of(key, w, h, d, num(thickness)) : Message.of(key, w, h, num(thickness));
+    }
+
+    private static Message equationName(String src, boolean volume, int mode, int width, double thickness) {
+        String eq = src.trim().replaceAll("\\s+", " ");
+        if (eq.length() > 32) eq = eq.substring(0, 31) + "…";
+        boolean inequality = eq.contains("<") || eq.contains(">") || eq.contains("≤") || eq.contains("≥");
+        String key = "curvegen.shape." + (volume ? "equation3." : "equation.") + (inequality ? "inequality" : switch (mode) {
+            case 0 -> volume ? "surface" : "line";
+            case 1 -> volume ? "below" : "under";
+            default -> volume ? "above" : "over";
+        });
+        return Message.of(key, eq, width, num(thickness));
+    }
+
+    private static Message curveName(int points, boolean volume, boolean filled, int w, int h, int d, double thickness) {
+        String kind = switch (points) { case 2 -> "straight"; case 3 -> "quadratic"; case 4 -> "cubic"; default -> "general"; };
+        String key = "curvegen.shape." + (volume ? "bezier3." : "bezier.") + kind + (volume ? "" : filled ? ".filled" : ".line");
+        return volume ? Message.of(key, w, h, d, num(thickness), points) : Message.of(key, w, h, num(thickness), points);
     }
 
     /**
@@ -290,13 +283,13 @@ public final class PresetData {
     public static List<Example> examples() {
         List<Example> out = new ArrayList<>();
         String[][] ex = {
-                {"Sine wave", "y = 2sin(x)", "-2pi", "2pi", "-3", "3", "LINE"},
-                {"Parabolic arch", "y = 9 - x^2/4", "-6", "6", "0", "9", "UNDER"},
-                {"Catenary arch", "y = 14 - 2cosh(x/2)", "-5.2", "5.2", "0", "12", "UNDER"},
-                {"Gothic arch", "y = sqrt(64 - (|x| + 3)^2)", "-5", "5", "0", "8", "UNDER"},
-                {"Circle", "x^2 + y^2 = 16", "-5", "5", "-5", "5", "LINE"},
-                {"Heart", "(x^2 + y^2 - 1)^3 = x^2 y^3", "-1.5", "1.5", "-1.3", "1.5", "UNDER"},
-                {"Tangent", "y = tan(x)", "-4", "4", "-4", "4", "LINE"}};
+                {"curvegen.preset.example.sine_wave", "y = 2sin(x)", "-2pi", "2pi", "-3", "3", "LINE"},
+                {"curvegen.preset.example.parabolic_arch", "y = 9 - x^2/4", "-6", "6", "0", "9", "UNDER"},
+                {"curvegen.preset.example.catenary_arch", "y = 14 - 2cosh(x/2)", "-5.2", "5.2", "0", "12", "UNDER"},
+                {"curvegen.preset.example.gothic_arch", "y = sqrt(64 - (|x| + 3)^2)", "-5", "5", "0", "8", "UNDER"},
+                {"curvegen.preset.example.circle", "x^2 + y^2 = 16", "-5", "5", "-5", "5", "LINE"},
+                {"curvegen.preset.example.heart", "(x^2 + y^2 - 1)^3 = x^2 y^3", "-1.5", "1.5", "-1.3", "1.5", "UNDER"},
+                {"curvegen.preset.example.tangent", "y = tan(x)", "-4", "4", "-4", "4", "LINE"}};
         ShapeSettings base = new ShapeSettings();
         for (String[] e : ex) {
             Map<String, String> d = capture(base, ShapeSettings.Gen.EQUATION);

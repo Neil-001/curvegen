@@ -96,7 +96,7 @@ public interface Shape3 {
     List<double[]> wireframe();
 
     /** A message for the player when the shape can't be built, or null. */
-    default String error() { return null; }
+    default Message error() { return null; }
 
     /** The shape the settings describe. Building it is cheap: the work happens in {@link Solver3#solve}. */
     static Shape3 of(ShapeSettings s) {
@@ -106,7 +106,7 @@ public interface Shape3 {
             case EQUATION3 -> new Shapes3.Equation(s);
             case BEZIER3 -> new Shapes3.Curve(s);
             case SURFACE -> new Shapes3.Patch(s);
-            default -> throw new IllegalArgumentException(s.gen + " is not a 3D shape");
+            default -> throw new IllegalArgumentException(Message.of("curvegen.diagnostic.not_shape3", s.gen).toString());
         };
     }
 }

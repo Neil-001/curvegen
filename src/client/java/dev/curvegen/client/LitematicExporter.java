@@ -1,5 +1,7 @@
 package dev.curvegen.client;
 
+import static dev.curvegen.client.Lang.tr;
+
 import dev.curvegen.client.edit.EditShape;
 import dev.curvegen.core.Layout;
 import dev.curvegen.core.LitematicBits;
@@ -102,7 +104,7 @@ public final class LitematicExporter {
             CompoundTag meta = new CompoundTag();
             meta.putString("Name", baseName);
             meta.putString("Author", author);
-            meta.putString("Description", "Made with Curve Generator");
+            meta.putString("Description", tr("curvegen.export.description"));
             meta.putInt("RegionCount", 1);
             meta.putInt("TotalVolume", volume);
             meta.putInt("TotalBlocks", total);

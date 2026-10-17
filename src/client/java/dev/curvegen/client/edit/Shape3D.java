@@ -1,6 +1,8 @@
 package dev.curvegen.client.edit;
 
+import dev.curvegen.client.Lang;
 import dev.curvegen.client.BlockChoices;
+import dev.curvegen.core.Message;
 import dev.curvegen.core.Pieces3;
 import dev.curvegen.core.Shape3;
 import dev.curvegen.core.ShapeSettings;
@@ -48,7 +50,7 @@ final class Shape3D implements EditShape {
     @Override public double[] lookAt(double[] origin, double[] dir) { return Edit3D.lookAt(s, origin, dir); }
     @Override public List<Option> options() { return Edit3D.options(s); }
     @Override public boolean solveUsesCarve() { return true; }
-    @Override public String describe() { return Edit3D.describe(s); }
+    @Override public String describe() { return Lang.text(Edit3D.describe(s)); }
 
     @Override
     public double[] curve(Object solved) {
@@ -94,7 +96,7 @@ final class Shape3D implements EditShape {
     public Content build(Object solved, Orient o) {
         Solved v = (Solved) solved;
         Solver3.Result r = v.result;
-        String error = r.shape().error();
+        Message error = r.shape().error();
         if (error != null) return new Content(List.of(), List.of(), v.topColours, error);
         BlockState[] states = BlockChoices.statesFor3();
         int pad = r.shape().pad(), nx = r.nx(), ny = r.ny(), nz = r.nz();

@@ -50,7 +50,7 @@ class ParserTest {
             Expr.parseEquation("sin(x");
             fail("expected an error");
         } catch (Expr.ParseException e) {
-            assertEquals("sin( is missing its closing ).", e.getMessage());
+            assertEquals(Message.of("curvegen.error.function_missing_bracket", "sin"), e.text());
         }
     }
 
@@ -73,13 +73,13 @@ class ParserTest {
             Expr.parseEquation3("x + z");
             fail("expected an error");
         } catch (Expr.ParseException ex) {
-            assertEquals("Add an = sign, for example x^2 + y^2 + z^2 = 9.", ex.getMessage());
+            assertEquals(Message.of("curvegen.error.missing_relation3"), ex.text());
         }
         try {
             Expr.parseEquation3("z = w");
             fail("expected an error");
         } catch (Expr.ParseException ex) {
-            assertEquals("\"w\" isn't something I know. Use x, y, z, pi, e or a function name.", ex.getMessage());
+            assertEquals(Message.of("curvegen.error.unknown_name3", "w"), ex.text());
         }
         assertThrows(Expr.ParseException.class, () -> Expr.parseEquation3(" "));
     }
@@ -90,17 +90,17 @@ class ParserTest {
             Expr.parseEquation("y = z");
             fail("expected an error");
         } catch (Expr.ParseException ex) {
-            assertEquals("\"z\" isn't something I know. Use x, y, pi, e or a function name.", ex.getMessage());
+            assertEquals(Message.of("curvegen.error.unknown_name2", "z"), ex.text());
         }
         assertThrows(Expr.ParseException.class, () -> Expr.parseEquation("x^2 + z^2 = 4"));
-        assertThrows(Expr.ParseException.class, () -> Expr.constant("z", "x to"));
+        assertThrows(Expr.ParseException.class, () -> Expr.constant("z", "curvegen.range.x_to"));
     }
 
     @Test
     void constants() throws Exception {
-        assertEquals(2 * Math.PI, Expr.constant("2pi", "x to"), 1e-12);
-        assertEquals(-3.5, Expr.constant("-3.5", "y from"), 1e-12);
-        assertThrows(Expr.ParseException.class, () -> Expr.constant("x", "x to"));
-        assertThrows(Expr.ParseException.class, () -> Expr.constant("1/0", "x to"));
+        assertEquals(2 * Math.PI, Expr.constant("2pi", "curvegen.range.x_to"), 1e-12);
+        assertEquals(-3.5, Expr.constant("-3.5", "curvegen.range.y_from"), 1e-12);
+        assertThrows(Expr.ParseException.class, () -> Expr.constant("x", "curvegen.range.x_to"));
+        assertThrows(Expr.ParseException.class, () -> Expr.constant("1/0", "curvegen.range.x_to"));
     }
 }

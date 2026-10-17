@@ -1,5 +1,9 @@
 package dev.curvegen.client.screen;
 
+import static dev.curvegen.client.Lang.tr;
+
+import dev.curvegen.client.Lang;
+
 import com.mojang.blaze3d.platform.InputConstants;
 import dev.curvegen.client.BlockChoices;
 import dev.curvegen.client.CurveGenClient;
@@ -73,9 +77,7 @@ public class PresetsScreen extends Screen {
             "...###...", "#########", ".#######.", ".#.#.#.#.", ".#.#.#.#.", ".#.#.#.#.", ".#.#.#.#.", ".#.#.#.#.", "..#####.."};
 
     public PresetsScreen(Screen parent, ShapeSettings.Gen gen, BiConsumer<Preset, Boolean> onLoad) {
-        super(Component.literal("Load a preset: " + switch (gen) { case ELLIPSE -> "ellipse"; case EQUATION -> "equation"; case BEZIER -> "Bézier curve";
-            case ELLIPSOID -> "ellipsoid"; case TORUS -> "torus"; case EQUATION3 -> "3D equation"; case BEZIER3 -> "3D Bézier curve";
-            case SURFACE -> "Bézier surface"; }));
+        super(Component.literal(switch (gen) { case ELLIPSE -> tr("curvegen.screen.load_a_preset_ellipse"); case EQUATION -> tr("curvegen.screen.load_a_preset_equation"); case BEZIER -> tr("curvegen.screen.load_a_preset_bezier_curve"); case ELLIPSOID -> tr("curvegen.screen.load_a_preset_ellipsoid"); case TORUS -> tr("curvegen.screen.load_a_preset_torus"); case EQUATION3 -> tr("curvegen.screen.load_a_preset_3d_equation"); case BEZIER3 -> tr("curvegen.screen.load_a_preset_3d_bezier_curve"); case SURFACE -> tr("curvegen.screen.load_a_preset_bezier_surface"); }));
         this.parent = parent; this.gen = gen; this.onLoad = onLoad;
     }
 
@@ -92,24 +94,24 @@ public class PresetsScreen extends Screen {
 
     @Override
     protected void init() {
-        search = new EditBox(font, listX(), 26, listW(), 20, Component.literal("Search"));
-        search.setHint(Component.literal("Search presets"));
+        search = new EditBox(font, listX(), 26, listW(), 20, Component.translatable("curvegen.screen.search"));
+        search.setHint(Component.translatable("curvegen.screen.search_presets"));
         search.setValue(query);
         search.setResponder(v -> { query = v; scroll = 0; refilter(); });
         addRenderableWidget(search);
         setInitialFocus(search);
 
-        int by = height - 26, bw = Math.max(60, font.width("Preview") + 20);
-        int blocksW = font.width("Blocks: OFF") + 20, x = width - 8 - 3 * bw - blocksW - 12;
-        previewButton = Button.builder(Component.literal("Preview"), _ -> previewed = selected).bounds(x, by, bw, 20).build();
-        blocksButton = CycleButton.onOffBuilder(loadBlocks).create(x + bw + 4, by, blocksW, 20, Component.literal("Blocks"),
+        int by = height - 26, bw = Math.max(60, font.width(tr("curvegen.screen.preview")) + 20);
+        int blocksW = font.width(CommonComponents.optionNameValue(Component.translatable("curvegen.screen.blocks"), CommonComponents.optionStatus(false))) + 20, x = width - 8 - 3 * bw - blocksW - 12;
+        previewButton = Button.builder(Component.translatable("curvegen.screen.preview"), _ -> previewed = selected).bounds(x, by, bw, 20).build();
+        blocksButton = CycleButton.onOffBuilder(loadBlocks).create(x + bw + 4, by, blocksW, 20, Component.translatable("curvegen.screen.blocks"),
                 (_, v) -> { loadBlocks = v; textureFor = null; pictureFor = null; });
-        loadButton = Button.builder(Component.literal("Load"), _ -> { if (selected != null) load(selected); })
+        loadButton = Button.builder(Component.translatable("curvegen.screen.load"), _ -> { if (selected != null) load(selected); })
                 .bounds(x + bw + blocksW + 8, by, bw, 20).build();
         addRenderableWidget(previewButton);
         addRenderableWidget(blocksButton);
         addRenderableWidget(loadButton);
-        addRenderableWidget(Button.builder(Component.literal("Cancel"), _ -> onClose()).bounds(width - 8 - bw, by, bw, 20).build());
+        addRenderableWidget(Button.builder(Component.translatable("curvegen.screen.cancel"), _ -> onClose()).bounds(width - 8 - bw, by, bw, 20).build());
         refilter();
     }
 
@@ -229,9 +231,9 @@ public class PresetsScreen extends Screen {
         boolean hasBlocks = selected != null && selected.blocks != null;
         blocksButton.active = hasBlocks;
         blocksButton.setValue(loadBlocks && (selected == null || hasBlocks));
-        blocksButton.setTooltip(Tooltip.create(Component.literal(selected == null ? "Select a preset first."
-                : hasBlocks ? "Also load the preset's block for each piece type, and whether it's used."
-                : "This preset was saved without blocks.")));
+        blocksButton.setTooltip(Tooltip.create(Component.literal(selected == null ? tr("curvegen.screen.select_a_preset_first")
+                : hasBlocks ? tr("curvegen.screen.also_load_the_preset_s_block_for_each_piece")
+                : tr("curvegen.screen.this_preset_was_saved_without_blocks"))));
         super.extractRenderState(ctx, mx, my, delta);
         ctx.text(font, title, listX(), 10, 0xFFFFFFFF);
 
@@ -239,7 +241,7 @@ public class PresetsScreen extends Screen {
         int x0 = listX(), x1 = x0 + listW(), top = listTop();
         ctx.fill(x0 - 1, top - 1, x1 + 1, listBottom() + 1, 0x80000000);
         if (shown.isEmpty()) {
-            String msg = query.isBlank() ? "No presets yet. Use Save preset in the generator to add one." : "No presets match your search.";
+            String msg = query.isBlank() ? tr("curvegen.screen.no_presets_yet_use_save_preset_in_the_generator") : tr("curvegen.screen.no_presets_match_your_search");
             ctx.textWithWordWrap(font, Component.literal(msg), x0 + 6, top + 6, listW() - 12, 0xFF9AA5B3, false);
         }
         String tip = null;
@@ -262,7 +264,7 @@ public class PresetsScreen extends Screen {
                     if (on) ctx.fill(ix, iy, ix + ICON, iy + ICON, k == 2 ? 0x50FF3355 : 0x30FFFFFF);
                     int c = k == 2 && on ? 0xFFFF5566 : k == 0 && p.pinned ? 0xFFFFC04D : on ? 0xFFFFFFFF : 0xFFB8C0CA;
                     drawArt(ctx, k == 0 ? PIN : k == 1 ? PENCIL : TRASH, ix, iy, c);
-                    if (on) tip = k == 0 ? (p.pinned ? "Unpin" : "Pin to the top") : k == 1 ? "Rename" : "Delete";
+                    if (on) tip = k == 0 ? (p.pinned ? tr("curvegen.screen.unpin") : tr("curvegen.screen.pin_to_the_top")) : k == 1 ? tr("curvegen.screen.rename") : tr("curvegen.screen.delete");
                 }
             } else if (p.pinned) {
                 drawArt(ctx, PIN, iconX(0), iy, 0xFFFFC04D);   // pinned presets always show their pin
@@ -280,20 +282,20 @@ public class PresetsScreen extends Screen {
         ctx.outline(px0 - 1, py0 - 1, px1 - px0 + 2, py1 - py0 + 2, 0xFF3A424D);
         Preset target = hovered != null ? hovered : previewed;
         if (target == null) {
-            ctx.textWithWordWrap(font, Component.literal("Hover a preset to preview it, or select one and press Preview."),
+            ctx.textWithWordWrap(font, Component.translatable("curvegen.screen.hover_a_preset_to_preview_it_or_select_one"),
                     px0 + 8, py0 + 8, px1 - px0 - 16, 0xFF9AA5B3, false);
         } else {
             Solver.Result r = is3d() ? null : resultFor(target);
             CurveScreen.Solved3 r3 = is3d() ? solved3For(target) : null;
             int infoH = 24;
             if (is3d()) {
-                if (r3 == null) ctx.text(font, "Working…", px0 + 8, py0 + 8, 0xFF9AA5B3, false);
-                else if (r3.error() != null) ctx.textWithWordWrap(font, Component.literal(r3.error()), px0 + 8, py0 + 8, px1 - px0 - 16, 0xFFFF8098, false);
+                if (r3 == null) ctx.text(font, tr("curvegen.screen.working"), px0 + 8, py0 + 8, 0xFF9AA5B3, false);
+                else if (r3.error() != null) ctx.textWithWordWrap(font, Component.literal(Lang.text(r3.error())), px0 + 8, py0 + 8, px1 - px0 - 16, 0xFFFF8098, false);
                 else draw3(ctx, target, r3, px0, py0, px1, py1 - infoH);
             }
-            else if (r == null) ctx.text(font, "Working…", px0 + 8, py0 + 8, 0xFF9AA5B3, false);
+            else if (r == null) ctx.text(font, tr("curvegen.screen.working"), px0 + 8, py0 + 8, 0xFF9AA5B3, false);
             else if (r.target().error != null)
-                ctx.textWithWordWrap(font, Component.literal(r.target().error), px0 + 8, py0 + 8, px1 - px0 - 16, 0xFFFF8098, false);
+                ctx.textWithWordWrap(font, Component.literal(Lang.text(r.target().error)), px0 + 8, py0 + 8, px1 - px0 - 16, 0xFFFF8098, false);
             else {
                 if (textureFor != target || texture.id() == null) { texture.update(r, CurveScreen.colors, true, true, choiceFor(target)); textureFor = target; }
                 float aw = px1 - px0 - 12, ah = py1 - py0 - 12 - infoH;
@@ -311,7 +313,7 @@ public class PresetsScreen extends Screen {
             }
             ctx.fill(px0, py1 - infoH, px1, py1, 0xB0000000);
             ctx.text(font, font.plainSubstrByWidth(target.name, px1 - px0 - 12), px0 + 6, py1 - infoH + 3, 0xFFFFFFFF, false);
-            String desc = PresetData.defaultName(settingsFor(target), gen);
+            String desc = Lang.text(PresetData.defaultName(settingsFor(target), gen));
             ctx.text(font, font.plainSubstrByWidth(desc, px1 - px0 - 12), px0 + 6, py1 - infoH + 13, 0xFF9AA5B3, false);
         }
         if (tip != null) ctx.setTooltipForNextFrame(font, Component.literal(tip), mx, my);
@@ -376,11 +378,11 @@ public class PresetsScreen extends Screen {
     }
 
     private void rename(Preset p) {
-        minecraft.gui.setScreen(new NameDialogScreen(this, "Rename preset", p.name, name -> {
-            if (name.isEmpty()) return new NameDialogScreen.Check(false, "Rename", "Type a name for the preset.");
+        minecraft.gui.setScreen(new NameDialogScreen(this, tr("curvegen.screen.rename_preset"), p.name, name -> {
+            if (name.isEmpty()) return new NameDialogScreen.Check(false, tr("curvegen.screen.rename"), tr("curvegen.screen.type_a_name_for_the_preset"));
             Preset other = PresetStore.find(gen, name);
-            if (other != null && other != p) return new NameDialogScreen.Check(false, "Rename", "Another preset already has this name.");
-            return new NameDialogScreen.Check(true, "Rename", null);
+            if (other != null && other != p) return new NameDialogScreen.Check(false, tr("curvegen.screen.rename"), tr("curvegen.screen.another_preset_already_has_this_name"));
+            return new NameDialogScreen.Check(true, tr("curvegen.screen.rename"), null);
         }, name -> { PresetStore.rename(p, name); selected = p; refilter(); }));
     }
 
@@ -395,9 +397,9 @@ public class PresetsScreen extends Screen {
                 refilter();
             }
             minecraft.gui.setScreen(this);
-        }, Component.literal("Are you sure?"),
-                Component.literal("Delete the preset \"" + p.name + "\"? This can't be undone."),
-                Component.literal("Delete"), CommonComponents.GUI_CANCEL));
+        }, Component.translatable("curvegen.screen.are_you_sure"),
+                Component.translatable("curvegen.screen.delete_the_preset_s_this_can_t_be_undone", p.name),
+                Component.translatable("curvegen.screen.delete"), CommonComponents.GUI_CANCEL));
     }
 
     @Override

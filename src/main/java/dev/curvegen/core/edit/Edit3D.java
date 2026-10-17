@@ -3,6 +3,7 @@ package dev.curvegen.core.edit;
 import dev.curvegen.core.Bezier3;
 import dev.curvegen.core.Expr;
 import dev.curvegen.core.PresetData;
+import dev.curvegen.core.Message;
 import dev.curvegen.core.Shape3;
 import dev.curvegen.core.ShapeSettings;
 import dev.curvegen.core.Shapes3;
@@ -46,7 +47,7 @@ public final class Edit3D {
             }
             case BEZIER3 -> new int[]{s.b3W, s.b3H, s.b3D};
             case SURFACE -> new int[]{s.sW, s.sH, s.sD};
-            default -> throw new IllegalArgumentException("Not a 3D shape: " + s.gen);
+            default -> throw new IllegalArgumentException(Message.of("curvegen.diagnostic.edit_not_shape3", s.gen).toString());
         };
     }
 
@@ -57,7 +58,7 @@ public final class Edit3D {
             case EQUATION3 -> { s.q3W = z[0]; s.q3H = z[1]; s.q3D = z[2]; }
             case BEZIER3 -> { s.b3W = z[0]; s.b3H = z[1]; s.b3D = z[2]; }
             case SURFACE -> { s.sW = z[0]; s.sH = z[1]; s.sD = z[2]; }
-            default -> throw new IllegalArgumentException("Not a 3D shape: " + s.gen);
+            default -> throw new IllegalArgumentException(Message.of("curvegen.diagnostic.edit_not_shape3", s.gen).toString());
         }
     }
 
@@ -66,7 +67,7 @@ public final class Edit3D {
         try {
             String[] src = {s.x3min, s.x3max, s.y3min, s.y3max, s.z3min, s.z3max};
             double[] r = new double[6];
-            for (int k = 0; k < 6; k++) r[k] = Expr.constant(src[k], "range");
+            for (int k = 0; k < 6; k++) r[k] = Expr.constant(src[k], "curvegen.range.value");
             return r[1] > r[0] && r[3] > r[2] && r[5] > r[4] ? r : null;
         } catch (Expr.ParseException _) {
             return null;
@@ -366,48 +367,48 @@ public final class Edit3D {
         List<Option> out = new ArrayList<>();
         switch (s.gen) {
             case ELLIPSOID -> {
-                out.add(new Option.Cycler("Shape", null, List.of("Thin", "Filled", "Thick out", "Thick in", "Thick middle"),
+                out.add(new Option.Cycler("curvegen.option.shape", null, List.of("curvegen.choice.thin", "curvegen.choice.filled", "curvegen.choice.thick_out", "curvegen.choice.thick_in", "curvegen.choice.thick_middle"),
                         () -> s.e3Mode.ordinal(), v -> s.e3Mode = EllipseMode.values()[v]));
                 boolean thick = s.e3Mode == EllipseMode.OUTWARDS || s.e3Mode == EllipseMode.INWARDS || s.e3Mode == EllipseMode.MIDDLE;
-                out.add(new Option.Number("Thickness", thick ? null : "Only a thick shell has a thickness. Change Shape first.",
+                out.add(new Option.Number("curvegen.option.thickness", thick ? null : "curvegen.option.off.thick_shell",
                         () -> s.e3T, v -> s.e3T = v, MIN_THICK, MAX_THICK, THICK_STEP, false));
             }
             case TORUS -> {
-                out.add(new Option.Number("Ring", null, () -> s.tRing, v -> setRing(s, (int) v), 1, MAX, 1, true));
-                out.add(new Option.Number("Tube", null, () -> s.tTube, v -> setTube(s, (int) v), 1, MAX, 1, true));
-                out.add(Option.toggle("Hollow", null, () -> s.tHollow, v -> s.tHollow = v));
+                out.add(new Option.Number("curvegen.option.ring", null, () -> s.tRing, v -> setRing(s, (int) v), 1, MAX, 1, true));
+                out.add(new Option.Number("curvegen.option.tube", null, () -> s.tTube, v -> setTube(s, (int) v), 1, MAX, 1, true));
+                out.add(Option.toggle("curvegen.option.hollow", null, () -> s.tHollow, v -> s.tHollow = v));
             }
             case EQUATION3 -> {
                 boolean inequality = Edit2D.isInequality(s.src3);
-                out.add(new Option.Text("Equation", null, () -> s.src3, v -> s.src3 = v, v -> {
-                    try { Expr.parseEquation3(v); return null; } catch (Expr.ParseException e) { return e.getMessage(); }
+                out.add(new Option.Text("curvegen.option.equation", null, () -> s.src3, v -> s.src3 = v, v -> {
+                    try { Expr.parseEquation3(v); return null; } catch (Expr.ParseException e) { return e.text(); }
                 }));
-                out.add(new Option.Cycler("Shape", inequality ? "Your inequality sets the shape. Use = to choose it here." : null,
-                        List.of("Surface", "Fill below", "Fill above"), () -> s.q3Mode.ordinal(), v -> s.q3Mode = Eq3Mode.values()[v]));
-                out.add(new Option.Number("Thickness", inequality || s.q3Mode != Eq3Mode.SURFACE ? "Filled shapes don't use a thickness." : null,
+                out.add(new Option.Cycler("curvegen.option.shape", inequality ? "curvegen.option.off.inequality" : null,
+                        List.of("curvegen.choice.surface", "curvegen.choice.fill_below", "curvegen.choice.fill_above"), () -> s.q3Mode.ordinal(), v -> s.q3Mode = Eq3Mode.values()[v]));
+                out.add(new Option.Number("curvegen.option.thickness", inequality || s.q3Mode != Eq3Mode.SURFACE ? "curvegen.option.off.filled_thickness" : null,
                         () -> s.q3T, v -> s.q3T = v, MIN_THICK, MAX_THICK, THICK_STEP, false));
-                out.add(Option.toggle("Same scale", null, () -> s.q3Lock, v -> s.q3Lock = v));
+                out.add(Option.toggle("curvegen.option.same_scale", null, () -> s.q3Lock, v -> s.q3Lock = v));
             }
             case BEZIER3 -> {
-                out.add(new Option.Number("Thickness", null, () -> s.b3T, v -> s.b3T = v, MIN_THICK, MAX_THICK, THICK_STEP, false));
-                out.add(Option.toggle("Snap", null, () -> s.snap, v -> s.snap = v));
+                out.add(new Option.Number("curvegen.option.thickness", null, () -> s.b3T, v -> s.b3T = v, MIN_THICK, MAX_THICK, THICK_STEP, false));
+                out.add(Option.toggle("curvegen.option.snap", null, () -> s.snap, v -> s.snap = v));
             }
             case SURFACE -> {
-                out.add(new Option.Number("Thickness", null, () -> s.sT, v -> s.sT = v, MIN_THICK, MAX_THICK, THICK_STEP, false));
-                out.add(Option.toggle("Snap", null, () -> s.snap, v -> s.snap = v));
-                out.add(new Option.Number("Rows", null, () -> s.sRows, v -> setGrid(s, (int) v, s.sCols), Bezier3.MIN_GRID, Bezier3.MAX_GRID, 1, true));
-                out.add(new Option.Number("Columns", null, () -> s.sCols, v -> setGrid(s, s.sRows, (int) v), Bezier3.MIN_GRID, Bezier3.MAX_GRID, 1, true));
+                out.add(new Option.Number("curvegen.option.thickness", null, () -> s.sT, v -> s.sT = v, MIN_THICK, MAX_THICK, THICK_STEP, false));
+                out.add(Option.toggle("curvegen.option.snap", null, () -> s.snap, v -> s.snap = v));
+                out.add(new Option.Number("curvegen.option.rows", null, () -> s.sRows, v -> setGrid(s, (int) v, s.sCols), Bezier3.MIN_GRID, Bezier3.MAX_GRID, 1, true));
+                out.add(new Option.Number("curvegen.option.columns", null, () -> s.sCols, v -> setGrid(s, s.sRows, (int) v), Bezier3.MIN_GRID, Bezier3.MAX_GRID, 1, true));
             }
             default -> { }
         }
-        if (s.is3d()) out.add(new Option.Cycler("Colours from", null, List.of("Side", "Top"), () -> s.topColours ? 1 : 0, v -> s.topColours = v == 1));
+        if (s.is3d()) out.add(new Option.Cycler("curvegen.option.colours_from", null, List.of("curvegen.choice.side", "curvegen.choice.top"), () -> s.topColours ? 1 : 0, v -> s.topColours = v == 1));
         return out;
     }
 
     /** One line that names the shape and its size. */
-    public static String describe(ShapeSettings s) {
-        String name = PresetData.defaultName(s, s.gen);
-        if (s.gen == Gen.TORUS && (s.tW != s.tRing || s.tD != s.tRing || s.tH != s.tTube)) name += ", stretched from a " + s.tRing + " ring";
-        return name;
+    public static Message describe(ShapeSettings s) {
+        if (s.gen == Gen.TORUS && (s.tW != s.tRing || s.tD != s.tRing || s.tH != s.tTube))
+            return Message.of(s.tHollow ? "curvegen.shape.torus.stretched_hollow" : "curvegen.shape.torus.stretched_filled", s.tW, s.tH, s.tD, s.tTube, s.tRing);
+        return PresetData.defaultName(s, s.gen);
     }
 }

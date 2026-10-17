@@ -250,12 +250,12 @@ class Edit2DTest {
     @Test
     void anEllipsesThicknessOnlyAppliesToAThickWall() {
         ShapeSettings s = of(Gen.ELLIPSE);
-        assertNotNull(option(s, "Thickness").off(), "a thin shell has no thickness");
-        Option.Cycler shape = (Option.Cycler) option(s, "Shape");
-        assertEquals("Thin", shape.names().get(shape.get().getAsInt()));
+        assertNotNull(option(s, "curvegen.option.thickness").off(), "a thin shell has no thickness");
+        Option.Cycler shape = (Option.Cycler) option(s, "curvegen.option.shape");
+        assertEquals("curvegen.choice.thin", shape.names().get(shape.get().getAsInt()));
         shape.set().accept(2);
         assertEquals(ShapeSettings.EllipseMode.OUTWARDS, s.eMode);
-        Option.Number t = (Option.Number) option(s, "Thickness");
+        Option.Number t = (Option.Number) option(s, "curvegen.option.thickness");
         assertNull(t.off());
         t.set().accept(t.fit(999));
         assertEquals(50, s.eT);
@@ -266,17 +266,17 @@ class Edit2DTest {
     @Test
     void anEquationsOptionsFollowWhatItSays() {
         ShapeSettings s = of(Gen.EQUATION);
-        Option.Text eq = (Option.Text) option(s, "Equation");
+        Option.Text eq = (Option.Text) option(s, "curvegen.option.equation");
         assertEquals("y = 2sin(x)", eq.get().get());
         assertNull(eq.check().apply("x^2 + y^2 < 9"));
         assertNotNull(eq.check().apply("y = sin("));
-        assertNull(option(s, "Shape").off());
-        assertNull(option(s, "Line width").off());
+        assertNull(option(s, "curvegen.option.shape").off());
+        assertNull(option(s, "curvegen.option.line_width").off());
         eq.set().accept("x^2 + y^2 < 9");
-        assertNotNull(option(s, "Shape").off(), "an inequality fills its own side");
-        assertNotNull(option(s, "Line width").off());
-        Option.Cycler lock = (Option.Cycler) option(s, "Same scale");
-        assertEquals("ON", lock.names().get(lock.get().getAsInt()));
+        assertNotNull(option(s, "curvegen.option.shape").off(), "an inequality fills its own side");
+        assertNotNull(option(s, "curvegen.option.line_width").off());
+        Option.Cycler lock = (Option.Cycler) option(s, "curvegen.option.same_scale");
+        assertEquals("curvegen.choice.on", lock.names().get(lock.get().getAsInt()));
         lock.set().accept(0);
         assertFalse(s.qLock);
     }
@@ -284,11 +284,11 @@ class Edit2DTest {
     @Test
     void aFilledBezierHasNoLineWidth() {
         ShapeSettings s = of(Gen.BEZIER);
-        assertNull(option(s, "Line width").off());
-        ((Option.Cycler) option(s, "Shape")).set().accept(1);
+        assertNull(option(s, "curvegen.option.line_width").off());
+        ((Option.Cycler) option(s, "curvegen.option.shape")).set().accept(1);
         assertEquals(ShapeSettings.BzMode.FILLED, s.bMode);
-        assertNotNull(option(s, "Line width").off());
-        ((Option.Cycler) option(s, "Snap")).set().accept(1);
+        assertNotNull(option(s, "curvegen.option.line_width").off());
+        ((Option.Cycler) option(s, "curvegen.option.snap")).set().accept(1);
         assertTrue(s.snap);
     }
 
@@ -296,7 +296,7 @@ class Edit2DTest {
     void optionLabelsFitAWedge() {
         for (Gen g : new Gen[]{Gen.ELLIPSE, Gen.EQUATION, Gen.BEZIER}) {
             assertTrue(Edit2D.options(of(g)).size() + 3 <= Radial.MAX_WEDGES, "with Add point, Remove point and Back");
-            for (Option o : Edit2D.options(of(g))) assertTrue(o.label().length() <= 13, o.label());
+            for (Option o : Edit2D.options(of(g))) assertTrue(o.label().startsWith("curvegen.option."), o.label());
         }
     }
 }

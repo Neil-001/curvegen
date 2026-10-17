@@ -1,5 +1,7 @@
 package dev.curvegen.client.screen;
 
+import static dev.curvegen.client.Lang.tr;
+
 import com.mojang.blaze3d.platform.InputConstants;
 import dev.curvegen.client.BlockChoices;
 import dev.curvegen.client.CurveGenClient;
@@ -16,7 +18,6 @@ import dev.curvegen.core.edit.Option;
 import dev.curvegen.core.edit.Radial;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.function.IntConsumer;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.AbstractWidget;
@@ -55,9 +56,9 @@ public class RadialScreen extends Screen {
 
     /** The shapes the menu starts. A kind with a null {@code gen} would be one the editor can't edit yet, shown greyed out. */
     private record Kind(String label, Gen gen) {}
-    private static final List<Kind> KINDS_2D = List.of(new Kind("Ellipse", Gen.ELLIPSE), new Kind("Equation", Gen.EQUATION), new Kind("Bézier curve", Gen.BEZIER)),
-            KINDS_3D = List.of(new Kind("Ellipsoid", Gen.ELLIPSOID), new Kind("Torus", Gen.TORUS), new Kind("3D equation", Gen.EQUATION3),
-                    new Kind("3D Bézier", Gen.BEZIER3), new Kind("Surface", Gen.SURFACE));
+    private static final List<Kind> KINDS_2D = List.of(new Kind("curvegen.radial.kind.ellipse", Gen.ELLIPSE), new Kind("curvegen.radial.kind.equation", Gen.EQUATION), new Kind("curvegen.radial.kind.bezier", Gen.BEZIER)),
+            KINDS_3D = List.of(new Kind("curvegen.radial.kind.ellipsoid", Gen.ELLIPSOID), new Kind("curvegen.radial.kind.torus", Gen.TORUS), new Kind("curvegen.radial.kind.equation3", Gen.EQUATION3),
+                    new Kind("curvegen.radial.kind.bezier3", Gen.BEZIER3), new Kind("curvegen.radial.kind.surface", Gen.SURFACE));
 
     /** Whether the menu can put this kind of shape in the world. The full menu's Place follows it. */
     static boolean offers(Gen gen) {
@@ -73,7 +74,7 @@ public class RadialScreen extends Screen {
     private boolean keyUp;
     private List<Wedge> wedges = List.of();
 
-    public RadialScreen() { super(Component.literal("Curve Generator menu")); }
+    public RadialScreen() { super(Component.literal(tr("curvegen.radial.title"))); }
 
     // ---------- the menus ----------
 
@@ -88,7 +89,7 @@ public class RadialScreen extends Screen {
             case OPTIONS -> { for (Option o : Editor.options()) out.add(option(o)); }
             case BLOCKS -> { for (Family f : BlockChoices.FAMILIES) out.add(blocks(f)); }
         }
-        if (page != Page.ROOT) out.add(new Wedge("Back", null, null, null, null, null, Stay.ALWAYS, () -> page = Page.ROOT));
+        if (page != Page.ROOT) out.add(new Wedge(tr("curvegen.radial.back"), null, null, null, null, null, Stay.ALWAYS, () -> page = Page.ROOT));
         return out;
     }
 
@@ -96,26 +97,26 @@ public class RadialScreen extends Screen {
     private Wedge leaf(String label, String off, Runnable select) { return new Wedge(label, null, off, null, null, null, Stay.NEVER, select); }
 
     private Wedge top(String id) {
-        String name = Radial.name(id);
+        String name = tr(Radial.name(id));
         return switch (id) {
             case "2d" -> nav(name, null, Page.SHAPES_2D);
             case "3d" -> nav(name, null, Page.SHAPES_3D);
             case "presets" -> leaf(name, null, () -> minecraft.gui.setScreen(new PresetsScreen(null, S.gen, RadialScreen::loadPreset)));
-            case "last" -> leaf(name, Editor.hasLast() ? null : "There's no earlier shape to bring back yet.", Editor::restoreLast);
-            case "options" -> nav(name, Editor.options().isEmpty() ? "This shape has no options of its own." : null, Page.OPTIONS);
+            case "last" -> leaf(name, Editor.hasLast() ? null : tr("curvegen.radial.no_last"), Editor::restoreLast);
+            case "options" -> nav(name, Editor.options().isEmpty() ? tr("curvegen.radial.no_options") : null, Page.OPTIONS);
             case "blocks" -> nav(name, null, Page.BLOCKS);
             case "export" -> leaf(name, Editor.notReady(), () -> Placement.say(Component.literal(Editor.export())));
             case "full" -> leaf(name, null, () -> minecraft.gui.setScreen(new CurveScreen()));
-            case "place" -> leaf(name, !Placement.canPlace(minecraft) ? "You need operator permissions to place. Use Export instead." : Editor.notReady(), Editor::confirm);
+            case "place" -> leaf(name, !Placement.canPlace(minecraft) ? tr("curvegen.editor.permission") : Editor.notReady(), Editor::confirm);
             default -> new Wedge(name, null, null, null, null, null, Stay.ALWAYS, () -> { Editor.cancel(); page = Page.ROOT; });
         };
     }
 
     private Wedge kind(Kind k) {
-        String off = !EditShape.supports(k.gen) ? "This shape can't be put in the world yet." : null;
-        return leaf(k.label, off, () -> {
+        String off = !EditShape.supports(k.gen) ? tr("curvegen.radial.unsupported") : null;
+        return leaf(tr(k.label), off, () -> {
             S.gen = k.gen;
-            if (!Placement.canPlace(minecraft)) Placement.say(Component.literal("You'll need operator permissions to place this."));
+            if (!Placement.canPlace(minecraft)) Placement.say(Component.literal(tr("curvegen.editor.permission_hint")));
             Editor.start();
         });
     }
@@ -132,17 +133,17 @@ public class RadialScreen extends Screen {
     private Wedge option(Option o) {
         Group group = new Group(this, o.label());
         return switch (o) {
-            case Option.Number n -> new Wedge(n.label(), InputScreen.fmt(n.get().getAsDouble()), n.off(), null, null,
+            case Option.Number n -> new Wedge(tr(n.label()), InputScreen.fmt(n.get().getAsDouble()), n.off() == null ? null : tr(n.off()), null, null,
                     d -> Editor.edit(group, () -> n.set().accept(n.fit(n.get().getAsDouble() + d * n.step()))), Stay.NEVER,
-                    () -> minecraft.gui.setScreen(InputScreen.number(n.label(), InputScreen.fmt(n.get().getAsDouble()), n.whole(), n.min(), n.max(),
+                    () -> minecraft.gui.setScreen(InputScreen.number(tr(n.label()), InputScreen.fmt(n.get().getAsDouble()), n.whole(), n.min(), n.max(),
                             v -> Editor.edit(null, () -> n.set().accept(v)))));
             case Option.Cycler c -> {
                 IntConsumer step = d -> Editor.edit(group, () -> c.set().accept(Math.floorMod(c.get().getAsInt() + d, c.names().size())));
-                yield new Wedge(c.label(), c.names().get(c.get().getAsInt()), c.off(), null, null, step, Stay.CLICK, () -> step.accept(1));
+                yield new Wedge(tr(c.label()), tr(c.names().get(c.get().getAsInt())), c.off() == null ? null : tr(c.off()), null, null, step, Stay.CLICK, () -> step.accept(1));
             }
-            case Option.Text t -> new Wedge(t.label(), t.get().get(), t.off(), null, null, null, Stay.NEVER,
-                    () -> minecraft.gui.setScreen(InputScreen.text(t.label(), t.get().get(), t.check(), v -> Editor.edit(null, () -> t.set().accept(v)))));
-            case Option.Action a -> new Wedge(a.label(), null, a.off(), null, null, null, Stay.CLICK, () -> Editor.edit(null, a.run()));
+            case Option.Text t -> new Wedge(tr(t.label()), t.get().get(), t.off() == null ? null : tr(t.off()), null, null, null, Stay.NEVER,
+                    () -> minecraft.gui.setScreen(InputScreen.text(tr(t.label()), t.get().get(), v -> dev.curvegen.client.Lang.text(t.check().apply(v)), v -> Editor.edit(null, () -> t.set().accept(v)))));
+            case Option.Action a -> new Wedge(tr(a.label()), null, a.off() == null ? null : tr(a.off()), null, null, null, Stay.CLICK, () -> Editor.edit(null, a.run()));
         };
     }
 
@@ -150,9 +151,9 @@ public class RadialScreen extends Screen {
         Block block = BlockChoices.CHOICE.get(f);
         String name = BlockChoices.familyName(f), off = null;
         if (!S.is3d() && S.floor && (f == Family.SLAB || f == Family.STAIRS))
-            off = "From above, " + name.toLowerCase(Locale.ROOT) + " look like full blocks, so flat builds don't use them.";
+            off = tr(f == Family.SLAB ? "curvegen.radial.flat_slab" : "curvegen.radial.flat_stairs");
         boolean full = f == Family.FULL;
-        return new Wedge(name, full ? "Always on" : S.allows(f) ? "ON" : "OFF", off, block.getName().getString(),
+        return new Wedge(name, full ? tr("curvegen.radial.always_on") : S.allows(f) ? tr("curvegen.option.on") : tr("curvegen.option.off"), off, block.getName().getString(),
                 new ItemStack(block), full ? null : _ -> Editor.edit(new Group(this, name), () -> S.allow(f, !S.allows(f))), Stay.NEVER,
                 () -> minecraft.gui.setScreen(new BlockPickerScreen(null, f, chosen -> {
                     BlockChoices.CHOICE.put(f, chosen);
@@ -304,14 +305,13 @@ public class RadialScreen extends Screen {
 
         String key = CurveGenClient.RADIAL.getTranslatedKeyMessage().getString();
         String title = switch (page) {
-            case ROOT -> Editor.isActive() ? Editor.describe() : "Start a shape";
-            case SHAPES_2D -> "2D shapes"; case SHAPES_3D -> "3D shapes"; case OPTIONS -> "Shape options"; case BLOCKS -> "Blocks";
+            case ROOT -> Editor.isActive() ? Editor.describe() : tr("curvegen.radial.start");
+            case SHAPES_2D -> tr("curvegen.radial.2d"); case SHAPES_3D -> tr("curvegen.radial.3d"); case OPTIONS -> tr("curvegen.radial.options"); case BLOCKS -> tr("curvegen.radial.blocks");
         };
         // Along the bottom: what the wedge pointed at is or why it's greyed out, or else how the menu works.
         String tip = hot < 0 ? null : wedges.get(hot).off != null ? wedges.get(hot).off : wedges.get(hot).tip;
         boolean scrolls = wedges.stream().anyMatch(w -> w.scroll != null);
-        String hint = title + ": " + (latched ? "click to choose, " + (scrolls ? "scroll to change, " : "") + key + " closes"
-                : "let go of " + key + " to choose" + (scrolls ? ", scroll to change" : ""));
+        String hint = tr("curvegen.radial.hint." + (latched ? "click" : "release") + (scrolls ? ".scroll" : ""), title, key);
         var lines = font.split(Component.literal(tip != null ? tip : hint), width - 12);
         int shown = Math.min(2, lines.size()), top = height - 2 - shown * 10, w = 0;
         for (int k = 0; k < shown; k++) w = Math.max(w, font.width(lines.get(k)));

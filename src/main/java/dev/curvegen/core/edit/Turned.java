@@ -1,5 +1,7 @@
 package dev.curvegen.core.edit;
 
+import dev.curvegen.core.Message;
+
 import dev.curvegen.core.Shape3;
 import java.util.ArrayList;
 import java.util.List;
@@ -87,7 +89,7 @@ public final class Turned implements Shape3 {
     @Override public boolean hollow() { return in.hollow(); }
     @Override public double[] carve() { return in.carve(); }
     @Override public int pad() { return in.pad(); }
-    @Override public String error() { return in.error(); }
+    @Override public Message error() { return in.error(); }
 
     private boolean sym(int worldAxis) { return own[worldAxis] == 0 ? in.symX() : own[worldAxis] == 1 ? in.symY() : in.symZ(); }
     @Override public boolean symX() { return sym(0); }

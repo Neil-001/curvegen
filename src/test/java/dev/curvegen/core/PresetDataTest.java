@@ -38,11 +38,11 @@ class PresetDataTest {
     @Test
     void defaultNames() {
         ShapeSettings s = unusual();
-        assertEquals("Ellipse 57×23, thick middle 1.75", PresetData.defaultName(s, ShapeSettings.Gen.ELLIPSE));
-        assertEquals("y = 9 - x^2/4, fill over, 31 wide", PresetData.defaultName(s, ShapeSettings.Gen.EQUATION));
-        assertEquals("Quadratic Bézier 64×30, filled", PresetData.defaultName(s, ShapeSettings.Gen.BEZIER));
+        assertEquals(Message.of("curvegen.shape.ellipse.middle", 57, 23, "1.75"), PresetData.defaultName(s, ShapeSettings.Gen.ELLIPSE));
+        assertEquals(Message.of("curvegen.shape.equation.over", "y = 9 - x^2/4", 31, "2.5"), PresetData.defaultName(s, ShapeSettings.Gen.EQUATION));
+        assertEquals(Message.of("curvegen.shape.bezier.quadratic.filled", 64, 30, "0.75", 3), PresetData.defaultName(s, ShapeSettings.Gen.BEZIER));
         s.src = "y < 4 - x^2";
-        assertEquals("y < 4 - x^2, 31 wide", PresetData.defaultName(s, ShapeSettings.Gen.EQUATION), "inequalities have no shape");
+        assertEquals(Message.of("curvegen.shape.equation.inequality", "y < 4 - x^2", 31, "2.5"), PresetData.defaultName(s, ShapeSettings.Gen.EQUATION), "inequalities have no shape");
     }
 
     @Test
@@ -119,7 +119,7 @@ class PresetDataTest {
     @Test
     void examplesMatchTheOldExampleButton() {
         assertEquals(7, PresetData.examples().size());
-        String[] names = {"Sine wave", "Parabolic arch", "Catenary arch", "Gothic arch", "Circle", "Heart", "Tangent"};
+        String[] names = {"curvegen.preset.example.sine_wave", "curvegen.preset.example.parabolic_arch", "curvegen.preset.example.catenary_arch", "curvegen.preset.example.gothic_arch", "curvegen.preset.example.circle", "curvegen.preset.example.heart", "curvegen.preset.example.tangent"};
         for (int k = 0; k < names.length; k++) {
             PresetData.Example e = PresetData.examples().get(k);
             assertEquals(names[k], e.name());

@@ -352,7 +352,7 @@ class Solver3Test {
             assertEquals(gen, loaded.gen);
             assertTrue(loaded.is3d());
             assertEquals(PresetData.capture(s, gen), PresetData.capture(loaded, gen));
-            assertFalse(PresetData.defaultName(s, gen).isEmpty());
+            assertFalse(PresetData.defaultName(s, gen).key().isEmpty());
         }
         assertEquals(40, c.e3W); assertEquals(ShapeSettings.EllipseMode.INWARDS, c.e3Mode); assertEquals(2.5, c.e3T);
         assertEquals(7, c.tTube); assertTrue(c.tHollow);

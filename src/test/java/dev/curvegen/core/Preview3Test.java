@@ -228,7 +228,7 @@ class Preview3Test {
                 hasIcon |= s == g.icon();
             }
             assertTrue(hasIcon);
-            assertTrue(g.name().length() <= 26, g.name());
+            assertTrue(g.name().key().startsWith("curvegen.count3."), g.name().toString());
         }
         for (int s = 1; s < Pieces3.COUNT; s++) assertEquals(1, rows[s], Pieces3.name(s));
         assertEquals(0, rows[Pieces3.AIR]);
@@ -249,18 +249,18 @@ class Preview3Test {
 
     @Test
     void rowsAreNamedAsABuilderWouldSayIt() {
-        assertEquals("Upright, straight", Count3.name(Pieces3.stair(0, Pieces3.E, Pieces3.STRAIGHT)));
-        assertEquals("Upside-down, inner corner", Count3.name(Pieces3.stair(1, Pieces3.N, Pieces3.INNER_RIGHT)));
-        assertEquals("Post only", Count3.name(Pieces3.FENCE));
-        assertEquals("Corner", Count3.name(Pieces3.PANE + 3));
-        assertEquals("Straight", Count3.name(Pieces3.FENCE + 5));
-        assertEquals("3 sides", Count3.name(Pieces3.FENCE + 7));
-        assertEquals("Straight, no post", Count3.name(Pieces3.wall(1, 0, 2, 0, false)));
-        assertEquals("Straight", Count3.name(Pieces3.wall(1, 0, 1, 0, true)));
-        assertEquals("Post only", Count3.name(Pieces3.WALL_POST));
-        assertEquals("Up and down", Count3.name(Pieces3.CHAIN + 1));
+        assertEquals(Message.of("curvegen.count3.stairs.upright.straight"), Count3.name(Pieces3.stair(0, Pieces3.E, Pieces3.STRAIGHT)));
+        assertEquals(Message.of("curvegen.count3.stairs.inverted.inner"), Count3.name(Pieces3.stair(1, Pieces3.N, Pieces3.INNER_RIGHT)));
+        assertEquals(Message.of("curvegen.count3.connector.post"), Count3.name(Pieces3.FENCE));
+        assertEquals(Message.of("curvegen.count3.connector.corner"), Count3.name(Pieces3.PANE + 3));
+        assertEquals(Message.of("curvegen.count3.connector.straight"), Count3.name(Pieces3.FENCE + 5));
+        assertEquals(Message.of("curvegen.count3.connector.three"), Count3.name(Pieces3.FENCE + 7));
+        assertEquals(Message.of("curvegen.count3.connector.straight.no_post"), Count3.name(Pieces3.wall(1, 0, 2, 0, false)));
+        assertEquals(Message.of("curvegen.count3.connector.straight"), Count3.name(Pieces3.wall(1, 0, 1, 0, true)));
+        assertEquals(Message.of("curvegen.count3.connector.post"), Count3.name(Pieces3.WALL_POST));
+        assertEquals(Message.of("curvegen.count3.chain.y"), Count3.name(Pieces3.CHAIN + 1));
         // A stair's icon is its profile, not its back.
         for (Count3.Group g : Count3.GROUPS)
-            if (g.family() == Family.STAIRS && g.name().endsWith("straight")) assertEquals(192, Count3.silhouette(g.icon()));
+            if (g.family() == Family.STAIRS && g.name().key().endsWith(".straight")) assertEquals(192, Count3.silhouette(g.icon()));
     }
 }

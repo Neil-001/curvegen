@@ -1,5 +1,7 @@
 package dev.curvegen.core.edit;
 
+import dev.curvegen.core.Message;
+
 /**
  * Which way a shape's own axes point in the world. Each axis points along one of the six directions, numbered as
  * Minecraft's {@code Direction} is: 0 down, 1 up, 2 north (-z), 3 south (+z), 4 west (-x), 5 east (+x).
@@ -13,7 +15,7 @@ public record Orient(int x, int y, int z) {
 
     public Orient {
         if (worldAxis(x) == worldAxis(y) || worldAxis(x) == worldAxis(z) || worldAxis(y) == worldAxis(z))
-            throw new IllegalArgumentException("axes must be perpendicular: " + x + ", " + y + ", " + z);
+            throw new IllegalArgumentException(Message.of("curvegen.diagnostic.perpendicular_axes", x, y, z).toString());
     }
 
     /** The world axis (0 x, 1 y, 2 z) a direction runs along. */

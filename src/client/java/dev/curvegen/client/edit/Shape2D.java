@@ -1,5 +1,6 @@
 package dev.curvegen.client.edit;
 
+import dev.curvegen.client.Lang;
 import dev.curvegen.client.BlockChoices;
 import dev.curvegen.core.Pieces;
 import dev.curvegen.core.ShapeSettings;
@@ -105,8 +106,9 @@ final class Shape2D implements EditShape {
     @Override
     public String describe() {
         int[] z = size();
-        String name = s.gen == Gen.ELLIPSE ? "Ellipse" : s.gen == Gen.EQUATION ? "Equation" : "Bézier curve";
-        return name + ", " + (s.floor ? "flat: " + z[0] + " by " + z[1] + ", " + z[2] + (z[2] == 1 ? " layer" : " layers") + " high"
-                : z[0] + " wide, " + z[1] + " tall, " + z[2] + " deep");
+        String name = Lang.tr(s.gen == Gen.ELLIPSE ? "curvegen.editor.shape.ellipse"
+                : s.gen == Gen.EQUATION ? "curvegen.editor.shape.equation" : "curvegen.editor.shape.bezier");
+        return Lang.tr(s.floor ? (z[2] == 1 ? "curvegen.editor.shape.flat_layer" : "curvegen.editor.shape.flat_layers")
+                : "curvegen.editor.shape.upright", name, z[0], z[1], z[2]);
     }
 }

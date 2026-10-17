@@ -220,7 +220,7 @@ class Shapes3Test {
         double[] lattice = new double[125];
         for (ShapeSettings s : awkward()) {
             Shape3 sh = Shape3.of(s);
-            String what = PresetData.defaultName(s, s.gen);
+            String what = PresetData.defaultName(s, s.gen).toString();
             assertNull(sh.error(), what);
             int skipped = 0;
             for (int j = 0; j < sh.ny(); j++)
@@ -240,7 +240,7 @@ class Shapes3Test {
     void theyAllSolveAndSettle() {
         for (ShapeSettings s : awkward()) {
             Solver3.Result r = Solver3.run(s);
-            String what = PresetData.defaultName(s, s.gen);
+            String what = PresetData.defaultName(s, s.gen).toString();
             assertTrue(r.sweeps() <= Solver3.MAX_SWEEPS, what);
             assertTrue(r.err() <= r.volume() + 1e-9, what + ": worse than building nothing");
             int sum = 0;
@@ -324,12 +324,12 @@ class Shapes3Test {
 
     @Test
     void mistakesComeBackAsAMessage() {
-        Map<String, String> wrong = Map.of(
-                "z = sin(x", "sin( is missing its closing ).",
-                "", "Type an equation, for example z = sin(x) cos(y).",
-                "x + z", "Add an = sign, for example x^2 + y^2 + z^2 = 9.",
-                "z = w", "\"w\" isn't something I know. Use x, y, z, pi, e or a function name.");
-        for (Map.Entry<String, String> e : wrong.entrySet()) {
+        Map<String, Message> wrong = Map.of(
+                "z = sin(x", Message.of("curvegen.error.function_missing_bracket", "sin"),
+                "", Message.of("curvegen.error.empty_equation3"),
+                "x + z", Message.of("curvegen.error.missing_relation3"),
+                "z = w", Message.of("curvegen.error.unknown_name3", "w"));
+        for (Map.Entry<String, Message> e : wrong.entrySet()) {
             ShapeSettings s = equation(e.getKey(), SURFACE, 1, 12);
             Shape3 sh = Shape3.of(s);
             assertEquals(e.getValue(), sh.error());
@@ -339,9 +339,9 @@ class Shapes3Test {
             assertNull(Solver3.carve(sh));
             assertFalse(sh.wireframe().isEmpty(), "the box still shows");
         }
-        assertEquals("The y range must end higher than it starts.", Shape3.of(equation("z = x", SURFACE, 1, 12, "0", "1", "2", "2", "0", "1")).error());
-        assertEquals("z to: \"q\" isn't something I know. Use x, y, pi, e or a function name.", Shape3.of(equation("z = x", SURFACE, 1, 12, "0", "1", "0", "2", "0", "q")).error());
-        assertEquals("x from must be a number, like 5 or 2pi.", Shape3.of(equation("z = x", SURFACE, 1, 12, "y", "1", "0", "2", "0", "1")).error());
+        assertEquals(Message.of("curvegen.error.range_order", "y"), Shape3.of(equation("z = x", SURFACE, 1, 12, "0", "1", "2", "2", "0", "1")).error());
+        assertEquals(Message.of("curvegen.error.range_parse", Message.of("curvegen.range.z_to"), Message.of("curvegen.error.unknown_name2", "q")), Shape3.of(equation("z = x", SURFACE, 1, 12, "0", "1", "0", "2", "0", "q")).error());
+        assertEquals(Message.of("curvegen.error.range_number", Message.of("curvegen.range.x_from")), Shape3.of(equation("z = x", SURFACE, 1, 12, "y", "1", "0", "2", "0", "1")).error());
         assertNull(Shape3.of(equation("z = x", SURFACE, 1, 12, "-2pi", "2pi", "0", "e", "-1/2", "sqrt(2)")).error());
     }
 
@@ -409,7 +409,7 @@ class Shapes3Test {
                 cube("(x^2 + 9/4 y^2 + z^2 - 1)^3 = x^2 z^3 + 9/80 y^2 z^3", BELOW, 1, 24, "-1.5", "1.5"));
         for (ShapeSettings s : cases) {
             Solver3.Result a = Solver3.run(s), b = Solver3.solve(pointByPoint(Shape3.of(s)), s, () -> false);
-            String what = PresetData.defaultName(s, s.gen);
+            String what = PresetData.defaultName(s, s.gen).toString();
             assertEquals(b.volume(), a.volume(), b.volume() * 0.004, what);
             assertEquals(b.err(), a.err(), b.err() * 0.02, what);
             int differ = 0;
@@ -472,7 +472,7 @@ class Shapes3Test {
     @Test
     void aCurveNeedsTwoPoints() {
         ShapeSettings s = curve(8, 8, 8, 1, 4, 4, 4);
-        assertEquals("A curve needs at least two points.", Shape3.of(s).error());
+        assertEquals(Message.of("curvegen.error.curve_min_points"), Shape3.of(s).error());
         assertEquals(0, blocks(Solver3.run(s)));
         // Two points in one place are a ball.
         s = curve(8, 8, 8, 4, 4, 4, 4, 4, 4, 4);
@@ -516,7 +516,7 @@ class Shapes3Test {
             for (ShapeSettings s : List.of(bumpy(30, 16, t, 7), skew(t), folded(t))) {
                 double exact = area(s) * t;
                 // Off the block grid, an edge can sit up to an eighth of a block out.
-                assertEquals(exact, Solver3.run(s).volume(), exact * 0.012, PresetData.defaultName(s, s.gen));
+                assertEquals(exact, Solver3.run(s).volume(), exact * 0.012, PresetData.defaultName(s, s.gen).toString());
             }
         }
     }
@@ -763,12 +763,12 @@ class Shapes3Test {
             again.gen = gen;
             assertArrayEquals(Solver3.run(again).grid(), Solver3.run(loaded).grid(), gen + " shape");
         }
-        assertEquals("x^2 + y^2 = z + 2pi, fill below, 77 wide", PresetData.defaultName(s, ShapeSettings.Gen.EQUATION3));
-        assertEquals("7-point 3D Bézier 50×20×30, thickness 0.75", PresetData.defaultName(s, ShapeSettings.Gen.BEZIER3));
-        assertEquals("Bézier surface 3×5 points, 44×9×31, thickness 1.75", PresetData.defaultName(s, ShapeSettings.Gen.SURFACE));
+        assertEquals(Message.of("curvegen.shape.equation3.below", "x^2 + y^2 = z + 2pi", 77, "2.25"), PresetData.defaultName(s, ShapeSettings.Gen.EQUATION3));
+        assertEquals(Message.of("curvegen.shape.bezier3.general", 50, 20, 30, "0.75", 7), PresetData.defaultName(s, ShapeSettings.Gen.BEZIER3));
+        assertEquals(Message.of("curvegen.shape.surface", 3, 5, 44, 9, 31, "1.75"), PresetData.defaultName(s, ShapeSettings.Gen.SURFACE));
         s.src3 = "z < x"; s.q3Mode = SURFACE;
-        assertEquals("z < x, 77 wide", PresetData.defaultName(s, ShapeSettings.Gen.EQUATION3), "inequalities have no shape");
-        assertEquals("z = x, surface 2.25, 77 wide", PresetData.defaultName(equation("z = x", SURFACE, 2.25, 77), ShapeSettings.Gen.EQUATION3));
+        assertEquals(Message.of("curvegen.shape.equation3.inequality", "z < x", 77, "2.25"), PresetData.defaultName(s, ShapeSettings.Gen.EQUATION3), "inequalities have no shape");
+        assertEquals(Message.of("curvegen.shape.equation3.surface", "z = x", 77, "2.25"), PresetData.defaultName(equation("z = x", SURFACE, 2.25, 77), ShapeSettings.Gen.EQUATION3));
         assertEquals("equation3-waves", PresetData.fileStem(ShapeSettings.Gen.EQUATION3, "Waves"));
         assertEquals("bezier3-arch", PresetData.fileStem(ShapeSettings.Gen.BEZIER3, "Arch"));
         assertEquals("surface-roof", PresetData.fileStem(ShapeSettings.Gen.SURFACE, "Roof"));
