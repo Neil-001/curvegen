@@ -44,8 +44,8 @@ Curve Generator 1.3.0 adds shelves, chains and end rods as block choices for cur
 
 ## Features
 
-- Use shelves to build curves (#32)
-- Include chains and end rods in curves with optional block choices (#34)
+- Use shelves to build curves (#36)
+- Include chains and end rods in curves with optional block choices (#37)
 
 # 1.2.0
 
