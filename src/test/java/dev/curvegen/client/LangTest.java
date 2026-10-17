@@ -24,9 +24,8 @@ import net.minecraft.util.FormattedCharSequence;
 import org.junit.jupiter.api.Test;
 
 class LangTest {
-    private static Map<String, String> english() throws Exception {
+    private static Map<String, String> entries(Path file) throws Exception {
         Map<String, String> entries = new HashMap<>();
-        Path file = Path.of("../src/main/resources/assets/curvegen/lang/en_us.json");
         try (var reader = Files.newBufferedReader(file)) {
             JsonParser.parseReader(reader).getAsJsonObject().entrySet().forEach(e -> entries.put(e.getKey(), e.getValue().getAsString()));
         }
@@ -56,7 +55,7 @@ class LangTest {
     @Test
     void nestedMessagesKeepTheirArgumentsAndUseTheCurrentLanguage() throws Exception {
         Language original = Language.getInstance();
-        Map<String, String> entries = english();
+        Map<String, String> entries = entries(Path.of("../src/main/resources/assets/curvegen/lang/en_us.json"));
         Language.inject(language(entries));
         try {
             var text = Lang.component(Message.of("curvegen.editor.fix_shape", Message.of("curvegen.error.unexpected_token", "@")));
@@ -68,8 +67,22 @@ class LangTest {
     }
 
     @Test
+    void existingComponentsFollowLanguageChangesAndFormatTranslatedArguments() throws Exception {
+        Language original = Language.getInstance();
+        String key = "curvegen.placement.fallback.place";
+        var component = Lang.component(key, 12, 3);
+        try (var files = Files.list(Path.of("../src/main/resources/assets/curvegen/lang"))) {
+            for (Path file : files.filter(path -> path.toString().endsWith(".json")).toList()) {
+                Map<String, String> entries = entries(file);
+                Language.inject(language(entries));
+                assertEquals(entries.get(key).replace("%1$s", "12").replace("%2$s", "3"), component.getString(), file.toString());
+            }
+        } finally { Language.inject(original); }
+    }
+
+    @Test
     void allCorePieceNamesAndOptionsHaveEnglishEntries() throws Exception {
-        Map<String, String> entries = english();
+        Map<String, String> entries = entries(Path.of("../src/main/resources/assets/curvegen/lang/en_us.json"));
         Language original = Language.getInstance();
         Language.inject(language(entries));
         try {
