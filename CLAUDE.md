@@ -207,13 +207,23 @@ The fallback's commands each get a reply in chat, and `Placement.hidesFeedback` 
 - A reply is only hidden when the command it answers is the mod's, and when that isn't certain it shows. It's a best effort: one command that prints several successes, such as `execute at @a run setblock`, can still have the later ones hidden.
 - It never touches the server's `sendCommandFeedback`.
 
+## Branch workflow
+
+`main` is the development branch. Open feature, fix and documentation PRs against `main`; don't duplicate them against `26.3/stable`. That branch receives one release PR with all changes ready to publish for Minecraft 26.3.
+
+Prepare the version and changelog on `main`, then cut `release/26.3-<version>` from the tested commit and open its PR against `26.3/stable`. Keep that release branch at the chosen version while development continues on `main`. Merge the release PR with a merge commit, never squash or rebase it: later promotions need the original commits in the stable branch's ancestry. Feature PRs into `main` may still be squashed.
+
+If the release PR conflicts with stable, merge `origin/26.3/stable` into the release branch, resolve the conflicts and rerun the checks. Keep the intended release contents, including its version and changelog. Bring any release fixes back to `main` before the next promotion. A hotfix that must ship before the next promotion can target stable, but bring that fix back to `main` too.
+
+Older `*/stable` branches receive only selected backports for their Minecraft versions. Once `main` targets a newer Minecraft version, maintain `26.3/stable` the same way.
+
 ## Releasing
 
 Only `*/stable` branches release. Run `.github/workflows/release.yml` from `main` to publish to Modrinth, CurseForge and GitHub. It builds two-loader branches with Java 25 and older Fabric branches with Java 21, and reads loader and Minecraft ranges from jar metadata.
 
-1. On the stable branch, open a PR bumping `mod_version` in `gradle.properties` and adding `# <version>` at the top of `CHANGELOG.md`. Stonecutter branches use `mod.version` in `stonecutter.properties.toml`. Use `-beta.1` or `-alpha.1` suffixes for prereleases.
-2. After merge, run `gh workflow run release.yml -f dry_run=true` and check the summary's jars and notes.
-3. Run `gh workflow run release.yml` to publish.
+1. For the current Minecraft version, bump `mod_version` in `gradle.properties` and add `# <version>` at the top of `CHANGELOG.md` on `main`, then promote through the release PR above. For an older maintenance branch, prepare those changes in a PR against that branch. Stonecutter branches use `mod.version` in `stonecutter.properties.toml`. Use `-beta.1` or `-alpha.1` suffixes for prereleases.
+2. After the release PR merges and stable's checks pass, run `gh workflow run release.yml --ref main -f branches=26.3/stable -f dry_run=true` and check the summary's jars and notes. Substitute the selected branch for an older release.
+3. Run `gh workflow run release.yml --ref main -f branches=26.3/stable` to publish that release.
 
 Tags use `<version>+mc<line>`, such as `1.1.0+mc1.21.x`. The default `branches=all` skips existing tags. The workflow creates the tag last, after publishing. Two-loader versions have distinct identifiers such as `1.0.0+mc26.1-fabric` and `1.0.0+mc26.1-neoforge`; GitHub holds both jars in one release.
 
