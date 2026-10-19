@@ -7,6 +7,7 @@ import java.util.function.Consumer;
 import java.util.function.DoubleConsumer;
 import java.util.function.UnaryOperator;
 import net.minecraft.client.KeyMapping;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
@@ -109,12 +110,13 @@ public class InputScreen extends Screen {
         return super.keyReleased(event);
     }
 
-    /** The key can also come up without the box seeing it. */
+    /** The key can also come up without the box seeing it. A key bound by scancode can't be polled, so it goes by keyReleased. */
     @Override
     public void tick() {
         if (held == null) return;
         InputConstants.Key key = InputConstants.getKey(held.saveString());
-        if (key.getType() != InputConstants.Type.KEYBOARD || !InputConstants.isKeyDown(key.getValue())) held = null;
+        if (key.getType() == InputConstants.Type.MOUSE
+                || key.getType() == InputConstants.Type.KEYSYM && !InputConstants.isKeyDown(Minecraft.getInstance().getWindow(), key.getValue())) held = null;
     }
 
     @Override

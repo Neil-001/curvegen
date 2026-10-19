@@ -77,7 +77,7 @@ public final class StepHold {
     }
 
     private static boolean onKeyboard(KeyMapping mapping) {
-        return InputConstants.getKey(mapping.saveString()).getType() == InputConstants.Type.KEYBOARD;
+        return InputConstants.getKey(mapping.saveString()).getType() != InputConstants.Type.MOUSE;
     }
 
     /** Calls off the hold in progress. The key that is down does nothing more until it's pressed again. */

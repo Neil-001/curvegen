@@ -1,6 +1,6 @@
 # 2.1.0
 
-Curve Generator 2.1.0 adds translations for nine languages. Menus, tooltips, editor hints and messages now follow Minecraft's language setting. This version is for Minecraft 26.3 on Fabric and NeoForge.
+Curve Generator 2.1.0 adds translations for nine languages. Menus, tooltips, editor hints and messages now follow Minecraft's language setting. This version is for Minecraft 26.2 on Fabric and NeoForge.
 
 ## Features
 

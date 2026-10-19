@@ -1,6 +1,6 @@
 # Curve Generator
 
-A Fabric and NeoForge mod for Minecraft Java 26.3. It turns 2D shapes (ellipses, equations and Bézier curves) and 3D shapes (ellipsoids, toruses, 3D equations, 3D Bézier curves and Bézier surfaces) into blocks, with a preview, a hologram the player edits in the world, operator-only placement and Litematica export.
+A Fabric and NeoForge mod for Minecraft Java 26.2. It turns 2D shapes (ellipses, equations and Bézier curves) and 3D shapes (ellipsoids, toruses, 3D equations, 3D Bézier curves and Bézier surfaces) into blocks, with a preview, a hologram the player edits in the world, operator-only placement and Litematica export.
 
 ## Commands
 
@@ -10,7 +10,7 @@ Needs JDK 25. Versions are in `gradle.properties`. Run build and test after ever
 - `./gradlew :fabric:test` runs the JUnit tests for the core and for client classes that don't need the game running, such as `ModSettings`. Only Fabric hosts them. `GameRules3Test` is the one test that loads Minecraft's blocks, to check the 3D pieces against the game. `Rules3Test` checks the same stair, fence, pane and wall rules against a plain Java copy of them.
 - `./gradlew :fabric:runClient` or `./gradlew :neoforge:runClient` starts a dev client. Use `runServer` for a server.
 
-Both jars target 26.3 only. Minecraft is unobfuscated, so use its own names without mappings. Builds use the minimum supported Fabric API and NeoForge versions; CI also compiles against newer ones.
+Both jars target 26.2 only. Minecraft is unobfuscated, so use its own names without mappings. Builds use the minimum supported Fabric API and NeoForge versions; CI also compiles against newer ones.
 
 ## Layout and boundaries
 

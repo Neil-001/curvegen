@@ -19,6 +19,7 @@ import dev.curvegen.core.edit.Radial;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.IntConsumer;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.screens.Screen;
@@ -218,7 +219,7 @@ public class RadialScreen extends Screen {
     public void tick() {
         if (keyUp) return;
         InputConstants.Key key = InputConstants.getKey(CurveGenClient.RADIAL.saveString());
-        if (key.getType() == InputConstants.Type.KEYBOARD && !InputConstants.isKeyDown(key.getValue())) keyCameUp();
+        if (key.getType() == InputConstants.Type.KEYSYM && !InputConstants.isKeyDown(Minecraft.getInstance().getWindow(), key.getValue())) keyCameUp();
     }
 
     @Override

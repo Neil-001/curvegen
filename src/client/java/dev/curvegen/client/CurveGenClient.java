@@ -40,7 +40,7 @@ public final class CurveGenClient {
     public static final List<StepKey> STEP_KEYS = new ArrayList<>();
 
     private static KeyMapping key(String name, int code) {
-        KeyMapping k = new KeyMapping("key.curvegen." + name, InputConstants.Type.KEYBOARD, code, CATEGORY);
+        KeyMapping k = new KeyMapping("key.curvegen." + name, InputConstants.Type.KEYSYM, code, CATEGORY);
         KEYS.add(k);
         return k;
     }
