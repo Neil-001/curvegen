@@ -5,7 +5,7 @@ on:
   workflow_call:
     inputs:
       line:
-        description: The Minecraft line the branch covers, such as 1.21.x
+        description: The Minecraft line the branch covers, such as 1.21.1 or 26.3
         type: string
         required: true
       version:
@@ -70,14 +70,12 @@ jobs:
           path: .release-tools
           sparse-checkout: .github/scripts
 
+      # Each line's branch states its own Java level in its build file.
       - name: Choose the build JDK
         id: java
         run: |
-          if [ -d fabric ] && [ -d neoforge ]; then
-            echo "version=25" >> "$GITHUB_OUTPUT"
-          else
-            echo "version=21" >> "$GITHUB_OUTPUT"
-          fi
+          java=$(.release-tools/.github/scripts/release-java.sh)
+          echo "version=$java" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-java@v6
         with:
@@ -108,9 +106,7 @@ jobs:
         run: |
           .release-tools/.github/scripts/release-notes.sh "$VERSION" > dist/notes.md
           cp dist/notes.md dist/notes-github.md
-          if previous=$(git describe --tags --abbrev=0 --match "*+mc$LINE" 2>/dev/null); then
-            printf '\n**Full Changelog**: %s/%s/compare/%s...%s\n' "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$previous" "$TAG" >> dist/notes-github.md
-          fi
+          .release-tools/.github/scripts/release-compare.sh "$LINE" "$TAG" >> dist/notes-github.md
 
       - name: Summarise
         env:
