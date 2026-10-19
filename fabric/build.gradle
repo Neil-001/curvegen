@@ -1,5 +1,6 @@
 plugins {
-	id 'net.fabricmc.fabric-loom' version '1.18.2'
+	// Loom 1.18 and later need Java 25 to run Gradle. The release workflow builds this branch with Java 21.
+	id 'net.fabricmc.fabric-loom-remap' version '1.17.21'
 }
 
 repositories {
@@ -44,10 +45,12 @@ sourceSets {
 
 dependencies {
 	minecraft "com.mojang:minecraft:${project.minecraft_version}"
-	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
-	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+	// 1.21.11 is obfuscated, so the code uses Mojang's names and Loom remaps the jar to the game's.
+	mappings loom.officialMojangMappings()
+	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 	// Mod Menu is optional: only its entrypoint class refers to it, and only Mod Menu loads that class.
-	compileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
+	modCompileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
 
 	// Tests cover the pure-Java core (dev.curvegen.core) and the settings file. GameRules3Test also loads Minecraft's blocks, without a world or client.
 	testImplementation "org.junit.jupiter:junit-jupiter:5.10.3"

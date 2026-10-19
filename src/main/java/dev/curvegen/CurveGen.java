@@ -35,7 +35,7 @@ public final class CurveGen {
     public static void place(ServerPlayer player, PlaceBlocksPayload payload) {
         if (!player.permissions().hasPermission(Permissions.COMMANDS_GAMEMASTER)) {
             if (payload.last())
-                player.sendOverlayMessage(Component.translatable("curvegen.placement.permission").withStyle(ChatFormatting.RED));
+                player.displayClientMessage(Component.translatable("curvegen.placement.permission").withStyle(ChatFormatting.RED), true);
             return;
         }
         ServerLevel world = player.level();
@@ -43,7 +43,7 @@ public final class CurveGen {
         // the one it stands on or hangs from would break again. The updates run once the last batch is in.
         int flags = payload.undo() ? Block.UPDATE_CLIENTS | Block.UPDATE_SKIP_ALL_SIDEEFFECTS : Block.UPDATE_ALL;
         if (!payload.undo()) RESTORED.remove(player.getUUID());   // drops the list of an undo that never finished
-        List<BlockPos> restored = payload.undo() ? RESTORED.computeIfAbsent(player.getUUID(), _ -> new ArrayList<>()) : null;
+        List<BlockPos> restored = payload.undo() ? RESTORED.computeIfAbsent(player.getUUID(), id -> new ArrayList<>()) : null;
         int skipped = 0;
         for (int i = 0; i < payload.states().length; i++) {
             BlockPos pos = payload.origin().offset(payload.offsets()[3 * i], payload.offsets()[3 * i + 1], payload.offsets()[3 * i + 2]);
@@ -69,7 +69,7 @@ public final class CurveGen {
             String key = payload.undo() ? "curvegen.placement.undone" : "curvegen.placement.placed";
             if (skipped > 0) key += ".skipped";
             // Shown above the hotbar on one line that doesn't wrap, so it has to stay short.
-            player.sendOverlayMessage(Component.translatable(key, payload.total(), skipped));
+            player.displayClientMessage(Component.translatable(key, payload.total(), skipped), true);
         }
     }
 }

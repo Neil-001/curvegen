@@ -40,7 +40,7 @@ public final class CurveGenClient {
     public static final List<StepKey> STEP_KEYS = new ArrayList<>();
 
     private static KeyMapping key(String name, int code) {
-        KeyMapping k = new KeyMapping("key.curvegen." + name, InputConstants.Type.KEYBOARD, code, CATEGORY);
+        KeyMapping k = new KeyMapping("key.curvegen." + name, InputConstants.Type.KEYSYM, code, CATEGORY);
         KEYS.add(k);
         return k;
     }
@@ -78,11 +78,11 @@ public final class CurveGenClient {
 
     /** Call at the end of every client tick. */
     public static void tick(Minecraft mc) {
-        while (OPEN.consumeClick()) mc.gui.setScreen(new CurveScreen());
+        while (OPEN.consumeClick()) mc.setScreen(new CurveScreen());
         // Z takes back an edit while there's a hologram, and the last placement otherwise. Y puts either back.
         while (UNDO.consumeClick()) { if (Editor.isActive()) Editor.undo(); else Placement.undo(); }
         while (REDO.consumeClick()) { if (Editor.isActive()) Editor.redo(); else Placement.redo(); }
-        while (RADIAL.consumeClick()) if (mc.gui.screen() == null && mc.player != null) mc.gui.setScreen(new RadialScreen());
+        while (RADIAL.consumeClick()) if (mc.screen == null && mc.player != null) mc.setScreen(new RadialScreen());
         StepHold.tick(mc);
         for (KeyMapping k : KEYS) {
             if (k == OPEN || k == UNDO || k == REDO || k == RADIAL) continue;

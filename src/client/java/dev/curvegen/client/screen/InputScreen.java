@@ -7,7 +7,7 @@ import java.util.function.Consumer;
 import java.util.function.DoubleConsumer;
 import java.util.function.UnaryOperator;
 import net.minecraft.client.KeyMapping;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.CharacterEvent;
@@ -60,7 +60,7 @@ public class InputScreen extends Screen {
         try {
             double v = Double.parseDouble(text.trim().replace(',', '.'));
             return Double.isFinite(v) && v >= min && v <= max && (!whole || v == Math.rint(v)) ? v : null;
-        } catch (NumberFormatException _) {
+        } catch (NumberFormatException ignored) {
             return null;
         }
     }
@@ -92,7 +92,7 @@ public class InputScreen extends Screen {
     private void submit() {
         if (problem != null) return;
         String value = field.getValue();
-        minecraft.gui.setScreen(null);
+        minecraft.setScreen(null);
         onConfirm.accept(value);
     }
 
@@ -109,12 +109,13 @@ public class InputScreen extends Screen {
         return super.keyReleased(event);
     }
 
-    /** The key can also come up without the box seeing it. */
+    /** The key can also come up without the box seeing it. A key bound by scancode can't be polled, so it goes by keyReleased. */
     @Override
     public void tick() {
         if (held == null) return;
         InputConstants.Key key = InputConstants.getKey(held.saveString());
-        if (key.getType() != InputConstants.Type.KEYBOARD || !InputConstants.isKeyDown(key.getValue())) held = null;
+        if (key.getType() == InputConstants.Type.MOUSE
+                || key.getType() == InputConstants.Type.KEYSYM && !InputConstants.isKeyDown(minecraft.getWindow(), key.getValue())) held = null;
     }
 
     @Override
@@ -124,19 +125,19 @@ public class InputScreen extends Screen {
     }
 
     @Override
-    public void extractRenderState(GuiGraphicsExtractor ctx, int mx, int my, float delta) {
+    public void render(GuiGraphics ctx, int mx, int my, float delta) {
         int x = x0(), y = y0(), w = w();
         ctx.fill(x - 1, y - 1, x + w + 1, y + H + 1, 0xFF5A6472);
         ctx.fill(x, y, x + w, y + H, 0xFF1F252C);
-        ctx.text(font, font.plainSubstrByWidth(title.getString(), w - 16), x + 8, y + 7, 0xFFFFFFFF);
+        ctx.drawString(font, font.plainSubstrByWidth(title.getString(), w - 16), x + 8, y + 7, 0xFFFFFFFF);
         String note = problem != null ? problem : tr(HINT);
-        ctx.text(font, font.plainSubstrByWidth(note, w - 16), x + 8, y + 45, problem != null ? 0xFFFF8098 : 0xFF9AA5B3, false);
-        super.extractRenderState(ctx, mx, my, delta);
+        ctx.drawString(font, font.plainSubstrByWidth(note, w - 16), x + 8, y + 45, problem != null ? 0xFFFF8098 : 0xFF9AA5B3, false);
+        super.render(ctx, mx, my, delta);
     }
 
     /** The game stays in view behind the box. */
     @Override
-    public void extractBackground(GuiGraphicsExtractor ctx, int mx, int my, float delta) { }
+    public void renderBackground(GuiGraphics ctx, int mx, int my, float delta) { }
 
     @Override
     public boolean isPauseScreen() { return false; }

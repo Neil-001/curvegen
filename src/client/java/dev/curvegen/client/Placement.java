@@ -114,7 +114,7 @@ public final class Placement {
             for (int k = 0; k < 3; k++)
                 at[k] = t.getArgs()[k] instanceof Number n ? n.intValue()
                         : Integer.parseInt(t.getArgs()[k] instanceof Component c ? c.getString() : String.valueOf(t.getArgs()[k]));
-        } catch (NumberFormatException _) {
+        } catch (NumberFormatException ignored) {
             return null;
         }
         return at;
@@ -239,6 +239,6 @@ public final class Placement {
      */
     public static void say(Component t) {
         Minecraft mc = Minecraft.getInstance();
-        if (mc.player != null) mc.gui.chatListener().handleOverlay(t);
+        if (mc.player != null) mc.getChatListener().handleSystemMessage(t, true);
     }
 }

@@ -10,7 +10,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Consumer;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.CycleButton;
 import net.minecraft.client.gui.components.EditBox;
@@ -57,8 +57,8 @@ public class BlockPickerScreen extends Screen {
         setInitialFocus(search);
         addRenderableWidget(CycleButton.<Sort>builder(s -> Component.literal(s == Sort.NAME ? tr("curvegen.screen.name") : tr("curvegen.screen.closest_colour")), sort)
                 .withValues(Sort.values())
-                .create(M + 186, 24, 140, 20, Component.translatable("curvegen.screen.sort"), (_, v) -> { sort = v; refilter(); }));
-        addRenderableWidget(Button.builder(Component.translatable("curvegen.screen.cancel"), _ -> onClose()).bounds(width - M - 80, height - 26, 80, 20).build());
+                .create(M + 186, 24, 140, 20, Component.translatable("curvegen.screen.sort"), (button, v) -> { sort = v; refilter(); }));
+        addRenderableWidget(Button.builder(Component.translatable("curvegen.screen.cancel"), b -> onClose()).bounds(width - M - 80, height - 26, 80, 20).build());
         refilter();
     }
 
@@ -80,11 +80,11 @@ public class BlockPickerScreen extends Screen {
     private int visibleRows() { return Math.max(1, (gridBottom() - gridTop()) / CELL); }
 
     @Override
-    public void extractRenderState(GuiGraphicsExtractor ctx, int mx, int my, float delta) {
-        super.extractRenderState(ctx, mx, my, delta);
-        ctx.text(font, title, M, 8, 0xFFFFFFFF);
+    public void render(GuiGraphics ctx, int mx, int my, float delta) {
+        super.render(ctx, mx, my, delta);
+        ctx.drawString(font, title, M, 8, 0xFFFFFFFF);
         String info = tr("curvegen.screen.s_of_s_blocks", shown.size(), all.size());
-        ctx.text(font, info, width - M - font.width(info), 30, 0xFF9AA5B3, false);
+        ctx.drawString(font, info, width - M - font.width(info), 30, 0xFF9AA5B3, false);
 
         int cols = cols(), top = gridTop();
         Block current = BlockChoices.CHOICE.get(family);
@@ -99,12 +99,12 @@ public class BlockPickerScreen extends Screen {
             int rgb = ColorIndex.of(b);
             ctx.fill(x, y, x + CELL - 2, y + CELL - 2, 0xFF000000 | rgb);
             ctx.fill(x + 1, y + 1, x + CELL - 3, y + CELL - 3, 0xC0202428);
-            if (b == current) ctx.outline(x - 1, y - 1, CELL, CELL, 0xFFFFB84D);
+            if (b == current) ctx.renderOutline(x - 1, y - 1, CELL, CELL, 0xFFFFB84D);
             boolean over = mx >= x && mx < x + CELL - 2 && my >= y && my < y + CELL - 2;
             if (over) { ctx.fill(x, y, x + CELL - 2, y + CELL - 2, 0x40FFFFFF); hovered = b; }
-            ctx.item(new ItemStack(b), x + 1, y + 1);
+            ctx.renderItem(new ItemStack(b), x + 1, y + 1);
         }
-        if (shown.isEmpty()) ctx.text(font, tr("curvegen.screen.no_blocks_match_your_search"), M, top + 4, 0xFF9AA5B3, false);
+        if (shown.isEmpty()) ctx.drawString(font, tr("curvegen.screen.no_blocks_match_your_search"), M, top + 4, 0xFF9AA5B3, false);
         if (maxScroll > 0) {
             int h = gridBottom() - top, bar = Math.max(10, h * visibleRows() / (maxScroll + visibleRows()));
             int by = top + (h - bar) * scroll / maxScroll;
@@ -132,5 +132,5 @@ public class BlockPickerScreen extends Screen {
     }
 
     @Override
-    public void onClose() { minecraft.gui.setScreen(parent); }
+    public void onClose() { minecraft.setScreen(parent); }
 }

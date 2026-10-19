@@ -96,7 +96,7 @@ public final class ModSettings {
             Files.writeString(tmp, write(), StandardCharsets.UTF_8);
             try {
                 Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-            } catch (IOException _) {
+            } catch (IOException ignored) {
                 Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING);
             }
         } catch (IOException e) {
@@ -115,7 +115,7 @@ public final class ModSettings {
             JsonElement root = JsonParser.parseString(json);
             if (!root.isJsonObject()) return false;
             o = root.getAsJsonObject();
-        } catch (RuntimeException _) {
+        } catch (RuntimeException ignored) {
             return false;
         }
         holdSeconds = number(o, "holdSeconds", HOLD_MIN, HOLD_MAX, holdSeconds);
@@ -159,7 +159,7 @@ public final class ModSettings {
         JsonElement e = o.get(name);
         if (e == null || !e.isJsonPrimitive() || !e.getAsJsonPrimitive().isNumber()) return fallback;
         double v;
-        try { v = e.getAsDouble(); } catch (NumberFormatException _) { return fallback; }
+        try { v = e.getAsDouble(); } catch (NumberFormatException ignored) { return fallback; }
         return v >= min && v <= max ? v : fallback;   // NaN fails both comparisons
     }
 

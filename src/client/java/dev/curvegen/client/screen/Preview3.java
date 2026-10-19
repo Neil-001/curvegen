@@ -11,7 +11,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.resources.Identifier;
@@ -82,7 +82,7 @@ final class Preview3 implements AutoCloseable {
     }
 
     /** Draws the picture into a rectangle of the screen, which the caller has filled and clipped to. */
-    void draw(GuiGraphicsExtractor ctx, int x0, int y0, int x1, int y1) {
+    void draw(GuiGraphics ctx, int x0, int y0, int x1, int y1) {
         int gw = x1 - x0, gh = y1 - y0;
         if (gw <= 0 || gh <= 0) return;
         int k = Math.max(1, Minecraft.getInstance().getWindow().getGuiScale());

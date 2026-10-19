@@ -41,7 +41,7 @@ public final class PresetStore {
         private transient Path file; // where it's saved, or null before the first save
 
         public ShapeSettings.Gen gen() {
-            try { return ShapeSettings.Gen.valueOf(gen); } catch (Exception _) { return null; }
+            try { return ShapeSettings.Gen.valueOf(gen); } catch (Exception ignored) { return null; }
         }
     }
 
@@ -173,7 +173,7 @@ public final class PresetStore {
             try (Writer w = Files.newBufferedWriter(tmp, StandardCharsets.UTF_8)) { GSON.toJson(p, w); }
             try {
                 Files.move(tmp, f, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-            } catch (IOException _) {
+            } catch (IOException ignored) {
                 Files.move(tmp, f, StandardCopyOption.REPLACE_EXISTING);
             }
             if (p.file != null && !p.file.equals(f)) Files.deleteIfExists(p.file);

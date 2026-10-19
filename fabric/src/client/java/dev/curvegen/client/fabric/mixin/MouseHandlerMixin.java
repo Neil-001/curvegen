@@ -20,7 +20,7 @@ abstract class MouseHandlerMixin {
     @Shadow @Final private Minecraft minecraft;
 
     private boolean curvegen$inWorld(long handle) {
-        return handle != 0 && handle == minecraft.getWindow().handle() && minecraft.gui.screen() == null && minecraft.gui.overlay() == null;
+        return handle != 0 && handle == minecraft.getWindow().handle() && minecraft.screen == null && minecraft.getOverlay() == null;
     }
 
     @Inject(method = "onButton", at = @At("HEAD"), cancellable = true)

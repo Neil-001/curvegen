@@ -61,7 +61,7 @@ public final class CommandReplies {
         Pos pos = null;
         try {
             if (m.matches()) pos = new Pos(Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2)), Integer.parseInt(m.group(3)));
-        } catch (NumberFormatException _) { }
+        } catch (NumberFormatException ignored) { }
         sent.add(new Sent(pos, false, pos == null && command.contains("setblock")));
         idle = 0;
     }

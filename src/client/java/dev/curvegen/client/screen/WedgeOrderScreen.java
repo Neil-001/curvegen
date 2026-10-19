@@ -7,7 +7,7 @@ import dev.curvegen.core.edit.Radial;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractButton;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.Tooltip;
@@ -39,14 +39,14 @@ public class WedgeOrderScreen extends ControlScreen {
 
         int by = height - 26, pad = 16, resetW = tw(tr("curvegen.screen.default_order")) + pad, doneW = tw(tr("curvegen.screen.done")) + pad + 8, end = right + colW;
         boolean custom = !ModSettings.radialOrder.isEmpty();
-        Button reset = Button.builder(Component.translatable("curvegen.screen.default_order"), _ -> {
+        Button reset = Button.builder(Component.translatable("curvegen.screen.default_order"), b -> {
             start = new ArrayList<>(Radial.START); edit = new ArrayList<>(Radial.EDIT);
             store();
         }).bounds(end - doneW - 4 - resetW, by, resetW, 20).build();
         reset.active = custom;
         reset.setTooltip(Tooltip.create(Component.translatable(custom ? "curvegen.screen.put_every_wedge_back_where_it_started" : "curvegen.screen.the_wedges_are_already_in_their_default_order")));
         addRenderableWidget(reset);
-        addRenderableWidget(Button.builder(Component.translatable("curvegen.screen.done"), _ -> onClose()).bounds(end - doneW, by, doneW, 20).build());
+        addRenderableWidget(Button.builder(Component.translatable("curvegen.screen.done"), b -> onClose()).bounds(end - doneW, by, doneW, 20).build());
     }
 
     private void column(int x, int w, String heading, List<String> ids) {
@@ -77,16 +77,16 @@ public class WedgeOrderScreen extends ControlScreen {
     }
 
     @Override
-    public void extractRenderState(GuiGraphicsExtractor ctx, int mouseX, int mouseY, float delta) {
-        super.extractRenderState(ctx, mouseX, mouseY, delta);
-        ctx.centeredText(font, title, width / 2, 8, 0xFFFFFFFF);
-        ctx.centeredText(font, tr("curvegen.screen.the_first_wedge_is_at_the_top_and_the"), width / 2, 21, 0xFF9AA5B3);
-        for (Label l : labels) ctx.text(font, l.text, l.x, l.y, l.color);
+    public void render(GuiGraphics ctx, int mouseX, int mouseY, float delta) {
+        super.render(ctx, mouseX, mouseY, delta);
+        ctx.drawCenteredString(font, title, width / 2, 8, 0xFFFFFFFF);
+        ctx.drawCenteredString(font, tr("curvegen.screen.the_first_wedge_is_at_the_top_and_the"), width / 2, 21, 0xFF9AA5B3);
+        for (Label l : labels) ctx.drawString(font, l.text, l.x, l.y, l.color);
     }
 
     @Override
-    public void extractBackground(GuiGraphicsExtractor ctx, int mouseX, int mouseY, float delta) {
-        super.extractBackground(ctx, mouseX, mouseY, delta);
+    public void renderBackground(GuiGraphics ctx, int mouseX, int mouseY, float delta) {
+        super.renderBackground(ctx, mouseX, mouseY, delta);
         ctx.fill(0, 0, width, height, 0x80101317);
     }
 
@@ -97,5 +97,5 @@ public class WedgeOrderScreen extends ControlScreen {
     }
 
     @Override
-    public void onClose() { minecraft.gui.setScreen(parent); }
+    public void onClose() { minecraft.setScreen(parent); }
 }

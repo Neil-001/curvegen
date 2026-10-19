@@ -24,7 +24,7 @@ jobs:
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
-          java-version: 25
+          java-version: 21
 
       # Caches Gradle and Loom's Minecraft files. Only runs on main write the cache.
       - uses: gradle/actions/setup-gradle@v6
@@ -38,7 +38,7 @@ jobs:
       # The build compiles against the oldest Fabric API and NeoForge the jars accept. This compiles against newer ones.
       - run: >
           ./gradlew :fabric:compileJava :fabric:compileClientJava :neoforge:compileJava
-          -Pfabric_version=0.161.0+26.3 -Pneoforge_version=26.3.0.48-beta
+          -Pfabric_version=0.141.6+1.21.11 -Pneoforge_version=21.11.48
 
       - if: failure()
         uses: actions/upload-artifact@v7

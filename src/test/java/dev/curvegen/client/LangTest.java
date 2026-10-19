@@ -44,7 +44,8 @@ class LangTest {
     @Test
     void startupLoggingHasEnglishBeforeResourceLanguagesLoad() {
         Language original = Language.getInstance();
-        Language.inject(Language.DEFAULT_INSTANCE);
+        // 1.21.11 keeps its default language private. Like it, this one has none of the mod's keys.
+        Language.inject(language(Map.of()));
         try {
             assertEquals("Couldn't understand settings.json, so the settings are back to their defaults",
                     Lang.tr("curvegen.log.settings_invalid", "settings.json"));

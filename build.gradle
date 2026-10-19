@@ -9,14 +9,14 @@ subprojects {
 		}
 
 		tasks.withType(JavaCompile).configureEach {
-			it.options.release = 25
+			it.options.release = 21
 			// Every warning but the ones about the libraries' own class files, which nothing here can fix.
 			it.options.compilerArgs += ['-Xlint:all,-classfile']
 		}
 
 		java {
-			sourceCompatibility = JavaVersion.VERSION_25
-			targetCompatibility = JavaVersion.VERSION_25
+			sourceCompatibility = JavaVersion.VERSION_21
+			targetCompatibility = JavaVersion.VERSION_21
 		}
 	}
 }

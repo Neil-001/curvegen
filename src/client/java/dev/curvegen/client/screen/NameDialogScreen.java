@@ -3,7 +3,7 @@ package dev.curvegen.client.screen;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.CycleButton;
 import net.minecraft.client.gui.components.EditBox;
@@ -30,7 +30,7 @@ public class NameDialogScreen extends Screen {
     private static final int W = 240, OPTION_H = 26;
 
     public NameDialogScreen(Screen parent, String title, String initial, Function<String, Check> check, Consumer<String> onConfirm) {
-        this(parent, title, initial, check, null, null, (name, _) -> onConfirm.accept(name));
+        this(parent, title, initial, check, null, null, (name, option) -> onConfirm.accept(name));
     }
 
     /** With an on/off option under the name field, on at first; onConfirm gets the name and the option. */
@@ -56,19 +56,19 @@ public class NameDialogScreen extends Screen {
         field.setValue(text);
         field.setCursorPosition(0);               // select it all, so typing replaces the suggestion
         field.setHighlightPos(text.length());
-        field.setResponder(_ -> refresh());
+        field.setResponder(typed -> refresh());
         addRenderableWidget(field);
         setInitialFocus(field);
         if (optionLabel != null) {
             CycleButton<Boolean> opt = CycleButton.onOffBuilder(option)
-                    .create(x, y + 26, W - 20, 20, Component.literal(optionLabel), (_, v) -> option = v);
+                    .create(x, y + 26, W - 20, 20, Component.literal(optionLabel), (button, v) -> option = v);
             if (optionTip != null) opt.setTooltip(Tooltip.create(Component.literal(optionTip)));
             addRenderableWidget(opt);
         }
         int by = y0() + h() - 28, bw = (W - 30) / 2;
-        confirm = Button.builder(Component.translatable("curvegen.screen.save"), _ -> submit()).bounds(x, by, bw, 20).build();
+        confirm = Button.builder(Component.translatable("curvegen.screen.save"), b -> submit()).bounds(x, by, bw, 20).build();
         addRenderableWidget(confirm);
-        addRenderableWidget(Button.builder(Component.translatable("curvegen.screen.cancel"), _ -> onClose()).bounds(x + bw + 10, by, bw, 20).build());
+        addRenderableWidget(Button.builder(Component.translatable("curvegen.screen.cancel"), b -> onClose()).bounds(x + bw + 10, by, bw, 20).build());
         refresh();
     }
 
@@ -80,7 +80,7 @@ public class NameDialogScreen extends Screen {
 
     private void submit() {
         if (!state.allowed()) return;
-        minecraft.gui.setScreen(parent);
+        minecraft.setScreen(parent);
         onConfirm.accept(field.getValue().trim(), option);
     }
 
@@ -91,23 +91,23 @@ public class NameDialogScreen extends Screen {
     }
 
     @Override
-    public void extractRenderState(GuiGraphicsExtractor ctx, int mx, int my, float delta) {
-        parent.extractBackground(ctx, -1, -1, delta);   // the screen underneath, not interactive
-        parent.extractRenderState(ctx, -1, -1, delta);
+    public void render(GuiGraphics ctx, int mx, int my, float delta) {
+        parent.renderBackground(ctx, -1, -1, delta);   // the screen underneath, not interactive
+        parent.render(ctx, -1, -1, delta);
         ctx.nextStratum();   // above everything the parent drew, items included
         ctx.fill(0, 0, width, height, 0xA0000000);
         int x = x0(), y = y0();
         ctx.fill(x - 1, y - 1, x + W + 1, y + h() + 1, 0xFF5A6472);
         ctx.fill(x, y, x + W, y + h(), 0xFF1F252C);
-        ctx.text(font, title, x + 10, y + 9, 0xFFFFFFFF);
+        ctx.drawString(font, title, x + 10, y + 9, 0xFFFFFFFF);
         if (state != null && state.note() != null)
-            ctx.text(font, font.plainSubstrByWidth(state.note(), W - 20), x + 10, noteY(), state.allowed() ? 0xFFE0C07A : 0xFFFF8098, false);
-        for (var d : children()) if (d instanceof net.minecraft.client.gui.components.Renderable dr) dr.extractRenderState(ctx, mx, my, delta);
+            ctx.drawString(font, font.plainSubstrByWidth(state.note(), W - 20), x + 10, noteY(), state.allowed() ? 0xFFE0C07A : 0xFFFF8098, false);
+        for (var d : children()) if (d instanceof net.minecraft.client.gui.components.Renderable dr) dr.render(ctx, mx, my, delta);
     }
 
     @Override
-    public void extractBackground(GuiGraphicsExtractor ctx, int mx, int my, float delta) { }   // the parent already drew one
+    public void renderBackground(GuiGraphics ctx, int mx, int my, float delta) { }   // the parent already drew one
 
     @Override
-    public void onClose() { minecraft.gui.setScreen(parent); }
+    public void onClose() { minecraft.setScreen(parent); }
 }

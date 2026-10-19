@@ -9,7 +9,7 @@ import java.util.EnumMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.IntConsumer;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
@@ -52,14 +52,14 @@ public class ColorPickerScreen extends Screen {
                 float[] hsv = rgbToHsv(Integer.parseInt(h, 16));
                 hue = hsv[0]; sat = hsv[1]; val = hsv[2];
                 refreshPreview();
-            } catch (NumberFormatException _) { }
+            } catch (NumberFormatException ignored) { }
         });
         addRenderableWidget(hex);
         syncHex();
         int by = height - 28;
-        addRenderableWidget(Button.builder(Component.translatable("curvegen.screen.use_these_blocks"), _ -> { onApply.accept(rgb()); onClose(); })
+        addRenderableWidget(Button.builder(Component.translatable("curvegen.screen.use_these_blocks"), b -> { onApply.accept(rgb()); onClose(); })
                 .bounds(width / 2 - 124, by, 120, 20).build());
-        addRenderableWidget(Button.builder(Component.translatable("curvegen.screen.cancel"), _ -> onClose()).bounds(width / 2 + 4, by, 120, 20).build());
+        addRenderableWidget(Button.builder(Component.translatable("curvegen.screen.cancel"), b -> onClose()).bounds(width / 2 + 4, by, 120, 20).build());
         refreshPreview();
     }
 
@@ -77,9 +77,9 @@ public class ColorPickerScreen extends Screen {
     }
 
     @Override
-    public void extractRenderState(GuiGraphicsExtractor ctx, int mx, int my, float delta) {
-        super.extractRenderState(ctx, mx, my, delta);
-        ctx.text(font, title, sqX(), 16, 0xFFFFFFFF);
+    public void render(GuiGraphics ctx, int mx, int my, float delta) {
+        super.render(ctx, mx, my, delta);
+        ctx.drawString(font, title, sqX(), 16, 0xFFFFFFFF);
         int x0 = sqX(), y0 = sqY();
         // saturation → x, value → y: one vertical gradient per column
         for (int i = 0; i < SQ; i++) {
@@ -89,13 +89,13 @@ public class ColorPickerScreen extends Screen {
         int hx = hueX();
         for (int j = 0; j < SQ; j++) ctx.fill(hx, y0 + j, hx + 12, y0 + j + 1, 0xFF000000 | hsvToRgb(j / (float) SQ, 1f, 1f));
         int px = x0 + Math.round(sat * (SQ - 1)), py = y0 + Math.round((1 - val) * (SQ - 1));
-        ctx.outline(px - 3, py - 3, 7, 7, 0xFFFFFFFF);
+        ctx.renderOutline(px - 3, py - 3, 7, 7, 0xFFFFFFFF);
         int hy = y0 + Math.round(hue * SQ);
         ctx.fill(hx - 2, hy - 1, hx + 14, hy + 1, 0xFFFFFFFF);
         ctx.fill(x0 + 86, y0 + SQ + 10, x0 + 106, y0 + SQ + 30, 0xFF000000 | rgb());
 
         int lx = hx + 30, ly = 16;   // level with the title, so every piece type fits on a short screen
-        ctx.text(font, tr("curvegen.screen.closest_blocks"), lx, ly, 0xFFC8CED6, false);
+        ctx.drawString(font, tr("curvegen.screen.closest_blocks"), lx, ly, 0xFFC8CED6, false);
         ly += 14;
         // On a short screen the rows close up so that the last one stays above the buttons.
         int pitch = Math.min(22, (height - 30 - ly) / BlockChoices.FAMILIES.length), h = Math.min(18, pitch - 1);
@@ -103,9 +103,9 @@ public class ColorPickerScreen extends Screen {
             Block b = preview.get(f);
             if (b == null) continue;
             ctx.fill(lx, ly, lx + 18, ly + h, 0xFF000000 | ColorIndex.of(b));
-            ctx.item(new ItemStack(b), lx + 1, ly + (h - 16) / 2);
-            ctx.text(font, BlockChoices.familyName(f), lx + 24, ly + h / 2 - 8, 0xFF9AA5B3, false);
-            ctx.text(font, font.plainSubstrByWidth(b.getName().getString(), width - lx - 30), lx + 24, ly + h / 2 + 1, 0xFFFFFFFF, false);
+            ctx.renderItem(new ItemStack(b), lx + 1, ly + (h - 16) / 2);
+            ctx.drawString(font, BlockChoices.familyName(f), lx + 24, ly + h / 2 - 8, 0xFF9AA5B3, false);
+            ctx.drawString(font, font.plainSubstrByWidth(b.getName().getString(), width - lx - 30), lx + 24, ly + h / 2 + 1, 0xFFFFFFFF, false);
             ly += pitch;
         }
     }
@@ -174,5 +174,5 @@ public class ColorPickerScreen extends Screen {
     }
 
     @Override
-    public void onClose() { minecraft.gui.setScreen(parent); }
+    public void onClose() { minecraft.setScreen(parent); }
 }
