@@ -10,7 +10,7 @@ import dev.curvegen.core.edit.HoldTimer;
 import java.util.List;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Util;
@@ -40,7 +40,7 @@ public final class StepHold {
             if (clicked && !onKeyboard(keys.get(k).key())) TIMER.press(k);
         }
         int pressed = TIMER.takePress();
-        if (!Editor.isActive() || mc.gui.screen() != null) { TIMER.reset(); return; }
+        if (!Editor.isActive() || mc.screen != null) { TIMER.reset(); return; }
 
         int held = TIMER.key();
         switch (TIMER.update(pressed, held >= 0 && keys.get(held).key().isDown(), Util.getMillis(), ModSettings.holdSeconds)) {
@@ -53,7 +53,7 @@ public final class StepHold {
                 StepKey key = keys.get(TIMER.key());
                 Object pressStep = step;
                 TIMER.opened();
-                mc.gui.setScreen(InputScreen.number(Lang.tr("curvegen.editor.step_amount", Component.translatable(key.key().getName()).getString()),
+                mc.setScreen(InputScreen.number(Lang.tr("curvegen.editor.step_amount", Component.translatable(key.key().getName()).getString()),
                         "1", true, -MAX_AMOUNT, MAX_AMOUNT, typed -> {
                             int n = (int) typed;
                             // The press already moved one block. Take that back if it's still the last edit. If other
@@ -71,20 +71,20 @@ public final class StepHold {
      * 1 for a press and 2 for a repeat. Only a press with no screen open counts, as the game's own key clicks do.
      */
     public static void keyEvent(KeyEvent event, int action) {
-        if (action != 1 || Minecraft.getInstance().gui.screen() != null) return;
+        if (action != 1 || Minecraft.getInstance().screen != null) return;
         List<StepKey> keys = CurveGenClient.STEP_KEYS;
         for (int k = 0; k < keys.size(); k++) if (onKeyboard(keys.get(k).key()) && keys.get(k).key().matches(event)) TIMER.press(k);
     }
 
     private static boolean onKeyboard(KeyMapping mapping) {
-        return InputConstants.getKey(mapping.saveString()).getType() == InputConstants.Type.KEYBOARD;
+        return InputConstants.getKey(mapping.saveString()).getType() != InputConstants.Type.MOUSE;
     }
 
     /** Calls off the hold in progress. The key that is down does nothing more until it's pressed again. */
     static void cancel() { TIMER.cancel(); }
 
     /** The progress bar, just under the crosshair. */
-    static void renderBar(GuiGraphicsExtractor dc) {
+    static void renderBar(GuiGraphics dc) {
         double f = TIMER.progress(Util.getMillis(), ModSettings.barDelaySeconds, ModSettings.holdSeconds);
         if (f < 0) return;
         int w = 40, x = (dc.guiWidth() - w) / 2, y = dc.guiHeight() / 2 + 10;

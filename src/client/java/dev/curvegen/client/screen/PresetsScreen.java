@@ -20,7 +20,7 @@ import java.util.Map;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.CycleButton;
 import net.minecraft.client.gui.components.EditBox;
@@ -103,15 +103,15 @@ public class PresetsScreen extends Screen {
 
         int by = height - 26, bw = Math.max(60, font.width(tr("curvegen.screen.preview")) + 20);
         int blocksW = font.width(CommonComponents.optionNameValue(Component.translatable("curvegen.screen.blocks"), CommonComponents.optionStatus(false))) + 20, x = width - 8 - 3 * bw - blocksW - 12;
-        previewButton = Button.builder(Component.translatable("curvegen.screen.preview"), _ -> previewed = selected).bounds(x, by, bw, 20).build();
+        previewButton = Button.builder(Component.translatable("curvegen.screen.preview"), b -> previewed = selected).bounds(x, by, bw, 20).build();
         blocksButton = CycleButton.onOffBuilder(loadBlocks).create(x + bw + 4, by, blocksW, 20, Component.translatable("curvegen.screen.blocks"),
-                (_, v) -> { loadBlocks = v; textureFor = null; pictureFor = null; });
-        loadButton = Button.builder(Component.translatable("curvegen.screen.load"), _ -> { if (selected != null) load(selected); })
+                (button, v) -> { loadBlocks = v; textureFor = null; pictureFor = null; });
+        loadButton = Button.builder(Component.translatable("curvegen.screen.load"), b -> { if (selected != null) load(selected); })
                 .bounds(x + bw + blocksW + 8, by, bw, 20).build();
         addRenderableWidget(previewButton);
         addRenderableWidget(blocksButton);
         addRenderableWidget(loadButton);
-        addRenderableWidget(Button.builder(Component.translatable("curvegen.screen.cancel"), _ -> onClose()).bounds(width - 8 - bw, by, bw, 20).build());
+        addRenderableWidget(Button.builder(Component.translatable("curvegen.screen.cancel"), b -> onClose()).bounds(width - 8 - bw, by, bw, 20).build());
         refilter();
     }
 
@@ -122,7 +122,7 @@ public class PresetsScreen extends Screen {
     }
 
     private void load(Preset p) {
-        minecraft.gui.setScreen(parent);
+        minecraft.setScreen(parent);
         onLoad.accept(p, withBlocks(p));
     }
 
@@ -154,7 +154,7 @@ public class PresetsScreen extends Screen {
         if (job == null) { ShapeSettings s = settingsFor(p); jobs.put(k, CurveScreen.EXEC.submit(() -> Solver.run(s))); return null; }
         if (!job.isDone()) return null;
         jobs.remove(k);
-        try { r = job.get(); } catch (Exception _) { return null; }
+        try { r = job.get(); } catch (Exception ignored) { return null; }
         results.put(k, r);
         return r;
     }
@@ -177,13 +177,13 @@ public class PresetsScreen extends Screen {
         }
         if (!job.future.isDone()) return null;
         jobs3.remove(k);
-        try { r = job.future.get(); } catch (Exception _) { return null; }
+        try { r = job.future.get(); } catch (Exception ignored) { return null; }
         if (r != null) solved3.put(k, r);
         return r;
     }
 
     /** Draws a solved 3D preset, seen from the same side each time until the player turns it. */
-    private void draw3(GuiGraphicsExtractor ctx, Preset target, CurveScreen.Solved3 r, int x0, int y0, int x1, int y1) {
+    private void draw3(GuiGraphics ctx, Preset target, CurveScreen.Solved3 r, int x0, int y0, int x1, int y1) {
         Key k = new Key(target, withBlocks(target));
         int[] in = {x0, y0, x1, y1};
         // A resized window moves the picture's place, and the view goes with it.
@@ -223,7 +223,7 @@ public class PresetsScreen extends Screen {
     private int iconX(int k) { return listX() + listW() - 4 - (3 - k) * (ICON + 2); }
 
     @Override
-    public void extractRenderState(GuiGraphicsExtractor ctx, int mx, int my, float delta) {
+    public void render(GuiGraphics ctx, int mx, int my, float delta) {
         int hr = rowAt(mx, my);
         hovered = hr >= 0 ? shown.get(hr) : null;
         previewButton.active = selected != null;
@@ -234,15 +234,15 @@ public class PresetsScreen extends Screen {
         blocksButton.setTooltip(Tooltip.create(Component.literal(selected == null ? tr("curvegen.screen.select_a_preset_first")
                 : hasBlocks ? tr("curvegen.screen.also_load_the_preset_s_block_for_each_piece")
                 : tr("curvegen.screen.this_preset_was_saved_without_blocks"))));
-        super.extractRenderState(ctx, mx, my, delta);
-        ctx.text(font, title, listX(), 10, 0xFFFFFFFF);
+        super.render(ctx, mx, my, delta);
+        ctx.drawString(font, title, listX(), 10, 0xFFFFFFFF);
 
         // list
         int x0 = listX(), x1 = x0 + listW(), top = listTop();
         ctx.fill(x0 - 1, top - 1, x1 + 1, listBottom() + 1, 0x80000000);
         if (shown.isEmpty()) {
             String msg = query.isBlank() ? tr("curvegen.screen.no_presets_yet_use_save_preset_in_the_generator") : tr("curvegen.screen.no_presets_match_your_search");
-            ctx.textWithWordWrap(font, Component.literal(msg), x0 + 6, top + 6, listW() - 12, 0xFF9AA5B3, false);
+            ctx.drawWordWrap(font, Component.literal(msg), x0 + 6, top + 6, listW() - 12, 0xFF9AA5B3, false);
         }
         String tip = null;
         for (int i = scroll; i < shown.size() && i < scroll + visibleRows(); i++) {
@@ -254,7 +254,7 @@ public class PresetsScreen extends Screen {
             int room = listW() - 8 - (icons || p.pinned ? 3 * (ICON + 2) + 4 : 0);
             String name = p.name;
             if (font.width(name) > room) name = font.plainSubstrByWidth(name, room - font.width("…")) + "…";
-            ctx.text(font, name, x0 + 5, y + 6, 0xFFE4E9EF, false);
+            ctx.drawString(font, name, x0 + 5, y + 6, 0xFFE4E9EF, false);
             int iy = y + (ROW - ICON) / 2;
             if (icons) {
                 int over = iconAt(i, mx, my);
@@ -279,23 +279,23 @@ public class PresetsScreen extends Screen {
         // preview
         int px0 = pvX0(), py0 = pvY0(), px1 = pvX1(), py1 = pvY1();
         ctx.fill(px0, py0, px1, py1, 0xFF15181D);
-        ctx.outline(px0 - 1, py0 - 1, px1 - px0 + 2, py1 - py0 + 2, 0xFF3A424D);
+        ctx.renderOutline(px0 - 1, py0 - 1, px1 - px0 + 2, py1 - py0 + 2, 0xFF3A424D);
         Preset target = hovered != null ? hovered : previewed;
         if (target == null) {
-            ctx.textWithWordWrap(font, Component.translatable("curvegen.screen.hover_a_preset_to_preview_it_or_select_one"),
+            ctx.drawWordWrap(font, Component.translatable("curvegen.screen.hover_a_preset_to_preview_it_or_select_one"),
                     px0 + 8, py0 + 8, px1 - px0 - 16, 0xFF9AA5B3, false);
         } else {
             Solver.Result r = is3d() ? null : resultFor(target);
             CurveScreen.Solved3 r3 = is3d() ? solved3For(target) : null;
             int infoH = 24;
             if (is3d()) {
-                if (r3 == null) ctx.text(font, tr("curvegen.screen.working"), px0 + 8, py0 + 8, 0xFF9AA5B3, false);
-                else if (r3.error() != null) ctx.textWithWordWrap(font, Component.literal(Lang.text(r3.error())), px0 + 8, py0 + 8, px1 - px0 - 16, 0xFFFF8098, false);
+                if (r3 == null) ctx.drawString(font, tr("curvegen.screen.working"), px0 + 8, py0 + 8, 0xFF9AA5B3, false);
+                else if (r3.error() != null) ctx.drawWordWrap(font, Component.literal(Lang.text(r3.error())), px0 + 8, py0 + 8, px1 - px0 - 16, 0xFFFF8098, false);
                 else draw3(ctx, target, r3, px0, py0, px1, py1 - infoH);
             }
-            else if (r == null) ctx.text(font, tr("curvegen.screen.working"), px0 + 8, py0 + 8, 0xFF9AA5B3, false);
+            else if (r == null) ctx.drawString(font, tr("curvegen.screen.working"), px0 + 8, py0 + 8, 0xFF9AA5B3, false);
             else if (r.target().error != null)
-                ctx.textWithWordWrap(font, Component.literal(Lang.text(r.target().error)), px0 + 8, py0 + 8, px1 - px0 - 16, 0xFFFF8098, false);
+                ctx.drawWordWrap(font, Component.literal(Lang.text(r.target().error)), px0 + 8, py0 + 8, px1 - px0 - 16, 0xFFFF8098, false);
             else {
                 if (textureFor != target || texture.id() == null) { texture.update(r, CurveScreen.colors, true, true, choiceFor(target)); textureFor = target; }
                 float aw = px1 - px0 - 12, ah = py1 - py0 - 12 - infoH;
@@ -312,14 +312,14 @@ public class PresetsScreen extends Screen {
                 ctx.disableScissor();
             }
             ctx.fill(px0, py1 - infoH, px1, py1, 0xB0000000);
-            ctx.text(font, font.plainSubstrByWidth(target.name, px1 - px0 - 12), px0 + 6, py1 - infoH + 3, 0xFFFFFFFF, false);
+            ctx.drawString(font, font.plainSubstrByWidth(target.name, px1 - px0 - 12), px0 + 6, py1 - infoH + 3, 0xFFFFFFFF, false);
             String desc = Lang.text(PresetData.defaultName(settingsFor(target), gen));
-            ctx.text(font, font.plainSubstrByWidth(desc, px1 - px0 - 12), px0 + 6, py1 - infoH + 13, 0xFF9AA5B3, false);
+            ctx.drawString(font, font.plainSubstrByWidth(desc, px1 - px0 - 12), px0 + 6, py1 - infoH + 13, 0xFF9AA5B3, false);
         }
         if (tip != null) ctx.setTooltipForNextFrame(font, Component.literal(tip), mx, my);
     }
 
-    private static void drawArt(GuiGraphicsExtractor ctx, String[] art, int x, int y, int color) {
+    private static void drawArt(GuiGraphics ctx, String[] art, int x, int y, int color) {
         int ox = x + (ICON - 9) / 2, oy = y + (ICON - 9) / 2;
         for (int r = 0; r < art.length; r++)
             for (int c = 0; c < art[r].length(); c++)
@@ -378,7 +378,7 @@ public class PresetsScreen extends Screen {
     }
 
     private void rename(Preset p) {
-        minecraft.gui.setScreen(new NameDialogScreen(this, tr("curvegen.screen.rename_preset"), p.name, name -> {
+        minecraft.setScreen(new NameDialogScreen(this, tr("curvegen.screen.rename_preset"), p.name, name -> {
             if (name.isEmpty()) return new NameDialogScreen.Check(false, tr("curvegen.screen.rename"), tr("curvegen.screen.type_a_name_for_the_preset"));
             Preset other = PresetStore.find(gen, name);
             if (other != null && other != p) return new NameDialogScreen.Check(false, tr("curvegen.screen.rename"), tr("curvegen.screen.another_preset_already_has_this_name"));
@@ -387,7 +387,7 @@ public class PresetsScreen extends Screen {
     }
 
     private void delete(Preset p) {
-        minecraft.gui.setScreen(new ConfirmScreen(yes -> {
+        minecraft.setScreen(new ConfirmScreen(yes -> {
             if (yes) {
                 PresetStore.delete(p);
                 if (selected == p) selected = null;
@@ -396,7 +396,7 @@ public class PresetsScreen extends Screen {
                 solved3.keySet().removeIf(k -> k.preset() == p);
                 refilter();
             }
-            minecraft.gui.setScreen(this);
+            minecraft.setScreen(this);
         }, Component.translatable("curvegen.screen.are_you_sure"),
                 Component.translatable("curvegen.screen.delete_the_preset_s_this_can_t_be_undone", p.name),
                 Component.translatable("curvegen.screen.delete"), CommonComponents.GUI_CANCEL));
@@ -413,7 +413,7 @@ public class PresetsScreen extends Screen {
     }
 
     @Override
-    public void onClose() { minecraft.gui.setScreen(parent); }
+    public void onClose() { minecraft.setScreen(parent); }
 
     @Override
     public boolean isPauseScreen() { return parent != null && parent.isPauseScreen(); }

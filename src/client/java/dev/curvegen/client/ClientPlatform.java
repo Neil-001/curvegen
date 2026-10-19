@@ -3,9 +3,9 @@ package dev.curvegen.client;
 import dev.curvegen.net.PlaceBlocksPayload;
 import java.nio.file.Path;
 import java.util.List;
-import net.minecraft.client.renderer.block.dispatch.BlockStateModel;
-import net.minecraft.client.renderer.block.dispatch.BlockStateModelPart;
-import net.minecraft.client.resources.model.sprite.Material;
+import net.minecraft.client.renderer.block.model.BlockModelPart;
+import net.minecraft.client.renderer.block.model.BlockStateModel;
+import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.block.state.BlockState;
 
@@ -32,7 +32,7 @@ public interface ClientPlatform {
      * A block's model parts and its particle texture, without a world. NeoForge deprecates the game's own methods for
      * these in favour of ones that take a world and a position, so each loader calls its own.
      */
-    void modelParts(BlockStateModel model, BlockState state, RandomSource random, List<BlockStateModelPart> out);
+    void modelParts(BlockStateModel model, BlockState state, RandomSource random, List<BlockModelPart> out);
 
-    Material.Baked particleMaterial(BlockStateModel model, BlockState state);
+    TextureAtlasSprite particleIcon(BlockStateModel model, BlockState state);
 }

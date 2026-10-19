@@ -19,7 +19,7 @@ import dev.curvegen.core.edit.Radial;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.IntConsumer;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.KeyEvent;
@@ -101,12 +101,12 @@ public class RadialScreen extends Screen {
         return switch (id) {
             case "2d" -> nav(name, null, Page.SHAPES_2D);
             case "3d" -> nav(name, null, Page.SHAPES_3D);
-            case "presets" -> leaf(name, null, () -> minecraft.gui.setScreen(new PresetsScreen(null, S.gen, RadialScreen::loadPreset)));
+            case "presets" -> leaf(name, null, () -> minecraft.setScreen(new PresetsScreen(null, S.gen, RadialScreen::loadPreset)));
             case "last" -> leaf(name, Editor.hasLast() ? null : tr("curvegen.radial.no_last"), Editor::restoreLast);
             case "options" -> nav(name, Editor.options().isEmpty() ? tr("curvegen.radial.no_options") : null, Page.OPTIONS);
             case "blocks" -> nav(name, null, Page.BLOCKS);
             case "export" -> leaf(name, Editor.notReady(), () -> Placement.say(Component.literal(Editor.export())));
-            case "full" -> leaf(name, null, () -> minecraft.gui.setScreen(new CurveScreen()));
+            case "full" -> leaf(name, null, () -> minecraft.setScreen(new CurveScreen()));
             case "place" -> leaf(name, !Placement.canPlace(minecraft) ? tr("curvegen.editor.permission") : Editor.notReady(), Editor::confirm);
             default -> new Wedge(name, null, null, null, null, null, Stay.ALWAYS, () -> { Editor.cancel(); page = Page.ROOT; });
         };
@@ -135,14 +135,14 @@ public class RadialScreen extends Screen {
         return switch (o) {
             case Option.Number n -> new Wedge(tr(n.label()), InputScreen.fmt(n.get().getAsDouble()), n.off() == null ? null : tr(n.off()), null, null,
                     d -> Editor.edit(group, () -> n.set().accept(n.fit(n.get().getAsDouble() + d * n.step()))), Stay.NEVER,
-                    () -> minecraft.gui.setScreen(InputScreen.number(tr(n.label()), InputScreen.fmt(n.get().getAsDouble()), n.whole(), n.min(), n.max(),
+                    () -> minecraft.setScreen(InputScreen.number(tr(n.label()), InputScreen.fmt(n.get().getAsDouble()), n.whole(), n.min(), n.max(),
                             v -> Editor.edit(null, () -> n.set().accept(v)))));
             case Option.Cycler c -> {
                 IntConsumer step = d -> Editor.edit(group, () -> c.set().accept(Math.floorMod(c.get().getAsInt() + d, c.names().size())));
                 yield new Wedge(tr(c.label()), tr(c.names().get(c.get().getAsInt())), c.off() == null ? null : tr(c.off()), null, null, step, Stay.CLICK, () -> step.accept(1));
             }
             case Option.Text t -> new Wedge(tr(t.label()), t.get().get(), t.off() == null ? null : tr(t.off()), null, null, null, Stay.NEVER,
-                    () -> minecraft.gui.setScreen(InputScreen.text(tr(t.label()), t.get().get(), v -> dev.curvegen.client.Lang.text(t.check().apply(v)), v -> Editor.edit(null, () -> t.set().accept(v)))));
+                    () -> minecraft.setScreen(InputScreen.text(tr(t.label()), t.get().get(), v -> dev.curvegen.client.Lang.text(t.check().apply(v)), v -> Editor.edit(null, () -> t.set().accept(v)))));
             case Option.Action a -> new Wedge(tr(a.label()), null, a.off() == null ? null : tr(a.off()), null, null, null, Stay.CLICK, () -> Editor.edit(null, a.run()));
         };
     }
@@ -154,8 +154,8 @@ public class RadialScreen extends Screen {
             off = tr(f == Family.SLAB ? "curvegen.radial.flat_slab" : "curvegen.radial.flat_stairs");
         boolean full = f == Family.FULL;
         return new Wedge(name, full ? tr("curvegen.radial.always_on") : S.allows(f) ? tr("curvegen.option.on") : tr("curvegen.option.off"), off, block.getName().getString(),
-                new ItemStack(block), full ? null : _ -> Editor.edit(new Group(this, name), () -> S.allow(f, !S.allows(f))), Stay.NEVER,
-                () -> minecraft.gui.setScreen(new BlockPickerScreen(null, f, chosen -> {
+                new ItemStack(block), full ? null : b -> Editor.edit(new Group(this, name), () -> S.allow(f, !S.allows(f))), Stay.NEVER,
+                () -> minecraft.setScreen(new BlockPickerScreen(null, f, chosen -> {
                     BlockChoices.CHOICE.put(f, chosen);
                     S.fullConnects = BlockChoices.fullBlockConnects();
                 })));
@@ -183,7 +183,7 @@ public class RadialScreen extends Screen {
             return;
         }
         AbstractWidget.playButtonClickSound(minecraft.getSoundManager());
-        if (w.stay == Stay.NEVER || w.stay == Stay.CLICK && released) minecraft.gui.setScreen(null);
+        if (w.stay == Stay.NEVER || w.stay == Stay.CLICK && released) minecraft.setScreen(null);
         else latched = true;
         w.select.run();
     }
@@ -218,7 +218,7 @@ public class RadialScreen extends Screen {
     public void tick() {
         if (keyUp) return;
         InputConstants.Key key = InputConstants.getKey(CurveGenClient.RADIAL.saveString());
-        if (key.getType() == InputConstants.Type.KEYBOARD && !InputConstants.isKeyDown(key.getValue())) keyCameUp();
+        if (key.getType() == InputConstants.Type.KEYSYM && !InputConstants.isKeyDown(minecraft.getWindow(), key.getValue())) keyCameUp();
     }
 
     @Override
@@ -266,7 +266,7 @@ public class RadialScreen extends Screen {
     }
 
     @Override
-    public void extractRenderState(GuiGraphicsExtractor ctx, int mx, int my, float delta) {
+    public void render(GuiGraphics ctx, int mx, int my, float delta) {
         wedges = build();
         int n = wedges.size(), cx = width / 2, cy = height / 2, hot = hovered(mx, my);
         boolean round = ModSettings.radialRound;
@@ -291,15 +291,15 @@ public class RadialScreen extends Screen {
             int x = at[k][0], y = at[k][1];
             boolean on = w.off == null;
             ctx.fill(x, y, x + Radial.LABEL_W, y + Radial.LABEL_H, k == hot && on ? 0xF02C4A78 : 0xE0101317);
-            ctx.outline(x, y, Radial.LABEL_W, Radial.LABEL_H, k != hot ? 0xFF5A6472 : on ? 0xFFFFFFFF : 0xFF808A96);
+            ctx.renderOutline(x, y, Radial.LABEL_W, Radial.LABEL_H, k != hot ? 0xFF5A6472 : on ? 0xFFFFFFFF : 0xFF808A96);
             int left = x + 4, room = Radial.LABEL_W - 8;
-            if (w.icon != null) { ctx.item(w.icon, x + 3, y + 3); left += 18; room -= 18; }
+            if (w.icon != null) { ctx.renderItem(w.icon, x + 3, y + 3); left += 18; room -= 18; }
             String label = fit(w.label, room);
-            if (w.value == null) ctx.text(font, label, w.icon != null ? left : x + (Radial.LABEL_W - font.width(label)) / 2, y + 7, on ? 0xFFFFFFFF : 0xFF808A96);
+            if (w.value == null) ctx.drawString(font, label, w.icon != null ? left : x + (Radial.LABEL_W - font.width(label)) / 2, y + 7, on ? 0xFFFFFFFF : 0xFF808A96);
             else {
                 String value = fit(w.value, room);
-                ctx.text(font, label, w.icon != null ? left : x + (Radial.LABEL_W - font.width(label)) / 2, y + 2, on ? 0xFFFFFFFF : 0xFF808A96);
-                ctx.text(font, value, w.icon != null ? left : x + (Radial.LABEL_W - font.width(value)) / 2, y + 12, on ? 0xFFFFE08A : 0xFF808A96);
+                ctx.drawString(font, label, w.icon != null ? left : x + (Radial.LABEL_W - font.width(label)) / 2, y + 2, on ? 0xFFFFFFFF : 0xFF808A96);
+                ctx.drawString(font, value, w.icon != null ? left : x + (Radial.LABEL_W - font.width(value)) / 2, y + 12, on ? 0xFFFFE08A : 0xFF808A96);
             }
         }
 
@@ -317,12 +317,12 @@ public class RadialScreen extends Screen {
         for (int k = 0; k < shown; k++) w = Math.max(w, font.width(lines.get(k)));
         ctx.fill((width - w) / 2 - 3, top - 2, (width + w) / 2 + 3, height, 0xE0101317);
         for (int k = 0; k < shown; k++)
-            ctx.text(font, lines.get(k), (width - font.width(lines.get(k))) / 2, top + k * 10, tip != null && wedges.get(hot).off != null ? 0xFFFFE08A : 0xFFDDE3EA);
+            ctx.drawString(font, lines.get(k), (width - font.width(lines.get(k))) / 2, top + k * 10, tip != null && wedges.get(hot).off != null ? 0xFFFFE08A : 0xFFDDE3EA);
     }
 
     /** The game stays in view, so a change shows on the hologram at once. */
     @Override
-    public void extractBackground(GuiGraphicsExtractor ctx, int mx, int my, float delta) { }
+    public void renderBackground(GuiGraphics ctx, int mx, int my, float delta) { }
 
     @Override
     public boolean isPauseScreen() { return false; }

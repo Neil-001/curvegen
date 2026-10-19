@@ -9,11 +9,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.color.block.BlockTintSource;
-import net.minecraft.client.renderer.block.dispatch.BlockStateModel;
-import net.minecraft.client.renderer.block.dispatch.BlockStateModelPart;
+import net.minecraft.client.renderer.block.model.BakedQuad;
+import net.minecraft.client.renderer.block.model.BlockModelPart;
+import net.minecraft.client.renderer.block.model.BlockStateModel;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
-import net.minecraft.client.resources.model.geometry.BakedQuad;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.resources.Identifier;
@@ -50,23 +49,22 @@ public final class ColorIndex {
         BlockState state = block.defaultBlockState();
         Minecraft mc = Minecraft.getInstance();
         try {
-            BlockStateModel model = mc.getModelManager().getBlockStateModelSet().get(state);
+            BlockStateModel model = mc.getModelManager().getBlockModelShaper().getBlockModel(state);
             Direction face = top ? Direction.UP : Direction.NORTH;
-            List<BlockStateModelPart> parts = new ArrayList<>();
+            List<BlockModelPart> parts = new ArrayList<>();
             CurveGenClient.platform.modelParts(model, state, RandomSource.create(42L), parts);
             List<BakedQuad> quads = new ArrayList<>();
-            for (BlockStateModelPart part : parts) quads.addAll(part.getQuads(face));
+            for (BlockModelPart part : parts) quads.addAll(part.getQuads(face));
             if (quads.isEmpty())
-                for (BlockStateModelPart part : parts)
+                for (BlockModelPart part : parts)
                     for (BakedQuad q : part.getQuads(null)) if (q.direction() == face) quads.add(q);
             double r = 0, g = 0, b = 0, w = 0;
             for (BakedQuad q : quads) {
-                BakedQuad.MaterialInfo material = q.materialInfo();
-                int[] avg = average(material.sprite());
+                int[] avg = average(q.sprite());
                 if (avg == null) continue;
                 int rr = avg[0], gg = avg[1], bb = avg[2];
-                if (material.isTinted()) {
-                    int tint = tint(state, material.tintIndex());
+                if (q.isTinted()) {
+                    int tint = tint(state, q.tintIndex());
                     if (tint != -1) { rr = rr * ((tint >> 16) & 0xFF) / 255; gg = gg * ((tint >> 8) & 0xFF) / 255; bb = bb * (tint & 0xFF) / 255; }
                 }
                 r += rr * (double) avg[3]; g += gg * (double) avg[3]; b += bb * (double) avg[3]; w += avg[3];
@@ -74,7 +72,7 @@ public final class ColorIndex {
             if (w > 0) return ((int) (r / w) << 16) | ((int) (g / w) << 8) | (int) (b / w);
 
             // No quads on that face (unusual models): fall back to the particle texture.
-            int[] p = average(CurveGenClient.platform.particleMaterial(model, state).sprite());
+            int[] p = average(CurveGenClient.platform.particleIcon(model, state));
             if (p != null) {
                 int rr = p[0], gg = p[1], bb = p[2];
                 int tint = tint(state, 0);
@@ -83,18 +81,17 @@ public final class ColorIndex {
                 }
                 return (rr << 16) | (gg << 8) | bb;
             }
-        } catch (Exception _) {
+        } catch (Exception ignored) {
             // fall through to the map colour
         }
         return state.getMapColor(EmptyBlockGetter.INSTANCE, BlockPos.ZERO).col;
     }
 
-    /** The tint a block has outside a world. A modded tint source that fails just means "no tint". */
+    /** The tint a block has outside a world, or -1 for none. A modded tint that fails just means "no tint". */
     private static int tint(BlockState state, int index) {
         try {
-            BlockTintSource source = Minecraft.getInstance().getBlockColors().getTintSource(state, index);
-            return source == null ? -1 : source.color(state);
-        } catch (Exception _) { return -1; }
+            return Minecraft.getInstance().getBlockColors().getColor(state, null, null, index);
+        } catch (Exception ignored) { return -1; }
     }
 
     private static int[] average(TextureAtlasSprite sprite) {
@@ -118,7 +115,7 @@ public final class ColorIndex {
             if (w == 0) return new int[]{-1};
             // Coverage (how much of the texture is opaque) weighs overlays such as the grass side's green fringe.
             return new int[]{(int) (r / w), (int) (g / w), (int) (b / w), (int) Math.max(1, w / 255)};
-        } catch (Exception _) {
+        } catch (Exception ignored) {
             return new int[]{-1};
         }
     }

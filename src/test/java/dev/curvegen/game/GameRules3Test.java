@@ -115,7 +115,7 @@ class GameRules3Test {
     }
 
     private static final ScheduledTickAccess NO_TICKS = (ScheduledTickAccess) Proxy.newProxyInstance(ScheduledTickAccess.class.getClassLoader(),
-            new Class<?>[]{ScheduledTickAccess.class}, (_, method, _) -> { throw new UnsupportedOperationException(method.toString()); });
+            new Class<?>[]{ScheduledTickAccess.class}, (proxy, method, args) -> { throw new UnsupportedOperationException(method.toString()); });
 
     /** The state after the game has told the block about each of its six neighbours. */
     private static BlockState updated(LevelReader level, BlockPos pos) {

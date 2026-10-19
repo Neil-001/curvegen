@@ -27,11 +27,11 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import net.minecraft.ChatFormatting;
+import net.minecraft.client.Camera;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -222,7 +222,7 @@ public final class Editor {
         solved = null; hologram = null; hologramOrigin = null; viewOrigin = null;
         undo.clear(); redo.clear(); editGroup = null; editStep = null;
         drag = null; hover = null; follow = new int[3]; pivot = null;
-        screenOpen = Minecraft.getInstance().gui.screen() != null; beforeScreen = null;
+        screenOpen = Minecraft.getInstance().screen != null; beforeScreen = null;
     }
 
     private static void begin() {
@@ -613,7 +613,7 @@ public final class Editor {
             swallowed &= ~bit;
             return took;
         }
-        if (!active || !locked || Minecraft.getInstance().gui.screen() != null) return false;
+        if (!active || !locked || Minecraft.getInstance().screen != null) return false;
         boolean took = false;
         if (drag != null) took = true;   // a stray click mid-drag shouldn't break a block
         else if (hover != null) {
@@ -767,7 +767,7 @@ public final class Editor {
         if (mc.player == null || mc.level == null) { end(); return; }
 
         // The menu can change anything while it's open. When it closes, that becomes one edit.
-        boolean open = mc.gui.screen() != null;
+        boolean open = mc.screen != null;
         if (open && !screenOpen) {
             if (drag != null) endDrag();
             beforeScreen = snapshot();
@@ -872,9 +872,9 @@ public final class Editor {
          * still show. {@code cam} is the camera and {@code forward} the way it looks, and {@code spread} is how
          * wide half the line is one block in front of the camera, so the strip is as wide as a line on screen.
          */
-        void submit(SubmitNodeCollector out, PoseStack ms, double[] cam, double[] forward, double spread) {
+        void submit(PoseStack ms, double[] cam, double[] forward, double spread) {
             if (n == 0) return;
-            Hologram.submit(out, ms, RenderTypes.debugFilledBox(), true, (pose, vc) -> {
+            Hologram.submit(ms, RenderTypes.debugFilledBox(), true, (pose, vc) -> {
                 for (int k = 0; k < n; k++) {
                     int o = k * 6;
                     double x1 = xyz[o], y1 = xyz[o + 1], z1 = xyz[o + 2], x2 = xyz[o + 3], y2 = xyz[o + 4], z2 = xyz[o + 5];
@@ -912,20 +912,38 @@ public final class Editor {
     private static final int HIDDEN_ALPHA = 90;
 
     /**
-     * Submits the hologram, its wireframe and its handles for this frame. {@code ms} is the world's pose stack and
-     * {@code cam} the camera position. The game draws the submitted geometry later in the frame, so it must only
-     * capture this frame's data.
+     * The tangent of half the vertical field of view, which is half the view's height one block in front of the camera.
+     * 1.21.11 keeps the field of view to itself, so this projects a point one block ahead and one up.
      */
-    public static void render(SubmitNodeCollector out, PoseStack ms, Vec3 cam) {
+    private static double halfViewHeight(Minecraft mc) {
+        Camera camera = mc.gameRenderer.getMainCamera();
+        Vector3fc f = camera.forwardVector(), u = camera.upVector();
+        double y = mc.gameRenderer.projectPointToScreen(camera.position().add(f.x() + u.x(), f.y() + u.y(), f.z() + u.z())).y;
+        return y > 0 ? 1 / y : Math.tan(Math.toRadians(mc.options.fov().get()) / 2);
+    }
+
+    /**
+     * Draws the hologram, its wireframe and its handles for this frame. {@code ms} is the world's pose stack and
+     * {@code cam} the camera position. Each loader calls this after entities and before translucent terrain. It draws
+     * what belongs under the water at once and leaves the rest to {@link Hologram#drawAfterWater}.
+     */
+    public static void render(PoseStack ms, Vec3 cam) {
+        Hologram.clearQueued();
+        queue(ms, cam);
+        Hologram.drawBeforeWater();
+    }
+
+    /** Queues this frame's geometry with {@link Hologram#submit}, which draws it later in the frame. */
+    private static void queue(PoseStack ms, Vec3 cam) {
         Minecraft mc = Minecraft.getInstance();
         if (!active || mc.player == null) return;
         sync();
-        Vector3fc forward = mc.gameRenderer.mainCamera().forwardVector();
+        Vector3fc forward = mc.gameRenderer.getMainCamera().forwardVector();
         eye = new double[]{cam.x, cam.y, cam.z};
         look = new double[]{forward.x(), forward.y(), forward.z()};
 
         // The radial menu keeps the handles, and the one the player was looking at, for "Remove point".
-        Screen screen = mc.gui.screen();
+        Screen screen = mc.screen;
         boolean aiming = locked && screen == null, editing = aiming || locked && screen instanceof RadialScreen;
         if (drag != null) {
             if (aiming) updateDrag(mc); else endDrag();
@@ -947,8 +965,8 @@ public final class Editor {
             double hx = hologramOrigin[0] - ox, hy = hologramOrigin[1] - oy, hz = hologramOrigin[2] - oz;
             ms.pushPose();
             ms.translate(hx - cx, hy - cy, hz - cz);
-            boolean camWet = mc.gameRenderer.mainCamera().getFluidInCamera() == FogType.WATER;
-            hologram.submit(out, ms, camWet, (float) ModSettings.hologramOpacity, cx - hx, cy - hy, cz - hz);
+            boolean camWet = mc.gameRenderer.getMainCamera().getFluidInCamera() == FogType.WATER;
+            hologram.submit(ms, camWet, (float) ModSettings.hologramOpacity, cx - hx, cy - hy, cz - hz);
             ms.popPose();
         }
 
@@ -981,16 +999,16 @@ public final class Editor {
         }
         if (drag != null) grid(faint, ox, oy, oz);
         // Half a line's width, in blocks, one block in front of the camera.
-        double spread = width / 2 * Math.tan(Math.toRadians(mc.gameRenderer.mainCamera().getFov()) / 2) * 2 / mc.getWindow().getHeight();
+        double spread = width / 2 * halfViewHeight(mc) * 2 / mc.getWindow().getHeight();
         double[] camHere = {cx, cy, cz};
-        solid.submit(out, ms, camHere, look, spread);
-        faint.submit(out, ms, camHere, look, spread);
+        solid.submit(ms, camHere, look, spread);
+        faint.submit(ms, camHere, look, spread);
 
         if (!handles.isEmpty()) {
             double base = ModSettings.handleSize;
             // Twice: dimmed through whatever is in the way, then as they are where nothing is.
             for (boolean through : new boolean[]{true, false})
-                Hologram.submit(out, ms, through ? Hologram.throughWalls() : RenderTypes.debugFilledBox(), true, (pose, vc) -> {
+                Hologram.submit(ms, through ? Hologram.throughWalls() : RenderTypes.debugFilledBox(), true, (pose, vc) -> {
                     VertexConsumer fill = through ? Hologram.lit(vc) : vc;
                     for (int k = 0; k < handles.size(); k++) {
                         Handle h = handles.get(k);
@@ -1039,10 +1057,10 @@ public final class Editor {
 
     private static String key(KeyMapping k) { return k.getTranslatedKeyMessage().getString(); }
 
-    public static void renderHud(GuiGraphicsExtractor dc) {
+    public static void renderHud(GuiGraphics dc) {
         Minecraft mc = Minecraft.getInstance();
         // A screen covers the hints or draws its own, and the menu's labels need the room.
-        if (!active || mc.player == null || mc.gui.screen() != null) return;
+        if (!active || mc.player == null || mc.screen != null) return;
         StepHold.renderBar(dc);
         var font = mc.font;
         int room = dc.guiWidth() - 12;
@@ -1112,7 +1130,7 @@ public final class Editor {
         int y = 6;
         for (Component t : lines) {
             dc.fill(4, y - 2, 8 + font.width(t), y + 10, 0x90000000);
-            dc.text(font, t, 6, y, 0xFFFFFFFF);
+            dc.drawString(font, t, 6, y, 0xFFFFFFFF);
             y += 13;
         }
     }

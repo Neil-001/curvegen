@@ -1,6 +1,8 @@
 # 2.1.0
 
-Curve Generator 2.1.0 adds translations for nine languages. Menus, tooltips, editor hints and messages now follow Minecraft's language setting. This version is for Minecraft 26.3 on Fabric and NeoForge.
+Curve Generator 2.1.0 is for Minecraft 1.21.11 on Fabric and NeoForge. It is the first release for 1.21.11 since 1.0.0, so it also brings everything in the sections below. The mod now runs on NeoForge as well as Fabric, curves can use shelves, chains and end rods, and its messages show above the hotbar. Shapes can be 3D and appear in the world as holograms you edit with handles, a radial menu on V starts them, and a settings screen holds the mod's options.
+
+This version adds translations for nine languages. Menus, tooltips, editor hints and messages now follow Minecraft's language setting.
 
 ## Features
 

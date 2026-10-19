@@ -8,7 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.DoubleConsumer;
 import java.util.function.DoubleSupplier;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.CycleButton;
@@ -56,7 +56,7 @@ public class SettingsScreen extends ControlScreen {
         ring.setTooltip(Tooltip.create(Component.translatable("curvegen.screen.stretched_the_ring_in_the_middle_of_the_radial")));
         addRenderableWidget(ring);
         Button order = Button.builder(Component.translatable(ModSettings.radialOrder.isEmpty() ? "curvegen.screen.wedge_order_default" : "curvegen.screen.wedge_order_custom"),
-                _ -> minecraft.gui.setScreen(new WedgeOrderScreen(this))).bounds(left, row(4), colW, 20).build();
+                b -> minecraft.setScreen(new WedgeOrderScreen(this))).bounds(left, row(4), colW, 20).build();
         order.setTooltip(Tooltip.create(Component.translatable("curvegen.screen.choose_where_each_wedge_of_the_radial_menu_goes")));
         addRenderableWidget(order);
         CycleButton<Boolean> hints = toggle(ModSettings.showKeyHints, left, row(5), colW, tr("curvegen.screen.key_hints"), v -> ModSettings.showKeyHints = v);
@@ -81,15 +81,15 @@ public class SettingsScreen extends ControlScreen {
         // Bottom bar: each button as wide as its text needs.
         int by = height - 26, pad = 16;
         int keysW = tw(tr("curvegen.screen.key_bindings")) + pad, resetW = tw(tr("curvegen.screen.reset_to_defaults")) + pad, doneW = tw(tr("curvegen.screen.done")) + pad + 8;
-        Button keys = Button.builder(Component.translatable("curvegen.screen.key_bindings"), _ -> openKeys()).bounds(left, by, keysW, 20).build();
+        Button keys = Button.builder(Component.translatable("curvegen.screen.key_bindings"), b -> openKeys()).bounds(left, by, keysW, 20).build();
         keys.setTooltip(Tooltip.create(Component.translatable("curvegen.screen.change_the_mod_s_keys_in_the_game_s")));
         addRenderableWidget(keys);
         int end = right + colW;
-        addRenderableWidget(Button.builder(Component.translatable("curvegen.screen.reset_to_defaults"), _ -> {
+        addRenderableWidget(Button.builder(Component.translatable("curvegen.screen.reset_to_defaults"), b -> {
             ModSettings.reset();
             rebuildWidgets();
         }).bounds(end - doneW - 4 - resetW, by, resetW, 20).build());
-        addRenderableWidget(Button.builder(Component.translatable("curvegen.screen.done"), _ -> onClose()).bounds(end - doneW, by, doneW, 20).build());
+        addRenderableWidget(Button.builder(Component.translatable("curvegen.screen.done"), b -> onClose()).bounds(end - doneW, by, doneW, 20).build());
     }
 
     /**
@@ -105,14 +105,14 @@ public class SettingsScreen extends ControlScreen {
             try {
                 double d = Double.parseDouble(v.trim());
                 if (Double.isFinite(d)) set.accept(Math.max(min, Math.min(max, integer ? Math.rint(d) : d)) / scale);
-            } catch (NumberFormatException _) { }
+            } catch (NumberFormatException ignored) { }
         }, shown, step, min, max, () -> true, integer).setTooltip(Tooltip.create(Component.literal(tip)));
     }
 
     /** Opens the game's key binds screen. It has no way to show one category, so this scrolls its list to the mod's heading. */
     private void openKeys() {
         KeyBindsScreen keys = new KeyBindsScreen(this, minecraft.options);
-        minecraft.gui.setScreen(keys);
+        minecraft.setScreen(keys);
         String heading = CurveGenClient.CATEGORY.label().getString();
         for (GuiEventListener child : keys.children()) {
             if (!(child instanceof KeyBindsList list)) continue;
@@ -129,15 +129,15 @@ public class SettingsScreen extends ControlScreen {
     }
 
     @Override
-    public void extractRenderState(GuiGraphicsExtractor ctx, int mouseX, int mouseY, float delta) {
-        super.extractRenderState(ctx, mouseX, mouseY, delta);
-        ctx.centeredText(font, title, width / 2, 11, 0xFFFFFFFF);
-        for (Label l : labels) ctx.text(font, l.text, l.x, l.y, 0xFFC8CED6);
+    public void render(GuiGraphics ctx, int mouseX, int mouseY, float delta) {
+        super.render(ctx, mouseX, mouseY, delta);
+        ctx.drawCenteredString(font, title, width / 2, 11, 0xFFFFFFFF);
+        for (Label l : labels) ctx.drawString(font, l.text, l.x, l.y, 0xFFC8CED6);
     }
 
     @Override
-    public void extractBackground(GuiGraphicsExtractor ctx, int mouseX, int mouseY, float delta) {
-        super.extractBackground(ctx, mouseX, mouseY, delta);
+    public void renderBackground(GuiGraphics ctx, int mouseX, int mouseY, float delta) {
+        super.renderBackground(ctx, mouseX, mouseY, delta);
         ctx.fill(0, 0, width, height, 0x80101317);
     }
 
@@ -148,5 +148,5 @@ public class SettingsScreen extends ControlScreen {
     }
 
     @Override
-    public void onClose() { minecraft.gui.setScreen(parent); }
+    public void onClose() { minecraft.setScreen(parent); }
 }

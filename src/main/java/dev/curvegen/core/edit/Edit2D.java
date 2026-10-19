@@ -37,7 +37,7 @@ public final class Edit2D {
         try {
             double[] r = {Expr.constant(s.xmin, "curvegen.range.x_from"), Expr.constant(s.xmax, "curvegen.range.x_to"), Expr.constant(s.ymin, "curvegen.range.y_from"), Expr.constant(s.ymax, "curvegen.range.y_to")};
             return r[1] > r[0] && r[3] > r[2] ? r : null;
-        } catch (Expr.ParseException _) {
+        } catch (Expr.ParseException ignored) {
             return null;
         }
     }

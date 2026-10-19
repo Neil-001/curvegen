@@ -15,7 +15,7 @@ import java.util.function.Consumer;
 import java.util.function.DoubleSupplier;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractButton;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.CycleButton;
@@ -66,7 +66,7 @@ abstract class ControlScreen extends Screen {
         @Override public void onPress(InputWithModifiers input) { action.run(); }
 
         @Override
-        protected void extractContents(GuiGraphicsExtractor ctx, int mouseX, int mouseY, float delta) {
+        protected void renderContents(GuiGraphics ctx, int mouseX, int mouseY, float delta) {
             int x = getX(), y = getY();
             ctx.fill(x, y, x + width, y + height, !active ? 0xFF22262C : isHovered() ? 0xFF55606E : 0xFF3A424D);
             int c = active ? 0xFFE4E9EF : 0xFF4E5560, cx = x + width / 2, cy = y + height / 2;
@@ -162,7 +162,7 @@ abstract class ControlScreen extends Screen {
     protected <T> CycleButton<T> cycler(List<T> values, T initial, Function<T, Component> names,
                                         int x, int y, int w, String label, Consumer<T> onChange) {
         CycleButton<T> b = CycleButton.builder(names, initial).withValues(values)
-                .create(x, y, w, 20, Component.literal(label), (_, v) -> onChange.accept(v));
+                .create(x, y, w, 20, Component.literal(label), (button, v) -> onChange.accept(v));
         reverse.put(b, () -> {
             T prev = values.get((values.indexOf(b.getValue()) - 1 + values.size()) % values.size());
             b.setValue(prev);
@@ -186,9 +186,9 @@ abstract class ControlScreen extends Screen {
     }
 
     @Override
-    public void extractRenderState(GuiGraphicsExtractor ctx, int mouseX, int mouseY, float delta) {
+    public void render(GuiGraphics ctx, int mouseX, int mouseY, float delta) {
         for (Spinner sp : spinners) refresh(sp);
-        super.extractRenderState(ctx, mouseX, mouseY, delta);
+        super.render(ctx, mouseX, mouseY, delta);
     }
 
     @Override

@@ -10,9 +10,12 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.renderer.SubmitNodeCollector;
-import net.minecraft.client.renderer.SubmitNodeStorage;
-import net.minecraft.client.renderer.feature.CustomFeatureRenderer;
+import net.minecraft.client.renderer.rendertype.LayeringTransform;
+import net.minecraft.client.renderer.rendertype.OutputTarget;
+import net.minecraft.client.renderer.rendertype.RenderSetup;
 import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.core.BlockPos;
@@ -160,17 +163,17 @@ public final class Hologram {
      * Water is drawn between the two phases. Boxes on the camera's side of the surface go after it, so they draw over
      * water behind them. Boxes on the far side go before it, so they show through the surface.
      */
-    public void submit(SubmitNodeCollector out, PoseStack ms, boolean camWet, float opacity, double cx, double cy, double cz) {
+    public void submit(PoseStack ms, boolean camWet, float opacity, double cx, double cy, double cz) {
         if (!drawn) return;
         boolean clear = toBreak.size() <= blockLimit;
-        submitBoxes(out, ms, camWet ? placeWet : placeDry, !clear ? List.of() : camWet ? breakWet : breakDry, true, opacity, cx, cy, cz);
-        submitBoxes(out, ms, camWet ? placeDry : placeWet, !clear ? List.of() : camWet ? breakDry : breakWet, false, opacity, cx, cy, cz);
+        submitBoxes(ms, camWet ? placeWet : placeDry, !clear ? List.of() : camWet ? breakWet : breakDry, true, opacity, cx, cy, cz);
+        submitBoxes(ms, camWet ? placeDry : placeWet, !clear ? List.of() : camWet ? breakDry : breakWet, false, opacity, cx, cy, cz);
     }
 
-    private static void submitBoxes(SubmitNodeCollector out, PoseStack ms, List<Entry> place, List<BlockPos> clear, boolean afterWater,
+    private static void submitBoxes(PoseStack ms, List<Entry> place, List<BlockPos> clear, boolean afterWater,
                                     float opacity, double cx, double cy, double cz) {
         if (place.isEmpty() && clear.isEmpty()) return;
-        submit(out, ms, RenderTypes.debugFilledBox(), afterWater, (pose, fill) -> {
+        submit(ms, RenderTypes.debugFilledBox(), afterWater, (pose, fill) -> {
             for (Entry e : place) {
                 int color = ARGB.color((int) (opacity * 255), e.rgb);
                 float[] q = e.quads;
@@ -192,14 +195,41 @@ public final class Hologram {
         });
     }
 
+    /** Geometry waiting to be drawn, with the pose it was submitted with. */
+    private record Queued(PoseStack.Pose pose, RenderType type, SubmitNodeCollector.CustomGeometryRenderer geometry) {}
+    private static final List<Queued> BEFORE_WATER = new ArrayList<>(), AFTER_WATER = new ArrayList<>();
+
     /**
-     * Submits custom geometry either after translucent terrain or before it. The after-terrain phase is only reachable
-     * on the game's own collector, so a collector from another mod gets everything before the water.
+     * Queues custom geometry to draw after translucent terrain or before it. 1.21.11's collector has no phase after
+     * translucent terrain, and NeoForge has no event that hands it over before the game draws it, so both queues are
+     * drawn straight to the game's buffers: {@link #drawBeforeWater} after entities, {@link #drawAfterWater} after water.
      */
-    static void submit(SubmitNodeCollector out, PoseStack ms, RenderType type, boolean afterTerrain, SubmitNodeCollector.CustomGeometryRenderer geometry) {
-        if (afterTerrain && out instanceof SubmitNodeStorage storage)
-            storage.order(0).afterTerrain.submit(new CustomFeatureRenderer.Submit(ms.last().copy(), type, geometry));
-        else out.submitCustomGeometry(ms, type, geometry);
+    static void submit(PoseStack ms, RenderType type, boolean afterTerrain, SubmitNodeCollector.CustomGeometryRenderer geometry) {
+        (afterTerrain ? AFTER_WATER : BEFORE_WATER).add(new Queued(ms.last().copy(), afterTerrain ? overWater(type) : type, geometry));
+    }
+
+    /** Forgets geometry a frame queued but never drew. */
+    static void clearQueued() { BEFORE_WATER.clear(); AFTER_WATER.clear(); }
+
+    static void drawBeforeWater() { draw(BEFORE_WATER); }
+
+    /**
+     * Draws the geometry queued for after translucent terrain. Each loader calls this in the main pass, after the game
+     * has drawn water and before particles.
+     */
+    public static void drawAfterWater() { draw(AFTER_WATER); }
+
+    /** Draws queued geometry in the order it came, and flushes only the render types it used. */
+    private static void draw(List<Queued> queued) {
+        if (queued.isEmpty()) return;
+        MultiBufferSource.BufferSource buffers = Minecraft.getInstance().renderBuffers().bufferSource();
+        List<RenderType> used = new ArrayList<>();
+        for (Queued q : queued) {
+            q.geometry().render(q.pose(), buffers.getBuffer(q.type()));
+            if (!used.contains(q.type())) used.add(q.type());
+        }
+        for (RenderType type : used) buffers.endBatch(type);
+        queued.clear();
     }
 
     /**
@@ -228,6 +258,25 @@ public final class Hologram {
     static RenderType throughWalls() { return RenderTypes.textSeeThrough(WHITE); }
     private static final Identifier WHITE = Identifier.fromNamespaceAndPath("curvegen", "textures/white.png");
 
+    /**
+     * With improved transparency the game draws water into a target of its own and lays it over the main one by depth
+     * once the level is drawn, so geometry that goes over the water must draw into that target, after the water. The
+     * game has no such render types, so these copy the two that are drawn after water. Without improved transparency
+     * the game has no translucent target, and they draw to the main one.
+     */
+    private static final OutputTarget WATER_TARGET = new OutputTarget("curvegen_translucent",
+            () -> Minecraft.getInstance().levelRenderer.getTranslucentTarget());
+    private static final RenderType FILL_OVER_WATER = RenderType.create("curvegen_filled_box_over_water",
+            RenderSetup.builder(RenderPipelines.DEBUG_FILLED_BOX).sortOnUpload().setLayeringTransform(LayeringTransform.VIEW_OFFSET_Z_LAYERING)
+                    .setOutputTarget(WATER_TARGET).createRenderSetup());
+    private static final RenderType THROUGH_OVER_WATER = RenderType.create("curvegen_see_through_over_water",
+            RenderSetup.builder(RenderPipelines.TEXT_SEE_THROUGH).withTexture("Sampler0", WHITE).useLightmap()
+                    .setOutputTarget(WATER_TARGET).createRenderSetup());
+
+    private static RenderType overWater(RenderType type) {
+        return type == RenderTypes.debugFilledBox() ? FILL_OVER_WATER : type == throughWalls() ? THROUGH_OVER_WATER : type;
+    }
+
     /** A vertex consumer for {@link #throughWalls}, which wants a texture coordinate and a light level on every vertex. */
     static VertexConsumer lit(VertexConsumer vc) { return new Lit(vc); }
 
@@ -239,7 +288,6 @@ public final class Hologram {
         @Override public VertexConsumer setUv(float u, float v) { return this; }
         @Override public VertexConsumer setUv1(int u, int v) { return this; }
         @Override public VertexConsumer setUv2(int u, int v) { return this; }
-        @Override public VertexConsumer setUv3(float u, float v) { return this; }
         @Override public VertexConsumer setNormal(float x, float y, float z) { return this; }
         @Override public VertexConsumer setLineWidth(float w) { return this; }
     }

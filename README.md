@@ -7,7 +7,7 @@
 </div>
 
 
-Building requires JDK 25.
+Building requires JDK 21 or newer.
 
 ```
 ./gradlew build                 # builds both jars and runs the tests
