@@ -15,14 +15,19 @@ public final class Expr {
     private Expr() {}
 
     @FunctionalInterface public interface Fn { double eval(double x, double y); }
+    @FunctionalInterface public interface Fn3 { double eval(double x, double y, double z); }
 
     public static final class ParseException extends Exception {
         private static final long serialVersionUID = 1L;
-        public ParseException(String msg) { super(msg); }
+        private final Message text;
+        public ParseException(Message text) { super(text.key()); this.text = text; }
+        public Message text() { return text; }
     }
 
     /** Parsed equation: F(x, y) = lhs - rhs, with the relation that was typed ("=", "<", ">", "<=", ">=" or null). */
     public record Equation(Fn f, String rel) {}
+    /** The same for a 3D equation: F(x, y, z) = lhs - rhs. */
+    public record Equation3(Fn3 f, String rel) {}
 
     private interface F1 { double ap(double a); }
     private record Func(int arity, F1 one, java.util.function.DoubleBinaryOperator two, boolean variadic) {}
@@ -45,10 +50,13 @@ public final class Expr {
         FUNCS.put("max", new Func(-1, null, Math::max, true));
         FUNCS.put("mod", new Func(2, null, (a, b) -> ((a % b) + b) % b, false));
     }
-    private static final List<String> NAMES = new ArrayList<>();
+    /** The words an equation may use. Only a 3D equation knows z. */
+    private static final List<String> NAMES = new ArrayList<>(), NAMES3 = new ArrayList<>();
     static {
         NAMES.addAll(FUNCS.keySet()); NAMES.addAll(CONSTS.keySet()); NAMES.add("x"); NAMES.add("y");
         NAMES.sort(Comparator.comparingInt(String::length).reversed());
+        NAMES3.addAll(NAMES); NAMES3.add("z");
+        NAMES3.sort(Comparator.comparingInt(String::length).reversed());
     }
 
     static double pow(double b, double e) {
@@ -65,7 +73,7 @@ public final class Expr {
 
     private static final Pattern NUM = Pattern.compile("^(\\d+\\.?\\d*|\\.\\d+)([eE][+-]?\\d+)?");
 
-    private static List<Tok> tokenize(String src) throws ParseException {
+    private static List<Tok> tokenize(String src, boolean z) throws ParseException {
         src = src.replaceAll("[−–]", "-").replaceAll("[×·⋅]", "*").replace('÷', '/')
                 .replace("≤", "<=").replace("≥", ">=").replace("π", "pi").replace("τ", "tau")
                 .replace("²", "^2").replace("³", "^3").replace('[', '(').replace(']', ')');
@@ -76,7 +84,7 @@ public final class Expr {
             if (Character.isWhitespace(c)) { i++; continue; }
             if (Character.isDigit(c) || c == '.') {
                 Matcher m = NUM.matcher(src.substring(i));
-                if (!m.find()) throw new ParseException("\"" + c + "\" isn't a valid number.");
+                if (!m.find()) throw new ParseException(Message.of("curvegen.error.invalid_number", String.valueOf(c)));
                 out.add(new Tok('n', Double.parseDouble(m.group()), null));
                 i += m.group().length();
                 continue;
@@ -88,8 +96,8 @@ public final class Expr {
                 int k = 0;
                 while (k < word.length()) {
                     String found = null;
-                    for (String n : NAMES) if (word.startsWith(n, k)) { found = n; break; }
-                    if (found == null) throw new ParseException("\"" + word.substring(k) + "\" isn't something I know. Use x, y, pi, e or a function name.");
+                    for (String n : z ? NAMES3 : NAMES) if (word.startsWith(n, k)) { found = n; break; }
+                    if (found == null) throw new ParseException(Message.of(z ? "curvegen.error.unknown_name3" : "curvegen.error.unknown_name2", word.substring(k)));
                     out.add(new Tok('i', 0, found));
                     k += found.length();
                 }
@@ -101,7 +109,7 @@ public final class Expr {
                 if (two.equals("<=") || two.equals(">=")) { out.add(new Tok('o', 0, two)); i += 2; continue; }
             }
             if ("+-*/^(),|=<>".indexOf(c) >= 0) { out.add(new Tok('o', 0, String.valueOf(c))); i++; continue; }
-            throw new ParseException("\"" + c + "\" can't be used in an equation.");
+            throw new ParseException(Message.of("curvegen.error.invalid_character", String.valueOf(c)));
         }
         return out;
     }
@@ -119,7 +127,7 @@ public final class Expr {
         Parser(List<Tok> t) { this.t = t; }
         Tok peek() { return p < t.size() ? t.get(p) : null; }
         boolean isOp(String v) { Tok k = peek(); return k != null && k.kind == 'o' && k.s.equals(v); }
-        void expect(String v, String msg) throws ParseException { if (!isOp(v)) throw new ParseException(msg); p++; }
+        void expect(String v, Message msg) throws ParseException { if (!isOp(v)) throw new ParseException(msg); p++; }
         boolean startsPrimary() {
             Tok k = peek();
             return k != null && (k.kind == 'n' || k.kind == 'i' || (k.kind == 'o' && (k.s.equals("(") || (k.s.equals("|") && absDepth == 0))));
@@ -150,16 +158,16 @@ public final class Expr {
         }
         Node primary() throws ParseException {
             Tok k = peek();
-            if (k == null) throw new ParseException("The equation ends too early.");
+            if (k == null) throw new ParseException(Message.of("curvegen.error.equation_ends_early"));
             p++;
             if (k.kind == 'n') return new Num(k.num);
-            if (k.kind == 'o' && k.s.equals("(")) { Node e = expr(); expect(")", "A bracket is missing its closing )."); return e; }
+            if (k.kind == 'o' && k.s.equals("(")) { Node e = expr(); expect(")", Message.of("curvegen.error.missing_bracket")); return e; }
             if (k.kind == 'o' && k.s.equals("|")) {
-                absDepth++; Node e = expr(); expect("|", "An absolute value is missing its closing |."); absDepth--;
+                absDepth++; Node e = expr(); expect("|", Message.of("curvegen.error.missing_absolute")); absDepth--;
                 return new Call("abs", List.of(e));
             }
             if (k.kind == 'i') {
-                if (k.s.equals("x") || k.s.equals("y")) return new Var(k.s.charAt(0));
+                if (k.s.equals("x") || k.s.equals("y") || k.s.equals("z")) return new Var(k.s.charAt(0));
                 if (CONSTS.containsKey(k.s)) return new Num(CONSTS.get(k.s));
                 Node expo = null;
                 if (isOp("^")) { p++; expo = unary(); }
@@ -167,20 +175,20 @@ public final class Expr {
                 if (isOp("(")) {
                     p++; args.add(expr());
                     while (isOp(",")) { p++; args.add(expr()); }
-                    expect(")", k.s + "( is missing its closing ).");
+                    expect(")", Message.of("curvegen.error.function_missing_bracket", k.s));
                 } else {
-                    if (!startsPrimary()) throw new ParseException(k.s + " needs something to act on, like " + k.s + "(x).");
+                    if (!startsPrimary()) throw new ParseException(Message.of("curvegen.error.function_missing_input", k.s));
                     Node a = power();
                     while (startsPrimary() && !(peek().kind == 'i' && FUNCS.containsKey(peek().s))) a = new Bin('*', a, power());
                     args.add(a);
                 }
                 Func f = FUNCS.get(k.s);
                 if (!f.variadic && args.size() != f.arity)
-                    throw new ParseException(k.s + " takes " + f.arity + " input" + (f.arity > 1 ? "s" : "") + ", not " + args.size() + ".");
+                    throw new ParseException(Message.of(f.arity == 1 ? "curvegen.error.function_arity_one" : "curvegen.error.function_arity_many", k.s, f.arity, args.size()));
                 Node n = new Call(k.s, args);
                 return expo != null ? new Bin('^', n, expo) : n;
             }
-            throw new ParseException("\"" + k.s + "\" is in an unexpected place.");
+            throw new ParseException(Message.of("curvegen.error.unexpected_token", k.s));
         }
     }
 
@@ -190,81 +198,102 @@ public final class Expr {
             case Neg g -> uses(g.a, v);
             case Bin b -> uses(b.a, v) || uses(b.b, v);
             case Call c -> c.args.stream().anyMatch(a -> uses(a, v));
-            case Num ignored -> false;
+            case Num _ -> false;
         };
     }
 
-    private static Fn compile(Node n) {
-        if (!(n instanceof Num) && !(n instanceof Var) && !uses(n, 'x') && !uses(n, 'y')) {
-            double v = raw(n).eval(0, 0);
-            return (x, y) -> v;
+    private static Fn3 compile(Node n) {
+        if (!(n instanceof Num) && !(n instanceof Var) && !uses(n, 'x') && !uses(n, 'y') && !uses(n, 'z')) {
+            double v = raw(n).eval(0, 0, 0);
+            return (_, _, _) -> v;
         }
         return raw(n);
     }
 
-    private static Fn raw(Node n) {
+    private static Fn3 raw(Node n) {
         switch (n) {
-            case Num k -> { double v = k.v; return (x, y) -> v; }
-            case Var w -> { return w.v == 'x' ? (x, y) -> x : (x, y) -> y; }
-            case Neg g -> { Fn a = compile(g.a); return (x, y) -> -a.eval(x, y); }
+            case Num k -> { double v = k.v; return (_, _, _) -> v; }
+            case Var w -> { return w.v == 'x' ? (x, _, _) -> x : w.v == 'y' ? (_, y, _) -> y : (_, _, z) -> z; }
+            case Neg g -> { Fn3 a = compile(g.a); return (x, y, z) -> -a.eval(x, y, z); }
             case Bin b -> {
-                Fn a = compile(b.a), c = compile(b.b);
+                Fn3 a = compile(b.a), c = compile(b.b);
                 return switch (b.op) {
-                    case '+' -> (x, y) -> a.eval(x, y) + c.eval(x, y);
-                    case '-' -> (x, y) -> a.eval(x, y) - c.eval(x, y);
-                    case '*' -> (x, y) -> a.eval(x, y) * c.eval(x, y);
-                    case '/' -> (x, y) -> a.eval(x, y) / c.eval(x, y);
-                    default -> (x, y) -> pow(a.eval(x, y), c.eval(x, y));
+                    case '+' -> (x, y, z) -> a.eval(x, y, z) + c.eval(x, y, z);
+                    case '-' -> (x, y, z) -> a.eval(x, y, z) - c.eval(x, y, z);
+                    case '*' -> (x, y, z) -> a.eval(x, y, z) * c.eval(x, y, z);
+                    case '/' -> (x, y, z) -> a.eval(x, y, z) / c.eval(x, y, z);
+                    default -> (x, y, z) -> pow(a.eval(x, y, z), c.eval(x, y, z));
                 };
             }
             case Call c -> {
                 Func f = FUNCS.get(c.f);
-                Fn[] as = c.args.stream().map(Expr::compile).toArray(Fn[]::new);
-                if (as.length == 1 && f.one != null) { Fn a = as[0]; F1 g = f.one; return (x, y) -> g.ap(a.eval(x, y)); }
+                Fn3[] as = c.args.stream().map(Expr::compile).toArray(Fn3[]::new);
+                if (as.length == 1 && f.one != null) { Fn3 a = as[0]; F1 g = f.one; return (x, y, z) -> g.ap(a.eval(x, y, z)); }
                 if (as.length == 1) { return as[0]; }                      // min(v) / max(v)
                 var op = f.two;
-                return (x, y) -> {
-                    double acc = as[0].eval(x, y);
-                    for (int i = 1; i < as.length; i++) acc = op.applyAsDouble(acc, as[i].eval(x, y));
+                return (x, y, z) -> {
+                    double acc = as[0].eval(x, y, z);
+                    for (int i = 1; i < as.length; i++) acc = op.applyAsDouble(acc, as[i].eval(x, y, z));
                     return acc;
                 };
             }
         }
     }
 
-    /** Parses "y = f(x)", "x = g(y)", "F(x,y) = G(x,y)", an inequality, or a bare f(x) meaning y = f(x). */
-    public static Equation parseEquation(String src) throws ParseException {
-        if (src.isBlank()) throw new ParseException("Type an equation, for example y = sin(x).");
-        Parser ps = new Parser(tokenize(src));
+    /** The two sides of an equation and the relation between them, which is null for a bare expression. */
+    private record Sides(Node lhs, Node rhs, String rel) {}
+
+    private static Sides sides(String src, boolean z) throws ParseException {
+        Parser ps = new Parser(tokenize(src, z));
         Node lhs = ps.expr();
         String rel = null; Node rhs = null;
         Tok k = ps.peek();
         if (k != null && k.kind == 'o' && Arrays.asList("=", "<", ">", "<=", ">=").contains(k.s)) {
             rel = k.s; ps.p++; rhs = ps.expr();
         }
-        if (ps.p < ps.t.size()) throw new ParseException("\"" + tokStr(ps.t.get(ps.p)) + "\" is in an unexpected place.");
-        if (rel == null) {
-            if (uses(lhs, 'y')) throw new ParseException("Add an = sign, for example x^2 + y^2 = 9.");
-            Fn f = compile(lhs);
-            return new Equation((x, y) -> y - f.eval(x, y), null);
-        }
-        Fn l = compile(lhs), r = compile(rhs);
-        return new Equation((x, y) -> l.eval(x, y) - r.eval(x, y), rel);
+        if (ps.p < ps.t.size()) throw new ParseException(Message.of("curvegen.error.unexpected_token", tokStr(ps.t.get(ps.p))));
+        return new Sides(lhs, rhs, rel);
     }
 
-    /** Evaluates a constant expression such as "2pi" or "-3.5". */
+    /** Parses "y = f(x)", "x = g(y)", "F(x,y) = G(x,y)", an inequality, or a bare f(x) meaning y = f(x). */
+    public static Equation parseEquation(String src) throws ParseException {
+        if (src.isBlank()) throw new ParseException(Message.of("curvegen.error.empty_equation2"));
+        Sides e = sides(src, false);
+        if (e.rel == null) {
+            if (uses(e.lhs, 'y')) throw new ParseException(Message.of("curvegen.error.missing_relation2"));
+            Fn3 f = compile(e.lhs);
+            return new Equation((x, y) -> y - f.eval(x, y, 0), null);
+        }
+        Fn3 l = compile(e.lhs), r = compile(e.rhs);
+        return new Equation((x, y) -> l.eval(x, y, 0) - r.eval(x, y, 0), e.rel);
+    }
+
+    /** Parses a 3D equation: anything in x, y and z with a relation, or a bare f(x, y) meaning z = f(x, y). */
+    public static Equation3 parseEquation3(String src) throws ParseException {
+        if (src.isBlank()) throw new ParseException(Message.of("curvegen.error.empty_equation3"));
+        Sides e = sides(src, true);
+        if (e.rel == null) {
+            if (uses(e.lhs, 'z')) throw new ParseException(Message.of("curvegen.error.missing_relation3"));
+            Fn3 f = compile(e.lhs);
+            return new Equation3((x, y, z) -> z - f.eval(x, y, z), null);
+        }
+        Fn3 l = compile(e.lhs), r = compile(e.rhs);
+        return new Equation3((x, y, z) -> l.eval(x, y, z) - r.eval(x, y, z), e.rel);
+    }
+
+    /** Evaluates a constant expression such as "2pi" or "-3.5". The label is a translation key. */
     public static double constant(String src, String label) throws ParseException {
         Node n;
         try {
-            Parser ps = new Parser(tokenize(src));
+            Parser ps = new Parser(tokenize(src, false));
             n = ps.expr();
-            if (ps.p < ps.t.size()) throw new ParseException("\"" + tokStr(ps.t.get(ps.p)) + "\" is in an unexpected place.");
+            if (ps.p < ps.t.size()) throw new ParseException(Message.of("curvegen.error.unexpected_token", tokStr(ps.t.get(ps.p))));
         } catch (ParseException e) {
-            throw new ParseException(label + ": " + e.getMessage());
+            throw new ParseException(Message.of("curvegen.error.range_parse", Message.of(label), e.text()));
         }
-        if (uses(n, 'x') || uses(n, 'y')) throw new ParseException(label + " must be a number, like 5 or 2pi.");
-        double v = compile(n).eval(0, 0);
-        if (!Double.isFinite(v)) throw new ParseException(label + " must be a finite number.");
+        if (uses(n, 'x') || uses(n, 'y')) throw new ParseException(Message.of("curvegen.error.range_number", Message.of(label)));
+        double v = compile(n).eval(0, 0, 0);
+        if (!Double.isFinite(v)) throw new ParseException(Message.of("curvegen.error.range_finite", Message.of(label)));
         return v;
     }
 

@@ -10,6 +10,8 @@ subprojects {
 
 		tasks.withType(JavaCompile).configureEach {
 			it.options.release = 25
+			// Every warning but the ones about the libraries' own class files, which nothing here can fix.
+			it.options.compilerArgs += ['-Xlint:all,-classfile']
 		}
 
 		java {
