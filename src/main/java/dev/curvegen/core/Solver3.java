@@ -423,7 +423,7 @@ public final class Solver3 {
             if (s.slab) ids.addAll(List.of(SLAB_B, SLAB_T));
             if (s.stair) for (int half = 0; half < 2; half++) for (int f = 0; f < 4; f++) ids.add(stair(half, f, STRAIGHT));
             if (s.trap) for (int t = TRAP_B; t < SHELF; t++) ids.add(t);
-            if (s.shelf) for (int t = SHELF; t < CHAIN; t++) ids.add(t);
+            if (s.allows(Pieces.Family.SHELF)) for (int t = SHELF; t < CHAIN; t++) ids.add(t);
             if (s.fence) ids.add(FENCE);
             if (s.pane) ids.add(PANE);
             if (s.wall) ids.add(WALL_POST);

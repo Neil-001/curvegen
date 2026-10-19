@@ -49,6 +49,7 @@ import java.util.function.Function;
 import java.util.function.IntConsumer;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
+import net.minecraft.Util;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractButton;
 import net.minecraft.client.gui.components.AbstractWidget;
@@ -56,12 +57,11 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.CycleButton;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Tooltip;
+import net.minecraft.client.gui.components.WidgetSprites;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
-import net.minecraft.client.input.InputWithModifiers;
-import net.minecraft.client.input.MouseButtonEvent;
-import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
@@ -170,7 +170,7 @@ public class CurveScreen extends ControlScreen {
             if (gap > 2) gap--;
         }
         int tx = M;
-        CycleButton<Boolean> mode = CycleButton.builder((Boolean v) -> Component.translatable(v ? "curvegen.screen.3d" : "curvegen.screen.2d"), mode3d)
+        CycleButton<Boolean> mode = CycleButton.builder((Boolean v) -> Component.translatable(v ? "curvegen.screen.3d" : "curvegen.screen.2d")).withInitialValue(mode3d)
                 .withValues(List.of(false, true)).displayOnlyValue()
                 .create(tx, 6, modeText + pad, 20, Component.translatable("curvegen.screen.shapes"), (button, v) -> setMode(v));
         mode.setTooltip(Tooltip.create(Component.translatable("curvegen.screen.switches_the_tabs_between_flat_shapes_and_3d_shapes")));
@@ -228,7 +228,7 @@ public class CurveScreen extends ControlScreen {
             if (bgap > 2) bgap--;
         }
         int x = M;
-        CycleButton<Boolean> orient = CycleButton.builder((Boolean v) -> Component.translatable(v ? "curvegen.screen.flat" : "curvegen.screen.upright"), S.floor)
+        CycleButton<Boolean> orient = CycleButton.builder((Boolean v) -> Component.translatable(v ? "curvegen.screen.flat" : "curvegen.screen.upright")).withInitialValue(S.floor)
                 .withValues(List.of(false, true)).displayOnlyValue()
                 .create(x, by, orientText + bpad, 20, Component.translatable("curvegen.screen.build"), (button, v) -> setFloor(v));
         orient.setTooltip(Tooltip.create(Component.translatable("curvegen.screen.upright_builds_a_wall_drawn_from_the_side_flat")));
@@ -515,23 +515,27 @@ public class CurveScreen extends ControlScreen {
                 boolean on = S.allows(f);
                 Button use = Button.builder(Component.translatable(on ? "curvegen.screen.use" : "curvegen.screen.off"), b -> { S.allow(f, !S.allows(f)); dirty = true; rebuildWidgets(); })
                         .bounds(M, y, 26, h).build();
-                if (S.floor && !S.is3d() && (f == Family.SLAB || f == Family.STAIRS)) {
+                if (BlockChoices.MISSING.contains(f)) {
+                    use.active = false;
+                    use.setTooltip(Tooltip.create(Component.translatable(BlockChoices.MISSING_REASON)));
+                } else if (S.floor && !S.is3d() && (f == Family.SLAB || f == Family.STAIRS)) {
                     use.active = false;
                     use.setTooltip(Tooltip.create(Component.translatable("curvegen.screen.from_above_s_look_like_full_blocks_so_flat", BlockChoices.familyName(f))));
                 }
                 addRenderableWidget(use);
             }
             Block block = BlockChoices.CHOICE.get(f);
-            String name = font.plainSubstrByWidth(block.getName().getString(), PANEL_W - 54 - 8);
+            String name = font.plainSubstrByWidth(block != null ? block.getName().getString() : BlockChoices.familyName(f), PANEL_W - 54 - 8);
             Button pick = Button.builder(Component.literal(name), b -> minecraft.setScreen(new BlockPickerScreen(this, f, chosen -> {
                 BlockChoices.CHOICE.put(f, chosen);
                 S.fullConnects = BlockChoices.fullBlockConnects();
                 dirty = true; textureDirty = true;
                 rebuildWidgets();
             }))).bounds(M + 48, y, PANEL_W - 48, h).build();
-            pick.setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.literal(BlockChoices.familyName(f) + ": " + block.getName().getString())));
+            pick.setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.literal(BlockChoices.familyName(f) + ": " + BlockChoices.blockName(f))));
+            pick.active = block != null;
             addRenderableWidget(pick);
-            icons.add(new Icon(M + 29, y + (h - 16) / 2, new ItemStack(block)));
+            if (block != null) icons.add(new Icon(M + 29, y + (h - 16) / 2, new ItemStack(block)));
         }
         addRenderableWidget(Button.builder(Component.translatable("curvegen.screen.match_a_colour"), b -> minecraft.setScreen(
                 new ColorPickerScreen(this, BlockChoices.pickedColor >= 0 ? BlockChoices.pickedColor : 0x8E6B4A, rgb -> {
@@ -601,7 +605,7 @@ public class CurveScreen extends ControlScreen {
             int total = 0;
             for (int[] m : merged.values()) total += m[1];
             boolean unused = floor && (f == Family.SLAB || f == Family.STAIRS);
-            String blockName = BlockChoices.CHOICE.get(f).getName().getString();
+            String blockName = BlockChoices.blockName(f);
             String n = String.valueOf(total);
             int nw = tw(n);
             String title = unused ? tr("curvegen.screen.family_unused_flat", BlockChoices.familyName(f)) : S.allows(f) ? BlockChoices.familyName(f) : tr("curvegen.screen.family_off", BlockChoices.familyName(f));
@@ -626,7 +630,7 @@ public class CurveScreen extends ControlScreen {
         for (Family f : BlockChoices.FAMILIES) {
             int total = 0;
             for (Count3.Group g : Count3.GROUPS) if (g.family() == f) total += g.count(counts);
-            String blockName = BlockChoices.CHOICE.get(f).getName().getString();
+            String blockName = BlockChoices.blockName(f);
             String n = String.valueOf(total);
             int nw = tw(n);
             String title = S.allows(f) ? BlockChoices.familyName(f) : tr("curvegen.screen.family_off", BlockChoices.familyName(f));
@@ -691,7 +695,7 @@ public class CurveScreen extends ControlScreen {
             ctx.fill(x1 + 1, top, x1 + 3, bottom, 0x30FFFFFF);
             ctx.fill(x1 + 1, by, x1 + 3, by + bar, 0xA0FFFFFF);
         }
-        if (tip != null) ctx.setTooltipForNextFrame(font, Component.literal(tip), mx, my);
+        if (tip != null) setTooltipForNextRenderPass(Component.literal(tip));
     }
 
     /** A 14-pixel piece icon painted exactly like the preview: same colours, same silhouette outline. */
@@ -1092,7 +1096,7 @@ public class CurveScreen extends ControlScreen {
             ctx.drawString(font, n, x - font.width(n) / 2 + 1, y - 3, handle(0xFFFFFFFF, k), false);
         }
         if (grid && hover >= 0 && dragPoint < 0)
-            ctx.setTooltipForNextFrame(font, Component.translatable("curvegen.screen.row_s_column_s", hover / S.sCols + 1, hover % S.sCols + 1), mx, my);
+            setTooltipForNextRenderPass(Component.translatable("curvegen.screen.row_s_column_s", hover / S.sCols + 1, hover % S.sCols + 1));
     }
 
     private boolean clicked3(double mx, double my, int button, boolean doubled) {
@@ -1173,17 +1177,21 @@ public class CurveScreen extends ControlScreen {
         };
         private final Runnable action;
 
+        /** The game's button background, which 1.21.1's buttons only draw together with their text. */
+        private static final WidgetSprites BUTTON = new WidgetSprites(ResourceLocation.withDefaultNamespace("widget/button"),
+                ResourceLocation.withDefaultNamespace("widget/button_disabled"), ResourceLocation.withDefaultNamespace("widget/button_highlighted"));
+
         CogButton(int x, int y, int w, int h, Runnable action) {
             super(x, y, w, h, Component.translatable("curvegen.screen.settings"));
             this.action = action;
             setTooltip(Tooltip.create(Component.translatable("curvegen.screen.settings")));
         }
 
-        @Override public void onPress(InputWithModifiers input) { action.run(); }
+        @Override public void onPress() { action.run(); }
 
         @Override
-        protected void renderContents(GuiGraphics ctx, int mouseX, int mouseY, float delta) {
-            renderDefaultSprite(ctx);
+        protected void renderWidget(GuiGraphics ctx, int mouseX, int mouseY, float delta) {
+            ctx.blitSprite(BUTTON.get(active, isHoveredOrFocused()), getX(), getY(), width, height);
             int n = COG.length, x0 = getX() + (width - n) / 2, y0 = getY() + (height - n) / 2;
             for (int pass = 0; pass < 2; pass++) {   // a shadow first, as button text has
                 int c = pass == 0 ? 0xFF3F3F3F : active ? 0xFFFFFFFF : 0xFFA0A0A0, o = 1 - pass;
@@ -1264,7 +1272,7 @@ public class CurveScreen extends ControlScreen {
         for (Label l : labels) ctx.drawString(font, l.text, l.x, l.y, 0xFFC8CED6);
         for (Icon ic : icons) ctx.renderItem(ic.stack, ic.x, ic.y);
         int hintLimit = tab == Tab.BLOCKS || tab == Tab.COUNT ? height - 30 : presetRowY() - 4;
-        if (hint != null && hintY + 18 < hintLimit) ctx.drawWordWrap(font, Component.literal(hint), M, hintY, PANEL_W, 0xFF9AA5B3, false);
+        if (hint != null && hintY + 18 < hintLimit) ctx.drawWordWrap(font, Component.literal(hint), M, hintY, PANEL_W, 0xFF9AA5B3);
         if (listCount > listVisible) {
             int h = listVisible * POINT_ROW - 2, bar = Math.max(6, h * listVisible / listCount);
             int by = listTop + (h - bar) * pointScroll / Math.max(1, listCount - listVisible);
@@ -1282,12 +1290,12 @@ public class CurveScreen extends ControlScreen {
             if (points3() != null) drawHandles3(ctx, mouseX, mouseY);
         } else if (result != null && preview.id() != null) {
             var m = ctx.pose();
-            m.pushMatrix();
-            m.translate(panX, panY);
+            m.pushPose();
+            m.translate(panX, panY, 0);
             float s = zoom / preview.sub;
-            m.scale(s, s);
-            ctx.blit(RenderPipelines.GUI_TEXTURED, preview.id(), 0, 0, 0f, 0f, preview.width, preview.height, preview.width, preview.height);
-            m.popMatrix();
+            m.scale(s, s, 1);
+            ctx.blit(preview.id(), 0, 0, 0f, 0f, preview.width, preview.height, preview.width, preview.height);
+            m.popPose();
             drawHover(ctx, mouseX, mouseY);
             if (S.gen == Gen.BEZIER && tab == Tab.BEZIER) drawHandles(ctx);
         }
@@ -1395,10 +1403,16 @@ public class CurveScreen extends ControlScreen {
     }
 
     // ---------- input ----------
+    private long lastClick;
+    private int lastButton = -1;
+
     @Override
-    public boolean mouseClicked(MouseButtonEvent event, boolean doubled) {
-        double mx = event.x(), my = event.y(); int button = event.button();
-        if (super.mouseClicked(event, doubled)) return true;
+    public boolean mouseClicked(double mx, double my, int button) {
+        // 1.21.1 doesn't say whether a click is a double click, so this counts one as the game later does.
+        long now = Util.getMillis();
+        boolean doubled = button == lastButton && now - lastClick < 250;
+        lastClick = now; lastButton = button;
+        if (super.mouseClicked(mx, my, button)) return true;
         boolean inCanvas = mx >= cx0() && mx < cx1() && my >= cy0() && my < py1();
         if (mode3d) return inCanvas && clicked3(mx, my, button, doubled);
         if (!inCanvas || result == null) return false;
@@ -1414,9 +1428,8 @@ public class CurveScreen extends ControlScreen {
     }
 
     @Override
-    public boolean mouseDragged(MouseButtonEvent event, double dx, double dy) {
-        double mx = event.x(), my = event.y();
-        if (mode3d) return dragged3(mx, my, dx, dy) || super.mouseDragged(event, dx, dy);
+    public boolean mouseDragged(double mx, double my, int button, double dx, double dy) {
+        if (mode3d) return dragged3(mx, my, dx, dy) || super.mouseDragged(mx, my, button, dx, dy);
         if (dragPoint >= 0 && result != null) {
             double bx = (mx - panX) / zoom, by = result.ny() - (my - panY) / zoom;
             bx = Math.max(0, Math.min(result.nx(), bx));
@@ -1428,13 +1441,13 @@ public class CurveScreen extends ControlScreen {
             return true;
         }
         if (panning) { panX += (float) dx; panY += (float) dy; return true; }
-        return super.mouseDragged(event, dx, dy);
+        return super.mouseDragged(mx, my, button, dx, dy);
     }
 
     @Override
-    public boolean mouseReleased(MouseButtonEvent event) {
+    public boolean mouseReleased(double mx, double my, int button) {
         dragPoint = -1; panning = false; orbiting = false;
-        return super.mouseReleased(event);
+        return super.mouseReleased(mx, my, button);
     }
 
     @Override

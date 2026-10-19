@@ -15,7 +15,7 @@ import java.util.Map;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.EmptyBlockGetter;
 import net.minecraft.world.level.block.Block;
@@ -26,7 +26,6 @@ import net.minecraft.world.level.block.FallingBlock;
 import net.minecraft.world.level.block.FenceBlock;
 import net.minecraft.world.level.block.GameMasterBlock;
 import net.minecraft.world.level.block.IronBarsBlock;
-import net.minecraft.world.level.block.ShelfBlock;
 import net.minecraft.world.level.block.SlabBlock;
 import net.minecraft.world.level.block.StairBlock;
 import net.minecraft.world.level.block.TrapDoorBlock;
@@ -46,7 +45,11 @@ public final class BlockChoices {
 
     public static final Family[] FAMILIES = {Family.FULL, Family.SLAB, Family.STAIRS, Family.TRAPDOOR, Family.SHELF, Family.FENCE, Family.PANE, Family.WALL,
             Family.CHAIN, Family.ROD};
+    /** The block for each family, except shelves, which this game doesn't have (see {@link #MISSING}). */
     public static final Map<Family, Block> CHOICE = new EnumMap<>(Family.class);
+    /** Shelves arrived in Minecraft 1.21.9. Their family stays in the menus, greyed out with this reason. */
+    public static final java.util.Set<Family> MISSING = java.util.EnumSet.of(Family.SHELF);
+    public static final String MISSING_REASON = "curvegen.screen.needs_minecraft_1_21_9";
     /** Colour last picked with the colour picker, or -1. */
     public static int pickedColor = -1;
 
@@ -55,12 +58,17 @@ public final class BlockChoices {
         CHOICE.put(Family.SLAB, Blocks.STONE_BRICK_SLAB);
         CHOICE.put(Family.STAIRS, Blocks.STONE_BRICK_STAIRS);
         CHOICE.put(Family.TRAPDOOR, Blocks.SPRUCE_TRAPDOOR);
-        CHOICE.put(Family.SHELF, Blocks.SPRUCE_SHELF);
         CHOICE.put(Family.FENCE, Blocks.SPRUCE_FENCE);
         CHOICE.put(Family.PANE, Blocks.GLASS_PANE);
         CHOICE.put(Family.WALL, Blocks.STONE_BRICK_WALL);
-        CHOICE.put(Family.CHAIN, Blocks.IRON_CHAIN);
+        CHOICE.put(Family.CHAIN, Blocks.CHAIN);
         CHOICE.put(Family.ROD, Blocks.END_ROD);
+    }
+
+    /** The chosen block's name, or why the family has none. */
+    public static String blockName(Family f) {
+        Block b = CHOICE.get(f);
+        return b != null ? b.getName().getString() : tr(MISSING_REASON);
     }
 
     public static String familyName(Family f) {
@@ -93,7 +101,6 @@ public final class BlockChoices {
             case SLAB -> b instanceof SlabBlock;
             case STAIRS -> b instanceof StairBlock;
             case TRAPDOOR -> b instanceof TrapDoorBlock;
-            case SHELF -> b instanceof ShelfBlock;
             case FENCE -> b instanceof FenceBlock;
             case PANE -> b instanceof IronBarsBlock;
             case WALL -> b instanceof WallBlock;
@@ -128,7 +135,7 @@ public final class BlockChoices {
 
     /** The current block choices as preset text. */
     public static Map<String, String> capture(ShapeSettings s) {
-        return PresetData.captureBlocks(s, f -> BuiltInRegistries.BLOCK.getKey(CHOICE.get(f)).toString());
+        return PresetData.captureBlocks(s, f -> BuiltInRegistries.BLOCK.getKey(CHOICE.get(f)).toString());   // skips MISSING
     }
 
     /**
@@ -137,9 +144,9 @@ public final class BlockChoices {
      */
     public static void apply(Map<String, String> blocks, ShapeSettings s, Map<Family, Block> choice) {
         PresetData.applyBlocks(blocks, s, (f, id) -> {
-            Identifier key = Identifier.tryParse(id);
+            ResourceLocation key = ResourceLocation.tryParse(id);
             if (key == null || !BuiltInRegistries.BLOCK.containsKey(key)) return;
-            Block b = BuiltInRegistries.BLOCK.getValue(key);
+            Block b = BuiltInRegistries.BLOCK.get(key);
             if (fits(b, f)) choice.put(f, b);
         });
         s.fullConnects = connects(choice.get(Family.FULL));
@@ -175,8 +182,8 @@ public final class BlockChoices {
             case Pieces.TD_L -> s = with(with(s, TrapDoorBlock.OPEN, true), TrapDoorBlock.FACING, right);
             case Pieces.TD_R -> s = with(with(s, TrapDoorBlock.OPEN, true), TrapDoorBlock.FACING, left);
             // A shelf's panel is on the side opposite its FACING, like an open trapdoor's.
-            case Pieces.SH_L -> s = with(s, ShelfBlock.FACING, right);
-            case Pieces.SH_R -> s = with(s, ShelfBlock.FACING, left);
+            case Pieces.SH_L -> s = with(s, BlockStateProperties.HORIZONTAL_FACING, right);
+            case Pieces.SH_R -> s = with(s, BlockStateProperties.HORIZONTAL_FACING, left);
             default -> {
                 if (Pieces.FAMILY[piece] == Family.WALL) {
                     s = wallState(s, piece, above, right, forward, k, depth);
@@ -205,10 +212,10 @@ public final class BlockChoices {
             case Pieces.F_TD_U -> s = with(with(s, TrapDoorBlock.OPEN, true), TrapDoorBlock.FACING, back);
             case Pieces.F_TD_D -> s = with(with(s, TrapDoorBlock.OPEN, true), TrapDoorBlock.FACING, forward);
             // A shelf's panel is on the side opposite its FACING too.
-            case Pieces.F_SH_L -> s = with(s, ShelfBlock.FACING, right);
-            case Pieces.F_SH_R -> s = with(s, ShelfBlock.FACING, left);
-            case Pieces.F_SH_U -> s = with(s, ShelfBlock.FACING, back);
-            case Pieces.F_SH_D -> s = with(s, ShelfBlock.FACING, forward);
+            case Pieces.F_SH_L -> s = with(s, BlockStateProperties.HORIZONTAL_FACING, right);
+            case Pieces.F_SH_R -> s = with(s, BlockStateProperties.HORIZONTAL_FACING, left);
+            case Pieces.F_SH_U -> s = with(s, BlockStateProperties.HORIZONTAL_FACING, back);
+            case Pieces.F_SH_D -> s = with(s, BlockStateProperties.HORIZONTAL_FACING, forward);
             default -> {
                 if (Pieces.isFloorConnector(piece)) {
                     int bits = Pieces.floorBits(piece);
@@ -271,6 +278,7 @@ public final class BlockChoices {
     public static BlockState stateFor3(int piece) {
         if (piece == Pieces3.AIR) return Blocks.AIR.defaultBlockState();
         Block b = CHOICE.get(Pieces3.FAMILY[piece]);
+        if (b == null) return Blocks.AIR.defaultBlockState();   // a family this game lacks, which the solver never uses
         BlockState s = b.defaultBlockState();
         String props = Pieces3.props(piece);
         if (!props.isEmpty())

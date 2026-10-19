@@ -21,7 +21,7 @@ class PlacementFeedbackTest {
     /** The second line of a syntax error: the end of the command, then "<--[HERE]". */
     private static Component context(String command) {
         MutableComponent context = Component.empty().withStyle(ChatFormatting.GRAY)
-                .withStyle(s -> s.withClickEvent(new ClickEvent.SuggestCommand("/" + command)));
+                .withStyle(s -> s.withClickEvent(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, "/" + command)));
         context.append(CommonComponents.ELLIPSIS);
         context.append(command.substring(command.length() - 10));
         context.append(Component.translatable("command.context.here").withStyle(ChatFormatting.RED, ChatFormatting.ITALIC));

@@ -5,11 +5,12 @@ import static dev.curvegen.client.Lang.tr;
 import dev.curvegen.client.CurveGenClient;
 import dev.curvegen.client.ModSettings;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.DoubleConsumer;
 import java.util.function.DoubleSupplier;
+import net.minecraft.client.KeyMapping;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.CycleButton;
 import net.minecraft.client.gui.components.Tooltip;
@@ -109,23 +110,28 @@ public class SettingsScreen extends ControlScreen {
         }, shown, step, min, max, () -> true, integer).setTooltip(Tooltip.create(Component.literal(tip)));
     }
 
-    /** Opens the game's key binds screen. It has no way to show one category, so this scrolls its list to the mod's heading. */
+    /**
+     * Opens the game's key binds screen. It has no way to show one category, so this scrolls its list to the mod's
+     * heading. 1.21.1's headings hold no widget with their text, so this finds the heading's row the way the list
+     * builds it: every key, sorted, with a heading before each new category, every row 20 pixels high.
+     */
     private void openKeys() {
         KeyBindsScreen keys = new KeyBindsScreen(this, minecraft.options);
         minecraft.setScreen(keys);
-        String heading = CurveGenClient.CATEGORY.label().getString();
-        for (GuiEventListener child : keys.children()) {
-            if (!(child instanceof KeyBindsList list)) continue;
-            int y = 0;
-            for (KeyBindsList.Entry e : list.children()) {
-                if (e instanceof KeyBindsList.CategoryEntry && e.children().stream()
-                        .anyMatch(w -> w instanceof AbstractWidget name && name.getMessage().getString().equals(heading))) {
-                    list.setScrollAmount(y);
-                    return;
-                }
-                y += e.getHeight();
+        KeyMapping[] mappings = minecraft.options.keyMappings.clone();
+        Arrays.sort(mappings);
+        int row = 0;
+        String category = null;
+        for (KeyMapping k : mappings) {
+            if (!k.getCategory().equals(category)) {
+                category = k.getCategory();
+                if (category.equals(CurveGenClient.CATEGORY)) break;
+                row++;
             }
+            row++;
         }
+        for (GuiEventListener child : keys.children())
+            if (child instanceof KeyBindsList list) list.setScrollAmount(row * 20);
     }
 
     @Override

@@ -3,7 +3,6 @@ package dev.curvegen.client.fabric.mixin;
 import dev.curvegen.client.edit.Editor;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.MouseHandler;
-import net.minecraft.client.input.MouseButtonInfo;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -20,12 +19,12 @@ abstract class MouseHandlerMixin {
     @Shadow @Final private Minecraft minecraft;
 
     private boolean curvegen$inWorld(long handle) {
-        return handle != 0 && handle == minecraft.getWindow().handle() && minecraft.screen == null && minecraft.getOverlay() == null;
+        return handle != 0 && handle == minecraft.getWindow().getWindow() && minecraft.screen == null && minecraft.getOverlay() == null;
     }
 
-    @Inject(method = "onButton", at = @At("HEAD"), cancellable = true)
-    private void curvegen$onButton(long handle, MouseButtonInfo button, int action, CallbackInfo ci) {
-        if (curvegen$inWorld(handle) && Editor.mouseButton(button.button(), action == 1)) ci.cancel();
+    @Inject(method = "onPress", at = @At("HEAD"), cancellable = true)
+    private void curvegen$onPress(long handle, int button, int action, int modifiers, CallbackInfo ci) {
+        if (curvegen$inWorld(handle) && Editor.mouseButton(button, action == 1)) ci.cancel();
     }
 
     @Inject(method = "onScroll", at = @At("HEAD"), cancellable = true)

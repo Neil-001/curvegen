@@ -3,9 +3,10 @@ package dev.curvegen.client;
 import dev.curvegen.net.PlaceBlocksPayload;
 import java.nio.file.Path;
 import java.util.List;
-import net.minecraft.client.renderer.block.model.BlockModelPart;
-import net.minecraft.client.renderer.block.model.BlockStateModel;
+import net.minecraft.client.renderer.block.model.BakedQuad;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
+import net.minecraft.client.resources.model.BakedModel;
+import net.minecraft.core.Direction;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.block.state.BlockState;
 
@@ -29,10 +30,10 @@ public interface ClientPlatform {
     Path gameDir();
 
     /**
-     * A block's model parts and its particle texture, without a world. NeoForge deprecates the game's own methods for
-     * these in favour of ones that take a world and a position, so each loader calls its own.
+     * A block model's quads on one side, or those on no side for null, and its particle texture, without a world.
+     * NeoForge extends the game's methods for these with model data, so each loader calls its own.
      */
-    void modelParts(BlockStateModel model, BlockState state, RandomSource random, List<BlockModelPart> out);
+    List<BakedQuad> quads(BakedModel model, BlockState state, Direction side, RandomSource random);
 
-    TextureAtlasSprite particleIcon(BlockStateModel model, BlockState state);
+    TextureAtlasSprite particleIcon(BakedModel model, BlockState state);
 }

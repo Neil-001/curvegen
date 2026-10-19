@@ -10,8 +10,6 @@ import net.minecraft.client.KeyMapping;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.input.CharacterEvent;
-import net.minecraft.client.input.KeyEvent;
 import net.minecraft.network.chat.Component;
 
 /**
@@ -97,16 +95,16 @@ public class InputScreen extends Screen {
     }
 
     @Override
-    public boolean keyPressed(KeyEvent event) {
-        if (held != null && held.matches(event)) return true;
-        if (event.isConfirmation()) { submit(); return true; }
-        return super.keyPressed(event);
+    public boolean keyPressed(int key, int scancode, int modifiers) {
+        if (held != null && held.matches(key, scancode)) return true;
+        if ((key == InputConstants.KEY_RETURN || key == InputConstants.KEY_NUMPADENTER)) { submit(); return true; }
+        return super.keyPressed(key, scancode, modifiers);
     }
 
     @Override
-    public boolean keyReleased(KeyEvent event) {
-        if (held != null && held.matches(event)) held = null;
-        return super.keyReleased(event);
+    public boolean keyReleased(int key, int scancode, int modifiers) {
+        if (held != null && held.matches(key, scancode)) held = null;
+        return super.keyReleased(key, scancode, modifiers);
     }
 
     /** The key can also come up without the box seeing it. A key bound by scancode can't be polled, so it goes by keyReleased. */
@@ -115,13 +113,13 @@ public class InputScreen extends Screen {
         if (held == null) return;
         InputConstants.Key key = InputConstants.getKey(held.saveString());
         if (key.getType() == InputConstants.Type.MOUSE
-                || key.getType() == InputConstants.Type.KEYSYM && !InputConstants.isKeyDown(minecraft.getWindow(), key.getValue())) held = null;
+                || key.getType() == InputConstants.Type.KEYSYM && !InputConstants.isKeyDown(minecraft.getWindow().getWindow(), key.getValue())) held = null;
     }
 
     @Override
-    public boolean charTyped(CharacterEvent event) {
-        if (held != null || number && "0123456789.,-".indexOf(event.codepoint()) < 0) return true;
-        return super.charTyped(event);
+    public boolean charTyped(char chr, int modifiers) {
+        if (held != null || number && "0123456789.,-".indexOf(chr) < 0) return true;
+        return super.charTyped(chr, modifiers);
     }
 
     @Override

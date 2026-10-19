@@ -8,12 +8,11 @@ import dev.curvegen.client.ModSettings;
 import dev.curvegen.client.screen.InputScreen;
 import dev.curvegen.core.edit.HoldTimer;
 import java.util.List;
+import net.minecraft.Util;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.input.KeyEvent;
 import net.minecraft.network.chat.Component;
-import net.minecraft.util.Util;
 
 /**
  * Hold-to-type for the keys that move or resize the hologram. A press acts at once by one block. Held, a progress bar
@@ -70,10 +69,10 @@ public final class StepHold {
      * Every key event, with or without a screen open: each loader passes them on. {@code action} is 0 for a release,
      * 1 for a press and 2 for a repeat. Only a press with no screen open counts, as the game's own key clicks do.
      */
-    public static void keyEvent(KeyEvent event, int action) {
+    public static void keyEvent(int key, int scancode, int action) {
         if (action != 1 || Minecraft.getInstance().screen != null) return;
         List<StepKey> keys = CurveGenClient.STEP_KEYS;
-        for (int k = 0; k < keys.size(); k++) if (onKeyboard(keys.get(k).key()) && keys.get(k).key().matches(event)) TIMER.press(k);
+        for (int k = 0; k < keys.size(); k++) if (onKeyboard(keys.get(k).key()) && keys.get(k).key().matches(key, scancode)) TIMER.press(k);
     }
 
     private static boolean onKeyboard(KeyMapping mapping) {

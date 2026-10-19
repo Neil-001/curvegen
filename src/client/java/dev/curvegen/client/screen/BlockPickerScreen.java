@@ -15,7 +15,6 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.CycleButton;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
@@ -55,8 +54,8 @@ public class BlockPickerScreen extends Screen {
         search.setResponder(v -> { query = v; scroll = 0; refilter(); });
         addRenderableWidget(search);
         setInitialFocus(search);
-        addRenderableWidget(CycleButton.<Sort>builder(s -> Component.literal(s == Sort.NAME ? tr("curvegen.screen.name") : tr("curvegen.screen.closest_colour")), sort)
-                .withValues(Sort.values())
+        addRenderableWidget(CycleButton.<Sort>builder(s -> Component.literal(s == Sort.NAME ? tr("curvegen.screen.name") : tr("curvegen.screen.closest_colour")))
+                .withValues(Sort.values()).withInitialValue(sort)
                 .create(M + 186, 24, 140, 20, Component.translatable("curvegen.screen.sort"), (button, v) -> { sort = v; refilter(); }));
         addRenderableWidget(Button.builder(Component.translatable("curvegen.screen.cancel"), b -> onClose()).bounds(width - M - 80, height - 26, 80, 20).build());
         refilter();
@@ -111,13 +110,12 @@ public class BlockPickerScreen extends Screen {
             ctx.fill(width - 4, by, width - 2, by + bar, 0x80FFFFFF);
         }
         if (hovered != null)
-            ctx.setTooltipForNextFrame(font, Component.literal(hovered.getName().getString() + "  #" + String.format("%06X", ColorIndex.of(hovered))), mx, my);
+            setTooltipForNextRenderPass(Component.literal(hovered.getName().getString() + "  #" + String.format("%06X", ColorIndex.of(hovered))));
     }
 
     @Override
-    public boolean mouseClicked(MouseButtonEvent event, boolean doubled) {
-        double mx = event.x(), my = event.y();
-        if (super.mouseClicked(event, doubled)) return true;
+    public boolean mouseClicked(double mx, double my, int button) {
+        if (super.mouseClicked(mx, my, button)) return true;
         int cols = cols(), c = (int) ((mx - M) / CELL), r = (int) ((my - gridTop()) / CELL);
         if (mx < M || c >= cols || my < gridTop() || r >= visibleRows()) return false;
         int n = (r + scroll) * cols + c;

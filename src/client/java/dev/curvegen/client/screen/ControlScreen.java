@@ -1,7 +1,5 @@
 package dev.curvegen.client.screen;
 
-import static dev.curvegen.client.Lang.tr;
-
 import com.mojang.blaze3d.platform.InputConstants;
 import dev.curvegen.core.edit.Stepper;
 import java.util.ArrayList;
@@ -22,8 +20,6 @@ import net.minecraft.client.gui.components.CycleButton;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.input.InputWithModifiers;
-import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 
@@ -63,10 +59,10 @@ abstract class ControlScreen extends Screen {
             this.up = up; this.action = action;
         }
 
-        @Override public void onPress(InputWithModifiers input) { action.run(); }
+        @Override public void onPress() { action.run(); }
 
         @Override
-        protected void renderContents(GuiGraphics ctx, int mouseX, int mouseY, float delta) {
+        protected void renderWidget(GuiGraphics ctx, int mouseX, int mouseY, float delta) {
             int x = getX(), y = getY();
             ctx.fill(x, y, x + width, y + height, !active ? 0xFF22262C : isHovered() ? 0xFF55606E : 0xFF3A424D);
             int c = active ? 0xFFE4E9EF : 0xFF4E5560, cx = x + width / 2, cy = y + height / 2;
@@ -161,7 +157,7 @@ abstract class ControlScreen extends Screen {
     /** A button that steps through options: click for the next one, right-click for the previous one. */
     protected <T> CycleButton<T> cycler(List<T> values, T initial, Function<T, Component> names,
                                         int x, int y, int w, String label, Consumer<T> onChange) {
-        CycleButton<T> b = CycleButton.builder(names, initial).withValues(values)
+        CycleButton<T> b = CycleButton.builder(names).withValues(values).withInitialValue(initial)
                 .create(x, y, w, 20, Component.literal(label), (button, v) -> onChange.accept(v));
         reverse.put(b, () -> {
             T prev = values.get((values.indexOf(b.getValue()) - 1 + values.size()) % values.size());
@@ -192,16 +188,16 @@ abstract class ControlScreen extends Screen {
     }
 
     @Override
-    public boolean mouseClicked(MouseButtonEvent event, boolean doubled) {
-        if (event.button() == InputConstants.MOUSE_BUTTON_RIGHT)
+    public boolean mouseClicked(double mx, double my, int button) {
+        if (button == InputConstants.MOUSE_BUTTON_RIGHT)
             for (var e : reverse.entrySet()) {
                 AbstractWidget w = e.getKey();
-                if (w.active && w.visible && w.isMouseOver(event.x(), event.y())) {
+                if (w.active && w.visible && w.isMouseOver(mx, my)) {
                     w.playDownSound(minecraft.getSoundManager());
                     e.getValue().run();   // may rebuild the screen, so stop looking straight away
                     return true;
                 }
             }
-        return super.mouseClicked(event, doubled);
+        return super.mouseClicked(mx, my, button);
     }
 }

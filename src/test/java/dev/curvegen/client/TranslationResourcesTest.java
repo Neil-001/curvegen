@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
-import com.google.gson.Strictness;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonToken;
 import java.nio.file.Files;
@@ -25,7 +24,7 @@ class TranslationResourcesTest {
     private static Map<String, String> read(Path file) throws Exception {
         Map<String, String> entries = new HashMap<>();
         try (var reader = new JsonReader(Files.newBufferedReader(file))) {
-            reader.setStrictness(Strictness.STRICT);
+            reader.setLenient(false);   // 1.21.1's Gson has no Strictness
             reader.beginObject();
             while (reader.hasNext()) {
                 String key = reader.nextName();

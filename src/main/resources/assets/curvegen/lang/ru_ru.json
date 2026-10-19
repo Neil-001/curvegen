@@ -609,6 +609,7 @@
   "curvegen.screen.enter_to_apply_escape_to_cancel": "Enter для применения, Escape для отмены.",
   "curvegen.screen.search_blocks": "Поиск блоков",
   "curvegen.screen.name": "Название",
+  "curvegen.screen.needs_minecraft_1_21_9": "Нужен Minecraft 1.21.9 или новее",
   "curvegen.screen.closest_colour": "Ближайший цвет",
   "curvegen.screen.sort": "Сортировка",
   "curvegen.screen.no_blocks_match_your_search": "По запросу не найдено блоков.",
