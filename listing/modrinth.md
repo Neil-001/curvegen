@@ -108,7 +108,7 @@ Every key can be rebound under Options → Controls → Key Binds → Curve Gene
 - A 3D shape's box can be up to 256 blocks along each side. A shell that thickens outwards adds its thickness beyond that. A hologram of more than 30,000 blocks shows only its outline unless you raise the limit in the settings.
 - Chains and end rods are there for thin lines. They start switched off; turn them on in the **Blocks** tab.
 - Resource packs and modded blocks work. Colour matching reads the textures you have loaded. For 3D shapes it matches the side of each block, or the top if you choose that.
-- Version 2.0 is for Minecraft 26.3. Earlier versions of the mod, without the in-world editor and 3D shapes, are available for older Minecraft versions.
+- Version 2.1 is for Minecraft 1.21.1, 1.21.11, 26.2 and 26.3 on Fabric and NeoForge.
 
 The [wiki](https://github.com/Neil-001/curvegen/wiki) covers Replace and Carve, presets, exporting, and how resource packs and modded blocks work.
 

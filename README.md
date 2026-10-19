@@ -21,7 +21,7 @@ On Windows, use `gradlew.bat`. The jars end up in `fabric/build/libs/` and `neof
 - `dev.curvegen.core` holds the shape maths, the 2D and 3D solvers and the editor's maths. It has no Minecraft imports, so nearly all the tests run without the game. Keep it that way.
 - Run `./gradlew build` before pushing.
 
-Development PRs target `main`. When a version is ready, one release PR promotes a tested commit to `26.3/stable`, using a merge commit. Publishing runs from the stable branch's source. See [the branch and release workflow](AGENTS.md#branch-workflow) for the steps.
+Development PRs target `main`. When a version is ready, one release PR promotes a tested commit to `26.3/stable`, using a merge commit, and backport PRs port it to the older lines' stable branches. Publishing runs from each stable branch's source. See [the branch and release workflow](AGENTS.md#branch-workflow) for the steps.
 
 ---
 

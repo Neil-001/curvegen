@@ -215,17 +215,19 @@ Prepare the version and changelog on `main`, then cut `release/26.3-<version>` f
 
 If the release PR conflicts with stable, merge `origin/26.3/stable` into the release branch, resolve the conflicts and rerun the checks. Keep the intended release contents, including its version and changelog. Bring any release fixes back to `main` before the next promotion. A hotfix that must ship before the next promotion can target stable, but bring that fix back to `main` too.
 
-Older `*/stable` branches receive only selected backports for their Minecraft versions. Once `main` targets a newer Minecraft version, maintain `26.3/stable` the same way.
+Each supported Minecraft line has its own `<line>/stable` branch: `1.21.1/stable` (for 1.21 and 1.21.1), `1.21.11/stable`, `26.2/stable` and `26.3/stable`. `main` targets the newest line, which it promotes to as above. An older line gets a tested `main` release ported down as one commit on top of that release: open the backport PR against that line's stable branch and merge it with a merge commit. Once `main` targets a newer Minecraft version, maintain `26.3/stable` the same way.
+
+`1.21.x/stable` is the retired Stonecutter branch, Fabric only, that released 1.0.0. It stays as history.
 
 ## Releasing
 
-Only `*/stable` branches release. Run `.github/workflows/release.yml` from `main` to publish to Modrinth, CurseForge and GitHub. It builds two-loader branches with Java 25 and older Fabric branches with Java 21, and reads loader and Minecraft ranges from jar metadata.
+Only `*/stable` branches release. Run `.github/workflows/release.yml` from `main` to publish to Modrinth, CurseForge and GitHub. It builds each branch with the Java level its build file sets (`options.release` in `build.gradle`, or `build.gradle.kts` on the Stonecutter branch) and fails if neither sets one, and reads loader and Minecraft ranges from jar metadata.
 
 1. For the current Minecraft version, bump `mod_version` in `gradle.properties` and add `# <version>` at the top of `CHANGELOG.md` on `main`, then promote through the release PR above. For an older maintenance branch, prepare those changes in a PR against that branch. Stonecutter branches use `mod.version` in `stonecutter.properties.toml`. Use `-beta.1` or `-alpha.1` suffixes for prereleases.
 2. After the release PR merges and stable's checks pass, run `gh workflow run release.yml --ref main -f branches=26.3/stable -f dry_run=true` and check the summary's jars and notes. Substitute the selected branch for an older release.
 3. Run `gh workflow run release.yml --ref main -f branches=26.3/stable` to publish that release.
 
-Tags use `<version>+mc<line>`, such as `1.1.0+mc1.21.x`. The default `branches=all` skips existing tags. The workflow creates the tag last, after publishing. Two-loader versions have distinct identifiers such as `1.0.0+mc26.1-fabric` and `1.0.0+mc26.1-neoforge`; GitHub holds both jars in one release.
+Tags use `<version>+mc<line>`, such as `2.1.0+mc1.21.1`. GitHub's comparison link goes back to the newest earlier tag of exactly that line, and a line's first release has none. The default `branches=all` skips existing tags. The workflow creates the tag last, after publishing. Two-loader versions have distinct identifiers such as `1.0.0+mc26.1-fabric` and `1.0.0+mc26.1-neoforge`; GitHub holds both jars in one release.
 
 After a partial failure, re-run failed jobs. Modrinth skips existing versions; CurseForge doesn't. Check CurseForge for each failed job's jar before retrying, and retry only if it's absent. Don't start a fresh run with CurseForge in `targets` after a partial release. To limit sites, pass `-f targets=curseforge,github`, for example.
 
