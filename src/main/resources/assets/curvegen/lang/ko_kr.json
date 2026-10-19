@@ -609,7 +609,6 @@
   "curvegen.screen.enter_to_apply_escape_to_cancel": "Enter 적용, Escape 취소.",
   "curvegen.screen.search_blocks": "블록 검색",
   "curvegen.screen.name": "이름",
-  "curvegen.screen.needs_minecraft_1_21_9": "Minecraft 1.21.9 이상이 필요합니다",
   "curvegen.screen.closest_colour": "가장 가까운 색",
   "curvegen.screen.sort": "정렬",
   "curvegen.screen.no_blocks_match_your_search": "검색과 일치하는 블록이 없습니다.",

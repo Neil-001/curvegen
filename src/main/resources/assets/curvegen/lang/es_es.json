@@ -609,7 +609,6 @@
   "curvegen.screen.enter_to_apply_escape_to_cancel": "Intro para aplicar, Escape para cancelar.",
   "curvegen.screen.search_blocks": "Buscar bloques",
   "curvegen.screen.name": "Nombre",
-  "curvegen.screen.needs_minecraft_1_21_9": "Requiere Minecraft 1.21.9 o posterior",
   "curvegen.screen.closest_colour": "Color más parecido",
   "curvegen.screen.sort": "Orden",
   "curvegen.screen.no_blocks_match_your_search": "Ningún bloque coincide con tu búsqueda.",

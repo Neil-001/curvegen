@@ -609,7 +609,6 @@
   "curvegen.screen.enter_to_apply_escape_to_cancel": "Enterで適用、Escapeでキャンセル。",
   "curvegen.screen.search_blocks": "ブロックを検索",
   "curvegen.screen.name": "名前",
-  "curvegen.screen.needs_minecraft_1_21_9": "Minecraft 1.21.9 以降が必要です",
   "curvegen.screen.closest_colour": "最も近い色",
   "curvegen.screen.sort": "並び順",
   "curvegen.screen.no_blocks_match_your_search": "検索に一致するブロックがありません。",

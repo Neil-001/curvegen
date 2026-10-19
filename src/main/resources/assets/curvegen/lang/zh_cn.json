@@ -609,7 +609,6 @@
   "curvegen.screen.enter_to_apply_escape_to_cancel": "Enter 应用，Escape 取消。",
   "curvegen.screen.search_blocks": "搜索方块",
   "curvegen.screen.name": "名称",
-  "curvegen.screen.needs_minecraft_1_21_9": "需要 Minecraft 1.21.9 或更高版本",
   "curvegen.screen.closest_colour": "最接近的颜色",
   "curvegen.screen.sort": "排序",
   "curvegen.screen.no_blocks_match_your_search": "没有符合搜索条件的方块。",

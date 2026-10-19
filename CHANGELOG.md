@@ -1,6 +1,6 @@
 # 2.1.0
 
-Curve Generator 2.1.0 is for Minecraft 1.21 and 1.21.1 on Fabric, and 1.21.1 on NeoForge. It is the first release for these versions since 1.0.0, so it also brings everything in the sections below. The mod now runs on NeoForge as well as Fabric, curves can use chains and end rods, and its messages show above the hotbar. Shapes can be 3D and appear in the world as holograms you edit with handles, a radial menu on V starts them, and a settings screen holds the mod's options. Shelves need Minecraft 1.21.9 or later, so that option is greyed out here.
+Curve Generator 2.1.0 is for Minecraft 1.21 and 1.21.1 on Fabric, and 1.21.1 on NeoForge. It is the first release for these versions since 1.0.0, so it also brings everything in the sections below. The mod now runs on NeoForge as well as Fabric, curves can use chains and end rods, and its messages show above the hotbar. Shapes can be 3D and appear in the world as holograms you edit with handles, a radial menu on V starts them, and a settings screen holds the mod's options. Shelves aren't available before Minecraft 1.21.9, so the option isn't offered here.
 
 This version adds translations for nine languages. Menus, tooltips, editor hints and messages now follow Minecraft's language setting.
 

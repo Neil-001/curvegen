@@ -43,13 +43,11 @@ import net.minecraft.world.level.block.state.properties.WallSide;
 public final class BlockChoices {
     private BlockChoices() {}
 
-    public static final Family[] FAMILIES = {Family.FULL, Family.SLAB, Family.STAIRS, Family.TRAPDOOR, Family.SHELF, Family.FENCE, Family.PANE, Family.WALL,
+    /** Every family the menus offer. Shelves arrived in Minecraft 1.21.9, so this game leaves them out and keeps them off (see {@link #noShelves}). */
+    public static final Family[] FAMILIES = {Family.FULL, Family.SLAB, Family.STAIRS, Family.TRAPDOOR, Family.FENCE, Family.PANE, Family.WALL,
             Family.CHAIN, Family.ROD};
-    /** The block for each family, except shelves, which this game doesn't have (see {@link #MISSING}). */
+    /** The block for each family in {@link #FAMILIES}. */
     public static final Map<Family, Block> CHOICE = new EnumMap<>(Family.class);
-    /** Shelves arrived in Minecraft 1.21.9. Their family stays in the menus, greyed out with this reason. */
-    public static final java.util.Set<Family> MISSING = java.util.EnumSet.of(Family.SHELF);
-    public static final String MISSING_REASON = "curvegen.screen.needs_minecraft_1_21_9";
     /** Colour last picked with the colour picker, or -1. */
     public static int pickedColor = -1;
 
@@ -63,12 +61,6 @@ public final class BlockChoices {
         CHOICE.put(Family.WALL, Blocks.STONE_BRICK_WALL);
         CHOICE.put(Family.CHAIN, Blocks.CHAIN);
         CHOICE.put(Family.ROD, Blocks.END_ROD);
-    }
-
-    /** The chosen block's name, or why the family has none. */
-    public static String blockName(Family f) {
-        Block b = CHOICE.get(f);
-        return b != null ? b.getName().getString() : tr(MISSING_REASON);
     }
 
     public static String familyName(Family f) {
@@ -135,7 +127,9 @@ public final class BlockChoices {
 
     /** The current block choices as preset text. */
     public static Map<String, String> capture(ShapeSettings s) {
-        return PresetData.captureBlocks(s, f -> BuiltInRegistries.BLOCK.getKey(CHOICE.get(f)).toString());   // skips MISSING
+        Map<String, String> d = PresetData.captureBlocks(s, f -> CHOICE.containsKey(f) ? BuiltInRegistries.BLOCK.getKey(CHOICE.get(f)).toString() : null);
+        d.values().removeIf(java.util.Objects::isNull);   // no shelf block, though "shelfUsed" stays, as false
+        return d;
     }
 
     /**
@@ -150,7 +144,14 @@ public final class BlockChoices {
             if (fits(b, f)) choice.put(f, b);
         });
         s.fullConnects = connects(choice.get(Family.FULL));
+        noShelves(s);
     }
+
+    /**
+     * Turns shelves off, since this game has none. Settings only come from outside through the startup defaults and
+     * presets, which both pass through here, and the menus offer no way to turn shelves back on, so the solvers never see them.
+     */
+    public static void noShelves(ShapeSettings s) { s.shelf = false; }
 
     public static Block blockFor(int piece) { return CHOICE.get(Pieces.FAMILY[piece]); }
 

@@ -53,7 +53,7 @@ public final class CurveGenClient {
     /** Loads the settings, creates the keys and returns them for the loader to register, along with {@link #CATEGORY}. */
     public static List<KeyMapping> init(ClientPlatform loader) {
         platform = loader;
-        ShapeSettings.gameLacks(BlockChoices.MISSING);
+        BlockChoices.noShelves(SETTINGS);
         ModSettings.load();
         OPEN = key("open", InputConstants.KEY_G);
         RADIAL = key("radial", InputConstants.KEY_V);

@@ -149,8 +149,6 @@ public class RadialScreen extends Screen {
     private Wedge blocks(Family f) {
         Block block = BlockChoices.CHOICE.get(f);
         String name = BlockChoices.familyName(f), off = null;
-        if (block == null)
-            return new Wedge(name, tr("curvegen.option.off"), tr(BlockChoices.MISSING_REASON), null, null, null, Stay.NEVER, () -> { });
         if (!S.is3d() && S.floor && (f == Family.SLAB || f == Family.STAIRS))
             off = tr(f == Family.SLAB ? "curvegen.radial.flat_slab" : "curvegen.radial.flat_stairs");
         boolean full = f == Family.FULL;
