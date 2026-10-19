@@ -1,6 +1,7 @@
 package dev.curvegen.client.edit;
 
 import com.mojang.blaze3d.platform.InputConstants;
+import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import dev.curvegen.client.Lang;
@@ -27,17 +28,15 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import net.minecraft.ChatFormatting;
-import net.minecraft.client.Camera;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
-import net.minecraft.util.ARGB;
+import net.minecraft.util.FastColor.ARGB32;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.FogType;
@@ -874,7 +873,7 @@ public final class Editor {
          */
         void submit(PoseStack ms, double[] cam, double[] forward, double spread) {
             if (n == 0) return;
-            Hologram.submit(ms, RenderTypes.debugFilledBox(), true, (pose, vc) -> {
+            Hologram.submit(ms, Hologram.filled(), true, (pose, vc) -> {
                 for (int k = 0; k < n; k++) {
                     int o = k * 6;
                     double x1 = xyz[o], y1 = xyz[o + 1], z1 = xyz[o + 2], x2 = xyz[o + 3], y2 = xyz[o + 4], z2 = xyz[o + 5];
@@ -913,13 +912,11 @@ public final class Editor {
 
     /**
      * The tangent of half the vertical field of view, which is half the view's height one block in front of the camera.
-     * 1.21.11 keeps the field of view to itself, so this projects a point one block ahead and one up.
+     * 1.21.1 keeps the field of view to itself, so this reads it from the projection the level is being drawn with.
      */
     private static double halfViewHeight(Minecraft mc) {
-        Camera camera = mc.gameRenderer.getMainCamera();
-        Vector3fc f = camera.forwardVector(), u = camera.upVector();
-        double y = mc.gameRenderer.projectPointToScreen(camera.position().add(f.x() + u.x(), f.y() + u.y(), f.z() + u.z())).y;
-        return y > 0 ? 1 / y : Math.tan(Math.toRadians(mc.options.fov().get()) / 2);
+        float m11 = RenderSystem.getProjectionMatrix().m11();
+        return m11 > 0 ? 1 / m11 : Math.tan(Math.toRadians(mc.options.fov().get()) / 2);
     }
 
     /**
@@ -938,7 +935,7 @@ public final class Editor {
         Minecraft mc = Minecraft.getInstance();
         if (!active || mc.player == null) return;
         sync();
-        Vector3fc forward = mc.gameRenderer.getMainCamera().forwardVector();
+        Vector3fc forward = mc.gameRenderer.getMainCamera().getLookVector();
         eye = new double[]{cam.x, cam.y, cam.z};
         look = new double[]{forward.x(), forward.y(), forward.z()};
 
@@ -959,7 +956,7 @@ public final class Editor {
         // Everything below is relative to the box's corner, which keeps the numbers small far from the world's origin.
         double ox = box.x(), oy = box.y(), oz = box.z();
         double cx = cam.x - ox, cy = cam.y - oy, cz = cam.z - oz;
-        float width = mc.getWindow().getAppropriateLineWidth();
+        float width = Math.max(2.5f, mc.getWindow().getWidth() / 1920f * 2.5f);   // the game's own line width
 
         if (hologram != null && hologramOrigin != null) {
             double hx = hologramOrigin[0] - ox, hy = hologramOrigin[1] - oy, hz = hologramOrigin[2] - oz;
@@ -1008,7 +1005,7 @@ public final class Editor {
             double base = ModSettings.handleSize;
             // Twice: dimmed through whatever is in the way, then as they are where nothing is.
             for (boolean through : new boolean[]{true, false})
-                Hologram.submit(ms, through ? Hologram.throughWalls() : RenderTypes.debugFilledBox(), true, (pose, vc) -> {
+                Hologram.submit(ms, through ? Hologram.throughWalls() : Hologram.filled(), true, (pose, vc) -> {
                     VertexConsumer fill = through ? Hologram.lit(vc) : vc;
                     for (int k = 0; k < handles.size(); k++) {
                         Handle h = handles.get(k);
@@ -1019,7 +1016,7 @@ public final class Editor {
                         int moving = 0;
                         if (!h.isPoint()) for (int s : h.sign) if (s != 0) moving++;
                         int color = hot ? HOT : h.isPoint() ? POINT : moving == 1 ? FACE : moving == 2 ? EDGE : CORNER;
-                        if (through) color = ARGB.color(HIDDEN_ALPHA, color);
+                        if (through) color = ARGB32.color(HIDDEN_ALPHA, color);
                         // The handle being dragged stands out from the rest.
                         if (drag != null && !h.same(drag.handle)) color = HandleMath.dimmed(color);
                         double x = p[0] - ox, y = p[1] - oy, z = p[2] - oz;

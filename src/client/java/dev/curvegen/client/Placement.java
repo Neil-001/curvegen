@@ -20,7 +20,6 @@ import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.PlainTextContents;
 import net.minecraft.network.chat.contents.TranslatableContents;
-import net.minecraft.server.permissions.Permissions;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.FallingBlock;
 import net.minecraft.world.level.block.LiquidBlock;
@@ -58,7 +57,7 @@ public final class Placement {
     private static boolean free(BlockState current) { return current.isAir() || current.canBeReplaced(); }
 
     public static boolean canPlace(Minecraft mc) {
-        return mc.player != null && mc.player.permissions().hasPermission(Permissions.COMMANDS_GAMEMASTER);
+        return mc.player != null && mc.player.hasPermissions(2);
     }
 
     public static void tick(Minecraft mc) {
@@ -100,8 +99,8 @@ public final class Placement {
         // A syntax error has a second line, wrapped the same way: the command, then "<--[HERE]".
         List<Component> parts = error.getSiblings();
         return empty(error) && !parts.isEmpty() && parts.get(parts.size() - 1).getContents() instanceof TranslatableContents t
-                && t.getKey().equals(CommandReplies.HERE) && error.getStyle().getClickEvent() instanceof ClickEvent.SuggestCommand(String command)
-                && command.startsWith("/setblock ") && replies.hidesFailure(CommandReplies.HERE);
+                && t.getKey().equals(CommandReplies.HERE) && error.getStyle().getClickEvent() instanceof ClickEvent click
+                && click.getAction() == ClickEvent.Action.SUGGEST_COMMAND && click.getValue().startsWith("/setblock ") && replies.hidesFailure(CommandReplies.HERE);
     }
 
     private static boolean empty(Component c) { return c.getContents() instanceof PlainTextContents plain && plain.text().isEmpty(); }
@@ -223,10 +222,10 @@ public final class Placement {
             // The server doesn't have the mod: fall back to /setblock, which also needs operator rights.
             for (int i = 0; i < pos.size(); i++) {
                 BlockPos p = pos.get(i);
-                // Undo uses strict mode, which sets the block without block updates, as the server-side handler does first.
-                // Commands can't run the handler's second step, so blocks around the restored ones keep their state.
+                // 1.21.1's /setblock has no strict mode, so an undo through commands updates the blocks around each
+                // restored one as it goes, and a block restored before its support can break again.
                 commandQueue.add(new Command(p, "setblock " + p.getX() + " " + p.getY() + " " + p.getZ() + " "
-                        + BlockStateParser.serialize(states.get(i)) + (undo ? " strict" : "")));
+                        + BlockStateParser.serialize(states.get(i))));
             }
             int seconds = (int) Math.ceil(pos.size() / (COMMANDS_PER_TICK * 20.0));
             say(Component.translatable("curvegen.placement.fallback." + doing, pos.size(), seconds));

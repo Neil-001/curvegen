@@ -1,7 +1,10 @@
 package dev.curvegen.client.edit;
 
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
+import com.mojang.blaze3d.vertex.VertexFormat;
 import dev.curvegen.client.ColorIndex;
 import dev.curvegen.core.Message;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
@@ -11,17 +14,12 @@ import java.util.List;
 import java.util.Map;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.RenderPipelines;
-import net.minecraft.client.renderer.SubmitNodeCollector;
-import net.minecraft.client.renderer.rendertype.LayeringTransform;
-import net.minecraft.client.renderer.rendertype.OutputTarget;
-import net.minecraft.client.renderer.rendertype.RenderSetup;
-import net.minecraft.client.renderer.rendertype.RenderType;
-import net.minecraft.client.renderer.rendertype.RenderTypes;
+import net.minecraft.client.renderer.RenderStateShard;
+import net.minecraft.client.renderer.RenderType;
 import net.minecraft.core.BlockPos;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.FluidTags;
-import net.minecraft.util.ARGB;
+import net.minecraft.util.FastColor.ARGB32;
 import net.minecraft.world.level.EmptyBlockGetter;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
@@ -173,9 +171,9 @@ public final class Hologram {
     private static void submitBoxes(PoseStack ms, List<Entry> place, List<BlockPos> clear, boolean afterWater,
                                     float opacity, double cx, double cy, double cz) {
         if (place.isEmpty() && clear.isEmpty()) return;
-        submit(ms, RenderTypes.debugFilledBox(), afterWater, (pose, fill) -> {
+        submit(ms, filled(), afterWater, (pose, fill) -> {
             for (Entry e : place) {
-                int color = ARGB.color((int) (opacity * 255), e.rgb);
+                int color = ARGB32.color((int) (opacity * 255), e.rgb);
                 float[] q = e.quads;
                 for (int k = 0; k < e.sides.length; k++) {
                     int o = k * 12;
@@ -189,22 +187,24 @@ public final class Hologram {
                 }
             }
             // Blocks carving will remove, in red. Slightly larger than the block, or a full block would hide its own box.
-            int red = ARGB.colorFromFloat(0.28f, 1f, 0.2f, 0.25f);
+            int red = ARGB32.colorFromFloat(0.28f, 1f, 0.2f, 0.25f);
             for (BlockPos o : clear)
                 filledBox(pose, fill, o.getX() - .005, o.getY() - .005, o.getZ() - .005, o.getX() + 1.005, o.getY() + 1.005, o.getZ() + 1.005, red, cx, cy, cz);
         });
     }
 
+    /** Quads to draw with a pose, into the render type's buffer. */
+    interface Geometry { void render(PoseStack.Pose pose, VertexConsumer vc); }
+
     /** Geometry waiting to be drawn, with the pose it was submitted with. */
-    private record Queued(PoseStack.Pose pose, RenderType type, SubmitNodeCollector.CustomGeometryRenderer geometry) {}
+    private record Queued(PoseStack.Pose pose, RenderType type, Geometry geometry) {}
     private static final List<Queued> BEFORE_WATER = new ArrayList<>(), AFTER_WATER = new ArrayList<>();
 
     /**
-     * Queues custom geometry to draw after translucent terrain or before it. 1.21.11's collector has no phase after
-     * translucent terrain, and NeoForge has no event that hands it over before the game draws it, so both queues are
-     * drawn straight to the game's buffers: {@link #drawBeforeWater} after entities, {@link #drawAfterWater} after water.
+     * Queues custom geometry to draw after translucent terrain or before it. Both queues are drawn straight to the
+     * game's buffers: {@link #drawBeforeWater} after entities, {@link #drawAfterWater} after water.
      */
-    static void submit(PoseStack ms, RenderType type, boolean afterTerrain, SubmitNodeCollector.CustomGeometryRenderer geometry) {
+    static void submit(PoseStack ms, RenderType type, boolean afterTerrain, Geometry geometry) {
         (afterTerrain ? AFTER_WATER : BEFORE_WATER).add(new Queued(ms.last().copy(), afterTerrain ? overWater(type) : type, geometry));
     }
 
@@ -251,30 +251,56 @@ public final class Hologram {
         for (int i = 0; i < 12; i += 3) vc.addVertex(pose, xyz[i], xyz[i + 1], xyz[i + 2]).setColor(color);
     }
 
+    /** Translucent coloured quads, tested against depth, for the boxes and outlines. */
+    static RenderType filled() { return FILL; }
+
     /**
      * A render type that draws plain coloured quads over everything, whatever is in front. The game has no such
      * type for untextured boxes, so this is the one it draws see-through name tags with, on a white texture.
      */
-    static RenderType throughWalls() { return RenderTypes.textSeeThrough(WHITE); }
-    private static final Identifier WHITE = Identifier.fromNamespaceAndPath("curvegen", "textures/white.png");
+    static RenderType throughWalls() { return THROUGH; }
+    private static final ResourceLocation WHITE = ResourceLocation.fromNamespaceAndPath("curvegen", "textures/white.png");
 
     /**
      * With improved transparency the game draws water into a target of its own and lays it over the main one by depth
-     * once the level is drawn, so geometry that goes over the water must draw into that target, after the water. The
-     * game has no such render types, so these copy the two that are drawn after water. Without improved transparency
-     * the game has no translucent target, and they draw to the main one.
+     * once the level is drawn, so geometry that goes over the water must draw into that target, after the water.
+     * Without improved transparency the translucent target is the main one.
      */
-    private static final OutputTarget WATER_TARGET = new OutputTarget("curvegen_translucent",
-            () -> Minecraft.getInstance().levelRenderer.getTranslucentTarget());
-    private static final RenderType FILL_OVER_WATER = RenderType.create("curvegen_filled_box_over_water",
-            RenderSetup.builder(RenderPipelines.DEBUG_FILLED_BOX).sortOnUpload().setLayeringTransform(LayeringTransform.VIEW_OFFSET_Z_LAYERING)
-                    .setOutputTarget(WATER_TARGET).createRenderSetup());
-    private static final RenderType THROUGH_OVER_WATER = RenderType.create("curvegen_see_through_over_water",
-            RenderSetup.builder(RenderPipelines.TEXT_SEE_THROUGH).withTexture("Sampler0", WHITE).useLightmap()
-                    .setOutputTarget(WATER_TARGET).createRenderSetup());
+    private static final RenderType FILL = Types.filled("curvegen_filled_box", false), FILL_OVER_WATER = Types.filled("curvegen_filled_box_over_water", true),
+            THROUGH = Types.seeThrough("curvegen_see_through", false), THROUGH_OVER_WATER = Types.seeThrough("curvegen_see_through_over_water", true);
 
     private static RenderType overWater(RenderType type) {
-        return type == RenderTypes.debugFilledBox() ? FILL_OVER_WATER : type == throughWalls() ? THROUGH_OVER_WATER : type;
+        return type == FILL ? FILL_OVER_WATER : type == THROUGH ? THROUGH_OVER_WATER : type;
+    }
+
+    /**
+     * The game's filled box draws triangle strips, and render types can only be put together inside a subclass of
+     * RenderStateShard, so this builds the hologram's own. Neither culls: {@link #filledBox} leaves out the back faces.
+     * Each sets the depth test itself: the particles before {@code AFTER_TRANSLUCENT} leave it on, and the game's own
+     * {@code NO_DEPTH_TEST} only leaves it as it finds it.
+     */
+    private static final class Types extends RenderStateShard {
+        private Types() { super("curvegen", () -> { }, () -> { }); }
+
+        private static final RenderStateShard NO_DEPTH = new RenderStateShard("curvegen_no_depth_test", RenderSystem::disableDepthTest, () -> { }) { };
+
+        static RenderType filled(String name, boolean overWater) {
+            return type(name, DefaultVertexFormat.POSITION_COLOR, true, POSITION_COLOR_SHADER, TRANSLUCENT_TRANSPARENCY,
+                    VIEW_OFFSET_Z_LAYERING, NO_CULL, LEQUAL_DEPTH_TEST, overWater ? TRANSLUCENT_TARGET : MAIN_TARGET);
+        }
+
+        /** The game's see-through text, as {@code RenderType.textSeeThrough} makes it. */
+        static RenderType seeThrough(String name, boolean overWater) {
+            return type(name, DefaultVertexFormat.POSITION_COLOR_TEX_LIGHTMAP, false, RENDERTYPE_TEXT_SEE_THROUGH_SHADER,
+                    new TextureStateShard(WHITE, false, false), TRANSLUCENT_TRANSPARENCY, LIGHTMAP, NO_DEPTH, COLOR_WRITE, NO_CULL,
+                    overWater ? TRANSLUCENT_TARGET : MAIN_TARGET);
+        }
+
+        private static RenderType type(String name, VertexFormat format, boolean sort, RenderStateShard... shards) {
+            List<RenderStateShard> list = List.of(shards);
+            return new RenderType(name, format, VertexFormat.Mode.QUADS, 1536, false, sort,
+                    () -> list.forEach(RenderStateShard::setupRenderState), () -> list.forEach(RenderStateShard::clearRenderState)) { };
+        }
     }
 
     /** A vertex consumer for {@link #throughWalls}, which wants a texture coordinate and a light level on every vertex. */
@@ -289,6 +315,5 @@ public final class Hologram {
         @Override public VertexConsumer setUv1(int u, int v) { return this; }
         @Override public VertexConsumer setUv2(int u, int v) { return this; }
         @Override public VertexConsumer setNormal(float x, float y, float z) { return this; }
-        @Override public VertexConsumer setLineWidth(float w) { return this; }
     }
 }

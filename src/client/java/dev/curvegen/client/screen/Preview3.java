@@ -1,5 +1,6 @@
 package dev.curvegen.client.screen;
 
+import dev.curvegen.client.Pixels;
 import com.mojang.blaze3d.platform.NativeImage;
 import dev.curvegen.client.ColorIndex;
 import dev.curvegen.core.Mesh3;
@@ -12,9 +13,8 @@ import java.util.List;
 import java.util.Map;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.renderer.texture.DynamicTexture;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.block.Block;
 
 /**
@@ -34,7 +34,7 @@ final class Preview3 implements AutoCloseable {
     private Orbit drawn;
 
     private DynamicTexture tex;
-    private Identifier id;
+    private ResourceLocation id;
     private Raster3 raster;
     private int factor = 1;
     private static int nextId;
@@ -85,15 +85,15 @@ final class Preview3 implements AutoCloseable {
     void draw(GuiGraphics ctx, int x0, int y0, int x1, int y1) {
         int gw = x1 - x0, gh = y1 - y0;
         if (gw <= 0 || gh <= 0) return;
-        int k = Math.max(1, Minecraft.getInstance().getWindow().getGuiScale());
+        int k = Math.max(1, (int) Minecraft.getInstance().getWindow().getGuiScale());
         while (k > 1 && (long) gw * k * gh * k > MOST_PIXELS) k--;
         int w = gw * k, h = gh * k;
         if (raster == null || raster.width != w || raster.height != h || id == null) {
             close();
             raster = new Raster3(w, h);
             factor = k;
-            id = Identifier.fromNamespaceAndPath("curvegen", "preview3_" + nextId++);
-            tex = new DynamicTexture(id::toString, new NativeImage(w, h, false));
+            id = ResourceLocation.fromNamespaceAndPath("curvegen", "preview3_" + nextId++);
+            tex = new DynamicTexture(new NativeImage(w, h, false));
             Minecraft.getInstance().getTextureManager().register(id, tex);
             dirty = true;
         }
@@ -113,15 +113,15 @@ final class Preview3 implements AutoCloseable {
             NativeImage img = tex.getPixels();
             int[] px = raster.argb;
             for (int y = 0, i = 0; y < h; y++)
-                for (int x = 0; x < w; x++, i++) img.setPixel(x, y, px[i]);
+                for (int x = 0; x < w; x++, i++) Pixels.set(img, x, y, px[i]);
             tex.upload();
         }
         var m = ctx.pose();
-        m.pushMatrix();
-        m.translate(x0, y0);
-        m.scale(1f / factor, 1f / factor);
-        ctx.blit(RenderPipelines.GUI_TEXTURED, id, 0, 0, 0f, 0f, w, h, w, h);
-        m.popMatrix();
+        m.pushPose();
+        m.translate(x0, y0, 0);
+        m.scale(1f / factor, 1f / factor, 1);
+        ctx.blit(id, 0, 0, 0f, 0f, w, h, w, h);
+        m.popPose();
     }
 
     /** The view for something whose coordinates start {@code pad} blocks before the box's corner. */

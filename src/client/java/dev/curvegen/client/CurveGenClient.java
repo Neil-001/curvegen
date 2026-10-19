@@ -12,7 +12,6 @@ import java.util.function.IntConsumer;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.Direction;
-import net.minecraft.resources.Identifier;
 
 /** The client side that doesn't depend on the mod loader. The loader's client entrypoint, in {@code dev.curvegen.client.fabric} or {@code dev.curvegen.client.neoforge}, hooks it up. */
 public final class CurveGenClient {
@@ -23,8 +22,8 @@ public final class CurveGenClient {
 
     public static ClientPlatform platform;
 
-    /** The heading for the keys in the Controls screen. Each loader registers it in its own way. */
-    public static final KeyMapping.Category CATEGORY = new KeyMapping.Category(Identifier.fromNamespaceAndPath("curvegen", "main"));
+    /** The heading for the keys in the Controls screen: in 1.21.1, a translation key. */
+    public static final String CATEGORY = "key.category.curvegen.main";
     public static KeyMapping OPEN, RADIAL, CONFIRM, CANCEL, ROTATE, TIP, FORWARD, BACK, BUMP_OUT, BUMP_IN, LOCK, UNDO, REDO, REPLACE, CARVE, ADD_POINT, REMOVE_POINT;
     /** Moves along one world axis each, in {@link Direction} order. Unbound until the player assigns them. */
     private static final KeyMapping[] MOVE = new KeyMapping[6];
@@ -54,6 +53,7 @@ public final class CurveGenClient {
     /** Loads the settings, creates the keys and returns them for the loader to register, along with {@link #CATEGORY}. */
     public static List<KeyMapping> init(ClientPlatform loader) {
         platform = loader;
+        ShapeSettings.gameLacks(BlockChoices.MISSING);
         ModSettings.load();
         OPEN = key("open", InputConstants.KEY_G);
         RADIAL = key("radial", InputConstants.KEY_V);

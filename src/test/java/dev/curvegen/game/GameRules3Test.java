@@ -3,6 +3,7 @@ package dev.curvegen.game;
 import dev.curvegen.client.BlockChoices;
 import dev.curvegen.core.Pieces;
 import dev.curvegen.core.Pieces3;
+import dev.curvegen.core.ShapeSettings;
 import dev.curvegen.core.Shapes3Cases;
 import dev.curvegen.core.Solver3;
 import net.minecraft.SharedConstants;
@@ -12,16 +13,15 @@ import net.minecraft.core.Holder;
 import net.minecraft.server.Bootstrap;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.TagKey;
-import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.EmptyBlockGetter;
-import net.minecraft.world.level.LevelReader;
-import net.minecraft.world.level.ScheduledTickAccess;
+import net.minecraft.world.level.LevelAccessor;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.Property;
 import net.minecraft.world.level.material.Fluids;
 import net.minecraft.world.phys.shapes.VoxelShape;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -31,6 +31,7 @@ import java.lang.reflect.Proxy;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -52,10 +53,18 @@ class GameRules3Test {
         tag(Blocks.OAK_FENCE, List.of(BlockTags.FENCES, BlockTags.WOODEN_FENCES));
         tag(Blocks.OAK_LEAVES, List.of(BlockTags.LEAVES));
         BlockChoices.CHOICE.putAll(Map.of(Pieces.Family.SLAB, Blocks.STONE_SLAB, Pieces.Family.STAIRS, Blocks.STONE_STAIRS,
-                Pieces.Family.TRAPDOOR, Blocks.OAK_TRAPDOOR, Pieces.Family.SHELF, Blocks.OAK_SHELF, Pieces.Family.FENCE, Blocks.OAK_FENCE,
-                Pieces.Family.PANE, Blocks.GLASS_PANE, Pieces.Family.WALL, Blocks.COBBLESTONE_WALL, Pieces.Family.CHAIN, Blocks.IRON_CHAIN,
+                Pieces.Family.TRAPDOOR, Blocks.OAK_TRAPDOOR, Pieces.Family.FENCE, Blocks.OAK_FENCE,
+                Pieces.Family.PANE, Blocks.GLASS_PANE, Pieces.Family.WALL, Blocks.COBBLESTONE_WALL, Pieces.Family.CHAIN, Blocks.CHAIN,
                 Pieces.Family.ROD, Blocks.END_ROD));
+        // This game has no shelves, so the solved shapes leave them out, as the client does, and their states aren't checked.
+        ShapeSettings.gameLacks(BlockChoices.MISSING);
     }
+
+    /** The other tests run in the same JVM and expect every piece type. */
+    @AfterAll
+    static void restoreFamilies() { ShapeSettings.gameLacks(Set.of()); }
+
+    private static boolean inGame(int s) { return !BlockChoices.MISSING.contains(Pieces3.FAMILY[s]); }
 
     @SuppressWarnings("deprecation")
     private static void tag(Block b, List<TagKey<Block>> tags) throws ReflectiveOperationException {
@@ -85,7 +94,7 @@ class GameRules3Test {
     @Test
     void everyStateHasTheGamesShape() {
         for (int s = 0; s < Pieces3.COUNT; s++) {
-            if (s == Pieces3.WALL) continue;   // a wall with no sides and no post: never produced
+            if (s == Pieces3.WALL || !inGame(s)) continue;   // a wall with no sides and no post: never produced
             BlockState st = state(s, true);
             boolean[] ours = Pieces3.voxels(s), game = voxels(st.getShape(EmptyBlockGetter.INSTANCE, BlockPos.ZERO));
             Pieces.Family f = Pieces3.FAMILY[s];
@@ -101,7 +110,7 @@ class GameRules3Test {
         }
     }
 
-    private static LevelReader level(Solver3.Result r, boolean fullConnects) {
+    private static LevelAccessor level(Solver3.Result r, boolean fullConnects) {
         InvocationHandler h = (proxy, method, args) -> {
             if (method.getName().equals("getBlockState") && args.length == 1 && args[0] instanceof BlockPos p) {
                 boolean in = p.getX() >= 0 && p.getY() >= 0 && p.getZ() >= 0 && p.getX() < r.nx() && p.getY() < r.ny() && p.getZ() < r.nz();
@@ -111,17 +120,14 @@ class GameRules3Test {
             if (method.isDefault()) return InvocationHandler.invokeDefault(proxy, method, args);
             throw new UnsupportedOperationException(method.toString());
         };
-        return (LevelReader) Proxy.newProxyInstance(LevelReader.class.getClassLoader(), new Class<?>[]{LevelReader.class}, h);
+        return (LevelAccessor) Proxy.newProxyInstance(LevelAccessor.class.getClassLoader(), new Class<?>[]{LevelAccessor.class}, h);
     }
 
-    private static final ScheduledTickAccess NO_TICKS = (ScheduledTickAccess) Proxy.newProxyInstance(ScheduledTickAccess.class.getClassLoader(),
-            new Class<?>[]{ScheduledTickAccess.class}, (proxy, method, args) -> { throw new UnsupportedOperationException(method.toString()); });
-
     /** The state after the game has told the block about each of its six neighbours. */
-    private static BlockState updated(LevelReader level, BlockPos pos) {
+    private static BlockState updated(LevelAccessor level, BlockPos pos) {
         BlockState st = level.getBlockState(pos);
         for (Direction d : Direction.values())
-            st = st.updateShape(level, NO_TICKS, pos, d, pos.relative(d), level.getBlockState(pos.relative(d)), RandomSource.create(0));
+            st = st.updateShape(d, level.getBlockState(pos.relative(d)), level, pos, pos.relative(d));
         return st;
     }
 
@@ -130,7 +136,7 @@ class GameRules3Test {
         int connectors = 0, corners = 0, walls = 0;
         for (Shapes3Cases.Case c : Shapes3Cases.all()) {
             Solver3.Result r = c.solve();
-            LevelReader level = level(r, c.settings().fullConnects);
+            LevelAccessor level = level(r, c.settings().fullConnects);
             for (int y = 0; y < r.ny(); y++)
                 for (int z = 0; z < r.nz(); z++)
                     for (int x = 0; x < r.nx(); x++) {
@@ -151,10 +157,11 @@ class GameRules3Test {
         Map<Pieces.Family, Block> before = new java.util.EnumMap<>(BlockChoices.CHOICE);
         try {
             BlockChoices.CHOICE.putAll(Map.of(Pieces.Family.FULL, Blocks.OAK_LEAVES, Pieces.Family.SLAB, Blocks.SMOOTH_QUARTZ_SLAB,
-                    Pieces.Family.STAIRS, Blocks.PURPUR_STAIRS, Pieces.Family.TRAPDOOR, Blocks.IRON_TRAPDOOR, Pieces.Family.SHELF, Blocks.CRIMSON_SHELF,
+                    Pieces.Family.STAIRS, Blocks.PURPUR_STAIRS, Pieces.Family.TRAPDOOR, Blocks.IRON_TRAPDOOR,
                     Pieces.Family.FENCE, Blocks.NETHER_BRICK_FENCE, Pieces.Family.PANE, Blocks.IRON_BARS, Pieces.Family.WALL, Blocks.MUD_BRICK_WALL));
             assertEquals(Blocks.AIR.defaultBlockState(), BlockChoices.stateFor3(Pieces3.AIR));
             for (int s = 1; s < Pieces3.COUNT; s++) {
+                if (!inGame(s)) continue;
                 BlockState st = BlockChoices.stateFor3(s);
                 assertSame(BlockChoices.CHOICE.get(Pieces3.FAMILY[s]), st.getBlock(), Pieces3.name(s));
                 String props = Pieces3.props(s);
@@ -183,7 +190,7 @@ class GameRules3Test {
         // The check above only means something if the game does change states it disagrees with.
         Solver3.Result r = new Solver3.Result(new short[]{(short) Pieces3.wall(1, 0, 1, 0, false), 0, (short) Pieces3.stair(0, Pieces3.N, Pieces3.INNER_LEFT)},
                 3, 1, 1, 0, 0, new int[Pieces3.COUNT], null, 0);
-        LevelReader level = level(r, true);
+        LevelAccessor level = level(r, true);
         assertEquals(state(Pieces3.WALL_POST, true), updated(level, new BlockPos(0, 0, 0)));
         assertEquals(state(Pieces3.stair(0, Pieces3.N, Pieces3.STRAIGHT), true), updated(level, new BlockPos(2, 0, 0)));
     }

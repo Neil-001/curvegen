@@ -27,9 +27,6 @@ import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.ConfirmScreen;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.input.KeyEvent;
-import net.minecraft.client.input.MouseButtonEvent;
-import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.level.block.Block;
@@ -242,7 +239,7 @@ public class PresetsScreen extends Screen {
         ctx.fill(x0 - 1, top - 1, x1 + 1, listBottom() + 1, 0x80000000);
         if (shown.isEmpty()) {
             String msg = query.isBlank() ? tr("curvegen.screen.no_presets_yet_use_save_preset_in_the_generator") : tr("curvegen.screen.no_presets_match_your_search");
-            ctx.drawWordWrap(font, Component.literal(msg), x0 + 6, top + 6, listW() - 12, 0xFF9AA5B3, false);
+            ctx.drawWordWrap(font, Component.literal(msg), x0 + 6, top + 6, listW() - 12, 0xFF9AA5B3);
         }
         String tip = null;
         for (int i = scroll; i < shown.size() && i < scroll + visibleRows(); i++) {
@@ -283,19 +280,19 @@ public class PresetsScreen extends Screen {
         Preset target = hovered != null ? hovered : previewed;
         if (target == null) {
             ctx.drawWordWrap(font, Component.translatable("curvegen.screen.hover_a_preset_to_preview_it_or_select_one"),
-                    px0 + 8, py0 + 8, px1 - px0 - 16, 0xFF9AA5B3, false);
+                    px0 + 8, py0 + 8, px1 - px0 - 16, 0xFF9AA5B3);
         } else {
             Solver.Result r = is3d() ? null : resultFor(target);
             CurveScreen.Solved3 r3 = is3d() ? solved3For(target) : null;
             int infoH = 24;
             if (is3d()) {
                 if (r3 == null) ctx.drawString(font, tr("curvegen.screen.working"), px0 + 8, py0 + 8, 0xFF9AA5B3, false);
-                else if (r3.error() != null) ctx.drawWordWrap(font, Component.literal(Lang.text(r3.error())), px0 + 8, py0 + 8, px1 - px0 - 16, 0xFFFF8098, false);
+                else if (r3.error() != null) ctx.drawWordWrap(font, Component.literal(Lang.text(r3.error())), px0 + 8, py0 + 8, px1 - px0 - 16, 0xFFFF8098);
                 else draw3(ctx, target, r3, px0, py0, px1, py1 - infoH);
             }
             else if (r == null) ctx.drawString(font, tr("curvegen.screen.working"), px0 + 8, py0 + 8, 0xFF9AA5B3, false);
             else if (r.target().error != null)
-                ctx.drawWordWrap(font, Component.literal(Lang.text(r.target().error)), px0 + 8, py0 + 8, px1 - px0 - 16, 0xFFFF8098, false);
+                ctx.drawWordWrap(font, Component.literal(Lang.text(r.target().error)), px0 + 8, py0 + 8, px1 - px0 - 16, 0xFFFF8098);
             else {
                 if (textureFor != target || texture.id() == null) { texture.update(r, CurveScreen.colors, true, true, choiceFor(target)); textureFor = target; }
                 float aw = px1 - px0 - 12, ah = py1 - py0 - 12 - infoH;
@@ -303,12 +300,12 @@ public class PresetsScreen extends Screen {
                 float ox = px0 + (px1 - px0 - r.nx() * z) / 2f, oy = py0 + 6 + (ah - r.ny() * z) / 2f;
                 ctx.enableScissor(px0, py0, px1, py1);
                 var m = ctx.pose();
-                m.pushMatrix();
-                m.translate(ox, oy);
+                m.pushPose();
+                m.translate(ox, oy, 0);
                 float s = z / texture.sub;
-                m.scale(s, s);
-                ctx.blit(RenderPipelines.GUI_TEXTURED, texture.id(), 0, 0, 0f, 0f, texture.width, texture.height, texture.width, texture.height);
-                m.popMatrix();
+                m.scale(s, s, 1);
+                ctx.blit(texture.id(), 0, 0, 0f, 0f, texture.width, texture.height, texture.width, texture.height);
+                m.popPose();
                 ctx.disableScissor();
             }
             ctx.fill(px0, py1 - infoH, px1, py1, 0xB0000000);
@@ -316,7 +313,7 @@ public class PresetsScreen extends Screen {
             String desc = Lang.text(PresetData.defaultName(settingsFor(target), gen));
             ctx.drawString(font, font.plainSubstrByWidth(desc, px1 - px0 - 12), px0 + 6, py1 - infoH + 13, 0xFF9AA5B3, false);
         }
-        if (tip != null) ctx.setTooltipForNextFrame(font, Component.literal(tip), mx, my);
+        if (tip != null) setTooltipForNextRenderPass(Component.literal(tip));
     }
 
     private static void drawArt(GuiGraphics ctx, String[] art, int x, int y, int color) {
@@ -328,9 +325,8 @@ public class PresetsScreen extends Screen {
 
     // ---------- input ----------
     @Override
-    public boolean mouseClicked(MouseButtonEvent event, boolean doubled) {
-        double mx = event.x(), my = event.y(); int button = event.button();
-        if (super.mouseClicked(event, doubled)) return true;
+    public boolean mouseClicked(double mx, double my, int button) {
+        if (super.mouseClicked(mx, my, button)) return true;
         if (is3d() && previewed != null && mx >= pvX0() && mx < pvX1() && my >= pvY0() && my < pvY1()) { turning = true; return true; }
         int row = rowAt(mx, my);
         if (row < 0 || button != InputConstants.MOUSE_BUTTON_LEFT) return false;
@@ -351,15 +347,15 @@ public class PresetsScreen extends Screen {
 
     /** Dragging a 3D preset's picture turns it. */
     @Override
-    public boolean mouseDragged(MouseButtonEvent event, double dx, double dy) {
+    public boolean mouseDragged(double mx, double my, int button, double dx, double dy) {
         if (turning) { picture.cam.orbit(dx, dy); return true; }
-        return super.mouseDragged(event, dx, dy);
+        return super.mouseDragged(mx, my, button, dx, dy);
     }
 
     @Override
-    public boolean mouseReleased(MouseButtonEvent event) {
+    public boolean mouseReleased(double mx, double my, int button) {
         turning = false;
-        return super.mouseReleased(event);
+        return super.mouseReleased(mx, my, button);
     }
 
     @Override
@@ -372,9 +368,9 @@ public class PresetsScreen extends Screen {
     }
 
     @Override
-    public boolean keyPressed(KeyEvent event) {
-        if (event.isConfirmation() && selected != null) { load(selected); return true; }
-        return super.keyPressed(event);
+    public boolean keyPressed(int key, int scancode, int modifiers) {
+        if ((key == InputConstants.KEY_RETURN || key == InputConstants.KEY_NUMPADENTER) && selected != null) { load(selected); return true; }
+        return super.keyPressed(key, scancode, modifiers);
     }
 
     private void rename(Preset p) {

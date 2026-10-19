@@ -1,5 +1,6 @@
 package dev.curvegen.client.screen;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -9,7 +10,6 @@ import net.minecraft.client.gui.components.CycleButton;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.input.KeyEvent;
 import net.minecraft.network.chat.Component;
 
 /** A small dialog on top of the previous screen: a name field, an optional on/off option, and confirm or cancel. */
@@ -85,16 +85,16 @@ public class NameDialogScreen extends Screen {
     }
 
     @Override
-    public boolean keyPressed(KeyEvent event) {
-        if (event.isConfirmation()) { submit(); return true; }
-        return super.keyPressed(event);
+    public boolean keyPressed(int key, int scancode, int modifiers) {
+        if ((key == InputConstants.KEY_RETURN || key == InputConstants.KEY_NUMPADENTER)) { submit(); return true; }
+        return super.keyPressed(key, scancode, modifiers);
     }
 
     @Override
     public void render(GuiGraphics ctx, int mx, int my, float delta) {
-        parent.renderBackground(ctx, -1, -1, delta);   // the screen underneath, not interactive
-        parent.render(ctx, -1, -1, delta);
-        ctx.nextStratum();   // above everything the parent drew, items included
+        parent.render(ctx, -1, -1, delta);   // the screen underneath, not interactive, which draws its own background
+        ctx.pose().pushPose();
+        ctx.pose().translate(0, 0, 400);   // above everything the parent drew, items included
         ctx.fill(0, 0, width, height, 0xA0000000);
         int x = x0(), y = y0();
         ctx.fill(x - 1, y - 1, x + W + 1, y + h() + 1, 0xFF5A6472);
@@ -103,6 +103,7 @@ public class NameDialogScreen extends Screen {
         if (state != null && state.note() != null)
             ctx.drawString(font, font.plainSubstrByWidth(state.note(), W - 20), x + 10, noteY(), state.allowed() ? 0xFFE0C07A : 0xFFFF8098, false);
         for (var d : children()) if (d instanceof net.minecraft.client.gui.components.Renderable dr) dr.render(ctx, mx, my, delta);
+        ctx.pose().popPose();
     }
 
     @Override

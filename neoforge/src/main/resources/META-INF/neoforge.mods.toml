@@ -18,13 +18,13 @@ config = "curvegen.neoforge.mixins.json"
 [[dependencies.curvegen]]
 modId = "neoforge"
 type = "required"
-versionRange = "[21.11.42,)"
+versionRange = "[21.1.1,)"
 ordering = "NONE"
 side = "BOTH"
 
 [[dependencies.curvegen]]
 modId = "minecraft"
 type = "required"
-versionRange = "[1.21.11]"
+versionRange = "[1.21.1]"
 ordering = "NONE"
 side = "BOTH"

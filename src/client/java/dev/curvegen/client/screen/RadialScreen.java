@@ -1,5 +1,7 @@
 package dev.curvegen.client.screen;
 
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import static dev.curvegen.client.Lang.tr;
 
 import com.mojang.blaze3d.platform.InputConstants;
@@ -20,10 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.IntConsumer;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.input.KeyEvent;
-import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
@@ -150,6 +149,8 @@ public class RadialScreen extends Screen {
     private Wedge blocks(Family f) {
         Block block = BlockChoices.CHOICE.get(f);
         String name = BlockChoices.familyName(f), off = null;
+        if (block == null)
+            return new Wedge(name, tr("curvegen.option.off"), tr(BlockChoices.MISSING_REASON), null, null, null, Stay.NEVER, () -> { });
         if (!S.is3d() && S.floor && (f == Family.SLAB || f == Family.STAIRS))
             off = tr(f == Family.SLAB ? "curvegen.radial.flat_slab" : "curvegen.radial.flat_stairs");
         boolean full = f == Family.FULL;
@@ -182,7 +183,7 @@ public class RadialScreen extends Screen {
             if (released) onClose();
             return;
         }
-        AbstractWidget.playButtonClickSound(minecraft.getSoundManager());
+        minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
         if (w.stay == Stay.NEVER || w.stay == Stay.CLICK && released) minecraft.setScreen(null);
         else latched = true;
         w.select.run();
@@ -195,22 +196,23 @@ public class RadialScreen extends Screen {
     private void keyCameUp() {
         boolean chooses = !latched && !keyUp;
         keyUp = true;
-        if (chooses) choose(hovered(minecraft.mouseHandler.getScaledXPos(minecraft.getWindow()), minecraft.mouseHandler.getScaledYPos(minecraft.getWindow())), true);
+        if (chooses) choose(hovered(minecraft.mouseHandler.xpos() * minecraft.getWindow().getGuiScaledWidth() / minecraft.getWindow().getScreenWidth(),
+                minecraft.mouseHandler.ypos() * minecraft.getWindow().getGuiScaledHeight() / minecraft.getWindow().getScreenHeight()), true);
     }
 
     @Override
-    public boolean keyReleased(KeyEvent event) {
-        if (CurveGenClient.RADIAL.matches(event)) { keyCameUp(); return true; }
-        return super.keyReleased(event);
+    public boolean keyReleased(int key, int scancode, int modifiers) {
+        if (CurveGenClient.RADIAL.matches(key, scancode)) { keyCameUp(); return true; }
+        return super.keyReleased(key, scancode, modifiers);
     }
 
     @Override
-    public boolean keyPressed(KeyEvent event) {
-        if (CurveGenClient.RADIAL.matches(event)) {
+    public boolean keyPressed(int key, int scancode, int modifiers) {
+        if (CurveGenClient.RADIAL.matches(key, scancode)) {
             if (latched && keyUp) onClose();   // not while it's still down from opening the menu, when it only repeats
             return true;
         }
-        return super.keyPressed(event);
+        return super.keyPressed(key, scancode, modifiers);
     }
 
     /** The key can come up before the menu is there to see it, on a quick tap. */
@@ -218,28 +220,28 @@ public class RadialScreen extends Screen {
     public void tick() {
         if (keyUp) return;
         InputConstants.Key key = InputConstants.getKey(CurveGenClient.RADIAL.saveString());
-        if (key.getType() == InputConstants.Type.KEYSYM && !InputConstants.isKeyDown(minecraft.getWindow(), key.getValue())) keyCameUp();
+        if (key.getType() == InputConstants.Type.KEYSYM && !InputConstants.isKeyDown(minecraft.getWindow().getWindow(), key.getValue())) keyCameUp();
     }
 
     @Override
-    public boolean mouseClicked(MouseButtonEvent event, boolean doubled) {
-        int at = hovered(event.x(), event.y());
-        if (CurveGenClient.RADIAL.matchesMouse(event)) {
+    public boolean mouseClicked(double mx, double my, int button) {
+        int at = hovered(mx, my);
+        if (CurveGenClient.RADIAL.matchesMouse(button)) {
             // A mouse button doesn't repeat, so a press means it came up, seen or not. With the menu on a mouse
             // button, that button chooses a wedge like a click and closes the menu from the centre.
             keyUp = true;
             if (at >= 0) choose(at, false); else onClose();
             return true;
         }
-        if (event.button() == InputConstants.MOUSE_BUTTON_LEFT && at >= 0) choose(at, false);
+        if (button == InputConstants.MOUSE_BUTTON_LEFT && at >= 0) choose(at, false);
         else back();
         return true;
     }
 
     @Override
-    public boolean mouseReleased(MouseButtonEvent event) {
-        if (CurveGenClient.RADIAL.matchesMouse(event)) { keyCameUp(); return true; }
-        return super.mouseReleased(event);
+    public boolean mouseReleased(double mx, double my, int button) {
+        if (CurveGenClient.RADIAL.matchesMouse(button)) { keyCameUp(); return true; }
+        return super.mouseReleased(mx, my, button);
     }
 
     @Override

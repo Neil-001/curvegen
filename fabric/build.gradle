@@ -45,7 +45,7 @@ sourceSets {
 
 dependencies {
 	minecraft "com.mojang:minecraft:${project.minecraft_version}"
-	// 1.21.11 is obfuscated, so the code uses Mojang's names and Loom remaps the jar to the game's.
+	// 1.21.1 is obfuscated, so the code uses Mojang's names and Loom remaps the jar to the game's.
 	mappings loom.officialMojangMappings()
 	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
 	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"

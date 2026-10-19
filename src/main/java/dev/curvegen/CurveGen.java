@@ -11,7 +11,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.server.permissions.Permissions;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import org.slf4j.Logger;
@@ -33,15 +32,15 @@ public final class CurveGen {
      * (permission level 2, the same as /setblock). Call it on the server thread.
      */
     public static void place(ServerPlayer player, PlaceBlocksPayload payload) {
-        if (!player.permissions().hasPermission(Permissions.COMMANDS_GAMEMASTER)) {
+        if (!player.hasPermissions(2)) {
             if (payload.last())
                 player.displayClientMessage(Component.translatable("curvegen.placement.permission").withStyle(ChatFormatting.RED), true);
             return;
         }
-        ServerLevel world = player.level();
+        ServerLevel world = player.serverLevel();
         // Undo first puts every block back exactly as it was, without block updates. With them, a block restored before
         // the one it stands on or hangs from would break again. The updates run once the last batch is in.
-        int flags = payload.undo() ? Block.UPDATE_CLIENTS | Block.UPDATE_SKIP_ALL_SIDEEFFECTS : Block.UPDATE_ALL;
+        int flags = payload.undo() ? Block.UPDATE_CLIENTS | Block.UPDATE_KNOWN_SHAPE : Block.UPDATE_ALL;
         if (!payload.undo()) RESTORED.remove(player.getUUID());   // drops the list of an undo that never finished
         List<BlockPos> restored = payload.undo() ? RESTORED.computeIfAbsent(player.getUUID(), id -> new ArrayList<>()) : null;
         int skipped = 0;
