@@ -21,7 +21,6 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.Property;
 import net.minecraft.world.level.material.Fluids;
 import net.minecraft.world.phys.shapes.VoxelShape;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -31,7 +30,6 @@ import java.lang.reflect.Proxy;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -56,15 +54,10 @@ class GameRules3Test {
                 Pieces.Family.TRAPDOOR, Blocks.OAK_TRAPDOOR, Pieces.Family.FENCE, Blocks.OAK_FENCE,
                 Pieces.Family.PANE, Blocks.GLASS_PANE, Pieces.Family.WALL, Blocks.COBBLESTONE_WALL, Pieces.Family.CHAIN, Blocks.CHAIN,
                 Pieces.Family.ROD, Blocks.END_ROD));
-        // This game has no shelves, so the solved shapes leave them out, as the client does, and their states aren't checked.
-        ShapeSettings.gameLacks(BlockChoices.MISSING);
     }
 
-    /** The other tests run in the same JVM and expect every piece type. */
-    @AfterAll
-    static void restoreFamilies() { ShapeSettings.gameLacks(Set.of()); }
-
-    private static boolean inGame(int s) { return !BlockChoices.MISSING.contains(Pieces3.FAMILY[s]); }
+    /** This game has no shelves, so their states aren't checked, and the solved shapes leave them out as the client does. */
+    private static boolean inGame(int s) { return Pieces3.FAMILY[s] != Pieces.Family.SHELF; }
 
     @SuppressWarnings("deprecation")
     private static void tag(Block b, List<TagKey<Block>> tags) throws ReflectiveOperationException {
@@ -135,6 +128,7 @@ class GameRules3Test {
     void theGameKeepsEverySolvedState() {
         int connectors = 0, corners = 0, walls = 0;
         for (Shapes3Cases.Case c : Shapes3Cases.all()) {
+            BlockChoices.noShelves(c.settings());
             Solver3.Result r = c.solve();
             LevelAccessor level = level(r, c.settings().fullConnects);
             for (int y = 0; y < r.ny(); y++)
@@ -181,6 +175,22 @@ class GameRules3Test {
         } finally {
             BlockChoices.CHOICE.putAll(before);
         }
+    }
+
+    @Test
+    void shelvesStayOff() {
+        assertFalse(List.of(BlockChoices.FAMILIES).contains(Pieces.Family.SHELF), "the menus offer shelves");
+        // A preset saved on a version with shelves loads with them off, and its shelf block is ignored.
+        ShapeSettings s = new ShapeSettings();
+        Map<Pieces.Family, Block> choice = new java.util.EnumMap<>(BlockChoices.CHOICE);
+        BlockChoices.apply(Map.of("wallUsed", "true", "shelfUsed", "true", "shelf", "minecraft:oak_trapdoor"), s, choice);
+        assertFalse(s.shelf);
+        assertFalse(choice.containsKey(Pieces.Family.SHELF));
+        // Saving it again says so, and names no shelf block.
+        Map<String, String> saved = BlockChoices.capture(s);
+        assertEquals("false", saved.get("shelfUsed"));
+        assertFalse(saved.containsKey("shelf"));
+        assertEquals("minecraft:glass_pane", saved.get("pane"));
     }
 
     private static <T extends Comparable<T>> String name(BlockState st, Property<T> prop) { return prop.getName(st.getValue(prop)); }

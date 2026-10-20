@@ -203,7 +203,7 @@ public final class PresetData {
     public static Map<String, String> captureBlocks(ShapeSettings s, Function<Pieces.Family, String> blockId) {
         Map<String, String> d = new LinkedHashMap<>();
         for (Pieces.Family f : Pieces.Family.values()) {
-            if (f == Pieces.Family.AIR || !ShapeSettings.gameHas(f)) continue;
+            if (f == Pieces.Family.AIR) continue;
             d.put(key(f), blockId.apply(f));
             if (f != Pieces.Family.FULL) d.put(key(f) + "Used", String.valueOf(s.allows(f)));
         }

@@ -2,7 +2,6 @@ package dev.curvegen.core;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 /** Everything the user can set for the shape. Kept in memory between screen openings. */
 public final class ShapeSettings {
@@ -77,15 +76,7 @@ public final class ShapeSettings {
     /** Chains and end rods are thin lines rather than building blocks, so they start switched off. */
     public boolean chain = false, rod = false;
 
-    /** Piece families the game has no blocks for, which no shape uses whatever its settings say. The client sets it at startup. */
-    private static volatile Set<Pieces.Family> missing = Set.of();
-
-    public static void gameLacks(Set<Pieces.Family> families) { missing = Set.copyOf(families); }
-
-    public static boolean gameHas(Pieces.Family f) { return !missing.contains(f); }
-
     public boolean allows(Pieces.Family f) {
-        if (!gameHas(f)) return false;
         return switch (f) {
             case SLAB -> slab; case STAIRS -> stair; case TRAPDOOR -> trap; case SHELF -> shelf; case FENCE -> fence; case PANE -> pane; case WALL -> wall;
             case CHAIN -> chain; case ROD -> rod; default -> true;

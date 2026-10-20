@@ -515,27 +515,23 @@ public class CurveScreen extends ControlScreen {
                 boolean on = S.allows(f);
                 Button use = Button.builder(Component.translatable(on ? "curvegen.screen.use" : "curvegen.screen.off"), b -> { S.allow(f, !S.allows(f)); dirty = true; rebuildWidgets(); })
                         .bounds(M, y, 26, h).build();
-                if (BlockChoices.MISSING.contains(f)) {
-                    use.active = false;
-                    use.setTooltip(Tooltip.create(Component.translatable(BlockChoices.MISSING_REASON)));
-                } else if (S.floor && !S.is3d() && (f == Family.SLAB || f == Family.STAIRS)) {
+                if (S.floor && !S.is3d() && (f == Family.SLAB || f == Family.STAIRS)) {
                     use.active = false;
                     use.setTooltip(Tooltip.create(Component.translatable("curvegen.screen.from_above_s_look_like_full_blocks_so_flat", BlockChoices.familyName(f))));
                 }
                 addRenderableWidget(use);
             }
             Block block = BlockChoices.CHOICE.get(f);
-            String name = font.plainSubstrByWidth(block != null ? block.getName().getString() : BlockChoices.familyName(f), PANEL_W - 54 - 8);
+            String name = font.plainSubstrByWidth(block.getName().getString(), PANEL_W - 54 - 8);
             Button pick = Button.builder(Component.literal(name), b -> minecraft.setScreen(new BlockPickerScreen(this, f, chosen -> {
                 BlockChoices.CHOICE.put(f, chosen);
                 S.fullConnects = BlockChoices.fullBlockConnects();
                 dirty = true; textureDirty = true;
                 rebuildWidgets();
             }))).bounds(M + 48, y, PANEL_W - 48, h).build();
-            pick.setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.literal(BlockChoices.familyName(f) + ": " + BlockChoices.blockName(f))));
-            pick.active = block != null;
+            pick.setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.literal(BlockChoices.familyName(f) + ": " + block.getName().getString())));
             addRenderableWidget(pick);
-            if (block != null) icons.add(new Icon(M + 29, y + (h - 16) / 2, new ItemStack(block)));
+            icons.add(new Icon(M + 29, y + (h - 16) / 2, new ItemStack(block)));
         }
         addRenderableWidget(Button.builder(Component.translatable("curvegen.screen.match_a_colour"), b -> minecraft.setScreen(
                 new ColorPickerScreen(this, BlockChoices.pickedColor >= 0 ? BlockChoices.pickedColor : 0x8E6B4A, rgb -> {
@@ -605,7 +601,7 @@ public class CurveScreen extends ControlScreen {
             int total = 0;
             for (int[] m : merged.values()) total += m[1];
             boolean unused = floor && (f == Family.SLAB || f == Family.STAIRS);
-            String blockName = BlockChoices.blockName(f);
+            String blockName = BlockChoices.CHOICE.get(f).getName().getString();
             String n = String.valueOf(total);
             int nw = tw(n);
             String title = unused ? tr("curvegen.screen.family_unused_flat", BlockChoices.familyName(f)) : S.allows(f) ? BlockChoices.familyName(f) : tr("curvegen.screen.family_off", BlockChoices.familyName(f));
@@ -630,7 +626,7 @@ public class CurveScreen extends ControlScreen {
         for (Family f : BlockChoices.FAMILIES) {
             int total = 0;
             for (Count3.Group g : Count3.GROUPS) if (g.family() == f) total += g.count(counts);
-            String blockName = BlockChoices.blockName(f);
+            String blockName = BlockChoices.CHOICE.get(f).getName().getString();
             String n = String.valueOf(total);
             int nw = tw(n);
             String title = S.allows(f) ? BlockChoices.familyName(f) : tr("curvegen.screen.family_off", BlockChoices.familyName(f));
