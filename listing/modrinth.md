@@ -38,3 +38,7 @@ Hold **V** to open the radial menu, or press **G** to open the full menu.
 
 - [The wiki](https://github.com/Neil-001/curvegen/wiki) contains full documentation on how to use the mod.
 - Report a bug or suggest a feature in the [issue tracker](https://github.com/Neil-001/curvegen/issues).
+
+<center>
+<img alt="A wave built from blocks." width="100%" src="https://raw.githubusercontent.com/Neil-001/curvegen/main/listing/media/divider.png">
+</center>
