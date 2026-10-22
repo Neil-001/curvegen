@@ -21,8 +21,8 @@ Hold **V** to open the radial menu, or press **G** to open the full menu.
   - Build ellipsoids, toruses, 3D equations, Bézier curves and surfaces.
 - **Editable hologram**
   - Resize, move and bend your shape in the world before placing it.
-- **Connections**
-  - Fences, panes, walls and stair corners follow Minecraft's connection rules.
+- **Block Types**
+  - Toggle which block types can be used to generate the shape. More block types available can increase accuracy.
 - **Colour matching**
   - Pick a colour and let the mod choose blocks with the closest textures.
 - **Block counts**
