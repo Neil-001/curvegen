@@ -234,7 +234,7 @@ Tags use `<version>+mc<line>`, such as `2.1.0+mc1.21.1`. GitHub's comparison lin
 
 After a partial failure, re-run failed jobs or start a fresh run. Neither uploads a jar twice. The workflow asks Modrinth whether it has the version. CurseForge can't be asked, so each CurseForge upload leaves an artifact named `curseforge-<version>`, kept for 90 days, and a later job that finds it skips CurseForge. Delete that artifact to upload the version again.
 
-One case still needs a look at CurseForge's files page. When the CurseForge step itself fails, the upload may have gone through without leaving its artifact. The workflow tries that upload once, so check for the jar and retry only if it's absent. To limit sites, pass `-f targets=curseforge,github`, for example.
+One case still needs a look at CurseForge's files page. When a publish job fails at its CurseForge step or while saving that artifact, the upload may have gone through without leaving it. The workflow tries the upload once, so check for the jar and retry only if it's absent. To limit sites, pass `-f targets=curseforge,github`, for example.
 
 The `CHANGELOG.md` section goes to all three sites as written. GitHub's copy also gets a link comparing against the line's previous tag. Start with a short paragraph about what changes for players. List merged PRs under `## Features` and `## Fixes`, one bullet per PR ending in `(#21)`, for example. Rewrite titles for players and omit CI, refactors and docs.
 
