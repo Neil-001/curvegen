@@ -31,36 +31,37 @@ class ReleaseJarsTest(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
 
-    def jar(self, path, loader="fabric", version="1.0.0", minecraft=None):
+    def jar(self, path, loader="fabric", version="1.0.0", minecraft=None, name="Example Mod"):
         path = self.root / path
         path.parent.mkdir(parents=True, exist_ok=True)
         with ZipFile(path, "w") as archive:
             if loader == "fabric":
                 minecraft = minecraft or ">=26.1 <=26.1.2"
                 archive.writestr("fabric.mod.json", json.dumps(dict(
-                    id="curvegen", version=version, depends=dict(minecraft=minecraft))))
+                    id="examplemod", name=name, version=version, depends=dict(minecraft=minecraft))))
             else:
                 archive.writestr("META-INF/neoforge.mods.toml", f'''
 [[mods]]
-modId = "curvegen"
+modId = "examplemod"
+displayName = "{name}"
 version = "{version}"
-[[dependencies.curvegen]]
+[[dependencies.examplemod]]
 modId = "minecraft"
 versionRange = "{minecraft or '[26.1,26.1.2]'}"
 ''')
         return path
 
     def dual(self):
-        self.jar("fabric/build/libs/curvegen-fabric-1.0.0.jar")
-        self.jar("neoforge/build/libs/curvegen-neoforge-1.0.0.jar", "neoforge")
+        self.jar("fabric/build/libs/examplemod-fabric-1.0.0.jar")
+        self.jar("neoforge/build/libs/examplemod-neoforge-1.0.0.jar", "neoforge")
 
     def collect(self):
         return release_jars.collect("1.0.0", "26.1", "25", self.root)
 
     def test_both_loaders_have_distinct_versions_and_metadata(self):
         self.dual()
-        self.jar("fabric/build/libs/curvegen-fabric-1.0.0-sources.jar", version="wrong")
-        self.jar("fabric/build/libs/curvegen-fabric-1.0.0-dev.jar", version="wrong")
+        self.jar("fabric/build/libs/examplemod-fabric-1.0.0-sources.jar", version="wrong")
+        self.jar("fabric/build/libs/examplemod-fabric-1.0.0-dev.jar", version="wrong")
         jars = self.collect()
         self.assertEqual([jar["version"] for jar in jars],
                          ["1.0.0+mc26.1-fabric", "1.0.0+mc26.1-neoforge"])
@@ -68,19 +69,21 @@ versionRange = "{minecraft or '[26.1,26.1.2]'}"
         self.assertEqual([jar["java"] for jar in jars], ["25", "25"])
         self.assertEqual([jar["minecraft"] for jar in jars],
                          [">=26.1 <=26.1.2", "[26.1,26.1.2]"])
+        self.assertEqual([jar["name"] for jar in jars], ["Example Mod", "Example Mod"])
         self.assertEqual(len(list((self.root / "dist").glob("*.jar"))), 2)
 
-    def test_three_component_line_on_java_21(self):
-        self.jar("fabric/build/libs/curvegen-fabric-2.1.0.jar", version="2.1.0", minecraft=">=1.21 <=1.21.1")
-        self.jar("neoforge/build/libs/curvegen-neoforge-2.1.0.jar", "neoforge", "2.1.0", "[1.21,1.21.1]")
-        jars = release_jars.collect("2.1.0", "1.21.1", "21", self.root)
-        self.assertEqual([(jar["version"], jar["java"], jar["minecraft"]) for jar in jars],
-                         [("2.1.0+mc1.21.1-fabric", "21", ">=1.21 <=1.21.1"),
-                          ("2.1.0+mc1.21.1-neoforge", "21", "[1.21,1.21.1]")])
+    def test_the_name_comes_from_the_jars_and_they_must_agree(self):
+        self.dual()
+        self.jar("neoforge/build/libs/examplemod-neoforge-1.0.0.jar", "neoforge", name="Other Mod")
+        with self.assertRaisesRegex(ValueError, "disagree"):
+            self.collect()
+        self.jar("neoforge/build/libs/examplemod-neoforge-1.0.0.jar", "neoforge", name="")
+        with self.assertRaisesRegex(ValueError, "no mod name"):
+            self.collect()
 
     def test_stonecutter_preserves_versions_and_collects_copies_once(self):
         for mc in ["1.21", "1.21.11"]:
-            source = self.jar(f"versions/{mc}/build/libs/curvegen-{mc}.jar",
+            source = self.jar(f"versions/{mc}/build/libs/examplemod-{mc}.jar",
                               version=f"1.0.0+mc{mc}", minecraft=mc)
             target = self.root / "build/libs" / source.name
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -88,6 +91,14 @@ versionRange = "{minecraft or '[26.1,26.1.2]'}"
         jars = release_jars.collect("1.0.0", "1.21.x", "21", self.root)
         self.assertEqual({jar["version"] for jar in jars}, {"1.0.0+mc1.21", "1.0.0+mc1.21.11"})
         self.assertTrue(all(jar["java"] == "21" and jar["loader"] == "fabric" for jar in jars))
+
+    def test_three_component_line_on_java_21(self):
+        self.jar("fabric/build/libs/examplemod-fabric-1.1.0.jar", version="1.1.0", minecraft=">=1.21 <=1.21.1")
+        self.jar("neoforge/build/libs/examplemod-neoforge-1.1.0.jar", "neoforge", "1.1.0", "[1.21,1.21.1]")
+        jars = release_jars.collect("1.1.0", "1.21.1", "21", self.root)
+        self.assertEqual([(jar["version"], jar["java"], jar["minecraft"]) for jar in jars],
+                         [("1.1.0+mc1.21.1-fabric", "21", ">=1.21 <=1.21.1"),
+                          ("1.1.0+mc1.21.1-neoforge", "21", "[1.21,1.21.1]")])
 
     def test_single_loader_root_and_stonecutter_fallback(self):
         for path in ["build/libs/mod.jar", "versions/1.21/build/libs/mod.jar"]:
@@ -98,20 +109,20 @@ versionRange = "{minecraft or '[26.1,26.1.2]'}"
 
     def test_wrong_version_fails_before_copying(self):
         self.dual()
-        self.jar("neoforge/build/libs/curvegen-neoforge-1.0.0.jar", "neoforge", "1.0.1")
+        self.jar("neoforge/build/libs/examplemod-neoforge-1.0.0.jar", "neoforge", "1.0.1")
         with self.assertRaisesRegex(ValueError, "expected 1.0.0"):
             self.collect()
         self.assertFalse((self.root / "dist").exists())
 
     def test_missing_loader_fails(self):
         self.dual()
-        (self.root / "neoforge/build/libs/curvegen-neoforge-1.0.0.jar").unlink()
+        (self.root / "neoforge/build/libs/examplemod-neoforge-1.0.0.jar").unlink()
         with self.assertRaisesRegex(ValueError, "both Fabric and NeoForge"):
             self.collect()
 
     def test_wrong_loader_fails(self):
         self.dual()
-        self.jar("neoforge/build/libs/curvegen-neoforge-1.0.0.jar")
+        self.jar("neoforge/build/libs/examplemod-neoforge-1.0.0.jar")
         with self.assertRaisesRegex(ValueError, "wrong loader"):
             self.collect()
 
@@ -146,9 +157,10 @@ class ReleasePlanTest(unittest.TestCase):
             git("update-ref", "refs/remotes/origin/26.1/stable", "HEAD")
             git("update-ref", "refs/remotes/origin/main", "HEAD")
 
-            def plan(branches):
+            def plan(branches, main_releases=True):
+                env = dict(os.environ, RELEASE_MAIN="true" if main_releases else "")
                 return json.loads(subprocess.check_output(
-                    [str(SCRIPTS / "release-plan.sh"), branches], cwd=root, text=True,
+                    [str(SCRIPTS / "release-plan.sh"), branches], cwd=root, text=True, env=env,
                     stderr=subprocess.DEVNULL))
 
             result = plan("all")
@@ -159,15 +171,35 @@ class ReleasePlanTest(unittest.TestCase):
             self.assertEqual(plan("all"), [result[1]])
             self.assertEqual(plan("26.1/stable,26.1/stable"), [result[1]])
             with self.assertRaises(subprocess.CalledProcessError):
-                plan("main")
+                plan("main")   # no minecraft_version to take the line from
+            with self.assertRaises(subprocess.CalledProcessError):
+                plan("feature")
 
-            (root / "gradle.properties").write_text("mod_version=2.1.0\n")
+            (root / "gradle.properties").write_text("minecraft_version=26.3\nmod_version=1.0.0\n")
+            git("commit", "-qam", "Main")
+            git("update-ref", "refs/remotes/origin/main", "HEAD")
+            main = plan("main")
+            self.assertEqual([(item["branch"], item["line"], item["tag"]) for item in main],
+                             [("main", "26.3", "1.0.0+mc26.3")])
+            self.assertEqual(main[0]["sha"], git("rev-parse", "HEAD").strip())
+            self.assertEqual(plan("all"), [result[1]], "all still means the stable branches")
+            self.assertEqual(plan(""), main, "left empty, it is main where main releases")
+            self.assertEqual(plan("", main_releases=False), [result[1]], "and all elsewhere")
+            with self.assertRaises(subprocess.CalledProcessError):
+                plan("main", main_releases=False)
+            with self.assertRaises(subprocess.CalledProcessError):
+                plan("26.1/stable,main", main_releases=False)
+            git("tag", "1.0.0+mc26.3")
+            self.assertEqual(plan("main"), [])
+
+            # Two lines at the same version: one released, so only the other's branch is planned.
+            (root / "gradle.properties").write_text("minecraft_version=26.3\nmod_version=1.1.0\n")
             git("commit", "-qam", "Port")
             for line in ["1.21.1", "1.21.11"]:
                 git("update-ref", f"refs/remotes/origin/{line}/stable", "HEAD")
-            git("tag", "2.1.0+mc1.21.11")
+            git("tag", "1.1.0+mc1.21.11")
             self.assertEqual([(item["line"], item["tag"]) for item in plan("1.21.1/stable,1.21.11/stable")],
-                             [("1.21.1", "2.1.0+mc1.21.1")])
+                             [("1.21.1", "1.1.0+mc1.21.1")])
 
 
 class ReleaseJavaTest(unittest.TestCase):
@@ -217,15 +249,15 @@ class ReleaseCompareTest(unittest.TestCase):
                     [str(SCRIPTS / "release-compare.sh"), line, tag], cwd=directory, text=True,
                     env=dict(os.environ, GITHUB_SERVER_URL="https://github.com", GITHUB_REPOSITORY="o/r"))
 
-            release("1.0.0+mc1.21.x")
+            release("1.0.0+mc26.3")
             release("1.0.0+mc1.21.11")
             git("commit", "-q", "--allow-empty", "-m", "Port")
-            self.assertEqual(compare("1.21.1", "2.1.0+mc1.21.1"), "")
-            self.assertEqual(compare("1.21.11", "2.1.0+mc1.21.11"),
-                             "\n**Full Changelog**: https://github.com/o/r/compare/1.0.0+mc1.21.11...2.1.0+mc1.21.11\n")
+            self.assertEqual(compare("1.21.1", "1.1.0+mc1.21.1"), "")
+            self.assertEqual(compare("1.21.11", "1.1.0+mc1.21.11"),
+                             "\n**Full Changelog**: https://github.com/o/r/compare/1.0.0+mc1.21.11...1.1.0+mc1.21.11\n")
             release("1.0.0+mc1.21.1")
             release("1.0.1+mc1.21.11")
-            self.assertIn("compare/1.0.0+mc1.21.1...2.1.0+mc1.21.1\n", compare("1.21.1", "2.1.0+mc1.21.1"))
+            self.assertIn("compare/1.0.0+mc1.21.1...1.1.0+mc1.21.1\n", compare("1.21.1", "1.1.0+mc1.21.1"))
 
 
 if __name__ == "__main__":

@@ -34,7 +34,7 @@ Both loaders compile the shared `src/main` and `src/client` code with their own 
 - `client/edit/` is the in-world editor.
 - In `client/screen/`, `CurveScreen` is the main UI on G. `PreviewTexture` draws a solved 2D grid into a dynamic texture and `Preview3` a solved 3D shape. `RadialScreen` is the radial menu on V, `InputScreen` the number box and one-line text box, and `WedgeOrderScreen` the settings screen's wedge order. `SettingsScreen` edits `ModSettings` and opens from the main UI's cogwheel, from Mod Menu on Fabric and from the mod list's Config button on NeoForge. It and `CurveScreen` extend `ControlScreen`, which has the shared controls.
 - Mod Menu is optional. Fabric compiles against it, and only `ModMenuIntegration`, which Mod Menu itself loads, may refer to it.
-- `listing/` holds the Modrinth and CurseForge descriptions, which must say the same thing, and their artwork. `listing/art/render.py` redraws the artwork from the solvers: it compiles `core/` and `core/edit/` on their own with `listing/art/Dump.java`. Run it after a change to either solver or to the 3D preview's drawing, and expect only the pictures you meant to change to differ. `README.md` and the two pages load the pictures from `main`.
+- `listing/` holds the Modrinth and CurseForge pages and their artwork. Read `listing/README.md` before changing anything there. `listing/description.md` is the description, and `listing/art/curseforge.py` writes CurseForge's `curseforge.html` from it, so run that after editing the description. The build fails if the two differ. `listing/art/render.py` redraws the artwork from the solvers: it compiles `core/` and `core/edit/` on their own with `listing/art/Dump.java`. Run it after a change to either solver or to the 3D preview's drawing, and expect only the pictures you meant to change to differ. `README.md` and the two pages load the pictures from `main`.
 
 ## Solver
 
@@ -221,15 +221,20 @@ Each supported Minecraft line has its own `<line>/stable` branch: `1.21.1/stable
 
 ## Releasing
 
-Only `*/stable` branches release. Run `.github/workflows/release.yml` from `main` to publish to Modrinth, CurseForge and GitHub. It builds each branch with the Java level its build file sets (`options.release` in `build.gradle`, or `build.gradle.kts` on the Stonecutter branch) and fails if neither sets one, and reads loader and Minecraft ranges from jar metadata.
+Only `*/stable` branches release. Run `.github/workflows/release.yml` from `main` to publish to Modrinth, CurseForge and GitHub. It builds each branch with the Java level its build file sets (`options.release` in `build.gradle`, or `build.gradle.kts` on the Stonecutter branch) and fails if neither sets one, and reads the mod's name, loader and Minecraft ranges from jar metadata.
+
+The workflows and `.github/scripts/` name no mod, and Chroma Studio's repository has the same files. Make a change to them in both. Chroma Studio sets the repository variable `RELEASE_MAIN` to `true` and releases from `main`. This repository must not set it.
 
 1. For the current Minecraft version, bump `mod_version` in `gradle.properties` and add `# <version>` at the top of `CHANGELOG.md` on `main`, then promote through the release PR above. For an older maintenance branch, prepare those changes in a PR against that branch. Stonecutter branches use `mod.version` in `stonecutter.properties.toml`. Use `-beta.1` or `-alpha.1` suffixes for prereleases.
 2. After the release PR merges and stable's checks pass, run `gh workflow run release.yml --ref main -f branches=26.3/stable -f dry_run=true` and check the summary's jars and notes. Substitute the selected branch for an older release.
 3. Run `gh workflow run release.yml --ref main -f branches=26.3/stable` to publish that release.
+4. Run `gh workflow run listing.yml --ref main` when the description or gallery changed, with `-f dry_run=true` first to see what it would do. It puts `listing/description.md` and the gallery on Modrinth. CurseForge has no API for its page, so paste `listing/curseforge.html` and upload the gallery by hand.
 
-Tags use `<version>+mc<line>`, such as `2.1.0+mc1.21.1`. GitHub's comparison link goes back to the newest earlier tag of exactly that line, and a line's first release has none. The default `branches=all` skips existing tags. The workflow creates the tag last, after publishing. Two-loader versions have distinct identifiers such as `1.0.0+mc26.1-fabric` and `1.0.0+mc26.1-neoforge`; GitHub holds both jars in one release.
+Tags use `<version>+mc<line>`, such as `2.1.0+mc1.21.1`. GitHub's comparison link goes back to the newest earlier tag of exactly that line, and a line's first release has none. Left empty, `branches` is `all`, which skips existing tags. The workflow creates the tag last, after publishing. Two-loader versions have distinct identifiers such as `1.0.0+mc26.1-fabric` and `1.0.0+mc26.1-neoforge`; GitHub holds both jars in one release.
 
-After a partial failure, re-run failed jobs. Modrinth skips existing versions; CurseForge doesn't. Check CurseForge for each failed job's jar before retrying, and retry only if it's absent. Don't start a fresh run with CurseForge in `targets` after a partial release. To limit sites, pass `-f targets=curseforge,github`, for example.
+After a partial failure, re-run failed jobs or start a fresh run. Neither uploads a jar twice. The workflow asks Modrinth whether it has the version. CurseForge can't be asked, so each CurseForge upload leaves an artifact named `curseforge-<version>`, kept for 90 days, and a later job that finds it skips CurseForge. Delete that artifact to upload the version again.
+
+One case still needs a look at CurseForge's files page. When a publish job fails at its CurseForge step or while saving that artifact, the upload may have gone through without leaving it. The workflow tries the upload once, so check for the jar and retry only if it's absent. To limit sites, pass `-f targets=curseforge,github`, for example.
 
 The `CHANGELOG.md` section goes to all three sites as written. GitHub's copy also gets a link comparing against the line's previous tag. Start with a short paragraph about what changes for players. List merged PRs under `## Features` and `## Fixes`, one bullet per PR ending in `(#21)`, for example. Rewrite titles for players and omit CI, refactors and docs.
 
