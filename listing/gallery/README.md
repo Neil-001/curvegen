@@ -1,6 +1,6 @@
 # Gallery
 
-Screenshots for the galleries on Modrinth and CurseForge, with the title and description to enter for each. Upload them by hand, in this order. The descriptions fit Modrinth's limit of 255 characters.
+Screenshots for the galleries on Modrinth and CurseForge, with the title and description for each. The `Listing` workflow uploads them to Modrinth in this order, reading the titles and descriptions from this file. On CurseForge, upload them by hand. Titles fit Modrinth's limit of 64 characters and descriptions its 255.
 
 All seven are 1920 by 1080, taken in Minecraft 26.3 with the default textures.
 

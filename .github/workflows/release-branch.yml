@@ -1,6 +1,7 @@
 name: Release branch
 
-# Releases one branch. Called by release.yml, once per branch.
+# Releases one branch. Called by release.yml, once per branch. Nothing here names the mod: its name comes from
+# the jars' metadata and its project IDs from the repository's variables, so every mod uses this file as it is.
 on:
   workflow_call:
     inputs:
@@ -86,7 +87,8 @@ jobs:
 
       - run: ./gradlew build
 
-      # Reads each loader's metadata and keeps the older single-loader and Stonecutter layouts working.
+      # Reads each loader's metadata, the mod's name included, and keeps the older single-loader and Stonecutter
+      # layouts working.
       - name: Collect the jars
         id: jars
         env:
@@ -119,7 +121,7 @@ jobs:
             if [ "$DRY_RUN" = true ]; then echo "### $TAG (dry run, nothing published)"; else echo "### $TAG"; fi
             echo "Targets: $TARGETS"
             echo
-            jq -r '.[] | "- `\(.file)` as version `\(.version)` (\(.loader), Java \(.java), Minecraft `\(.minecraft)`)"' <<< "$JARS"
+            jq -r '.[] | "- `\(.file)` as `\(.name) \(.version)` (\(.loader), Java \(.java), Minecraft `\(.minecraft)`)"' <<< "$JARS"
             echo
             echo "#### Release notes"
             cat dist/notes-github.md
@@ -143,6 +145,8 @@ jobs:
       matrix:
         jar: ${{ fromJSON(needs.build.outputs.jars) }}
     name: publish ${{ matrix.jar.version }}
+    permissions:
+      actions: read   # looks for an earlier run's CurseForge marker
     steps:
       - uses: actions/download-artifact@v8
         with:
@@ -167,12 +171,12 @@ jobs:
 
       - name: Publish to Modrinth
         if: contains(inputs.targets, 'modrinth') && steps.modrinth.outputs.exists == 'false'
-        uses: Kir-Antipov/mc-publish@v3.3
+        uses: Kira-NT/mc-publish@c23376546a97f5ba7984e94445da359459b14419   # v3.3.2
         with:
           modrinth-id: ${{ env.MODRINTH_ID }}
           modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
           files: dist/${{ matrix.jar.file }}
-          name: Curve Generator ${{ matrix.jar.version }}
+          name: ${{ matrix.jar.name }} ${{ matrix.jar.version }}
           version: ${{ matrix.jar.version }}
           changelog-file: dist/notes.md
           loaders: ${{ matrix.jar.loader }}
@@ -180,20 +184,56 @@ jobs:
           game-versions: ${{ matrix.jar.minecraft }}
           game-version-filter: releases
 
-      - name: Publish to CurseForge
+      # CurseForge can't be asked whether it has a file, so each upload leaves a marker: an artifact named after
+      # the version, which this run or a later one finds here. Deleting the artifact lets the version upload again.
+      - name: Check for an earlier CurseForge upload
+        id: curseforge
         if: contains(inputs.targets, 'curseforge')
-        uses: Kir-Antipov/mc-publish@v3.3
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ matrix.jar.version }}
+        run: |
+          run=$(gh api -X GET "repos/$GITHUB_REPOSITORY/actions/artifacts" -f "name=curseforge-$VERSION" -f per_page=100 \
+            --jq '[.artifacts[] | select(.expired | not)][0].workflow_run.id // empty')
+          if [ -n "$run" ]; then
+            echo "::notice::$VERSION went to CurseForge in $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$run, skipping it there."
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # One attempt only. A second try after an upload whose answer was lost would put the file there twice.
+      - name: Publish to CurseForge
+        id: curseforge-upload
+        if: contains(inputs.targets, 'curseforge') && steps.curseforge.outputs.exists == 'false'
+        uses: Kira-NT/mc-publish@c23376546a97f5ba7984e94445da359459b14419   # v3.3.2
         with:
           curseforge-id: ${{ env.CURSEFORGE_ID }}
           curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
+          retry-attempts: 1
           files: dist/${{ matrix.jar.file }}
-          name: Curve Generator ${{ matrix.jar.version }}
+          name: ${{ matrix.jar.name }} ${{ matrix.jar.version }}
           version: ${{ matrix.jar.version }}
           changelog-file: dist/notes.md
           loaders: ${{ matrix.jar.loader }}
           java: ${{ matrix.jar.java }}
           game-versions: ${{ matrix.jar.minecraft }}
           game-version-filter: releases
+
+      - name: Note the CurseForge upload
+        if: steps.curseforge-upload.outcome == 'success'
+        env:
+          FILE_ID: ${{ steps.curseforge-upload.outputs.curseforge-version }}
+          URL: ${{ steps.curseforge-upload.outputs.curseforge-url }}
+        run: printf 'CurseForge file %s\n%s\n' "$FILE_ID" "$URL" > curseforge.txt
+
+      - if: steps.curseforge-upload.outcome == 'success'
+        uses: actions/upload-artifact@v7
+        with:
+          name: curseforge-${{ matrix.jar.version }}
+          path: curseforge.txt
+          if-no-files-found: error
+          retention-days: 90
 
   # Last, so the tag means every site has the release. One GitHub release holds all the branch's jars.
   github:
@@ -209,12 +249,12 @@ jobs:
           name: release-${{ inputs.line }}
           path: dist
 
-      - uses: Kir-Antipov/mc-publish@v3.3
+      - uses: Kira-NT/mc-publish@c23376546a97f5ba7984e94445da359459b14419   # v3.3.2
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           github-tag: ${{ inputs.tag }}
           github-commitish: ${{ inputs.sha }}
           files: dist/*.jar
-          name: Curve Generator ${{ inputs.version }} for Minecraft ${{ inputs.line }}
+          name: ${{ fromJSON(needs.build.outputs.jars)[0].name }} ${{ inputs.version }} for Minecraft ${{ inputs.line }}
           version: ${{ inputs.tag }}
           changelog-file: dist/notes-github.md
