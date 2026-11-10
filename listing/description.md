@@ -15,24 +15,15 @@ Hold **V** to open the radial menu, or press **G** to open the full menu.
 
 ## Features
 
-- **2D shapes**
-  - Build ellipses, equations and Bézier curves.
-- **3D shapes**
-  - Build ellipsoids, toruses, 3D equations, Bézier curves and surfaces.
-- **Editable hologram**
-  - Resize, move and bend your shape in the world before placing it.
-- **Block Types**
-  - Toggle which block types can be used to generate the shape. More block types available can increase accuracy.
-- **Colour matching**
-  - Pick a colour and let the mod choose blocks with the closest textures.
-- **Block counts**
-  - See how many of each block you'll need.
-- **Presets**
-  - Save shapes with their block choices.
-- **Litematica export**
-  - Save your shape as a `.litematic` schematic.
-- **Server support**
-  - Place builds and undo your last placement even on servers without the mod. You'll need operator rights.
+- **2D shapes**: Build ellipses, equations and Bézier curves.
+- **3D shapes**: Build ellipsoids, toruses, 3D equations, Bézier curves and surfaces.
+- **Editable hologram**: Resize, move and bend your shape in the world before placing it.
+- **Block Types**: Toggle which block types can be used to generate the shape. More block types available can increase accuracy.
+- **Colour matching**: Pick a colour and let the mod choose blocks with the closest textures.
+- **Block counts**: See how many of each block you'll need.
+- **Presets**: Save shapes with their block choices.
+- **Litematica export**: Save your shape as a `.litematic` schematic.
+- **Server support**: Place builds and undo your last placement even on servers without the mod. You'll need operator rights.
 
 ## Links
 
