@@ -694,8 +694,6 @@
   "curvegen.screen.shapes": "도형",
   "curvegen.screen.colour": "색",
   "curvegen.screen.curve": "곡선",
-  "curvegen.screen.match_colours_to_side": "색을 읽을 면: 옆면",
-  "curvegen.screen.match_colours_to_top": "색을 읽을 면: 윗면",
   "curvegen.screen.top": "윗면",
   "curvegen.screen.side": "옆면",
   "curvegen.screen.match_colours_to": "색을 읽을 면",
