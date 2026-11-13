@@ -2,7 +2,6 @@ package dev.curvegen.client;
 
 import dev.curvegen.core.paint.Mix;
 import dev.curvegen.core.paint.Pattern;
-import dev.curvegen.core.paint.Patterns;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -14,8 +13,8 @@ import java.util.function.Supplier;
 public final class MixSources {
     private MixSources() {}
 
-    /** The patterns a mix can take its blocks from. The bundled ones until the pattern library supplies its own. */
-    public static Supplier<List<Pattern>> patterns = () -> Patterns.BUNDLED;
+    /** The patterns a mix can take its blocks from: the pattern library's, pinned first. */
+    public static Supplier<List<Pattern>> patterns = () -> PatternStore.list().stream().map(s -> s.pattern).toList();
 
     /**
      * Chroma Studio's palettes as mixes, or null when Chroma Studio isn't there to supply them. Only code entered

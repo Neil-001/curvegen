@@ -296,19 +296,19 @@ class RadialTest {
         assertEquals(List.of("place", "blocks", "options", "presets", "export", "full", "cancel"),
                 Radial.order(Radial.EDIT, List.of("place", "blocks")));
         // Unknown ids, another menu's ids and repeats are skipped.
-        assertEquals(List.of("last", "2d", "3d", "presets"), Radial.order(Radial.START, List.of("nonsense", "place", "last", "last")));
+        assertEquals(List.of("last", "2d", "3d", "presets", "capture"), Radial.order(Radial.START, List.of("nonsense", "place", "last", "last")));
     }
 
     @Test
     void bothMenusOrdersSurviveBeingSavedAsOneList() {
-        List<String> start = new ArrayList<>(List.of("last", "presets", "3d", "2d"));
+        List<String> start = new ArrayList<>(List.of("last", "capture", "presets", "3d", "2d"));
         List<String> edit = new ArrayList<>(List.of("cancel", "place", "full", "export", "presets", "blocks", "options"));
         List<String> saved = Radial.merge(start, edit);
         assertEquals(start, Radial.order(Radial.START, saved));
         assertEquals(edit, Radial.order(Radial.EDIT, saved));
         assertEquals(List.of(), Radial.merge(Radial.START, Radial.EDIT), "the default order is saved as nothing");
         // Presets first in one menu and last in the other.
-        start = List.of("presets", "2d", "3d", "last");
+        start = List.of("presets", "2d", "capture", "3d", "last");
         edit = List.of("options", "blocks", "export", "full", "place", "cancel", "presets");
         saved = Radial.merge(start, edit);
         assertEquals(start, Radial.order(Radial.START, saved));

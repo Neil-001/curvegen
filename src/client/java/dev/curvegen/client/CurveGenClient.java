@@ -1,6 +1,7 @@
 package dev.curvegen.client;
 
 import com.mojang.blaze3d.platform.InputConstants;
+import dev.curvegen.client.edit.Capture;
 import dev.curvegen.client.edit.Editor;
 import dev.curvegen.client.edit.StepHold;
 import dev.curvegen.client.screen.CurveScreen;
@@ -87,9 +88,14 @@ public final class CurveGenClient {
         StepHold.tick(mc);
         for (KeyMapping k : KEYS) {
             if (k == OPEN || k == UNDO || k == REDO || k == RADIAL) continue;
-            while (k.consumeClick()) if (Editor.isActive()) press(k);   // otherwise drained, so it doesn't fire when a hologram appears
+            while (k.consumeClick()) {
+                // Cancel backs out of capturing a pattern first, a step at a time.
+                if (k == CANCEL && Capture.isActive()) Capture.back();
+                else if (Editor.isActive()) press(k);   // otherwise drained, so it doesn't fire when a hologram appears
+            }
         }
         Placement.tick(mc);
+        Capture.tick(mc);
         Editor.tick(mc);
         PaintStore.tick();
     }

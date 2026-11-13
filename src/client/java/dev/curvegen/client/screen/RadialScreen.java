@@ -8,6 +8,7 @@ import dev.curvegen.client.CurveGenClient;
 import dev.curvegen.client.ModSettings;
 import dev.curvegen.client.Placement;
 import dev.curvegen.client.PresetStore;
+import dev.curvegen.client.edit.Capture;
 import dev.curvegen.client.edit.EditShape;
 import dev.curvegen.client.edit.Editor;
 import dev.curvegen.core.Pieces.Family;
@@ -103,6 +104,9 @@ public class RadialScreen extends Screen {
             case "3d" -> nav(name, null, Page.SHAPES_3D);
             case "presets" -> leaf(name, null, () -> minecraft.gui.setScreen(new PresetsScreen(null, S.gen, RadialScreen::loadPreset)));
             case "last" -> leaf(name, Editor.hasLast() ? null : tr("curvegen.radial.no_last"), Editor::restoreLast);
+            // Saves the pattern to the library and chooses it, without opening anything. The label is short to fit, so the tip says what it does.
+            case "capture" -> new Wedge(name, null, null, tr("curvegen.patterns.capture_tip"), null, null, Stay.NEVER,
+                    () -> Capture.start(PatternLibraryScreen::choose));
             case "options" -> nav(name, Editor.options().isEmpty() ? tr("curvegen.radial.no_options") : null, Page.OPTIONS);
             case "blocks" -> nav(name, null, Page.BLOCKS);
             case "export" -> leaf(name, Editor.notReady(), () -> Placement.say(Component.literal(Editor.export())));
