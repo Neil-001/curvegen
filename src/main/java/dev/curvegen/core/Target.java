@@ -19,6 +19,12 @@ public final class Target {
     /** Curve overlay: flat segment lists {x1,y1,x2,y2,...}; dashed ones mark wall edges. */
     public final List<double[]> overlay = new ArrayList<>(), dashed = new ArrayList<>();
     public Double axisX, axisY;
+    /**
+     * For a line or an outline: its centre line, as segment lists like {@link #overlay}, and how wide the line is.
+     * Null for a filled shape. Painting lays a pattern along it, and nothing in the solve reads it.
+     */
+    public List<double[]> centre;
+    public double centreWidth;
     /** Cells whose centre lies in the space the shape encloses; cleared to air when carving (null = never carve). */
     public boolean[] carve;
     public Message error;
@@ -132,6 +138,12 @@ public final class Target {
         if (s.eMode == ShapeSettings.EllipseMode.OUTWARDS || s.eMode == ShapeSettings.EllipseMode.INWARDS || s.eMode == ShapeSettings.EllipseMode.MIDDLE) {
             if (hi != 0) t.dashed.add(ellipseCurve(a, b, hi, x0, y0, n));
             if (lo != 0) t.dashed.add(ellipseCurve(a, b, lo, x0, y0, n));
+        }
+        if (s.eMode != ShapeSettings.EllipseMode.FILLED) {
+            // A thin outline is the one block just inside the ellipse.
+            boolean thin = s.eMode == ShapeSettings.EllipseMode.THIN;
+            t.centre = List.of(ellipseCurve(a, b, thin ? -0.5 : (lo + hi) / 2, x0, y0, n));
+            t.centreWidth = thin ? 1 : T;
         }
         return t;
     }
@@ -327,7 +339,10 @@ public final class Target {
                 }
             }
         double[] sa = segs.toArray();
-        if (mode == ShapeSettings.EqMode.LINE) t.fillLine(sa, s.qLW);
+        if (mode == ShapeSettings.EqMode.LINE) {
+            t.fillLine(sa, s.qLW);
+            t.centre = List.of(sa); t.centreWidth = s.qLW;
+        }
         else {
             boolean under = mode == ShapeSettings.EqMode.UNDER;
             // Carving clears the other side: above the curve for "fill under", below it for "fill over".
@@ -400,7 +415,10 @@ public final class Target {
         for (int k = 1; k <= N; k++) curve.addSplit(pts[k - 1][0], pts[k - 1][1], pts[k][0], pts[k][1]);
         chord.addSplit(pts[N][0], pts[N][1], pts[0][0], pts[0][1]);
         double[] ca = curve.toArray(), ch = chord.toArray();
-        if (s.bMode == ShapeSettings.BzMode.LINE) t.fillLine(ca, s.bLW);
+        if (s.bMode == ShapeSettings.BzMode.LINE) {
+            t.fillLine(ca, s.bLW);
+            t.centre = List.of(ca); t.centreWidth = s.bLW;
+        }
         else {
             double[] all = Arrays.copyOf(ca, ca.length + ch.length);
             System.arraycopy(ch, 0, all, ca.length, ch.length);
