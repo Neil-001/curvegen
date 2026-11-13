@@ -6,7 +6,7 @@ import dev.curvegen.core.paint.Catalog;
 import dev.curvegen.core.paint.MaterialNames;
 import dev.curvegen.core.paint.Paint;
 import dev.curvegen.core.paint.Painted;
-import dev.curvegen.core.paint.Pattern;
+import dev.curvegen.core.paint.Palette;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashMap;
@@ -96,7 +96,7 @@ public final class PaintBlocks {
 
     /**
      * Everything a repaint needs, taken now, on the client thread: block colours on the face the shape is matched by,
-     * for every block the Blocks tab could offer and every block in the pattern.
+     * for every block the Blocks tab could offer and every block the source paints with.
      */
     public static Catalog catalog(ShapeSettings s) {
         materials();
@@ -115,7 +115,7 @@ public final class PaintBlocks {
             }
             allowed.put(f, ids);
         }
-        Pattern p = s.paint.pattern;
+        Palette p = s.paint.palette();
         for (int k = 0; k < p.paletteSize(); k++) {
             String id = p.cell(k).block();
             Block b = id == null ? null : block(id);
@@ -127,8 +127,8 @@ public final class PaintBlocks {
     }
 
     /**
-     * Whether fences, panes and walls attach to the shape's full blocks: what most of the pattern's blocks do while
-     * it's painted, or what the Blocks tab's full block does.
+     * Whether fences, panes and walls attach to the shape's full blocks: what most of the pattern's or mix's blocks do
+     * while it's painted, or what the Blocks tab's full block does.
      */
     public static boolean fullConnects(ShapeSettings s) { return fullConnects(s, BlockChoices.CHOICE); }
 
@@ -136,7 +136,7 @@ public final class PaintBlocks {
     public static boolean fullConnects(ShapeSettings s, Map<Family, Block> choice) {
         // Only 2D shapes are painted so far. The 3D painting drops the is3d test.
         if (s.paint.on() && !s.is3d()) {
-            Boolean most = Paint.connects(s.paint.pattern, id -> {
+            Boolean most = Paint.connects(s.paint.palette(), id -> {
                 Block b = block(id);
                 return b == null || BlockChoices.connects(b);
             });

@@ -13,7 +13,7 @@ import java.util.Set;
 /**
  * Paints a solved 2D shape. It reads the solve and never changes it: every piece stays where the solver put it.
  * Lines and outlines wrap the pattern, filled shapes project it, from {@link Wrap2D}, and {@link Ladder} picks each
- * block. Fast enough to run again on every change of a paint setting without solving again.
+ * block. A mix needs no wrap: {@link MixLayout} places its blocks by position, through the depth too. Fast enough to run again on every change of a paint setting without solving again.
  */
 public final class Painter2D {
     private Painter2D() {}
@@ -26,6 +26,7 @@ public final class Painter2D {
      */
     public static Painted paint(Solver.Result r, int depth, Paint paint, boolean fullConnects, Catalog catalog) {
         if (!paint.on() || r.target().error != null) return null;
+        if (paint.source == Paint.Source.MIX) return mix(r, depth, paint, fullConnects, catalog);
         int nx = r.nx(), ny = r.ny(), d = Math.max(1, depth);
         boolean edge = paint.onFor(d) == Paint.On.EDGE;
         Wrap2D w = Wrap2D.of(r, edge, d);
@@ -71,6 +72,39 @@ public final class Painter2D {
             turns[e.getValue()] = (int) (e.getKey() & 3);
         }
         return new Painted(slots, layers, List.of(names), turns, why, counts);
+    }
+
+    /**
+     * A mix's blocks. Each layer has its own, so patches are lumps through the depth as well as across the face: the
+     * block at x, y in layer k sits at (x, y, k) in the shape's box. Nothing is turned.
+     */
+    private static Painted mix(Solver.Result r, int depth, Paint paint, boolean fullConnects, Catalog catalog) {
+        int nx = r.nx(), ny = r.ny(), d = Math.max(1, depth);
+        Ladder ladder = new Ladder(catalog, paint.mix, paint.oneMaterial(), fullConnects, used(r.counts()));
+        MixLayout layout = new MixLayout(paint.mix, paint.arrange, paint.patch, paint.seed);
+        int[] slots = new int[d * nx * ny];
+        java.util.Arrays.fill(slots, -1);
+        long[][] why = new long[Family.values().length][Why.values().length];
+        for (int j = 0; j < ny; j++)
+            for (int i = 0; i < nx; i++) {
+                int piece = r.at(i, j);
+                if (piece == Pieces.EMPTY) continue;
+                Family f = Pieces.FAMILY[piece];
+                for (int k = 0; k < d; k++) {
+                    int cell = layout.at(i, j, k);
+                    slots[(k * ny + j) * nx + i] = ladder.pick(cell, f);
+                    why[f.ordinal()][ladder.why(cell, f).ordinal()]++;
+                }
+            }
+        int n = ladder.blocks().size();
+        long[][] byEntry = new long[why.length][n + 1];
+        for (int k = 0; k < d; k++)
+            for (int j = 0; j < ny; j++)
+                for (int i = 0; i < nx; i++) {
+                    int piece = r.at(i, j);
+                    if (piece != Pieces.EMPTY) byEntry[Pieces.FAMILY[piece].ordinal()][slots[(k * ny + j) * nx + i] + 1]++;
+                }
+        return new Painted(slots, d, List.copyOf(ladder.blocks()), new int[n], why, byEntry);
     }
 
     /** The entry for a ladder pick turned by {@code quarter} quarter turns, adding it the first time. -1 stays -1. */

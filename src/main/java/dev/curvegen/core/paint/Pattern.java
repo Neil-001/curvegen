@@ -18,7 +18,7 @@ import java.util.Map;
  * {@code -} for an empty cell) and "rows" (palette indices, comma separated, rows separated by "/", top row first).
  * A bundled pattern's name is a translation key starting {@link #BUNDLED}.
  */
-public final class Pattern {
+public final class Pattern implements Palette {
     public static final int MAX = 128;
     /** Names starting with this are translation keys, for the patterns the mod comes with. */
     public static final String BUNDLED = "curvegen.pattern.";
@@ -94,10 +94,10 @@ public final class Pattern {
 
     /** The palette index of the cell at x along and y across, y = 0 at the bottom. */
     public int at(int x, int y) { return cells[y * width + x]; }
-    public Cell cell(int index) { return palette[index]; }
-    public int paletteSize() { return palette.length; }
+    @Override public Cell cell(int index) { return palette[index]; }
+    @Override public int paletteSize() { return palette.length; }
     /** How many cells hold this palette entry. */
-    public int count(int index) { return counts[index]; }
+    @Override public int count(int index) { return counts[index]; }
 
     public Pattern renamed(String newName) {
         int[] grid = new int[cells.length];
