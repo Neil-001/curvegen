@@ -112,9 +112,10 @@ def catalog():
     lines = subprocess.run(["java", "-cp", classes + os.pathsep + cp, "Blocks"], cwd=classes, check=True,  # the game writes logs/ here
                            capture_output=True, text=True).stdout.splitlines()
     ids = {i for l in lines if l.startswith("allowed ") for i in l.split()[2:]}
+    states = {l.split()[1]: dict(kv.split("=", 1) for kv in l.split()[2:]) for l in lines if l.startswith("default ")}
     with zipfile.ZipFile(jar) as z:
         textures = Textures(z)
-        colours = [f"{face} {i} {textures.colour(i, face):06x}" for i in sorted(ids) for face in ("side", "top")]
+        colours = [f"{face} {i} {textures.colour(i, face, states.get(i, {})):06x}" for i in sorted(ids) for face in ("side", "top")]
     with open(path, "w") as f:
         f.write("\n".join(lines + colours) + "\n")
     return path
@@ -122,8 +123,9 @@ def catalog():
 
 class Textures:
     """Block colours from the client jar's models and textures, as ColorIndex works them out in the game: the default
-    state's quads on the north face (side) or the top, each texture's opaque pixels averaged and weighed by how much of
-    it is opaque, or the particle texture when the face has none."""
+    state's quads on the north face (side) or the top, with its models turned as the block state turns them, each
+    texture's opaque pixels averaged and weighed by how much of it is opaque, or the particle texture when the face has
+    none."""
 
     def __init__(self, z):
         self.z, self.models, self.averages = z, {}, {}
@@ -142,16 +144,29 @@ class Textures:
                                 "elements": m.get("elements", parent["elements"])}
         return self.models[ref]
 
-    def state_model(self, block):
-        state = self.json("blockstates", block) or {}
-        if "variants" in state:
-            v = state["variants"]
-            key = next((k for k in v if k == "" or "axis=y" in k), next(iter(v)))
-            pick = v[key]
+    def parts(self, block, state):
+        """The models the block's default state is drawn with, each with its x and y rotation in degrees."""
+        bs = self.json("blockstates", block) or {}
+
+        def holds(conditions):
+            return all(state.get(k) in str(v).split("|") for k, v in conditions.items())
+
+        def matches(when):
+            if "OR" in when:
+                return any(matches(w) for w in when["OR"])
+            if "AND" in when:
+                return all(matches(w) for w in when["AND"])
+            return holds(when)
+
+        picks = []
+        if "variants" in bs:
+            for key, pick in bs["variants"].items():
+                if holds(dict(kv.split("=") for kv in key.split(",") if kv)):
+                    picks.append(pick)
+                    break
         else:
-            pick = state.get("multipart", [{}])[0].get("apply", {})
-        pick = pick[0] if isinstance(pick, list) else pick
-        return pick.get("model")
+            picks = [p["apply"] for p in bs.get("multipart", []) if matches(p.get("when", {}))]
+        return [(p.get("model"), p.get("x", 0), p.get("y", 0)) for p in (q[0] if isinstance(q, list) else q for q in picks)]
 
     def average(self, ref, textures):
         while isinstance(ref, dict) or ref and ref.startswith("#"):
@@ -173,22 +188,40 @@ class Textures:
             self.averages[ref] = avg
         return self.averages[ref]
 
-    def colour(self, block, face):
-        ref = self.state_model(block)
-        if not ref:
-            return 0x808080
-        m = self.model(ref)
+    # A model's x rotation turns up to north, and its y rotation north to east, a quarter turn at a time.
+    TURN_X = {"up": "north", "north": "down", "down": "south", "south": "up"}
+    TURN_Y = {"north": "east", "east": "south", "south": "west", "west": "north"}
+
+    def turned(self, d, x, y):
+        for _ in range(x // 90 % 4):
+            d = self.TURN_X.get(d, d)
+        for _ in range(y // 90 % 4):
+            d = self.TURN_Y.get(d, d)
+        return d
+
+    def colour(self, block, face, state):
         want = "up" if face == "top" else "north"
-        faces = [f for e in m["elements"] for d, f in e.get("faces", {}).items() if d == want]
-        culled = [f for f in faces if f.get("cullface") == want]
+        faces, culled, particle = [], [], None
+        for ref, x, y in self.parts(block, state):
+            if not ref:
+                continue
+            m = self.model(ref)
+            particle = particle or m["textures"]
+            for e in m["elements"]:
+                for d, f in e.get("faces", {}).items():
+                    if self.turned(d, x, y) != want:
+                        continue
+                    faces.append((f, m["textures"]))
+                    if f.get("cullface") and self.turned(f["cullface"], x, y) == want:
+                        culled.append((f, m["textures"]))
         r = g = b = w = 0
-        for f in culled or faces:
-            avg = self.average(f.get("texture"), m["textures"])
+        for f, textures in culled or faces:
+            avg = self.average(f.get("texture"), textures)
             if avg:
                 r, g, b, w = r + avg[0] * avg[3], g + avg[1] * avg[3], b + avg[2] * avg[3], w + avg[3]
         if w:
             return int(r / w) << 16 | int(g / w) << 8 | int(b / w)
-        avg = self.average("#particle", m["textures"])
+        avg = self.average("#particle", particle or {})
         return avg[0] << 16 | avg[1] << 8 | avg[2] if avg else 0x808080
 
 
