@@ -1,0 +1,88 @@
+package dev.curvegen.core.paint;
+
+import dev.curvegen.core.Pieces;
+import dev.curvegen.core.Pieces.Family;
+import dev.curvegen.core.Solver;
+import dev.curvegen.core.paint.Ladder.Why;
+import dev.curvegen.core.paint.Paint.Fit;
+import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.List;
+import java.util.Set;
+
+/**
+ * Paints a solved 2D shape. It reads the solve and never changes it: every piece stays where the solver put it.
+ * Lines and outlines wrap the pattern, filled shapes project it, from {@link Wrap2D}, and {@link Ladder} picks each
+ * block. Fast enough to run again on every change of a paint setting without solving again.
+ */
+public final class Painter2D {
+    private Painter2D() {}
+
+    /**
+     * The blocks for {@code r} under {@code paint}, or null when paint is off or the shape has an error.
+     *
+     * @param depth         how many layers deep the shape is built
+     * @param fullConnects  the setting the shape was solved with
+     */
+    public static Painted paint(Solver.Result r, int depth, Paint paint, boolean fullConnects, Catalog catalog) {
+        if (!paint.on() || r.target().error != null) return null;
+        int nx = r.nx(), ny = r.ny(), d = Math.max(1, depth);
+        boolean edge = paint.onFor(d) == Paint.On.EDGE;
+        Wrap2D w = Wrap2D.of(r, edge, d);
+        Fit fit = paint.fitFor(w.line);
+        List<Tiling> tilings = new ArrayList<>();
+        for (Tiling.Strip s : w.strips) tilings.add(new Tiling(paint.pattern, paint, fit, s));
+        Ladder ladder = new Ladder(catalog, paint.pattern, paint.oneMaterial(), fullConnects, used(r.counts()));
+
+        int layers = edge ? d : 1, per = edge ? 1 : d;
+        // Entries are the ladder's blocks, full blocks as each strip turns them: an equation's loops can each be nudged their own way.
+        java.util.Map<Long, Integer> entries = new java.util.HashMap<>();
+        List<Integer> quarters = new ArrayList<>();
+        int[] slots = new int[layers * nx * ny];
+        java.util.Arrays.fill(slots, -1);
+        long[][] why = new long[Family.values().length][Why.values().length];
+        for (int j = 0; j < ny; j++)
+            for (int i = 0; i < nx; i++) {
+                int piece = r.at(i, j), c = j * nx + i;
+                if (piece == Pieces.EMPTY) continue;
+                Family f = Pieces.FAMILY[piece];
+                int s = w.strip[c];
+                for (int k = 0; k < layers; k++) {
+                    Why reason = Why.BLOCKS_TAB;
+                    if (s >= 0) {
+                        int cell = tilings.get(s).sample(w.u[c], edge ? k + .5 : w.v[c]);
+                        slots[(k * ny + j) * nx + i] = entry(ladder.pick(cell, f), f == Family.FULL ? tilings.get(s).quarters() : 0, entries, quarters);
+                        reason = ladder.why(cell, f);
+                    }
+                    why[f.ordinal()][reason.ordinal()] += per;
+                }
+            }
+        long[][] counts = new long[Family.values().length][quarters.size() + 1];
+        for (int j = 0; j < ny; j++)
+            for (int i = 0; i < nx; i++) {
+                int piece = r.at(i, j);
+                if (piece == Pieces.EMPTY) continue;
+                for (int k = 0; k < layers; k++) counts[Pieces.FAMILY[piece].ordinal()][slots[(k * ny + j) * nx + i] + 1] += per;
+            }
+        String[] names = new String[quarters.size()];
+        int[] turns = new int[quarters.size()];
+        for (var e : entries.entrySet()) {
+            names[e.getValue()] = ladder.blocks().get((int) (e.getKey() >> 2));
+            turns[e.getValue()] = (int) (e.getKey() & 3);
+        }
+        return new Painted(slots, layers, List.of(names), turns, why, counts);
+    }
+
+    /** The entry for a ladder pick turned by {@code quarter} quarter turns, adding it the first time. -1 stays -1. */
+    private static int entry(int pick, int quarter, java.util.Map<Long, Integer> entries, List<Integer> quarters) {
+        if (pick < 0) return -1;
+        return entries.computeIfAbsent((long) pick << 2 | quarter, _ -> { quarters.add(quarter); return quarters.size() - 1; });
+    }
+
+    /** Piece types the solve placed at least one of. */
+    static Set<Family> used(int[] counts) {
+        Set<Family> out = EnumSet.noneOf(Family.class);
+        for (int s = 1; s < Pieces.COUNT; s++) if (counts[s] > 0) out.add(Pieces.FAMILY[s]);
+        return out;
+    }
+}
