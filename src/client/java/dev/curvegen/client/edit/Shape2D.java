@@ -1,7 +1,6 @@
 package dev.curvegen.client.edit;
 
 import dev.curvegen.client.Lang;
-import dev.curvegen.client.BlockChoices;
 import dev.curvegen.client.PaintBlocks;
 import dev.curvegen.core.Pieces;
 import dev.curvegen.core.ShapeSettings;
@@ -105,20 +104,16 @@ final class Shape2D implements EditShape {
         boolean[] cv = r.target().carve;
         Painted painted = v.painted;
         PaintBlocks.Resolved paint = painted == null ? null : PaintBlocks.resolve(painted, PaintBlocks.viewer(right, floor ? forward : Direction.UP));
-        int n = r.nx() * r.ny();
         for (int j = 0; j < r.ny(); j++)
             for (int i = 0; i < r.nx(); i++) {
                 int p = r.at(i, j);
                 if (p == Pieces.EMPTY && (cv == null || !cv[j * r.nx() + i])) continue;
-                int above = j + 1 < r.ny() ? r.at(i, j + 1) : Pieces.EMPTY;
                 for (int k = 0; k < depth; k++) {
                     int[] w = at.cell(i - m, j - m, k, size);
                     if (p == Pieces.EMPTY) { carve.add(new BlockPos(w[0], w[1], w[2])); continue; }
-                    BlockState state;
-                    int entry = paint == null ? -1 : painted.at((painted.layers() == 1 ? 0 : k) * n + j * r.nx() + i);
-                    if (entry >= 0 && p == Pieces.FULL && paint.full()[entry] != null) state = paint.full()[entry];
-                    else state = BlockChoices.stateFor(p, above, right, forward, k, depth, floor, paint == null ? null : paint.block(entry));
-                    blocks.add(new Placed(w[0], w[1], w[2], state));
+                    // A pattern's hole places nothing, and Carve leaves it alone.
+                    BlockState state = PaintBlocks.state2D(r, i, j, k, depth, right, forward, painted, paint);
+                    if (state != null) blocks.add(new Placed(w[0], w[1], w[2], state));
                 }
             }
         return new Content(blocks, carve, floor, null);

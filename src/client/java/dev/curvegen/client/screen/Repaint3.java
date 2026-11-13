@@ -3,6 +3,7 @@ package dev.curvegen.client.screen;
 import dev.curvegen.client.chroma.Chroma;
 import dev.curvegen.client.BlockChoices;
 import dev.curvegen.client.PaintBlocks;
+import dev.curvegen.core.Mesh3;
 import dev.curvegen.core.ShapeSettings;
 import dev.curvegen.core.paint.Catalog;
 import dev.curvegen.core.paint.Paint;
@@ -18,8 +19,11 @@ import net.minecraft.world.level.block.Block;
  * keeps the last one finished until the next is ready. It also works out the picture's colour for every block.
  */
 final class Repaint3 {
-    /** A painted solve, with each block's index into {@code palette}, which colours the picture by "Block colours". */
-    record View(Solve3Painter.Done done, int[] perBlock, int[] palette) {}
+    /**
+     * A painted solve, with each block's index into {@code palette}, which colours the picture by "Block colours", and
+     * the faces of its blocks when holes changed them from the solve's own, or null.
+     */
+    record View(Solve3Painter.Done done, int[] perBlock, int[] palette, Mesh3 mesh) {}
 
     private Future<View> job;
     private Solve3Painter jobSolve, shownSolve;
@@ -48,13 +52,20 @@ final class Repaint3 {
             int[] byFamily = Preview3.palette(PreviewTexture.Colors.BLOCKS, BlockChoices.CHOICE, s.topColours);
             jobSolve = solve; jobPaint = paint; jobChoices = new EnumMap<>(BlockChoices.CHOICE); jobTop = s.topColours;
             jobMatcher = Chroma.matcherVersion();
-            job = CurveScreen.EXEC.submit(() -> {
-                Solve3Painter.Done d = solve.paint(paint, fullConnects, catalog);
-                if (d == null) return null;
-                return new View(d, Solve3Painter.colourIndex(solve.result, d.painted()), PaintBlocks.palette3(d.painted(), byFamily, catalog));
-            });
+            job = CurveScreen.EXEC.submit(() -> paint(solve, paint, fullConnects, catalog, byFamily));
         }
         return done;
+    }
+
+    /**
+     * Paints {@code solve} for a picture, on a worker thread: null while paint is off. {@code byFamily} colours the
+     * blocks the paint leaves to the Blocks tab, by piece type.
+     */
+    static View paint(Solve3Painter solve, Paint paint, boolean fullConnects, Catalog catalog, int[] byFamily) {
+        Solve3Painter.Done d = solve.paint(paint, fullConnects, catalog);
+        if (d == null) return null;
+        return new View(d, Solve3Painter.colourIndex(d.result(), d.painted()), PaintBlocks.palette3(d.painted(), byFamily, catalog),
+                d.result() == solve.result ? null : new Mesh3(d.result()));
     }
 
     /**

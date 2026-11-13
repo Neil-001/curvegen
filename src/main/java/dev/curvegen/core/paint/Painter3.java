@@ -22,7 +22,8 @@ import java.util.Set;
  *
  * <p>A 3D shape's {@link Painted} has one layer and one slot per block of the solve, in the grid's order
  * ({@code (y * nz + z) * nx + x}) with air left out. Wrap never turns a full block; a projection turns it with the
- * pattern, as seen from {@link Wrap3#right} × {@link Wrap3#up}.
+ * pattern, as seen from {@link Wrap3#right} × {@link Wrap3#up}. A hole's slot is {@link Painted#OPEN}: {@link
+ * Solve3Painter} takes the holes out and settles the blocks beside them.
  */
 public final class Painter3 {
     private Painter3() {}
@@ -33,6 +34,8 @@ public final class Painter3 {
         Tiling tiling = new Tiling(paint.pattern, paint, paint.fitFor(false), w.strip);
         Ladder ladder = new Ladder(catalog, paint.pattern, paint.oneMaterial(), fullConnects, used(r.counts()));
         int quarter = w.mapping == Mapping.WRAP ? 0 : tiling.quarters();
+        boolean[] holes = paint.holes();
+        long open = 0;
         short[] grid = r.grid();
         int[] slots = new int[w.blocks()];
         // Entries are the ladder's picks in the order first seen. Every full block turns the same way, so a pick is one entry.
@@ -46,6 +49,7 @@ public final class Painter3 {
             if (piece == Pieces3.AIR) continue;
             Family f = Pieces3.FAMILY[piece];
             int cell = tiling.sample(w.u[k], w.v[k]);
+            if (holes != null && holes[cell]) { slots[k++] = Painted.OPEN; open++; continue; }
             int pick = ladder.pick(cell, f), e = -1;
             if (pick >= 0) {
                 Integer known = entries.get(pick);
@@ -68,7 +72,7 @@ public final class Painter3 {
             counts[f.ordinal()][0] = base[f.ordinal()];
             for (int e = 0; e < names.size(); e++) counts[f.ordinal()][e + 1] = perEntry.get(e)[f.ordinal()];
         }
-        return new Painted(slots, 1, List.copyOf(names), quarters, why, counts);
+        return new Painted(slots, 1, List.copyOf(names), quarters, why, counts, open, null);
     }
 
     /**

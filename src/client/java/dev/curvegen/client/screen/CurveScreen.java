@@ -664,8 +664,9 @@ public class CurveScreen extends ControlScreen {
         for (Family f : BlockChoices.FAMILIES) {
             java.util.LinkedHashMap<String, int[]> merged = new java.util.LinkedHashMap<>();
             for (int st : statesFor(f, floor)) merged.computeIfAbsent(Pieces.SHORT_NAME[st], _ -> new int[]{st, 0})[1] += result.counts()[st] * mult;
-            int total = 0;
+            long total = 0;
             for (int[] m : merged.values()) total += m[1];
+            if (painted != null && painted.open() > 0) total = java.util.Arrays.stream(painted.counts()[f.ordinal()]).sum();   // a pattern's holes left out
             boolean unused = floor && (f == Family.SLAB || f == Family.STAIRS);
             String blockName = BlockChoices.CHOICE.get(f).getName().getString();
             String n = String.valueOf(total);
@@ -709,8 +710,8 @@ public class CurveScreen extends ControlScreen {
     /** A 3D shape's rows: by piece type, then one row for each way a builder would tell its states apart. */
     private void countRows3(List<CountRow> rows) {
         if (solved3 == null || solved3.error != null) return;
-        int[] counts = solved3.result.counts();
         Repaint3.View view = painted3();
+        int[] counts = (view == null ? solved3.result : view.done().result()).counts();   // a pattern's holes left out
         Painted painted = view == null ? null : view.done().painted();
         PaintBlocks.Resolved resolved = painted == null ? null : PaintBlocks.resolve(painted, PaintBlocks.viewer3(view.done()));
         for (Family f : BlockChoices.FAMILIES) {
@@ -1167,6 +1168,9 @@ public class CurveScreen extends ControlScreen {
         if (solved3 != null && solved3.error == null && job3 == null && S.fullConnects != solved3.fullConnects) dirty = true;
         if (repaint3.poll(solved3 == null ? null : solved3.painter, solved3 != null && solved3.fullConnects, S)) countRows = null;
         Repaint3.View view = painted3();
+        // A pattern's holes change the blocks, so they show in every colouring.
+        if (solved3 != null && solved3.result != null)
+            preview3.mesh(view != null && view.mesh() != null ? view.mesh() : solved3.mesh, solved3.result.shape().pad());
         if (view != null && colors == PreviewTexture.Colors.BLOCKS) preview3.palette(view.palette(), view.perBlock());
         else preview3.palette(Preview3.palette(colors, BlockChoices.CHOICE, S.topColours));
         preview3.showWires(showCurve);
@@ -1258,8 +1262,8 @@ public class CurveScreen extends ControlScreen {
     private void export3() {
         if (solved3 == null || job3 != null || dirty || solved3.error == null && repaint3.pending(solved3.painter, S)) { flash(tr("curvegen.screen.still_working_on_the_shape_try_again_in_a")); return; }
         if (solved3.error != null) { flash(tr("curvegen.screen.fix_the_shape_first_s", Lang.text(solved3.error))); return; }
-        Solver3.Result r = solved3.result;
         Repaint3.View view = repaint3.fresh(solved3.painter, S);
+        Solver3.Result r = view == null ? solved3.result : view.done().result();
         Painted painted = view == null ? null : view.done().painted();
         PaintBlocks.States3 states = new PaintBlocks.States3(painted == null ? null : PaintBlocks.resolve(painted, PaintBlocks.viewer3(view.done())));
         List<EditShape.Placed> blocks = new ArrayList<>(solved3.blocks);
@@ -1666,7 +1670,7 @@ public class CurveScreen extends ControlScreen {
         String kind = switch (S.gen) { case ELLIPSE -> "ellipse"; case EQUATION -> "equation"; case BEZIER -> "bezier"; default -> "shape"; };
         try {
             String author = minecraft.player != null ? minecraft.player.getName().getString() : tr("key.category.curvegen.main");
-            Path file = LitematicExporter.export(layout, S.depth, S.floor, painted(), result.nx() * result.ny(), LitematicExporter.defaultName(kind) + (S.floor ? "_floor" : ""), author);
+            Path file = LitematicExporter.export(result, S.depth, painted(), LitematicExporter.defaultName(kind) + (S.floor ? "_floor" : ""), author);
             flash(tr("curvegen.screen.exported_to_schematics_s", file.getFileName().toString()));
             Placement.say(Component.translatable("curvegen.screen.exported_to_schematics_s", file.getFileName().toString()));
         } catch (Exception e) {

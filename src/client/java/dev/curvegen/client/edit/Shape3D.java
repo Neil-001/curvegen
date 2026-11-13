@@ -113,6 +113,8 @@ final class Shape3D implements EditShape {
         if (error != null) return new Content(List.of(), List.of(), v.topColours, error);
         Painted painted = v.painted == null ? null : v.painted.painted();
         PaintBlocks.States3 states = new PaintBlocks.States3(painted == null ? null : PaintBlocks.resolve(painted, PaintBlocks.viewer3(v.painted)));
+        // A pattern's holes are air in the painted result. They place nothing and Carve leaves them alone.
+        short[] built = v.painted == null ? r.grid() : v.painted.result().grid();
         int k = 0;
         int pad = r.shape().pad(), nx = r.nx(), ny = r.ny(), nz = r.nz();
         List<Placed> blocks = new ArrayList<>();
@@ -120,9 +122,9 @@ final class Shape3D implements EditShape {
         for (int y = 0, c = 0; y < ny; y++)
             for (int z = 0; z < nz; z++)
                 for (int x = 0; x < nx; x++, c++) {
-                    int p = r.grid()[c];
+                    int p = built[c];
                     if (p != Pieces3.AIR) blocks.add(new Placed(x - pad, y - pad, z - pad, states.get(p, painted == null ? -1 : painted.at(k++))));
-                    else if (v.carve != null && v.carve.get(c)) carve.add(new BlockPos(x - pad, y - pad, z - pad));
+                    else if (v.carve != null && v.carve.get(c) && r.grid()[c] == Pieces3.AIR) carve.add(new BlockPos(x - pad, y - pad, z - pad));
                 }
         return new Content(blocks, carve, v.topColours, null);
     }

@@ -62,7 +62,9 @@ public class PatternLibraryScreen extends Screen {
     }
 
     /** What a pattern suits, for its tooltip, or null. */
-    private static String tip(Pattern p) { return p.sameCells(Patterns.TWO_LANE_ROAD) ? tr("curvegen.paint.two_lane_road_tip") : null; }
+    private static String tip(Pattern p) {
+        return p.sameCells(Patterns.TWO_LANE_ROAD) ? tr("curvegen.paint.two_lane_road_tip") : p.sameCells(Patterns.LATTICE) ? tr("curvegen.paint.lattice_tip") : null;
+    }
 
     /**
      * Draws a pattern flat in a {@code size}-pixel square, top row at the top, from its cells' block colours or their

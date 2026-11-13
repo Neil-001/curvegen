@@ -6,6 +6,7 @@ import dev.curvegen.client.chroma.Chroma;
 import dev.curvegen.core.Pieces.Family;
 import dev.curvegen.core.Pieces;
 import dev.curvegen.core.Pieces3;
+import dev.curvegen.core.Settle2D;
 import dev.curvegen.core.PresetData;
 import dev.curvegen.core.ShapeSettings;
 import java.util.ArrayList;
@@ -230,6 +231,25 @@ public final class BlockChoices {
         s = with(s, BlockStateProperties.WATERLOGGED, false);
         if (s.hasProperty(BlockStateProperties.PERSISTENT)) s = s.setValue(BlockStateProperties.PERSISTENT, true);   // stop leaves decaying
         return s;
+    }
+
+    /**
+     * A fence, pane or wall of a 2D shape whose sides {@link Settle2D#joints} gives, in {@code block} or, when that's
+     * null, the block chosen for its piece type. Front is {@code forward}: the way the layers run for an upright
+     * shape, and the drawing's +y for a flat one.
+     */
+    public static BlockState connector(int piece, int joints, Direction right, Direction forward, Block block) {
+        if (block == null) block = blockFor(piece);
+        BlockState s = block.defaultBlockState();
+        Direction[] dirs = {right.getOpposite(), right, forward, forward.getOpposite()};
+        int[] sides = {Settle2D.LEFT, Settle2D.RIGHT, Settle2D.FRONT, Settle2D.BACK};
+        boolean wall = Pieces.FAMILY[piece] == Family.WALL;
+        for (int d = 0; d < 4; d++) {
+            int v = Settle2D.side(joints, sides[d]);
+            s = wall ? with(s, wallSide(dirs[d]), shape(v)) : with(s, side(dirs[d]), v > 0);
+        }
+        if (wall) s = with(s, BlockStateProperties.UP, (joints & Settle2D.POST) != 0);
+        return finish(s);
     }
 
     /** A flat shape: the drawing is the view from above and layers stack upwards. */

@@ -2,10 +2,12 @@ package dev.curvegen.core.paint;
 
 import dev.curvegen.core.Pieces;
 import dev.curvegen.core.Pieces.Family;
+import dev.curvegen.core.Settle2D;
 import dev.curvegen.core.Solver;
 import dev.curvegen.core.paint.Ladder.Why;
 import dev.curvegen.core.paint.Paint.Fit;
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
@@ -14,7 +16,8 @@ import java.util.Set;
  * Paints a solved 2D shape. It reads the solve and never changes it: every piece stays where the solver put it.
  * Lines and outlines wrap the pattern, filled shapes project it, from {@link Wrap2D}, and {@link Ladder} picks each
  * block. A mix needs no wrap: {@link MixLayout} places its blocks by position, through the depth too. Fast enough
- * to run again on every change of a paint setting without solving again.
+ * to run again on every change of a paint setting without solving again. With "Empty spots: Open" a pattern's empty
+ * cells become holes, and {@link Settle2D} settles the blocks beside them.
  */
 public final class Painter2D {
     private Painter2D() {}
@@ -38,6 +41,8 @@ public final class Painter2D {
         Ladder ladder = new Ladder(catalog, paint.pattern, paint.oneMaterial(), fullConnects, used(r.counts()));
 
         int layers = edge ? d : 1, per = edge ? 1 : d;
+        boolean[] holes = paint.holes();
+        long open = 0;
         // Entries are the ladder's blocks, full blocks as each strip turns them: an equation's loops can each be nudged their own way.
         java.util.Map<Long, Integer> entries = new java.util.HashMap<>();
         List<Integer> quarters = new ArrayList<>();
@@ -54,6 +59,7 @@ public final class Painter2D {
                     Why reason = Why.BLOCKS_TAB;
                     if (s >= 0) {
                         int cell = tilings.get(s).sample(w.u[c], edge ? k + .5 : w.v[c]);
+                        if (holes != null && holes[cell]) { slots[(k * ny + j) * nx + i] = Painted.OPEN; open += per; continue; }
                         slots[(k * ny + j) * nx + i] = entry(ladder.pick(cell, f), f == Family.FULL ? tilings.get(s).quarters() : 0, entries, quarters);
                         reason = ladder.why(cell, f);
                     }
@@ -65,7 +71,10 @@ public final class Painter2D {
             for (int i = 0; i < nx; i++) {
                 int piece = r.at(i, j);
                 if (piece == Pieces.EMPTY) continue;
-                for (int k = 0; k < layers; k++) counts[Pieces.FAMILY[piece].ordinal()][slots[(k * ny + j) * nx + i] + 1] += per;
+                for (int k = 0; k < layers; k++) {
+                    int slot = slots[(k * ny + j) * nx + i];
+                    if (slot != Painted.OPEN) counts[Pieces.FAMILY[piece].ordinal()][slot + 1] += per;
+                }
             }
         String[] names = new String[quarters.size()];
         int[] turns = new int[quarters.size()];
@@ -73,7 +82,16 @@ public final class Painter2D {
             names[e.getValue()] = ladder.blocks().get((int) (e.getKey() >> 2));
             turns[e.getValue()] = (int) (e.getKey() & 3);
         }
-        return new Painted(slots, layers, List.of(names), turns, why, counts);
+        return new Painted(slots, layers, List.of(names), turns, why, counts, open, open == 0 ? null : settle(r, d, slots, layers, fullConnects));
+    }
+
+    /** The shape with its holes taken out, every layer of a single-layer paint opening alike. */
+    private static Settle2D settle(Solver.Result r, int depth, int[] slots, int layers, boolean fullConnects) {
+        int n = r.nx() * r.ny();
+        BitSet gone = new BitSet(depth * n);
+        for (int k = 0; k < depth; k++)
+            for (int c = 0; c < n; c++) if (slots[(layers == 1 ? 0 : k) * n + c] == Painted.OPEN) gone.set(k * n + c);
+        return Settle2D.of(r, depth, gone, fullConnects, () -> false);
     }
 
     /**
