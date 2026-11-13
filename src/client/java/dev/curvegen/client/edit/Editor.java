@@ -104,6 +104,12 @@ public final class Editor {
     /** The settings of the running solve, and the settings and block choices the hologram was last built from. */
     private static ShapeSettings jobSettings, shown;
     private static Map<Pieces.Family, Block> shownChoices;
+    /**
+     * The block choices the paint in {@link #solved} was worked out with, or null when it's unpainted; those of the
+     * running solve's paint; and those of the running repaint's. Paint reads the choices when it starts, so a change
+     * since then means painting again.
+     */
+    private static Map<Pieces.Family, Block> paintChoices, jobPaintChoices, repaintChoices;
     /** The orientation the running solve was started with, and the box's corner then (moved along with later nudges). */
     private static Orient jobOrient;
     private static int[] jobOrigin;
@@ -200,7 +206,7 @@ public final class Editor {
         EditShape next = EditShape.of(S);
         if (shape == null || next.getClass() != shape.getClass()) {
             dropJob();
-            solved = null; hologram = null; hologramOrigin = null; shown = null; shownPaint = null; paintJob = null;
+            solved = null; hologram = null; hologramOrigin = null; shown = null; shownPaint = null; paintJob = null; paintChoices = null;
         }
         shape = next;
     }
@@ -228,7 +234,7 @@ public final class Editor {
 
     private static void reset() {
         dropJob();
-        solved = null; hologram = null; hologramOrigin = null; viewOrigin = null; shownPaint = null; paintJob = null;
+        solved = null; hologram = null; hologramOrigin = null; viewOrigin = null; shownPaint = null; paintJob = null; paintChoices = null;
         undo.clear(); redo.clear(); editGroup = null; editStep = null;
         drag = null; hover = null; follow = new int[3]; pivot = null;
         screenOpen = Minecraft.getInstance().gui.screen() != null; beforeScreen = null;
@@ -316,6 +322,7 @@ public final class Editor {
         ShapeSettings ref = running ? jobSettings : shown;
         // A running solve's blocks get the choices as they are when it finishes, so only the ones on show can be out of date.
         if (ref == null || !running && !BlockChoices.CHOICE.equals(shownChoices)) return false;
+        if (running && jobPaintChoices != null && !BlockChoices.CHOICE.equals(jobPaintChoices)) return false;
         ShapeSettings now = S.copy();
         now.overwrite = ref.overwrite;   // Replace doesn't change which blocks the shape has
         now.paint.set(ref.paint);        // and paint is put on without solving again
@@ -443,7 +450,7 @@ public final class Editor {
     private static void rebuild(int[] at) {
         blockLimit = ModSettings.hologramBlockLimit;
         hologram = new Hologram(shape.build(solved, orient), blockLimit);
-        shownChoices = new EnumMap<>(BlockChoices.CHOICE);
+        shownChoices = paintChoices != null ? paintChoices : new EnumMap<>(BlockChoices.CHOICE);
         hologramOrigin = at;
         viewOrigin = null;
     }
@@ -833,6 +840,7 @@ public final class Editor {
             job = null; jobOrigin = null;
             if (result != null) {
                 solved = result;
+                paintChoices = jobPaintChoices;
                 lastSolveMillis = System.currentTimeMillis() - jobStarted;
                 shown = jobSettings;
                 shownPaint = jobSettings.paint.copy();
@@ -863,6 +871,7 @@ public final class Editor {
             jobStarted = System.currentTimeMillis();
             Paint paint = jobSettings.paint.copy();
             Catalog catalog = paint.on() ? PaintBlocks.catalog(S) : null;
+            jobPaintChoices = paint.on() ? new EnumMap<>(BlockChoices.CHOICE) : null;
             job = EXEC.submit(() -> {
                 Object r = solver.solve(copy, o, cancelled::get);
                 return r == null || cancelled.get() ? r : solver.paint(r, paint, catalog);
@@ -889,12 +898,14 @@ public final class Editor {
             paintJob = null;
             if (result != null && job == null && !dirty) {
                 solved = result;
+                paintChoices = repaintChoices;
                 rebuild(new int[]{box.x(), box.y(), box.z()});
             }
         }
         if (paintJob == null && job == null && !dirty && solved != null && shownPaint != null && !S.paint.same(shownPaint)) {
             Paint paint = S.paint.copy();
             Catalog catalog = paint.on() ? PaintBlocks.catalog(S) : null;
+            repaintChoices = paint.on() ? new EnumMap<>(BlockChoices.CHOICE) : null;
             EditShape painter = shape;
             Object from = solved;
             shownPaint = paint;

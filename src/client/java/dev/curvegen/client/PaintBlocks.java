@@ -152,10 +152,10 @@ public final class PaintBlocks {
     }
 
     /**
-     * Looks up a painted shape's entries. {@code normal} is the axis the pattern is turned about: up for a shape
-     * lying flat, the depth for an upright one. An entry naming a block that doesn't exist takes the Blocks tab's.
+     * Looks up a painted shape's entries. {@code viewer} is the side the pattern is seen from, which it turns
+     * anticlockwise about: up for a shape lying flat, towards the player for an upright one. An entry naming a block that doesn't exist takes the Blocks tab's.
      */
-    public static Resolved resolve(Painted p, Direction.Axis normal) {
+    public static Resolved resolve(Painted p, Direction viewer) {
         int n = p.blocks().size();
         Block[] blocks = new Block[n];
         BlockState[] full = new BlockState[n];
@@ -165,7 +165,7 @@ public final class PaintBlocks {
             Block block = block(b < 0 ? s : s.substring(0, b));
             if (block == null) continue;
             blocks[k] = block;
-            full[k] = BlockChoices.finish(turn(state(block, b < 0 ? "" : s.substring(b + 1, s.length() - 1)), p.quarters(), normal));
+            full[k] = BlockChoices.finish(turn(state(block, b < 0 ? "" : s.substring(b + 1, s.length() - 1)), p.quarters(), viewer));
         }
         return new Resolved(blocks, full);
     }
@@ -187,16 +187,38 @@ public final class PaintBlocks {
     }
 
     /**
-     * Turns a full block by quarter turns about an axis. About the vertical that is the game's own rotation. About a
-     * level axis only a block's axis can follow: a quarter turn swaps the vertical and the other level axis.
+     * Turns a full block by quarter turns, anticlockwise as seen from {@code viewer}. About the vertical that is the
+     * game's own rotation. About a level axis, a block's axis and the way it faces turn too, where the block allows it.
      */
-    @SuppressWarnings("deprecation")   // the game marks rotation for its own use, but it's the one way to turn a state
-    public static BlockState turn(BlockState s, int quarters, Direction.Axis normal) {
+    @SuppressWarnings({"deprecation", "unchecked"})   // the game marks rotation for its own use, but it's the one way to turn a state
+    public static BlockState turn(BlockState s, int quarters, Direction viewer) {
+        quarters = Math.floorMod(quarters, 4);
         if (quarters == 0) return s;
-        if (normal == Direction.Axis.Y)
+        if (viewer == Direction.UP)
             return s.rotate(quarters == 1 ? Rotation.COUNTERCLOCKWISE_90 : quarters == 2 ? Rotation.CLOCKWISE_180 : Rotation.CLOCKWISE_90);
-        if (quarters % 2 == 0 || !s.hasProperty(BlockStateProperties.AXIS)) return s;
-        Direction.Axis a = s.getValue(BlockStateProperties.AXIS), level = normal == Direction.Axis.X ? Direction.Axis.Z : Direction.Axis.X;
-        return a == Direction.Axis.Y ? s.setValue(BlockStateProperties.AXIS, level) : a == level ? s.setValue(BlockStateProperties.AXIS, Direction.Axis.Y) : s;
+        for (Property<?> p : s.getProperties()) {
+            if (p == BlockStateProperties.AXIS) {
+                Direction.Axis a = s.getValue(BlockStateProperties.AXIS);
+                Direction d = turn(Direction.fromAxisAndDirection(a, Direction.AxisDirection.POSITIVE), quarters, viewer);
+                s = s.setValue(BlockStateProperties.AXIS, d.getAxis());
+            } else if (p.getValueClass() == Direction.class) {
+                Property<Direction> dp = (Property<Direction>) p;
+                Direction d = turn(s.getValue(dp), quarters, viewer);
+                if (dp.getPossibleValues().contains(d)) s = s.setValue(dp, d);
+            }
+        }
+        return s;
+    }
+
+    /** A direction turned by quarter turns anticlockwise as seen from {@code viewer}: each is {@code viewer × d}. */
+    static Direction turn(Direction d, int quarters, Direction viewer) {
+        for (int k = 0; k < quarters; k++) {
+            if (d.getAxis() == viewer.getAxis()) return d;
+            int x = viewer.getStepY() * d.getStepZ() - viewer.getStepZ() * d.getStepY();
+            int y = viewer.getStepZ() * d.getStepX() - viewer.getStepX() * d.getStepZ();
+            int z = viewer.getStepX() * d.getStepY() - viewer.getStepY() * d.getStepX();
+            d = Direction.getNearest(x, y, z, d);
+        }
+        return d;
     }
 }

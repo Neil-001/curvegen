@@ -49,8 +49,14 @@ public final class PresetStore {
         public void applyBlocks(ShapeSettings s, Map<dev.curvegen.core.Pieces.Family, net.minecraft.world.level.block.Block> choice) {
             if (blocks == null) return;
             BlockChoices.apply(blocks, s, choice);
-            if (paint != null) s.paint.apply(paint);
-            else s.paint.source = dev.curvegen.core.paint.Paint.Source.OFF;
+            if (paint != null) {
+                // The preset's paint whole, so a setting it left at its default, such as Fit, doesn't keep the current one.
+                dev.curvegen.core.paint.Paint saved = new dev.curvegen.core.paint.Paint();
+                saved.apply(paint);
+                s.paint.set(saved);
+            } else {
+                s.paint.source = dev.curvegen.core.paint.Paint.Source.OFF;
+            }
             s.fullConnects = PaintBlocks.fullConnects(s, choice);
         }
 

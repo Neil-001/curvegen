@@ -643,7 +643,7 @@ public class CurveScreen extends ControlScreen {
         boolean floor = result.floor();
         int mult = Math.max(1, S.depth);
         Painted painted = painted();
-        PaintBlocks.Resolved resolved = painted == null ? null : PaintBlocks.resolve(painted, net.minecraft.core.Direction.Axis.Y);
+        PaintBlocks.Resolved resolved = painted == null ? null : PaintBlocks.resolve(painted, net.minecraft.core.Direction.UP);
         for (Family f : BlockChoices.FAMILIES) {
             java.util.LinkedHashMap<String, int[]> merged = new java.util.LinkedHashMap<>();
             for (int st : statesFor(f, floor)) merged.computeIfAbsent(Pieces.SHORT_NAME[st], _ -> new int[]{st, 0})[1] += result.counts()[st] * mult;

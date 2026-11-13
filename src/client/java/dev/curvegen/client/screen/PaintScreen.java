@@ -276,8 +276,9 @@ public class PaintScreen extends ControlScreen {
             if (S.paint.fit == null && line() != lineShown) rebuildWidgets();
         }
         if (solveJob == null && (solvedFor == null || !sameShape(solvedFor))) {
+            // The solve settles values in its own copy, such as a locked equation's height, so the one compared against stays as it was.
             ShapeSettings s = S.copy();
-            solving = s;
+            solving = S.copy();
             solveJob = CurveScreen.EXEC.submit(() -> Solver.run(s));
         }
         if (paintJob != null && paintJob.isDone()) {

@@ -42,7 +42,7 @@ public final class PreviewTexture implements AutoCloseable {
     public void update(Solver.Result r, Colors colors, boolean curve, boolean grid, Map<Pieces.Family, Block> choice, Painted painted) {
         int[] paintColour = null;
         if (painted != null && colors == Colors.BLOCKS) {
-            PaintBlocks.Resolved blocks = PaintBlocks.resolve(painted, net.minecraft.core.Direction.Axis.Y);
+            PaintBlocks.Resolved blocks = PaintBlocks.resolve(painted, net.minecraft.core.Direction.UP);
             paintColour = new int[painted.blocks().size()];
             for (int k = 0; k < paintColour.length; k++) paintColour[k] = blocks.block(k) == null ? -1 : 0xFF000000 | ColorIndex.of(blocks.block(k));
         }
