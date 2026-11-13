@@ -138,9 +138,14 @@ public final class Wrap2D {
          */
         static List<Poly> chain(List<double[]> lists, boolean flat) {
             List<double[]> s = new ArrayList<>();
+            // A segment given twice, either way round, counts once: a curve can run right along an equation's range edge.
+            java.util.Set<List<Key>> seen = new java.util.HashSet<>();
             for (double[] list : lists)
-                for (int k = 0; k + 3 < list.length; k += 4)
-                    if (list[k] != list[k + 2] || list[k + 1] != list[k + 3]) s.add(new double[]{list[k], list[k + 1], list[k + 2], list[k + 3]});
+                for (int k = 0; k + 3 < list.length; k += 4) {
+                    Key a = Key.of(list[k], list[k + 1]), b = Key.of(list[k + 2], list[k + 3]);
+                    if (a.equals(b) || !seen.add(List.of(a, b)) || !seen.add(List.of(b, a))) continue;
+                    s.add(new double[]{list[k], list[k + 1], list[k + 2], list[k + 3]});
+                }
             Map<Key, List<Integer>> ends = new HashMap<>();
             for (int k = 0; k < s.size(); k++) {
                 double[] g = s.get(k);
@@ -313,7 +318,7 @@ public final class Wrap2D {
             return best;
         }
 
-        private static final int COARSE = 4, EXACT = 16;
+        private static final int COARSE = 8, EXACT = 16;
 
         /** Makes each wanted cell's answer exact: every segment within its current distance is checked. */
         private static void exact(int nx, int ny, List<Poly> polys, int[] best, double[] dist, boolean[] wanted) {
@@ -349,9 +354,11 @@ public final class Wrap2D {
             }
             for (int c = 0; c < nx * ny; c++) {
                 // Deep inside a round shape every spot on its outline is about as near, and checking them all for
-                // every block would take seconds, so only blocks within EXACT of the outline are made exact.
-                if (best[c] < 0 || wanted != null && !wanted[c] || dist[c] > EXACT * EXACT) continue;
-                double x = c % nx + .5 - ox, y = c / nx + .5 - oy, rad = Math.sqrt(dist[c]);
+                // every block would take seconds, so each block looks no further than EXACT: one within that of the
+                // outline gets the exact answer, and one deeper keeps the sweeps' unless something nearer turns up.
+                if (best[c] < 0 || wanted != null && !wanted[c]) continue;
+                double limit = Math.min(dist[c], EXACT * EXACT);
+                double x = c % nx + .5 - ox, y = c / nx + .5 - oy, rad = Math.sqrt(limit);
                 int i0 = clamp((int) Math.floor((x - rad) / COARSE), bx), i1 = clamp((int) Math.floor((x + rad) / COARSE), bx);
                 int j0 = clamp((int) Math.floor((y - rad) / COARSE), by), j1 = clamp((int) Math.floor((y + rad) / COARSE), by);
                 for (int j = j0; j <= j1; j++)
@@ -359,7 +366,7 @@ public final class Wrap2D {
                         // A bucket wholly further than the best so far can't hold anything nearer.
                         double gx = Math.max(0, Math.max(i * COARSE - x, x - (i + 1) * COARSE));
                         double gy = Math.max(0, Math.max(j * COARSE - y, y - (j + 1) * COARSE));
-                        if (gx * gx + gy * gy >= dist[c]) continue;
+                        if (gx * gx + gy * gy >= Math.min(dist[c], limit)) continue;
                         for (int q = start[j * bx + i]; q < start[j * bx + i + 1]; q++) {
                             int code = in[q];
                             double d = polys.get(code >>> 20).distance2(code & 0xFFFFF, x + ox, y + oy);

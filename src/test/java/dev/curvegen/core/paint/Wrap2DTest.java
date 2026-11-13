@@ -84,6 +84,13 @@ class Wrap2DTest {
         assertEquals(1, w.strips.size());
         assertTrue(w.strips.get(0).closed());
         assertEquals(60.4, w.strips.get(0).length(), 0.05);
+
+        // A curve right along the range's edge is the same edge once, not twice.
+        s.src = "y = 0"; s.qMode = ShapeSettings.EqMode.OVER; s.xmin = "0"; s.xmax = "20"; s.ymin = "0"; s.ymax = "20";
+        w = Wrap2D.of(Solver.run(s), true, 3);
+        assertEquals(1, w.strips.size());
+        assertTrue(w.strips.get(0).closed());
+        assertEquals(80, w.strips.get(0).length(), 0.01);
     }
 
     @Test
@@ -106,6 +113,9 @@ class Wrap2DTest {
         s.gen = Gen.EQUATION; s.src = "min(x^2+y^2-16, (x-3)^2+(y-1)^2-9) = 0"; s.qMode = ShapeSettings.EqMode.UNDER; s.qLock = false;
         s.xmin = "-7"; s.xmax = "7"; s.ymin = "-7"; s.ymax = "7"; s.qW = 70; s.qH = 70;
         nearestIsExact(Solver.run(s));
+        s = new ShapeSettings();
+        s.eW = s.eH = 128; s.eMode = ShapeSettings.EllipseMode.FILLED;
+        nearestIsExact(Solver.run(s));
     }
 
     private static void nearestIsExact(Solver.Result r) {
@@ -122,7 +132,7 @@ class Wrap2DTest {
             Wrap2D.Poly p = polys.get(best[c] >>> 20);
             double off = Math.sqrt(p.distance2(best[c] & 0xFFFFF, x, y)) - Math.sqrt(min);
             // Within 16 blocks of the outline the answer is exact; deeper in it may be a little off.
-            if (min < 15 * 15) worst = Math.max(worst, off);
+            if (min <= 16 * 16) worst = Math.max(worst, off);
             else assertTrue(off < 1, "deep inside, at most a spot or so off");
         }
         assertEquals(0, worst, 1e-9);

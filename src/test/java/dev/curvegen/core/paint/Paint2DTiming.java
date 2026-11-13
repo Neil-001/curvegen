@@ -13,9 +13,9 @@ import org.junit.jupiter.api.Test;
  * {@code ./gradlew :fabric:test --tests '*Paint2DTiming*' -i} to see the numbers.
  *
  * <p>The target is 10 ms for any shape up to 64 blocks across, the size the spec names for following the wheel,
- * and 40 ms up to 200 across. In November 2026, on a busy machine, everything at 64 across took under 6 ms. At 200
- * across a filled ellipse painted on its edge 8 deep, the slowest, took 35 ms, and everything else under 3 ms. At 400
- * across an outline took 7 ms and the filled ellipse on its edge about 100 ms.
+ * and 40 ms up to 200 across. In November 2026, on a busy machine, everything at 64 across took under 8 ms. At 200
+ * across a filled ellipse painted on its edge 8 deep, the slowest, took 21 ms, and everything else under 3 ms. At 400
+ * across an outline took 8 ms and the filled ellipse on its edge about 140 ms.
  * {@code Painter2DTest.repaintingIsQuick} holds a loose bound that a slow machine still meets.
  */
 class Paint2DTiming {
