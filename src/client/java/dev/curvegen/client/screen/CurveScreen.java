@@ -563,7 +563,8 @@ public class CurveScreen extends ControlScreen {
                 addRenderableWidget(use);
             }
             Block block = BlockChoices.CHOICE.get(f);
-            String name = font.plainSubstrByWidth(block.getName().getString(), pickW - 14);
+            // A name too long for the button is cut with "…". The tooltip gives it whole.
+            String full = block.getName().getString(), name = tw(full) <= pickW - 14 ? full : font.plainSubstrByWidth(full, pickW - 14 - tw("…")) + "…";
             Button pick = Button.builder(Component.literal(name), _ -> minecraft.gui.setScreen(new BlockPickerScreen(this, f, chosen -> {
                 BlockChoices.CHOICE.put(f, chosen);
                 S.fullConnects = BlockChoices.fullConnects(S);
@@ -672,7 +673,7 @@ public class CurveScreen extends ControlScreen {
             String n = String.valueOf(total);
             int nw = tw(n);
             String title = unused ? tr("curvegen.screen.family_unused_flat", BlockChoices.familyName(f)) : S.allows(f) ? BlockChoices.familyName(f) : tr("curvegen.screen.family_off", BlockChoices.familyName(f));
-            rows.add(new CountRow(true, font.plainSubstrByWidth(title, PANEL_W - nw - 6), n, nw, -1, unused || !S.allows(f), blockName, false));
+            rows.add(header(title, n, nw, unused || !S.allows(f), blockName, false));
             if (painted != null) { paintedRows(rows, f, painted, resolved); continue; }
             for (var e : merged.entrySet()) {
                 int st = e.getValue()[0], count = e.getValue()[1];
@@ -703,6 +704,13 @@ public class CurveScreen extends ControlScreen {
     /** The paint {@link #openPieces} last counted, and its count. */
     private Painted openFor;
     private int openPieces;
+
+    /** A piece type's heading row. A title too long for the panel is cut with "…", and its tooltip starts with the whole of it. */
+    private CountRow header(String title, String n, int nw, boolean dim, String blockName, boolean solid) {
+        int room = PANEL_W - nw - 6;
+        if (tw(title) <= room) return new CountRow(true, title, n, nw, -1, dim, blockName, solid);
+        return new CountRow(true, font.plainSubstrByWidth(title, room - tw("…")) + "…", n, nw, -1, dim, title + '\n' + blockName, solid);
+    }
 
     /** A painted shape's rows for one piece type: one per block, with its item, the most used first. */
     private void paintedRows(List<CountRow> rows, Family f, Painted painted, PaintBlocks.Resolved resolved) {
@@ -738,7 +746,7 @@ public class CurveScreen extends ControlScreen {
             String n = String.valueOf(total);
             int nw = tw(n);
             String title = S.allows(f) ? BlockChoices.familyName(f) : tr("curvegen.screen.family_off", BlockChoices.familyName(f));
-            rows.add(new CountRow(true, font.plainSubstrByWidth(title, PANEL_W - nw - 6), n, nw, -1, !S.allows(f), blockName, true));
+            rows.add(header(title, n, nw, !S.allows(f), blockName, true));
             if (painted != null) { paintedRows(rows, f, painted, resolved); continue; }
             for (Count3.Group g : Count3.GROUPS) {
                 if (g.family() != f) continue;
@@ -801,7 +809,7 @@ public class CurveScreen extends ControlScreen {
             ctx.fill(x1 + 1, top, x1 + 3, bottom, 0x30FFFFFF);
             ctx.fill(x1 + 1, by, x1 + 3, by + bar, 0xA0FFFFFF);
         }
-        if (tip != null) ctx.setTooltipForNextFrame(font, Component.literal(tip), mx, my);
+        if (tip != null) ctx.setTooltipForNextFrame(font.split(Component.literal(tip), width), mx, my);   // split only at a heading's line break
     }
 
     /** A 14-pixel piece icon painted exactly like the preview: same colours, same silhouette outline. */

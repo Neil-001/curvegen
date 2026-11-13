@@ -59,8 +59,11 @@ public class PatternLibraryScreen extends Screen {
     private int scroll;
     private final PaintPicture picture = new PaintPicture();
     private Button captureButton, cancelButton;
-    /** Why the last drop made no pattern, shown in place of the hint until the next one, or null. */
-    private String dropProblem;
+    /**
+     * Why the last drop made no pattern, shown in place of the hint until the next one, or null, and the same with the
+     * file's whole name for its tooltip.
+     */
+    private String dropProblem, dropProblemTip;
 
     /**
      * @param onPick given the chosen pattern, before the library goes back to {@code parent}
@@ -76,6 +79,12 @@ public class PatternLibraryScreen extends Screen {
         return p.sameCells(Patterns.TWO_LANE_ROAD) ? tr("curvegen.paint.two_lane_road_tip") : p.sameCells(Patterns.LATTICE) ? tr("curvegen.paint.lattice_tip") : null;
     }
 
+    /** A cell's colour, opaque: its block's, or its own without one, or 0 for an empty cell. */
+    static int colour(Pattern.Cell c) {
+        Block b = c.block() == null ? null : PaintBlocks.block(c.block());
+        return b != null ? 0xFF000000 | ColorIndex.of(b) : c.rgb() >= 0 ? 0xFF000000 | c.rgb() : 0;
+    }
+
     /**
      * Draws a pattern flat in a {@code size}-pixel square, top row at the top, from its cells' block colours or their
      * own colours. Empty cells are left dark.
@@ -84,11 +93,7 @@ public class PatternLibraryScreen extends Screen {
         ctx.fill(x - 1, y - 1, x + size + 1, y + size + 1, 0x40FFFFFF);
         ctx.fill(x, y, x + size, y + size, PreviewTexture.BG);
         int[] colour = new int[p.paletteSize()];
-        for (int k = 0; k < colour.length; k++) {
-            Pattern.Cell c = p.cell(k);
-            Block b = c.block() == null ? null : PaintBlocks.block(c.block());
-            colour[k] = b != null ? 0xFF000000 | ColorIndex.of(b) : c.rgb() >= 0 ? 0xFF000000 | c.rgb() : 0;
-        }
+        for (int k = 0; k < colour.length; k++) colour[k] = colour(p.cell(k));
         int cell = size / Math.max(p.width, p.height);
         if (cell >= 1) {
             // Whole pixels per cell, centred, so small patterns stay crisp.
@@ -190,6 +195,13 @@ public class PatternLibraryScreen extends Screen {
     }
 
     // ---------- rendering ----------
+    /** Darkened as the main screen's is, so the hint between the bottom buttons reads over a bright sky. */
+    @Override
+    public void extractBackground(GuiGraphicsExtractor ctx, int mouseX, int mouseY, float delta) {
+        super.extractBackground(ctx, mouseX, mouseY, delta);
+        ctx.fill(0, 0, width, height, 0x80101317);
+    }
+
     @Override
     public void extractRenderState(GuiGraphicsExtractor ctx, int mx, int my, float delta) {
         int hover = rowAt(mx, my);
@@ -215,7 +227,8 @@ public class PatternLibraryScreen extends Screen {
             String n = saved != null ? saved.name() : tr("curvegen.patterns.unsaved", PatternStore.shownName(p));
             String size = p.width + "×" + p.height;
             int nameX = x0 + SWATCH + 9, right = icons || saved != null && saved.pinned ? iconX(0) - 4 : x1 - 5 - font.width(size) - 6;
-            if (font.width(n) > right - nameX) n = font.plainSubstrByWidth(n, right - nameX - font.width("…")) + "…";
+            String whole = null;   // the whole name, for the tooltip, when the row cuts it
+            if (font.width(n) > right - nameX) { whole = n; n = font.plainSubstrByWidth(n, right - nameX - font.width("…")) + "…"; }
             ctx.text(font, n, nameX, y + 7, 0xFFE4E9EF, false);
             int iy = y + (ROW - ICON) / 2;
             if (icons) {
@@ -233,7 +246,10 @@ public class PatternLibraryScreen extends Screen {
                 if (saved != null && saved.pinned) PresetsScreen.drawArt(ctx, PresetsScreen.PIN, iconX(0), iy, 0xFFFFC04D);
                 else ctx.text(font, size, x1 - 5 - font.width(size), y + 7, 0xFF9AA5B3, false);
             }
-            if (hov && tip == null) tip = saved == null ? tr("curvegen.patterns.unsaved_tip") : tip(p);
+            if (hov && tip == null) {
+                tip = saved == null ? tr("curvegen.patterns.unsaved_tip") : tip(p);
+                if (whole != null) tip = tip == null ? whole : whole + '\n' + '\n' + tip;
+            }
         }
         if (rows() > visible()) {
             int h = visible() * ROW, bar = Math.max(8, h * visible() / rows());
@@ -246,18 +262,27 @@ public class PatternLibraryScreen extends Screen {
         picture.draw(ctx, font, S.is3d(), px0, py0, px1, py1 - infoH);
         ctx.fill(px0, py1 - infoH, px1, py1, 0xB0000000);
         String info = PatternStore.shownName(target) + "  " + target.width + "×" + target.height;
-        ctx.text(font, font.plainSubstrByWidth(info, px1 - px0 - 12), px0 + 6, py1 - infoH + 3, 0xFFFFFFFF, false);
+        // A name too long for the caption is cut with "…", and hovering the caption gives it whole.
+        if (font.width(info) > px1 - px0 - 12) {
+            ctx.text(font, font.plainSubstrByWidth(info, px1 - px0 - 12 - font.width("…")) + "…", px0 + 6, py1 - infoH + 3, 0xFFFFFFFF, false);
+            if (tip == null && mx >= px0 && mx < px1 && my >= py1 - infoH && my < py1) tip = info;
+        } else ctx.text(font, info, px0 + 6, py1 - infoH + 3, 0xFFFFFFFF, false);
 
         // Between the bottom buttons: that pictures can be dropped here, or why the last one made nothing.
         int hx0 = captureButton.getRight() + 8, hx1 = cancelButton.getX() - 8, hy = cancelButton.getY();
         if (hx1 - hx0 > 20) {
             boolean can = Chroma.available();
             String hint = dropProblem != null ? dropProblem : tr("curvegen.patterns.drop_hint");
-            String shown = font.width(hint) <= hx1 - hx0 ? hint : font.plainSubstrByWidth(hint, hx1 - hx0 - font.width("…")) + "…";
+            // One line, or two in the buttons' height when it's longer, the second cut with "…" if it still doesn't fit.
+            int room = hx1 - hx0;
+            TwoLines two = TwoLines.of(font, hint, room);
+            List<String> lines = two.lines();
             int colour = dropProblem != null ? 0xFFFF8098 : can ? 0xFF9AA5B3 : 0xFF5C6470;
-            ctx.text(font, shown, hx0, hy + 6, colour, false);
-            if (mx >= hx0 && mx < hx0 + font.width(shown) && my >= hy && my < hy + 20) {
-                tip = dropProblem != null ? dropProblem : tr(can ? "curvegen.patterns.drop_hint_tip" : "curvegen.patterns.drop_needs");
+            for (int k = 0; k < lines.size(); k++)
+                ctx.text(font, lines.get(k), hx0, lines.size() == 1 ? hy + 6 : hy + 1 + 10 * k, colour, false);
+            if (mx >= hx0 && mx < hx0 + two.width(font) && my >= hy && my < hy + 20) {
+                tip = dropProblem != null ? dropProblemTip : tr(can ? "curvegen.patterns.drop_hint_tip" : "curvegen.patterns.drop_needs");
+                if (two.cut() && dropProblem == null) tip = hint + '\n' + '\n' + tip;
             }
         }
         if (tip != null) ctx.setTooltipForNextFrame(font.split(Component.literal(tip), 200), mx, my);
@@ -294,23 +319,37 @@ public class PatternLibraryScreen extends Screen {
     /** A picture file dropped on the library: asks for its width, then saves it as a pattern. */
     @Override
     public void onFilesDrop(List<Path> files) {
-        if (!Chroma.available()) { dropProblem = tr("curvegen.patterns.drop_needs"); return; }
-        if (files.size() != 1) { dropProblem = tr("curvegen.patterns.drop_one"); return; }
+        if (!Chroma.available()) { problem("curvegen.patterns.drop_needs", null); return; }
+        if (files.size() != 1) { problem("curvegen.patterns.drop_one", null); return; }
         String file = files.getFirst().getFileName().toString();
         ImageFile.Result read = ImageFile.read(files.getFirst());
         if (read.image() == null) {
-            dropProblem = tr(read.problem() == ImageFile.Problem.TOO_LARGE ? "curvegen.patterns.drop_too_large" : "curvegen.patterns.drop_unreadable", file);
+            problem(read.problem() == ImageFile.Problem.TOO_LARGE ? "curvegen.patterns.drop_too_large" : "curvegen.patterns.drop_unreadable", file);
             return;
         }
-        dropProblem = null;
+        problem(null, null);
         int dot = file.lastIndexOf('.');
         String stem = (dot > 0 ? file.substring(0, dot) : file).trim();
         String name = PatternStore.unique(stem.isEmpty() ? tr("curvegen.image.default_name") : stem);
         minecraft.gui.setScreen(new ImagePatternScreen(this, read.image(), name, p -> {
-            dropProblem = p == null ? tr("curvegen.patterns.drop_clear", file) : null;
+            problem(p == null ? "curvegen.patterns.drop_clear" : null, file);
             scroll = 0;
             refilter();
         }));
+    }
+
+    /**
+     * Shows the message {@code key} about the dropped {@code file}, or none for a null key. On the line a name over 80
+     * pixels keeps its start and end with "…" between, so the rest of the message fits. The tooltip has it whole.
+     */
+    private void problem(String key, String file) {
+        String shortFile = file;
+        if (file != null && font.width(file) > 80) {
+            String end = font.plainSubstrByWidth(file, 30, true);
+            shortFile = font.plainSubstrByWidth(file, 80 - 30 - font.width("…")) + "…" + end;
+        }
+        dropProblem = key == null ? null : tr(key, shortFile);
+        dropProblemTip = key == null ? null : tr(key, file);
     }
 
     private void rename(Saved s) {

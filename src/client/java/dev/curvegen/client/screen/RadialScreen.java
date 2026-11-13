@@ -170,17 +170,23 @@ public class RadialScreen extends Screen {
      */
     private Wedge choose() {
         if (S.paint.source == Paint.Source.GRADIENT) {
-            String name = S.paint.gradient == null ? tr("curvegen.paint.gradient_choose") : S.paint.gradient.name;
+            // Before a gradient is chosen the wedge shows no value: its tip says what choosing does.
+            String name = S.paint.gradient == null ? null : S.paint.gradient.name;
             return new Wedge(tr("curvegen.radial.paint.choose"), name, Chroma.available() ? null : tr("curvegen.paint.needs_chroma"),
-                    tr("curvegen.paint.gradient_choose_tip"), null, null, Stay.NEVER,
+                    named(name, tr("curvegen.paint.gradient_choose_tip")), null, null, Stay.NEVER,
                     () -> minecraft.gui.setScreen(new GradientChooserScreen(null, g -> Editor.edit(null, () -> S.paint.gradient = g))));
         }
         boolean mix = S.paint.source == Paint.Source.MIX;
         String name = mix ? MixChooserScreen.name(S.paint.mix) : PatternStore.shownName(S.paint.pattern);
-        return new Wedge(tr("curvegen.radial.paint.choose"), name, null, tr(mix ? "curvegen.paint.mix_choose_tip" : "curvegen.paint.choose_tip"), null, null, Stay.NEVER,
+        return new Wedge(tr("curvegen.radial.paint.choose"), name, null, named(name, tr(mix ? "curvegen.paint.mix_choose_tip" : "curvegen.paint.choose_tip")), null, null, Stay.NEVER,
                 () -> minecraft.gui.setScreen(mix
                         ? new MixChooserScreen(null, m -> Editor.edit(null, () -> S.paint.mix = m))
                         : new PatternLibraryScreen(null, PatternLibraryScreen::choose, null)));
+    }
+
+    /** A wedge's tip, after the whole of the name it shows when that is cut to fit, as the Paint screen's chooser does. */
+    private String named(String name, String tip) {
+        return name != null && font.width(name) > Radial.LABEL_W - 8 ? name + '\n' + tip : tip;
     }
 
     private Wedge blocks(Family f) {
@@ -349,12 +355,15 @@ public class RadialScreen extends Screen {
         String tip = hot < 0 ? null : wedges.get(hot).off != null ? wedges.get(hot).off : wedges.get(hot).tip;
         boolean scrolls = wedges.stream().anyMatch(w -> w.scroll != null);
         String hint = tr("curvegen.radial.hint." + (latched ? "click" : "release") + (scrolls ? ".scroll" : ""), title, key);
-        var lines = font.split(Component.literal(tip != null ? tip : hint), width - 12);
-        int shown = Math.min(2, lines.size()), top = height - 2 - shown * 10, w = 0;
-        for (int k = 0; k < shown; k++) w = Math.max(w, font.width(lines.get(k)));
+        // Two lines at most. Longer text, such as a long name before a tip, ends with "…" and shows whole beside the cursor.
+        String foot = tip != null ? tip : hint;
+        TwoLines two = TwoLines.of(font, foot, width - 12);
+        List<String> lines = two.lines();
+        int shown = lines.size(), top = height - 2 - shown * 10, w = two.width(font);
         ctx.fill((width - w) / 2 - 3, top - 2, (width + w) / 2 + 3, height, 0xE0101317);
         for (int k = 0; k < shown; k++)
             ctx.text(font, lines.get(k), (width - font.width(lines.get(k))) / 2, top + k * 10, tip != null && wedges.get(hot).off != null ? 0xFFFFE08A : 0xFFDDE3EA);
+        if (two.cut()) ctx.setTooltipForNextFrame(font.split(Component.literal(foot), 240), mx, my);
     }
 
     /** The game stays in view, so a change shows on the hologram at once. */

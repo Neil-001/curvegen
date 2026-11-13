@@ -325,6 +325,7 @@
   "curvegen.paint.mix_palettes_none": "Chroma Studio 1.2 이상이 필요합니다.",
   "curvegen.paint.mix_palettes_empty": "Chroma Studio에 저장된 팔레트가 없습니다.",
   "curvegen.paint.mix_count": "블록 %s종",
+  "curvegen.paint.mix_count_one": "블록 1종",
   "curvegen.paint.mix_share": "%1$s: %2$s%%",
   "curvegen.paint.source.gradient": "그라데이션",
   "curvegen.paint.source_gradient_needs": "그라데이션은 Chroma Studio 1.2 이상이 필요합니다.",

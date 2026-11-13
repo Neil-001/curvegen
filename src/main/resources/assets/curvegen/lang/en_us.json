@@ -325,6 +325,7 @@
   "curvegen.paint.mix_palettes_none": "Needs Chroma Studio 1.2 or newer.",
   "curvegen.paint.mix_palettes_empty": "Chroma Studio has no saved palettes.",
   "curvegen.paint.mix_count": "%s blocks",
+  "curvegen.paint.mix_count_one": "1 block",
   "curvegen.paint.mix_share": "%1$s: %2$s%%",
   "curvegen.paint.source.gradient": "Gradient",
   "curvegen.paint.source_gradient_needs": "Gradient needs Chroma Studio 1.2 or newer.",
