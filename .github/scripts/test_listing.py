@@ -64,6 +64,12 @@ class CurseForgePage(unittest.TestCase):
         self.assertIn("https://modrinth.com/mod/sodium", html)
         self.assertIn("https://example.com/a_vector.svg", html)
 
+    def test_the_chroma_studio_link_is_curseforges(self):
+        html = curseforge.render("[Chroma Studio](https://modrinth.com/mod/chroma-studio) and "
+                                 "[another](https://modrinth.com/mod/chroma-studio-extras)\n")
+        self.assertIn('<a href="https://www.curseforge.com/minecraft/mc-mods/chroma-studio">Chroma Studio</a>', html)
+        self.assertIn("https://modrinth.com/mod/chroma-studio-extras", html)
+
     def test_the_committed_page_is_the_description_rendered(self):
         self.assertEqual(curseforge.TARGET.read_text(encoding="utf-8"),
                          curseforge.render(curseforge.SOURCE.read_text(encoding="utf-8")))

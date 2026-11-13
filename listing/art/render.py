@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Draws the listing artwork in listing/media, and the mod's icon, from the mod's own solvers.
+"""Draws the listing artwork in listing/media, the painted shapes in listing/gallery, and the mod's icon, from the
+mod's own solvers.
 
     python3 listing/art/render.py
 
@@ -13,6 +14,10 @@ Painted shapes are painted by the mod's own painters, in Dump.java. What they ne
 comes from Blocks.java, run against Minecraft with the class path Fabric's tests use, and each block's colour from its
 textures in the client jar, averaged as ColorIndex averages them. Tints aren't applied, so the pictures stay clear of
 grass and leaves. Colours are matched as "Match a colour…" matches them without Chroma Studio.
+
+Code marked "Unused" drew a picture the listing no longer shows. It stays so the picture can come back, but nothing
+here runs it. To bring one back, call its function at the end of this file, show the picture in
+listing/description.md and remove the marks from it and the helpers only it uses.
 """
 import glob
 import io
@@ -40,6 +45,7 @@ AXIS, AXIS_ALPHA = (0x6E, 0xA0, 0xFF), 0xAA / 255
 CURVE = (0xFF, 0x4D, 0x73)
 TEXT = (0xDD, 0xE3, 0xEA)
 DIM = (0x8B, 0x95, 0xA5)
+# Unused: only compare(), card3() and editor() use these, and the listing no longer shows their pictures.
 STONE = "A9AAA6"
 # Editor's handle colours: face, edge, corner.
 FACE, EDGE, CORNER = (0xF2, 0xF2, 0xF2), (0x7F, 0xD4, 0xFF), (0xFF, 0xA6, 0x46)
@@ -257,6 +263,7 @@ def client_jar():
     sys.exit("No Minecraft client jar in ~/.gradle/caches. Run ./gradlew build first.")
 
 
+# Unused: only compare() uses it, and the listing no longer shows compare.png.
 def stone_bricks():
     with zipfile.ZipFile(client_jar()) as z:
         return Image.open(io.BytesIO(z.read("assets/minecraft/textures/block/stone_bricks.png"))).convert("RGB")
@@ -377,6 +384,7 @@ def handles(img, scene, ox, oy, pts):
         d.text((x, y), str(n), font=font(13), fill=BG, anchor="mm")
 
 
+# Unused: only compare() and shapes() use it, and the listing no longer shows their pictures.
 def paper(scene, cells_w, cells_h, texture=None, pts=None):
     """A solved shape centred on graph paper of the given size in cells, like the mod's preview."""
     img = Image.new("RGB", (cells_w * CELL + 1, cells_h * CELL + 1), BG)
@@ -391,6 +399,7 @@ def paper(scene, cells_w, cells_h, texture=None, pts=None):
     return img
 
 
+# Unused: only compare() and families() use it, and the listing no longer shows their pictures.
 def scaled(img, k):
     return img.resize((img.width * k, img.height * k), Image.NEAREST)
 
@@ -403,6 +412,7 @@ def rounded(img, r=20):
     return out
 
 
+# Unused: only compare(), shapes(), shapes3d() and paint() use it, and the listing no longer shows their pictures.
 def side_by_side(cards, gap):
     w = sum(c.width for c in cards) + gap * (len(cards) - 1)
     out = Image.new("RGBA", (w, max(c.height for c in cards)), (0, 0, 0, 0))
@@ -523,11 +533,14 @@ def banner():
     path = os.path.join(OUT, "banner.gif")
     out[0].save(path, save_all=True, append_images=out[1:], duration=times, loop=0, optimize=False)
     print("banner.gif", (W, H), len(frames), "frames", os.path.getsize(path) // 1024, "KiB")
-    save(frames[still], "banner.png")
+    # Unused: the listing no longer shows banner.png, the ellipse's frame as a still, so it isn't saved. To bring it
+    # back, save it here with save(frames[still], "banner.png") and show it in listing/description.md.
 
 
 # ---------- stills ----------
 
+# Unused: the listing no longer shows compare.png, so this file doesn't draw it. To bring it back, call it at the end of
+# this file and show the picture in listing/description.md.
 def compare():
     """A filled 17-block circle in stone bricks: full blocks only, then with slabs, stairs and walls."""
     tex = stone_bricks()
@@ -540,6 +553,8 @@ def compare():
     save(side_by_side(cards, 24), "compare.png")
 
 
+# Unused: the listing no longer shows shapes.png, so this file doesn't draw it. To bring it back, call it at the end of
+# this file and show the picture in listing/description.md.
 def shapes():
     """One preview for each tab: Ellipse, Equation, Bézier."""
     pts = [(2, 3), (9, 21), (22, 21), (28, 5)]
@@ -551,6 +566,7 @@ def shapes():
     save(side_by_side(cards, 16), "shapes.png")
 
 
+# Unused: only shapes3d() and paint() use it, and the listing no longer shows their pictures.
 def stacked(rows, gap):
     out = Image.new("RGBA", (max(r.width for r in rows), sum(r.height for r in rows) + gap * (len(rows) - 1)), (0, 0, 0, 0))
     y = 0
@@ -560,6 +576,7 @@ def stacked(rows, gap):
     return out
 
 
+# Unused: only shapes3d() uses it, and the listing no longer shows shapes3d.png.
 def card3(label, w=512, h=384, **settings):
     """A 3D shape in one colour, as the 3D preview's Stone colouring shows it, with its name underneath."""
     img, _ = solve3(w, h, viewColour=STONE, **settings)
@@ -567,6 +584,8 @@ def card3(label, w=512, h=384, **settings):
     return img
 
 
+# Unused: the listing no longer shows shapes3d.png, so this file doesn't draw it. To bring it back, call it at the end
+# of this file and show the picture in listing/description.md.
 def shapes3d():
     """One picture for each 3D tab, and a hollow ellipsoid cut open to show its wall."""
     wave = dict(gen="EQUATION3", src3="z = sin(x) cos(y)", viewMargin=24)
@@ -625,8 +644,8 @@ def painted(**paint):
     return {"paint." + k: str(v) for k, v in paint.items()}
 
 
-# The painted shapes, each with its label on the listing's picture. Thin pieces come from the shape's own materials
-# where they can, so trapdoors and shelves are off where they'd take the closest colour from another material.
+# The painted shapes, each with the label the unused paint() writes under it. Thin pieces come from the shape's own
+# materials where they can, so trapdoors and shelves are off where they'd take the closest colour from another material.
 DOME = dict(gen="ELLIPSOID", e3W=33, e3H=33, e3D=33, e3Mode="INWARDS", viewTop="true", viewPitch=22)
 COPPER = {"paint.source": "MIX", "paint.mix.name": "Copper", "paint.mix.blocks": "minecraft:oxidized_cut_copper*5 "
           "minecraft:weathered_cut_copper*4 minecraft:exposed_cut_copper*2 minecraft:cut_copper*1"}
@@ -649,6 +668,9 @@ PAINTED = [
 ]
 
 
+# Unused: the listing no longer shows paint.png, so this file doesn't draw it. The galleries show the same shapes one to
+# a picture, from gallery(). To bring it back, call it at the end of this file and show the picture in
+# listing/description.md.
 def paint():
     """The painted shapes, as the menu's "Block colours" picture shows them."""
     cards = []
@@ -670,6 +692,8 @@ def gallery():
         print(os.path.basename(path), img.size, os.path.getsize(path) // 1024, "KiB")
 
 
+# Unused: the listing no longer shows editor.png, so this file doesn't draw it. To bring it back, call it at the end of
+# this file and show the picture in listing/description.md.
 def editor():
     """The in-world editor's box round an ellipsoid, with its 26 handles in the editor's colours."""
     w, h = 1000, 520
@@ -688,6 +712,8 @@ def editor():
     save(rounded(out), "editor.png")
 
 
+# Unused: the listing no longer shows pieces.png, so this file doesn't draw it. To bring it back, call it at the end of
+# this file and show the picture in listing/description.md.
 def families():
     """One piece from each family at six times preview size, in the preview's piece colours: full block, slab,
     stairs, trapdoor, shelf, fence, glass pane, wall."""
@@ -736,13 +762,7 @@ def icon():
 if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
     banner()
-    compare()
-    shapes()
-    shapes3d()
-    paint()
     gallery()
-    editor()
-    families()
     divider()
     icon()
     SOLVER.stdin.close()

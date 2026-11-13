@@ -6,7 +6,7 @@
 
 Modrinth takes description.md as it is, <center> tags included. CurseForge's markdown drops <center>, but its
 HTML keeps a paragraph's text-align style, which is what its own editor writes. So each paragraph inside a
-<center> block becomes <p style="text-align: center;">, and the rest is plain HTML from the markdown. Two things
+<center> block becomes <p style="text-align: center;">, and the rest is plain HTML from the markdown. A few things
 are then swapped for CurseForge's page, listed under FOR_CURSEFORGE. Needs the markdown package: pip install
 markdown.
 """
@@ -27,6 +27,8 @@ CENTRE = '<p style="text-align: center;">'
 FOR_CURSEFORGE = (
     # The Fabric API badge links to Fabric API on the site the reader is on.
     (r"https://modrinth\.com/mod/fabric-api", "https://www.curseforge.com/minecraft/mc-mods/fabric-api"),
+    # So does the name Chroma Studio.
+    (r"https://modrinth\.com/mod/chroma-studio(?![\w-])", "https://www.curseforge.com/minecraft/mc-mods/chroma-studio"),
     # devins-badges as PNG instead of SVG, which not every place CurseForge shows a description is sure to draw.
     (r"(/devins-badges@[^\"]*)_vector\.svg", r"\1_64h.png"),
 )

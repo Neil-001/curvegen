@@ -18,7 +18,7 @@ Hold **V** to open the radial menu, or press **G** to open the full menu.
 - **2D shapes**: Build ellipses, equations and Bézier curves.
 - **3D shapes**: Build ellipsoids, toruses, 3D equations, Bézier curves and surfaces. Curves can be hollow, as pipes, arches or tunnels.
 - **Painting**: Paint a shape with a pattern, a mix of blocks or a gradient. Slabs, stairs and other pieces take each block's material, so a painted shape is as smooth as a plain one.
-- **Patterns**: Use the ones that come with the mod, capture one from blocks you've built, or make one from a picture with Chroma Studio. Leave a pattern's empty spots open as holes.
+- **Patterns**: Use the ones that come with the mod, capture one from blocks you've built, or make one from a picture with [Chroma Studio](https://modrinth.com/mod/chroma-studio). Leave a pattern's empty spots open as holes.
 - **Editable hologram**: Resize, move and bend your shape in the world before placing it.
 - **Block Types**: Toggle which block types can be used to generate the shape. More block types available can increase accuracy.
 - **Colour matching**: Pick a colour and let the mod choose blocks with the closest textures.
@@ -26,11 +26,7 @@ Hold **V** to open the radial menu, or press **G** to open the full menu.
 - **Presets**: Save shapes with their block choices and paint.
 - **Litematica export**: Save your shape as a `.litematic` schematic.
 - **Server support**: Place builds and undo your last placement even on servers without the mod. You'll need operator rights.
-- **Chroma Studio**: Optional. With version 1.2 or newer, paint with the gradients you save in it, mix blocks from its palettes, make patterns from pictures and match colours its way.
-
-<center>
-<img alt="Six painted shapes: stripes wrapped round a dome, a two-lane road with white edges and a dashed yellow line along a curve, a torus in a gradient from yellow at the bottom to blue at the top, a dome of spruce lattice with open holes, a hollow tube with a black and white spiral stripe, and a curved surface in patches of copper." width="100%" src="https://raw.githubusercontent.com/Neil-001/curvegen/main/listing/media/paint.png">
-</center>
+- **[Chroma Studio](https://modrinth.com/mod/chroma-studio)**: Optional. With version 1.2 or newer, paint with the gradients you save in it, mix blocks from its palettes, make patterns from pictures and match colours its way.
 
 ## Links
 
