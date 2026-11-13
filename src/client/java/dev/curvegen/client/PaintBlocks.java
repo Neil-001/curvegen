@@ -165,7 +165,7 @@ public final class PaintBlocks {
             Block block = block(b < 0 ? s : s.substring(0, b));
             if (block == null) continue;
             blocks[k] = block;
-            full[k] = BlockChoices.finish(turn(state(block, b < 0 ? "" : s.substring(b + 1, s.length() - 1)), p.quarters(), viewer));
+            full[k] = BlockChoices.finish(turn(state(block, b < 0 ? "" : s.substring(b + 1, s.length() - 1)), p.quarters()[k], viewer));
         }
         return new Resolved(blocks, full);
     }
