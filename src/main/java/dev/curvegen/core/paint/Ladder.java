@@ -11,7 +11,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Picks the block for one pattern cell and one piece type, in order:
+ * Picks the block for one cell of a pattern or mix and one piece type, in order:
  * <ol>
  * <li>A full block uses the cell's own block as it is, properties and all.
  * <li>Any other piece uses that material's block for its piece type: stone bricks give stone brick stairs.
@@ -39,7 +39,7 @@ public final class Ladder {
     private static final int UNSET = Integer.MIN_VALUE;
 
     private final Catalog c;
-    private final Pattern p;
+    private final Palette p;
     private final boolean one, shapeConnects, connectors;
     private final List<Family> needed = new ArrayList<>();
     private final Map<Family, Set<String>> allowed = new EnumMap<>(Family.class);
@@ -56,7 +56,7 @@ public final class Ladder {
      * @param used           piece types the shape has at least one of
      * @param shapeConnects  whether the solve had fences, panes and walls attach to full blocks
      */
-    public Ladder(Catalog c, Pattern p, boolean oneMaterial, boolean shapeConnects, Set<Family> used) {
+    public Ladder(Catalog c, Palette p, boolean oneMaterial, boolean shapeConnects, Set<Family> used) {
         this.c = c; this.p = p; this.one = oneMaterial; this.shapeConnects = shapeConnects;
         connectors = used.contains(Family.FENCE) || used.contains(Family.PANE) || used.contains(Family.WALL);
         for (Family f : new Family[]{Family.SLAB, Family.STAIRS}) if (used.contains(f)) needed.add(f);

@@ -16,6 +16,7 @@ class PaintTest {
         if (t == int.class) f.setInt(p, f.getInt(p) + 1);
         else if (t == boolean.class) f.setBoolean(p, !f.getBoolean(p));
         else if (t == Pattern.class) f.set(p, Patterns.CHECKER);
+        else if (t == Mix.class) f.set(p, Mix.of(Patterns.CHECKER));
         else if (t.isEnum()) {
             Object[] all = t.getEnumConstants();
             Object v = f.get(p);
