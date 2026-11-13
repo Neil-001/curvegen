@@ -143,7 +143,7 @@ public class PaintScreen extends ControlScreen {
         add(cycler(sources, src, PaintScreen::sourceName, M, y(0), pw, tr("curvegen.paint.source"), v -> {
             S.paint.source = v;
             paintChanged(true);
-        }), Chroma.available() ? tr("curvegen.paint.source_tip") : tr("curvegen.paint.source_tip") + "\n\n" + tr("curvegen.paint.source_gradient_needs"));
+        }), Chroma.available() ? tr("curvegen.paint.source_tip") : tr("curvegen.paint.source_tip") + '\n' + '\n' + tr("curvegen.paint.source_gradient_needs"));
         switch (src) {
             case OFF, PATTERN -> patternRows(src == Source.PATTERN);
             case MIX -> mixRows();
@@ -279,7 +279,7 @@ public class PaintScreen extends ControlScreen {
         boolean wraps = !S.is3d() || S.gen != ShapeSettings.Gen.EQUATION3;
         List<Flow> flows = wraps ? List.of(Flow.values()) : List.of(Flow.UP, Flow.OUT);
         add(cycler(flows, p.flowFor(wraps), PaintScreen::flowName, M, y(2), pw, tr("curvegen.paint.flow"), v -> S.paint.flow = v),
-                ok, wraps ? tr("curvegen.paint.flow_tip") : tr("curvegen.paint.flow_tip") + "\n\n" + tr("curvegen.paint.flow_no_wrap_tip"), needs);
+                ok, wraps ? tr("curvegen.paint.flow_tip") : tr("curvegen.paint.flow_tip") + '\n' + '\n' + tr("curvegen.paint.flow_no_wrap_tip"), needs);
 
         int reverseW = onOffWidth(tr("curvegen.paint.reverse")) + PAD, edgesW = pw - GAP - reverseW;
         add(toggle(p.reverse, M, y(3), reverseW, tr("curvegen.paint.reverse"), v -> S.paint.reverse = v), ok, tr("curvegen.paint.reverse_tip"), needs);

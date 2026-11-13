@@ -20,7 +20,7 @@ class PaintOptionsTest {
     void theWedgesAreTheSameForEverySourceAndOnlyAPatternsAreLive() {
         Paint p = new Paint();
         List<String> labels = null;
-        for (Source s : Source.values()) {
+        for (Source s : new Source[]{Source.OFF, Source.PATTERN, Source.MIX}) {
             p.source = s;
             List<Option> options = PaintOptions.of(p);
             List<String> now = options.stream().map(Option::label).toList();
@@ -33,6 +33,34 @@ class PaintOptionsTest {
         assertEquals(PaintOptions.MIX_OFF, find(PaintOptions.of(p), "curvegen.paint.turn").off());
         p.source = Source.OFF;
         assertEquals("curvegen.paint.off_tip", find(PaintOptions.of(p), "curvegen.paint.mirror").off());
+    }
+
+    @Test
+    void aGradientHasItsOwnWedgesGreyedUntilOneIsChosen() {
+        Paint p = new Paint();
+        p.source = Source.GRADIENT;
+        List<Option> options = PaintOptions.of(p);
+        assertEquals(List.of("curvegen.paint.source", "curvegen.paint.flow", "curvegen.paint.reverse", "curvegen.paint.edges"),
+                options.stream().map(Option::label).toList());
+        for (Option o : options.subList(1, options.size())) assertEquals(PaintOptions.NO_GRADIENT, o.off());
+        p.gradient = dev.curvegen.core.paint.GradientTest.GREYS;
+        options = PaintOptions.of(p);
+        for (Option o : options) assertNull(o.off());
+        ((Option.Cycler) find(options, "curvegen.paint.flow")).set().accept(Paint.Flow.OUT.ordinal());
+        ((Option.Cycler) find(options, "curvegen.paint.reverse")).set().accept(1);
+        ((Option.Cycler) find(options, "curvegen.paint.edges")).set().accept(Paint.Edges.SHARP.ordinal());
+        assertEquals(Paint.Flow.OUT, p.flow);
+        assertTrue(p.reverse);
+        assertEquals(Paint.Edges.SHARP, p.edges);
+    }
+
+    @Test
+    void withoutChromaStudioSourceLeavesGradientOut() {
+        Paint p = new Paint();
+        Option.Cycler source = (Option.Cycler) PaintOptions.of(p, false).getFirst();
+        assertFalse(source.names().contains("curvegen.paint.source.gradient"));
+        source.set().accept(source.names().size() - 1);
+        assertEquals(Source.MIX, p.source);
     }
 
     @Test

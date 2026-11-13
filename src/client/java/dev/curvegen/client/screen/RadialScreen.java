@@ -3,6 +3,7 @@ package dev.curvegen.client.screen;
 import static dev.curvegen.client.Lang.tr;
 
 import com.mojang.blaze3d.platform.InputConstants;
+import dev.curvegen.client.chroma.Chroma;
 import dev.curvegen.client.BlockChoices;
 import dev.curvegen.client.CurveGenClient;
 import dev.curvegen.client.ModSettings;
@@ -93,7 +94,11 @@ public class RadialScreen extends Screen {
             case OPTIONS -> { for (Option o : Editor.options()) out.add(option(o)); }
             case BLOCKS -> { for (Family f : BlockChoices.FAMILIES) out.add(blocks(f)); }
             case PAINT -> {
-                for (Option o : PaintOptions.of(S.paint)) out.add(option(o));
+                for (Option o : PaintOptions.of(S.paint, Chroma.available())) out.add(option(o));
+                // Without Chroma Studio, Source leaves Gradient out: its tooltip says why.
+                Wedge src = out.getFirst();
+                if (!Chroma.available()) out.set(0, new Wedge(src.label(), src.value(), src.off(), tr("curvegen.paint.source_gradient_needs"),
+                        src.icon(), src.scroll(), src.stay(), src.select()));
                 out.add(1, choose());
             }
         }
@@ -160,10 +165,16 @@ public class RadialScreen extends Screen {
     }
 
     /**
-     * Paint's Choose: the pattern library, or the mix chooser for a mix. Choosing a pattern turns paint on. The
-     * choice is one undo step, and the hologram repaints without solving again.
+     * Paint's Choose: the pattern library, the mix chooser for a mix, or the gradient chooser for a gradient. Choosing a
+     * pattern turns paint on. The choice is one undo step, and the hologram repaints without solving again.
      */
     private Wedge choose() {
+        if (S.paint.source == Paint.Source.GRADIENT) {
+            String name = S.paint.gradient == null ? tr("curvegen.paint.gradient_choose") : S.paint.gradient.name;
+            return new Wedge(tr("curvegen.radial.paint.choose"), name, Chroma.available() ? null : tr("curvegen.paint.needs_chroma"),
+                    tr("curvegen.paint.gradient_choose_tip"), null, null, Stay.NEVER,
+                    () -> minecraft.gui.setScreen(new GradientChooserScreen(null, g -> Editor.edit(null, () -> S.paint.gradient = g))));
+        }
         boolean mix = S.paint.source == Paint.Source.MIX;
         String name = mix ? MixChooserScreen.name(S.paint.mix) : PatternStore.shownName(S.paint.pattern);
         return new Wedge(tr("curvegen.radial.paint.choose"), name, null, tr(mix ? "curvegen.paint.mix_choose_tip" : "curvegen.paint.choose_tip"), null, null, Stay.NEVER,

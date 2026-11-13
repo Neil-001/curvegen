@@ -19,9 +19,9 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
-class GradientTest {
+public class GradientTest {
     /** Dark to light in four steps, the third chosen by hand. */
-    static final Gradient GREYS = new Gradient("Greys",
+    public static final Gradient GREYS = new Gradient("Greys",
             List.of(new Gradient.Stop(0x080a0f, m("black_concrete")), new Gradient.Stop(0xe9ecec, null)),
             List.of(new Gradient.Step(0x101010, m("black_concrete"), false), new Gradient.Step(0x404040, m("gray_concrete"), false),
                     new Gradient.Step(0x808080, m("stone_bricks"), true), new Gradient.Step(0xe0e0e0, m("quartz_block"), false)));
