@@ -88,6 +88,8 @@ public final class Turned implements Shape3 {
     @Override public boolean smooth() { return in.smooth(); }
     @Override public boolean hollow() { return in.hollow(); }
     @Override public double[] carve() { return in.carve(); }
+    @Override public boolean cuts() { return in.cuts(); }
+    @Override public boolean cut(double x, double y, double z) { return in.cut(coord(0, x, y, z), coord(1, x, y, z), coord(2, x, y, z)); }
     @Override public int pad() { return in.pad(); }
     @Override public Message error() { return in.error(); }
 

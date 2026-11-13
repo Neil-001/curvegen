@@ -84,6 +84,18 @@ public interface Shape3 {
      */
     default double[] carve() { return null; }
 
+    /** Does the shape cut any blocks away with {@link #cut}? */
+    default boolean cuts() { return false; }
+
+    /**
+     * Is the block with its centre here cut away once the shape is solved? The solver works the shape out as if it
+     * carried on through the block and then empties it, so a cut leaves an opening rather than a cap: a hollow
+     * shape is open there, and its out-of-sight blocks are judged before the cut. The blocks beside a cut take the
+     * states the game gives them with it gone, as {@link Solver3#settle} does, and carving leaves it alone. Only
+     * asked when {@link #cuts}.
+     */
+    default boolean cut(double x, double y, double z) { return false; }
+
     /** Is the field unchanged when mirrored through the middle of the box along this axis? The solver then works on half. */
     default boolean symX() { return false; }
     default boolean symY() { return false; }

@@ -964,10 +964,24 @@ public class CurveScreen extends ControlScreen {
         sizes3(0, whd(), new String[]{tr("curvegen.screen.width_of_the_box_the_curve_is_in"), tr("curvegen.screen.height_of_the_box_the_curve_is_in"), tr("curvegen.screen.depth_of_the_box_the_curve_is_in")},
                 new IntSupplier[]{() -> S.b3W, () -> S.b3H, () -> S.b3D}, new IntConsumer[]{v -> S.b3W = v, v -> S.b3H = v, v -> S.b3D = v},
                 new BooleanSupplier[]{ALWAYS, ALWAYS, ALWAYS}, null);
-        CycleButton<BzMode> shape = short3(cycler(List.of(BzMode.values()), BzMode.LINE, m -> Component.literal(m == BzMode.LINE ? tr("curvegen.screen.line") : tr("curvegen.screen.filled")),
-                M, r3(1), PANEL_W, tr("curvegen.screen.shape"), _ -> { }));
-        shape.active = false;
-        shape.setTooltip(Tooltip.create(Component.translatable("curvegen.screen.a_3d_curve_is_always_a_line_only_a")));
+        // Solid, hollow with open ends, or hollow and capped: the two settings as one choice, so they take one row.
+        CycleButton<Integer> shape = short3(cycler(List.of(0, 1, 2), !S.b3Hollow ? 0 : S.b3Open ? 1 : 2,
+                m -> Component.translatable(m == 0 ? "curvegen.screen.line" : m == 1 ? "curvegen.screen.hollow" : "curvegen.screen.hollow_capped"),
+                M, r3(1), PANEL_W, tr("curvegen.screen.shape"), m -> {
+                    S.b3Hollow = m != 0;
+                    if (m != 0) S.b3Open = m == 1;
+                    dirty = true;
+                }));
+        boolean[] was = {false};
+        Runnable room = () -> {
+            boolean on = S.b3T >= ShapeSettings.HOLLOW_MIN;
+            if (on == was[0] && shape.active == on) return;
+            was[0] = on;
+            shape.active = on;
+            shape.setTooltip(Tooltip.create(Component.translatable(on ? "curvegen.screen.curve_shape_tooltip" : "curvegen.option.off.hollow_thin")));
+        };
+        room.run();
+        live.add(room);
         thickness(2, () -> S.b3T, v -> S.b3T = v, ALWAYS, null);
         short3(toggle(S.snap, M, r3(3), PANEL_W, tr("curvegen.screen.snap_to_half_blocks"), v -> S.snap = v));
         int n = S.pts3.size();
