@@ -127,7 +127,7 @@ public class MixChooserScreen extends Screen {
             if (m.equals(current)) ctx.fill(x0, y, x1, y + ROW, 0x603F7BE0);
             else if (i == hover) ctx.fill(x0, y, x1, y + ROW, 0x20FFFFFF);
             drawSwatch(ctx, m, x0 + 3, y + (ROW - SWATCH) / 2, SWATCH);
-            String n = name(m), count = tr("curvegen.paint.mix_count", m.paletteSize());
+            String n = name(m), count = m.paletteSize() == 1 ? tr("curvegen.paint.mix_count_one") : tr("curvegen.paint.mix_count", m.paletteSize());
             int sw = font.width(count), room = listW() - SWATCH - 14 - sw - 8;
             if (font.width(n) > room) n = font.plainSubstrByWidth(n, room - font.width("…")) + "…";
             ctx.text(font, n, x0 + SWATCH + 9, y + 7, 0xFFE4E9EF, false);

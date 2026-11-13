@@ -387,6 +387,13 @@ public class PaintScreen extends ControlScreen {
         return new String[]{tr("curvegen.paint.status_open", painted.closest(), painted.total(), painted.open()), tip.toString()};
     }
 
+    /** Darkened as the main screen's is, so the labels beside the number fields read over a bright sky. */
+    @Override
+    public void extractBackground(GuiGraphicsExtractor ctx, int mouseX, int mouseY, float delta) {
+        super.extractBackground(ctx, mouseX, mouseY, delta);
+        ctx.fill(0, 0, width, height, 0x80101317);
+    }
+
     @Override
     public void extractRenderState(GuiGraphicsExtractor ctx, int mx, int my, float delta) {
         poll();

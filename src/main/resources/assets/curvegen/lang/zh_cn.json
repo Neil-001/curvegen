@@ -325,6 +325,7 @@
   "curvegen.paint.mix_palettes_none": "需要 Chroma Studio 1.2 或更新版本。",
   "curvegen.paint.mix_palettes_empty": "Chroma Studio 中没有已保存的调色板。",
   "curvegen.paint.mix_count": "%s 种方块",
+  "curvegen.paint.mix_count_one": "1 种方块",
   "curvegen.paint.mix_share": "%1$s：%2$s%%",
   "curvegen.paint.source.gradient": "渐变",
   "curvegen.paint.source_gradient_needs": "渐变需要 Chroma Studio 1.2 或更新版本。",

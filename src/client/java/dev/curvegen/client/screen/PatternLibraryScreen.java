@@ -19,6 +19,7 @@ import dev.curvegen.core.paint.Pattern;
 import dev.curvegen.core.paint.PatternNames;
 import dev.curvegen.core.paint.Patterns;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -31,6 +32,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.Style;
 import net.minecraft.world.level.block.Block;
 
 /**
@@ -59,8 +61,11 @@ public class PatternLibraryScreen extends Screen {
     private int scroll;
     private final PaintPicture picture = new PaintPicture();
     private Button captureButton, cancelButton;
-    /** Why the last drop made no pattern, shown in place of the hint until the next one, or null. */
-    private String dropProblem;
+    /**
+     * Why the last drop made no pattern, shown in place of the hint until the next one, or null, and the same with the
+     * file's whole name for its tooltip.
+     */
+    private String dropProblem, dropProblemTip;
 
     /**
      * @param onPick given the chosen pattern, before the library goes back to {@code parent}
@@ -192,6 +197,13 @@ public class PatternLibraryScreen extends Screen {
     }
 
     // ---------- rendering ----------
+    /** Darkened as the main screen's is, so the hint between the bottom buttons reads over a bright sky. */
+    @Override
+    public void extractBackground(GuiGraphicsExtractor ctx, int mouseX, int mouseY, float delta) {
+        super.extractBackground(ctx, mouseX, mouseY, delta);
+        ctx.fill(0, 0, width, height, 0x80101317);
+    }
+
     @Override
     public void extractRenderState(GuiGraphicsExtractor ctx, int mx, int my, float delta) {
         int hover = rowAt(mx, my);
@@ -257,8 +269,8 @@ public class PatternLibraryScreen extends Screen {
             String hint = dropProblem != null ? dropProblem : tr("curvegen.patterns.drop_hint");
             // One line, or two in the buttons' height when it's longer, the second cut with "…" if it still doesn't fit.
             int room = hx1 - hx0;
-            List<String> lines = new java.util.ArrayList<>();
-            font.getSplitter().splitLines(hint, room, net.minecraft.network.chat.Style.EMPTY).forEach(l -> lines.add(l.getString()));
+            List<String> lines = new ArrayList<>();
+            font.getSplitter().splitLines(hint, room, Style.EMPTY).forEach(l -> lines.add(l.getString()));
             boolean cut = lines.size() > 2;
             if (cut) {
                 String rest = hint.substring(Math.min(hint.length(), lines.getFirst().length())).stripLeading();
@@ -271,7 +283,7 @@ public class PatternLibraryScreen extends Screen {
                 wide = Math.max(wide, font.width(lines.get(k)));
             }
             if (mx >= hx0 && mx < hx0 + wide && my >= hy && my < hy + 20) {
-                tip = dropProblem != null ? dropProblem : tr(can ? "curvegen.patterns.drop_hint_tip" : "curvegen.patterns.drop_needs");
+                tip = dropProblem != null ? dropProblemTip : tr(can ? "curvegen.patterns.drop_hint_tip" : "curvegen.patterns.drop_needs");
                 if (cut && dropProblem == null) tip = hint + '\n' + '\n' + tip;
             }
         }
@@ -309,23 +321,37 @@ public class PatternLibraryScreen extends Screen {
     /** A picture file dropped on the library: asks for its width, then saves it as a pattern. */
     @Override
     public void onFilesDrop(List<Path> files) {
-        if (!Chroma.available()) { dropProblem = tr("curvegen.patterns.drop_needs"); return; }
-        if (files.size() != 1) { dropProblem = tr("curvegen.patterns.drop_one"); return; }
+        if (!Chroma.available()) { problem("curvegen.patterns.drop_needs", null); return; }
+        if (files.size() != 1) { problem("curvegen.patterns.drop_one", null); return; }
         String file = files.getFirst().getFileName().toString();
         ImageFile.Result read = ImageFile.read(files.getFirst());
         if (read.image() == null) {
-            dropProblem = tr(read.problem() == ImageFile.Problem.TOO_LARGE ? "curvegen.patterns.drop_too_large" : "curvegen.patterns.drop_unreadable", file);
+            problem(read.problem() == ImageFile.Problem.TOO_LARGE ? "curvegen.patterns.drop_too_large" : "curvegen.patterns.drop_unreadable", file);
             return;
         }
-        dropProblem = null;
+        problem(null, null);
         int dot = file.lastIndexOf('.');
         String stem = (dot > 0 ? file.substring(0, dot) : file).trim();
         String name = PatternStore.unique(stem.isEmpty() ? tr("curvegen.image.default_name") : stem);
         minecraft.gui.setScreen(new ImagePatternScreen(this, read.image(), name, p -> {
-            dropProblem = p == null ? tr("curvegen.patterns.drop_clear", file) : null;
+            problem(p == null ? "curvegen.patterns.drop_clear" : null, file);
             scroll = 0;
             refilter();
         }));
+    }
+
+    /**
+     * Shows the message {@code key} about the dropped {@code file}, or none for a null key. On the line a name over 80
+     * pixels keeps its start and end with "…" between, so the rest of the message fits. The tooltip has it whole.
+     */
+    private void problem(String key, String file) {
+        String shortFile = file;
+        if (file != null && font.width(file) > 80) {
+            String end = font.plainSubstrByWidth(file, 30, true);
+            shortFile = font.plainSubstrByWidth(file, 80 - 30 - font.width("…")) + "…" + end;
+        }
+        dropProblem = key == null ? null : tr(key, shortFile);
+        dropProblemTip = key == null ? null : tr(key, file);
     }
 
     private void rename(Saved s) {

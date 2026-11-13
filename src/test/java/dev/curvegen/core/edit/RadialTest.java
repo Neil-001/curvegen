@@ -376,23 +376,26 @@ class RadialTest {
         return advance;
     }
 
+
     /**
-     * The Paint page's wedges, in every language: each name and value fits the 72 pixels inside a label, so none is
-     * cut. Names chosen by the player, of patterns, mixes and gradients, are left out: the menu cuts those and its tip
-     * gives the whole name.
+     * The radial menu's top page and its Paint page, in every language: each wedge's name and each value it can show in
+     * words fits the 72 pixels inside a label, so none is cut. Names of patterns, mixes and gradients are left out: the
+     * menu cuts a long one and the wedge's tip gives the whole name.
      */
     @Test
-    void thePaintWedgesFitTheirLabelsInEveryLanguage() throws Exception {
+    void theTopAndPaintWedgesFitTheirLabelsInEveryLanguage() throws Exception {
         Map<Integer, Integer> advance = fontAdvances();
         // Widths the game itself measured, in English, Russian and Japanese.
         for (Object[] seen : new Object[][]{{"Choose a gradient", 92}, {"Выбрать градиент", 95}, {"グラデーションを選ぶ", 90}, {"Mélange moussu", 79}})
             assertEquals(seen[1], ((String) seen[0]).codePoints().map(cp -> advance.getOrDefault(cp, 9)).sum(), (String) seen[0]);
-        Set<String> keys = new LinkedHashSet<>(List.of("curvegen.radial.paint.choose", "curvegen.radial.back"));
-        for (Paint.Source s : Paint.Source.values())
+        Set<String> keys = new LinkedHashSet<>(List.of("curvegen.radial.back", "curvegen.radial.paint.choose"));
+        for (String id : Radial.START) keys.add(Radial.name(id));
+        for (String id : Radial.EDIT) keys.add(Radial.name(id));
+        for (Paint.Source src : Paint.Source.values())
             for (boolean gradients : new boolean[]{false, true})
                 for (boolean wraps : new boolean[]{false, true}) {
                     Paint p = new Paint();
-                    p.source = s;
+                    p.source = src;
                     for (Option o : PaintOptions.of(p, gradients, wraps)) {
                         keys.add(o.label());
                         if (o instanceof Option.Cycler c) keys.addAll(c.names());

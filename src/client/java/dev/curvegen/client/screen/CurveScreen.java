@@ -563,7 +563,8 @@ public class CurveScreen extends ControlScreen {
                 addRenderableWidget(use);
             }
             Block block = BlockChoices.CHOICE.get(f);
-            String name = font.plainSubstrByWidth(block.getName().getString(), pickW - 14);
+            // A name too long for the button is cut with "…". The tooltip gives it whole.
+            String full = block.getName().getString(), name = tw(full) <= pickW - 14 ? full : font.plainSubstrByWidth(full, pickW - 14 - tw("…")) + "…";
             Button pick = Button.builder(Component.literal(name), _ -> minecraft.gui.setScreen(new BlockPickerScreen(this, f, chosen -> {
                 BlockChoices.CHOICE.put(f, chosen);
                 S.fullConnects = BlockChoices.fullConnects(S);
