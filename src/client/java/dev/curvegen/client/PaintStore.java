@@ -17,9 +17,10 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * The player's paint settings, with a copy of the pattern, and the Blocks tab's block choices, which paint falls back
- * to. They're kept in {@code .minecraft/config/curvegen/paint.json} and {@code blocks.json} so they survive a restart,
- * as {@link Paint#capture} and {@link BlockChoices#captureChoices} write them. {@link #tick} saves them soon after they
+ * The player's paint settings, with a copy of the pattern, and the Blocks tab: the block chosen for each piece type,
+ * which paint falls back to, and which piece types are used. They're kept in
+ * {@code .minecraft/config/curvegen/paint.json} and {@code blocks.json} so they survive a restart, as
+ * {@link Paint#capture} and {@link BlockChoices#captureChoices} write them. {@link #tick} saves them soon after they
  * change.
  */
 public final class PaintStore {
@@ -48,9 +49,9 @@ public final class PaintStore {
      */
     private static void loadBlocks() {
         Map<String, String> d = readFile(file("blocks.json"));
-        if (d != null) BlockChoices.applyChoices(d, BlockChoices.CHOICE);
+        if (d != null) BlockChoices.applyChoices(d, CurveGenClient.SETTINGS, BlockChoices.CHOICE);
         CurveGenClient.SETTINGS.fullConnects = BlockChoices.fullConnects(CurveGenClient.SETTINGS);
-        savedBlocks = BlockChoices.captureChoices(BlockChoices.CHOICE);
+        savedBlocks = BlockChoices.captureChoices(CurveGenClient.SETTINGS, BlockChoices.CHOICE);
     }
 
     /** The file's settings, or null when it's missing or unreadable, which the log says. */
@@ -91,7 +92,7 @@ public final class PaintStore {
         if (saved == null) return;
         if (savedBlocks == null) loadBlocks();
         Paint now = CurveGenClient.SETTINGS.paint;
-        Map<String, String> blocks = BlockChoices.captureChoices(BlockChoices.CHOICE);
+        Map<String, String> blocks = BlockChoices.captureChoices(CurveGenClient.SETTINGS, BlockChoices.CHOICE);
         boolean paintChanged = !now.same(saved), blocksChanged = !blocks.equals(savedBlocks);
         if (!paintChanged && !blocksChanged) { changedAt = 0; return; }
         long t = System.currentTimeMillis();
