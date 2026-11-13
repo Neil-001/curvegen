@@ -1,7 +1,7 @@
 package dev.curvegen.client.edit;
 
 import dev.curvegen.client.Lang;
-import dev.curvegen.client.BlockChoices;
+import dev.curvegen.client.PaintBlocks;
 import dev.curvegen.core.Message;
 import dev.curvegen.core.Pieces3;
 import dev.curvegen.core.Shape3;
@@ -12,12 +12,15 @@ import dev.curvegen.core.edit.Edit3D;
 import dev.curvegen.core.edit.Option;
 import dev.curvegen.core.edit.Orient;
 import dev.curvegen.core.edit.Turned;
+import dev.curvegen.core.paint.Catalog;
+import dev.curvegen.core.paint.Paint;
+import dev.curvegen.core.paint.Painted;
+import dev.curvegen.core.paint.Solve3Painter;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.List;
 import java.util.function.BooleanSupplier;
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.level.block.state.BlockState;
 
 /**
  * The 3D shapes in the in-world editor. The volumetric solver works in the world's orientation, so turning or
@@ -31,8 +34,11 @@ final class Shape3D implements EditShape {
     /**
      * A solve, with the cells Carve clears (null while Carve was off) and whether colours match the top texture.
      * {@code own} is the shape before it was turned, for its wireframe, with the kind and box it was solved for.
+     * {@code fullConnects} is whether fences attached to full blocks in the solve, {@code painter} repaints it, and
+     * {@code painted} is its paint, or null while it's unpainted.
      */
-    private record Solved(Solver3.Result result, BitSet carve, boolean topColours, Shape3 own, Gen gen, int[] size) {}
+    private record Solved(Solver3.Result result, BitSet carve, boolean topColours, Shape3 own, Gen gen, int[] size,
+                          boolean fullConnects, Solve3Painter painter, Solve3Painter.Done painted) {}
 
     @Override public int[] size() { return Edit3D.size(s); }
     @Override public void resize(int[] want, boolean[] dragged) { Edit3D.resize(s, want, dragged); }
@@ -89,7 +95,14 @@ final class Shape3D implements EditShape {
         BitSet carve = copy.carve ? Solver3.carve(shape, cancelled) : null;
         if (cancelled.getAsBoolean()) return null;
         if (own.error() == null) own.wireframe();   // traced here, off the client thread, and kept by the shape
-        return new Solved(r, carve, copy.topColours, own, copy.gen, Edit3D.size(copy));
+        return new Solved(r, carve, copy.topColours, own, copy.gen, Edit3D.size(copy), copy.fullConnects, new Solve3Painter(r, own, orient), null);
+    }
+
+    @Override
+    public Object paint(Object solved, Paint paint, Catalog catalog) {
+        Solved v = (Solved) solved;
+        Solve3Painter.Done done = v.painter.paint(paint, v.fullConnects, catalog);
+        return new Solved(v.result, v.carve, v.topColours, v.own, v.gen, v.size, v.fullConnects, v.painter, done);
     }
 
     @Override
@@ -98,7 +111,9 @@ final class Shape3D implements EditShape {
         Solver3.Result r = v.result;
         Message error = r.shape().error();
         if (error != null) return new Content(List.of(), List.of(), v.topColours, error);
-        BlockState[] states = BlockChoices.statesFor3();
+        Painted painted = v.painted == null ? null : v.painted.painted();
+        PaintBlocks.States3 states = new PaintBlocks.States3(painted == null ? null : PaintBlocks.resolve(painted, PaintBlocks.viewer3(v.painted)));
+        int k = 0;
         int pad = r.shape().pad(), nx = r.nx(), ny = r.ny(), nz = r.nz();
         List<Placed> blocks = new ArrayList<>();
         List<BlockPos> carve = new ArrayList<>();
@@ -106,7 +121,7 @@ final class Shape3D implements EditShape {
             for (int z = 0; z < nz; z++)
                 for (int x = 0; x < nx; x++, c++) {
                     int p = r.grid()[c];
-                    if (p != Pieces3.AIR) blocks.add(new Placed(x - pad, y - pad, z - pad, states[p]));
+                    if (p != Pieces3.AIR) blocks.add(new Placed(x - pad, y - pad, z - pad, states.get(p, painted == null ? -1 : painted.at(k++))));
                     else if (v.carve != null && v.carve.get(c)) carve.add(new BlockPos(x - pad, y - pad, z - pad));
                 }
         return new Content(blocks, carve, v.topColours, null);

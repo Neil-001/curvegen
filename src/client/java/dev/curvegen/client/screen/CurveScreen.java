@@ -33,11 +33,13 @@ import dev.curvegen.core.Solver;
 import dev.curvegen.core.Solver3;
 import dev.curvegen.core.edit.Edit3D;
 import dev.curvegen.core.edit.HandleMath;
+import dev.curvegen.core.edit.Orient;
 import dev.curvegen.core.edit.Stepper;
 import dev.curvegen.core.paint.Catalog;
 import dev.curvegen.core.paint.Paint;
 import dev.curvegen.core.paint.Painted;
 import dev.curvegen.core.paint.Painter2D;
+import dev.curvegen.core.paint.Solve3Painter;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -69,7 +71,6 @@ import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.state.BlockState;
 
 public class CurveScreen extends ControlScreen {
     private enum Tab { ELLIPSE, EQUATION, BEZIER, ELLIPSOID, TORUS, EQUATION3, BEZIER3, SURFACE, BLOCKS, COUNT }
@@ -647,7 +648,8 @@ public class CurveScreen extends ControlScreen {
 
     /** Grouped by piece type, then one row per state. States that look the same (and are named the same) share a row. */
     private List<CountRow> countRows() {
-        Object from = mode3d ? solved3 : result;
+        Repaint3.View view = mode3d ? painted3() : null;
+        Object from = mode3d ? view != null ? view : solved3 : result;
         if (countRows != null && countResult == from && countDepth == S.depth) return countRows;
         List<CountRow> rows = new ArrayList<>();
         countRows = rows; countResult = from; countDepth = S.depth;
@@ -706,6 +708,9 @@ public class CurveScreen extends ControlScreen {
     private void countRows3(List<CountRow> rows) {
         if (solved3 == null || solved3.error != null) return;
         int[] counts = solved3.result.counts();
+        Repaint3.View view = painted3();
+        Painted painted = view == null ? null : view.done().painted();
+        PaintBlocks.Resolved resolved = painted == null ? null : PaintBlocks.resolve(painted, PaintBlocks.viewer3(view.done()));
         for (Family f : BlockChoices.FAMILIES) {
             int total = 0;
             for (Count3.Group g : Count3.GROUPS) if (g.family() == f) total += g.count(counts);
@@ -714,6 +719,7 @@ public class CurveScreen extends ControlScreen {
             int nw = tw(n);
             String title = S.allows(f) ? BlockChoices.familyName(f) : tr("curvegen.screen.family_off", BlockChoices.familyName(f));
             rows.add(new CountRow(true, font.plainSubstrByWidth(title, PANEL_W - nw - 6), n, nw, -1, !S.allows(f), blockName, true));
+            if (painted != null) { paintedRows(rows, f, painted, resolved); continue; }
             for (Count3.Group g : Count3.GROUPS) {
                 if (g.family() != f) continue;
                 int count = g.count(counts);
@@ -1091,8 +1097,15 @@ public class CurveScreen extends ControlScreen {
     }
 
     // ---------- the 3D preview ----------
-    /** A solve of a 3D shape: the blocks, their faces, and how many there are. With an {@code error} the rest is null. */
-    record Solved3(Solver3.Result result, Mesh3 mesh, int blocks, Message error) {}
+    /**
+     * A solve of a 3D shape: the blocks, their faces, and how many there are, with what paints it and whether fences
+     * attached to full blocks in it. With an {@code error} the rest is null.
+     */
+    record Solved3(Solver3.Result result, Mesh3 mesh, int blocks, Message error, Solve3Painter painter, boolean fullConnects) {}
+
+    /** The menu shows a 3D shape unturned, its own axes the world's. */
+    static final Orient UNTURNED = new Orient(Orient.EAST, Orient.UP, Orient.SOUTH);
+    private final Repaint3 repaint3 = new Repaint3();
 
     private final Preview3 preview3 = new Preview3();
     private Solved3 solved3;
@@ -1148,7 +1161,12 @@ public class CurveScreen extends ControlScreen {
                 if (now - droppingSince < DROP_FOR) cancel3.set(true);
             }
         }
-        preview3.palette(Preview3.palette(colors, BlockChoices.CHOICE, S.topColours));
+        // The paint screen can change whether fences attach to full blocks, which the shape is solved with.
+        if (solved3 != null && solved3.error == null && job3 == null && S.fullConnects != solved3.fullConnects) dirty = true;
+        if (repaint3.poll(solved3 == null ? null : solved3.painter, solved3 != null && solved3.fullConnects, S)) countRows = null;
+        Repaint3.View view = painted3();
+        if (view != null && colors == PreviewTexture.Colors.BLOCKS) preview3.palette(view.palette(), view.perBlock());
+        else preview3.palette(Preview3.palette(colors, BlockChoices.CHOICE, S.topColours));
         preview3.showWires(showCurve);
         // The box the player set, without the room a thickness adds: a thicker shape keeps the view it has.
         int pad = shape.pad();
@@ -1159,15 +1177,18 @@ public class CurveScreen extends ControlScreen {
         }
     }
 
+    /** The paint the 3D shape on show is drawn with: the last finished for this solve, kept while a repaint runs. */
+    private Repaint3.View painted3() { return solved3 == null ? null : repaint3.current(solved3.painter, S.paint); }
+
     /** Runs on the worker thread. Returns null once the solve is no longer wanted. */
     static Solved3 solve3(ShapeSettings copy, BooleanSupplier cancelled) {
         Shape3 shape = Shape3.of(copy);
-        if (shape.error() != null) return new Solved3(null, null, 0, shape.error());
+        if (shape.error() != null) return new Solved3(null, null, 0, shape.error(), null, copy.fullConnects);
         Solver3.Result r = Solver3.solve(shape, copy, cancelled);
         if (r == null) return null;
         int blocks = 0;
         for (int p = 1; p < Pieces3.COUNT; p++) blocks += r.counts()[p];
-        return new Solved3(r, new Mesh3(r), blocks, null);
+        return new Solved3(r, new Mesh3(r), blocks, null, new Solve3Painter(r, shape, UNTURNED), copy.fullConnects);
     }
 
     /** The control points the tab shows in the picture, or null. */
@@ -1233,15 +1254,17 @@ public class CurveScreen extends ControlScreen {
     }
 
     private void export3() {
-        if (solved3 == null || job3 != null || dirty) { flash(tr("curvegen.screen.still_working_on_the_shape_try_again_in_a")); return; }
+        if (solved3 == null || job3 != null || dirty || solved3.error == null && repaint3.pending(solved3.painter, S)) { flash(tr("curvegen.screen.still_working_on_the_shape_try_again_in_a")); return; }
         if (solved3.error != null) { flash(tr("curvegen.screen.fix_the_shape_first_s", Lang.text(solved3.error))); return; }
         Solver3.Result r = solved3.result;
-        BlockState[] states = BlockChoices.statesFor3();
+        Repaint3.View view = repaint3.fresh(solved3.painter, S);
+        Painted painted = view == null ? null : view.done().painted();
+        PaintBlocks.States3 states = new PaintBlocks.States3(painted == null ? null : PaintBlocks.resolve(painted, PaintBlocks.viewer3(view.done())));
         List<EditShape.Placed> blocks = new ArrayList<>(solved3.blocks);
-        for (int y = 0, c = 0; y < r.ny(); y++)
+        for (int y = 0, c = 0, k = 0; y < r.ny(); y++)
             for (int z = 0; z < r.nz(); z++)
                 for (int x = 0; x < r.nx(); x++, c++)
-                    if (r.grid()[c] != Pieces3.AIR) blocks.add(new EditShape.Placed(x, y, z, states[r.grid()[c]]));
+                    if (r.grid()[c] != Pieces3.AIR) blocks.add(new EditShape.Placed(x, y, z, states.get(r.grid()[c], painted == null ? -1 : painted.at(k++))));
         if (blocks.isEmpty()) { flash(tr("curvegen.screen.empty_export")); return; }
         try {
             String author = minecraft.player != null ? minecraft.player.getName().getString() : tr("key.category.curvegen.main");
