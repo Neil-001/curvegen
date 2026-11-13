@@ -7,6 +7,7 @@ import dev.curvegen.client.BlockChoices;
 import dev.curvegen.client.CurveGenClient;
 import dev.curvegen.client.ModSettings;
 import dev.curvegen.client.Placement;
+import dev.curvegen.client.PatternStore;
 import dev.curvegen.client.PresetStore;
 import dev.curvegen.client.edit.Capture;
 import dev.curvegen.client.edit.EditShape;
@@ -16,6 +17,8 @@ import dev.curvegen.core.PresetData;
 import dev.curvegen.core.ShapeSettings;
 import dev.curvegen.core.ShapeSettings.Gen;
 import dev.curvegen.core.edit.Option;
+import dev.curvegen.core.edit.PaintOptions;
+import dev.curvegen.core.paint.Paint;
 import dev.curvegen.core.edit.Radial;
 import java.util.ArrayList;
 import java.util.List;
@@ -35,13 +38,13 @@ import net.minecraft.world.level.block.Block;
  * With "Press" chosen in the settings, a press opens the menu and it stays until a wedge is clicked or the key is
  * pressed again.
  *
- * <p>Without a hologram the menu starts one. With one, it changes the shape's options and blocks, and places,
+ * <p>Without a hologram the menu starts one. With one, it changes the shape's options, blocks and paint, and places,
  * exports or cancels it. Every change goes through {@link Editor#edit}, so Z takes it back.
  */
 public class RadialScreen extends Screen {
     private static final ShapeSettings S = CurveGenClient.SETTINGS;
 
-    private enum Page { ROOT, SHAPES_2D, SHAPES_3D, OPTIONS, BLOCKS }
+    private enum Page { ROOT, SHAPES_2D, SHAPES_3D, OPTIONS, BLOCKS, PAINT }
 
     /** What choosing a wedge leaves of the menu: it stays, it stays only after a click, or it closes. */
     private enum Stay { ALWAYS, CLICK, NEVER }
@@ -82,13 +85,17 @@ public class RadialScreen extends Screen {
     private List<Wedge> build() {
         List<Wedge> out = new ArrayList<>();
         // A hologram can end while a submenu is open, and its submenus go with it.
-        if (!Editor.isActive() && (page == Page.OPTIONS || page == Page.BLOCKS)) page = Page.ROOT;
+        if (!Editor.isActive() && (page == Page.OPTIONS || page == Page.BLOCKS || page == Page.PAINT)) page = Page.ROOT;
         switch (page) {
             case ROOT -> { for (String id : Radial.order(Editor.isActive() ? Radial.EDIT : Radial.START, ModSettings.radialOrder)) out.add(top(id)); }
             case SHAPES_2D -> { for (Kind k : KINDS_2D) out.add(kind(k)); }
             case SHAPES_3D -> { for (Kind k : KINDS_3D) out.add(kind(k)); }
             case OPTIONS -> { for (Option o : Editor.options()) out.add(option(o)); }
             case BLOCKS -> { for (Family f : BlockChoices.FAMILIES) out.add(blocks(f)); }
+            case PAINT -> {
+                for (Option o : PaintOptions.of(S.paint)) out.add(option(o));
+                out.add(1, choose());
+            }
         }
         if (page != Page.ROOT) out.add(new Wedge(tr("curvegen.radial.back"), null, null, null, null, null, Stay.ALWAYS, () -> page = Page.ROOT));
         return out;
@@ -109,6 +116,7 @@ public class RadialScreen extends Screen {
                     () -> Capture.start(PatternLibraryScreen::choose));
             case "options" -> nav(name, Editor.options().isEmpty() ? tr("curvegen.radial.no_options") : null, Page.OPTIONS);
             case "blocks" -> nav(name, null, Page.BLOCKS);
+            case "paint" -> nav(name, null, Page.PAINT);
             case "export" -> leaf(name, Editor.notReady(), () -> Placement.say(Component.literal(Editor.export())));
             case "full" -> leaf(name, null, () -> minecraft.gui.setScreen(new CurveScreen()));
             case "place" -> leaf(name, !Placement.canPlace(minecraft) ? tr("curvegen.editor.permission") : Editor.notReady(), Editor::confirm);
@@ -138,7 +146,7 @@ public class RadialScreen extends Screen {
         Group group = new Group(this, o.label());
         return switch (o) {
             case Option.Number n -> new Wedge(tr(n.label()), InputScreen.fmt(n.get().getAsDouble()), n.off() == null ? null : tr(n.off()), null, null,
-                    d -> Editor.edit(group, () -> n.set().accept(n.fit(n.get().getAsDouble() + d * n.step()))), Stay.NEVER,
+                    d -> Editor.edit(group, () -> n.set().accept(n.stepped(n.get().getAsDouble(), d))), Stay.NEVER,
                     () -> minecraft.gui.setScreen(InputScreen.number(tr(n.label()), InputScreen.fmt(n.get().getAsDouble()), n.whole(), n.min(), n.max(),
                             v -> Editor.edit(null, () -> n.set().accept(v)))));
             case Option.Cycler c -> {
@@ -149,6 +157,19 @@ public class RadialScreen extends Screen {
                     () -> minecraft.gui.setScreen(InputScreen.text(tr(t.label()), t.get().get(), v -> dev.curvegen.client.Lang.text(t.check().apply(v)), v -> Editor.edit(null, () -> t.set().accept(v)))));
             case Option.Action a -> new Wedge(tr(a.label()), null, a.off() == null ? null : tr(a.off()), null, null, null, Stay.CLICK, () -> Editor.edit(null, a.run()));
         };
+    }
+
+    /**
+     * Paint's Choose: the pattern library, or the mix chooser for a mix. Choosing a pattern turns paint on. The
+     * choice is one undo step, and the hologram repaints without solving again.
+     */
+    private Wedge choose() {
+        boolean mix = S.paint.source == Paint.Source.MIX;
+        String name = mix ? MixChooserScreen.name(S.paint.mix) : PatternStore.shownName(S.paint.pattern);
+        return new Wedge(tr("curvegen.radial.paint.choose"), name, null, tr(mix ? "curvegen.paint.mix_choose_tip" : "curvegen.paint.choose_tip"), null, null, Stay.NEVER,
+                () -> minecraft.gui.setScreen(mix
+                        ? new MixChooserScreen(null, m -> Editor.edit(null, () -> S.paint.mix = m))
+                        : new PatternLibraryScreen(null, PatternLibraryScreen::choose, null)));
     }
 
     private Wedge blocks(Family f) {
@@ -311,6 +332,7 @@ public class RadialScreen extends Screen {
         String title = switch (page) {
             case ROOT -> Editor.isActive() ? Editor.describe() : tr("curvegen.radial.start");
             case SHAPES_2D -> tr("curvegen.radial.2d"); case SHAPES_3D -> tr("curvegen.radial.3d"); case OPTIONS -> tr("curvegen.radial.options"); case BLOCKS -> tr("curvegen.radial.blocks");
+            case PAINT -> tr("curvegen.paint.title");
         };
         // Along the bottom: what the wedge pointed at is or why it's greyed out, or else how the menu works.
         String tip = hot < 0 ? null : wedges.get(hot).off != null ? wedges.get(hot).off : wedges.get(hot).tip;
