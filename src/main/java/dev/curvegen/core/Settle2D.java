@@ -1,6 +1,8 @@
 package dev.curvegen.core;
 
+import java.util.Arrays;
 import java.util.BitSet;
+import java.util.function.BooleanSupplier;
 
 /**
  * A solved 2D shape with some of its blocks taken out after the solve, such as a pattern's holes, and every block
@@ -28,25 +30,25 @@ public final class Settle2D {
     /**
      * Empties the blocks in {@code gone}, numbered as the blocks are over {@code depth} layers, and settles the rest.
      * Returns null once {@code cancelled} reports true.
+     *
+     * <p>With few holes, the shape is settled whole first, without holes, from at most five layers, and then only
+     * the blocks near the holes are worked out again ({@link Solver3#settleNear}). With many, every block is. Upright, a block's state follows the blocks up to two
+     * layers in front and behind, so every layer two away from both faces settles as the middle layer of five does.
+     * Flat, a layer follows the one above it only through walls, which settle to the same states a few layers down;
+     * if they haven't by the bottom of five, the whole depth is settled.
      */
-    public static Settle2D of(Solver.Result r, int depth, BitSet gone, boolean fullConnects, java.util.function.BooleanSupplier cancelled) {
+    public static Settle2D of(Solver.Result r, int depth, BitSet gone, boolean fullConnects, BooleanSupplier cancelled) {
         int nx = r.nx(), ny = r.ny(), d = Math.max(1, depth), n = nx * ny;
         boolean floor = r.floor();
-        // Upright: x = i, y = j, z = k. Flat: x = i, y = k, z = ny - 1 - j.
-        int sy = floor ? d : ny, sz = floor ? ny : d;
-        short[] grid = new short[nx * sy * sz];
-        int[] counts = new int[Pieces3.COUNT];
-        for (int k = 0; k < d; k++)
-            for (int j = 0; j < ny; j++)
-                for (int i = 0; i < nx; i++) {
-                    int p = r.at(i, j);
-                    if (p == Pieces.EMPTY) continue;
-                    if (gone.get((k * ny + j) * nx + i)) continue;
-                    int s = state(p, floor);
-                    grid[cell(i, j, k, nx, ny, sz, floor)] = (short) s;
-                    counts[s]++;
-                }
-        Solver3.Result settled = Solver3.settle(new Solver3.Result(grid, nx, sy, sz, 0, 0, counts, null, 0), new BitSet(), fullConnects, cancelled);
+        int sz = floor ? ny : d;
+        BitSet cells = new BitSet(d * n);
+        for (int b = gone.nextSetBit(0); b >= 0 && b < d * n; b = gone.nextSetBit(b + 1))
+            cells.set(cell(b % nx, b % n / nx, b / n, nx, ny, sz, floor));
+        Solver3.Result settled;
+        if (Solver3.nearIsQuicker(cells.cardinality(), (long) d * n)) {
+            Solver3.Result whole = whole(r, d, fullConnects, cancelled);
+            settled = whole == null ? null : Solver3.settleNear(whole, cells, fullConnects, cancelled);
+        } else settled = Solver3.settleAll(layout(r, d), cells, fullConnects, cancelled);
         if (settled == null) return null;
         short[] states = new short[d * n];
         for (int k = 0; k < d; k++)
@@ -55,7 +57,58 @@ public final class Settle2D {
         return new Settle2D(r, states);
     }
 
-    private static int cell(int i, int j, int k, int nx, int ny, int sz, boolean floor) {
+    /** The layers of a shape before anything is taken out: a fence, pane or wall is its token. */
+    static Solver3.Result layout(Solver.Result r, int d) {
+        int nx = r.nx(), ny = r.ny();
+        boolean floor = r.floor();
+        // Upright: x = i, y = j, z = k. Flat: x = i, y = k, z = ny - 1 - j.
+        int sy = floor ? d : ny, sz = floor ? ny : d;
+        short[] grid = new short[nx * sy * sz];
+        int[] counts = new int[Pieces3.COUNT];
+        counts[Pieces3.AIR] = grid.length;
+        for (int k = 0; k < d; k++)
+            for (int j = 0; j < ny; j++)
+                for (int i = 0; i < nx; i++) {
+                    int p = r.at(i, j);
+                    if (p == Pieces.EMPTY) continue;
+                    int s = state(p, floor);
+                    grid[cell(i, j, k, nx, ny, sz, floor)] = (short) s;
+                    counts[s]++;
+                    counts[Pieces3.AIR]--;
+                }
+        return new Solver3.Result(grid, nx, sy, sz, 0, 0, counts, null, 0);
+    }
+
+    /** The shape {@code d} layers deep, settled with nothing taken out, or null if cancelled. */
+    static Solver3.Result whole(Solver.Result r, int d, boolean fullConnects, BooleanSupplier cancelled) {
+        int few = Math.min(d, FEW);
+        Solver3.Result s = Solver3.settleAll(layout(r, few), new BitSet(), fullConnects, cancelled);
+        if (s == null || few == d) return s;
+        int nx = r.nx(), ny = r.ny(), level = nx * s.nz();
+        short[] small = s.grid();
+        boolean floor = r.floor();
+        if (floor && !Arrays.equals(small, 0, level, small, level, 2 * level))
+            return Solver3.settleAll(layout(r, d), new BitSet(), fullConnects, cancelled);
+        short[] grid = new short[nx * (floor ? d * ny : ny * d)];
+        if (floor) {
+            // The layer with m layers above it is the small one's with as many, or its bottom one past that.
+            for (int k = 0; k < d; k++) System.arraycopy(small, Math.max(0, k - (d - few)) * level, grid, k * level, level);
+        } else {
+            for (int j = 0; j < ny; j++)
+                for (int k = 0; k < d; k++) {
+                    int from = k < 2 ? k : k >= d - 2 ? k - (d - few) : 2;
+                    System.arraycopy(small, (j * few + from) * nx, grid, (j * d + k) * nx, nx);
+                }
+        }
+        int[] counts = new int[Pieces3.COUNT];
+        for (short v : grid) counts[v]++;
+        return new Solver3.Result(grid, nx, floor ? d : ny, floor ? ny : d, 0, 0, counts, null, 0);
+    }
+
+    /** Layers settled to work out a deeper shape: two for each face and one for all the layers between. */
+    private static final int FEW = 5;
+
+    static int cell(int i, int j, int k, int nx, int ny, int sz, boolean floor) {
         return floor ? (k * sz + ny - 1 - j) * nx + i : (j * sz + k) * nx + i;
     }
 
@@ -103,6 +156,9 @@ public final class Settle2D {
             default -> throw new IllegalArgumentException(String.valueOf(p));
         };
     }
+
+    /** The settled 3D state of the block at column i, row j and layer k, as {@link Pieces3} has them. */
+    int state(int i, int j, int k) { return states[(k * r.ny() + j) * r.nx() + i]; }
 
     /** Whether there's a block at column i, row j and layer k. */
     public boolean filled(int i, int j, int k) { return states[(k * r.ny() + j) * r.nx() + i] != Pieces3.AIR; }

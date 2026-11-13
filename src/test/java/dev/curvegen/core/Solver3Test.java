@@ -363,7 +363,7 @@ class Solver3Test {
     void settlingWithNothingGoneChangesNothing() {
         for (ShapeSettings set : Shapes3Cases.pieceSets())
             for (Shape3 sh : List.of(Shapes3Cases.sheets(0.18), Shapes3Cases.posts(), Shapes3Cases.pyramid(true))) {
-                Solver3.Result r = Solver3.solve(sh, set, () -> false), same = Solver3.settle(r, new BitSet(), set.fullConnects, () -> false);
+                Solver3.Result r = Solver3.solve(sh, set, () -> false), same = Solver3.settleAll(r, new BitSet(), set.fullConnects, () -> false);
                 assertArrayEquals(r.grid(), same.grid());
                 assertArrayEquals(r.counts(), same.counts());
                 assertEquals(r.err(), same.err());
@@ -391,5 +391,47 @@ class Solver3Test {
         assertTrue(changed > 5, changed + " changed");
         assertEquals(r.counts()[AIR] + gone.cardinality(), h.counts()[AIR]);
         assertNull(Solver3.settle(r, gone, s.fullConnects, () -> true));
+    }
+
+    /**
+     * Settling works out only the cells near the emptied ones, which must give exactly what working out every cell
+     * gives: on every test shape and piece set, with holes scattered, in a lattice, at random and in most cells,
+     * and again on a shape that already has holes.
+     */
+    @Test
+    void settlingNearTheHolesMatchesSettlingEverything() {
+        List<Shapes3Cases.Holes> layouts = List.of(Shapes3Cases.SCATTERED, Shapes3Cases.LATTICE,
+                (x, y, z) -> Math.floorMod(x * 73856093 ^ y * 19349663 ^ z * 83492791, 7) == 0,
+                (x, y, z) -> Math.floorMod(x * 31 + y * 17 + z * 7, 5) != 0);
+        int changed = 0;
+        for (Shapes3Cases.Case c : Shapes3Cases.all()) {
+            Solver3.Result r = c.solve();
+            for (Shapes3Cases.Holes h : layouts) {
+                BitSet gone = Shapes3Cases.gone(r, h);
+                Solver3.Result near = Solver3.settleNear(r, gone, c.settings().fullConnects, () -> false),
+                        all = Solver3.settleAll(r, gone, c.settings().fullConnects, () -> false);
+                assertArrayEquals(all.grid(), near.grid(), c.name());
+                assertArrayEquals(all.counts(), near.counts(), c.name());
+                for (int p = 0; p < r.grid().length; p++) if (!gone.get(p) && near.grid()[p] != r.grid()[p]) { changed++; break; }
+            }
+        }
+        // The holes did reshape blocks beside them, so the cells near them were really worked out again.
+        assertTrue(changed > 100, changed + " settles changed a block");
+    }
+
+    /** Settling near holes atop tall walls, which reach all the way down, still gives up soon after it's cancelled. */
+    @Test
+    void settlingNearTheHolesStopsWhenCancelled() {
+        int nx = 64, ny = 256, nz = 64;
+        short[] tokens = new short[nx * ny * nz];
+        java.util.Arrays.fill(tokens, (short) WALL_POST);
+        int[] counts = new int[COUNT];
+        counts[WALL_POST] = tokens.length;
+        Solver3.Result r = Solver3.settleAll(new Solver3.Result(tokens, nx, ny, nz, 0, 0, counts, null, 0), new BitSet(), true, () -> false);
+        BitSet gone = new BitSet();
+        for (int c = 0; c < nx * nz; c += 16) gone.set((ny - 1) * nx * nz + c);
+        java.util.concurrent.atomic.AtomicInteger asked = new java.util.concurrent.atomic.AtomicInteger();
+        assertNull(Solver3.settleNear(r, gone, true, () -> asked.incrementAndGet() >= 3));
+        assertNotNull(Solver3.settleNear(r, gone, true, () -> false));
     }
 }

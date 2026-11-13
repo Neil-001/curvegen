@@ -687,6 +687,23 @@ public class CurveScreen extends ControlScreen {
         return rows;
     }
 
+    /** How many of the drawing's pieces a pattern's holes open in the front layer, which the picture shows. */
+    private int openPieces() {
+        Painted p = painted();
+        if (p == null || p.open() == 0 || result == null) return 0;
+        if (p == openFor) return openPieces;
+        int n = result.nx() * result.ny(), open = 0;
+        for (int c = 0; c < n; c++) {
+            if (result.grid()[c] != Pieces.EMPTY && p.at(c) == Painted.OPEN) open++;
+        }
+        openFor = p;
+        return openPieces = open;
+    }
+
+    /** The paint {@link #openPieces} last counted, and its count. */
+    private Painted openFor;
+    private int openPieces;
+
     /** A painted shape's rows for one piece type: one per block, with its item, the most used first. */
     private void paintedRows(List<CountRow> rows, Family f, Painted painted, PaintBlocks.Resolved resolved) {
         long[] counts = painted.counts()[f.ordinal()];
@@ -1463,11 +1480,13 @@ public class CurveScreen extends ControlScreen {
                 Solver3.Result r = solved3.result;
                 double pct = r.volume() > 0 ? r.err() / r.volume() * 100 : 0;
                 boolean busy = job3 != null || dirty;
-                line = tr("curvegen.screen.status_3d", solved3.blocks, r.nx(), r.ny(), r.nz(), String.format(java.util.Locale.ROOT, "%.1f", r.err()), String.format(java.util.Locale.ROOT, "%.1f", pct));
+                Repaint3.View view = painted3();
+                long blocks = solved3.blocks - (view == null ? 0 : view.done().painted().open());   // a pattern's holes left out
+                line = tr("curvegen.screen.status_3d", blocks, r.nx(), r.ny(), r.nz(), String.format(java.util.Locale.ROOT, "%.1f", r.err()), String.format(java.util.Locale.ROOT, "%.1f", pct));
                 if (busy) line = tr("curvegen.screen.status_updating", line);
                 // On a narrow screen the share alone says how close the blocks are.
                 if (tw(line) > x1 - x0 - 6) {
-                    line = tr("curvegen.screen.status_3d_short", solved3.blocks, r.nx(), r.ny(), r.nz(), String.format(java.util.Locale.ROOT, "%.1f", pct));
+                    line = tr("curvegen.screen.status_3d_short", blocks, r.nx(), r.ny(), r.nz(), String.format(java.util.Locale.ROOT, "%.1f", pct));
                     if (busy) line = tr("curvegen.screen.status_updating", line);
                 }
             }
@@ -1477,6 +1496,7 @@ public class CurveScreen extends ControlScreen {
         else {
             int total = 0;
             for (int p = 1; p < Pieces.COUNT; p++) total += result.counts()[p];
+            total -= openPieces();
             double pct = result.area() > 0 ? result.err() / result.area() * 100 : 0;
             line = tr("curvegen.screen.status_2d", total, result.nx(), result.ny(), String.format(java.util.Locale.ROOT, "%.2f", result.err()), String.format(java.util.Locale.ROOT, "%.1f", pct));
             if (result.floor()) line = tr("curvegen.screen.status_above", line);

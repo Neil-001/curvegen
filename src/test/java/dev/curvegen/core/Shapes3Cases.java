@@ -16,23 +16,27 @@ public final class Shapes3Cases {
 
         public Solver3.Result solve() {
             Solver3.Result r = Solver3.solve(shape, settings, () -> false);
-            if (holes == null) return r;
-            BitSet gone = new BitSet(r.grid().length);
-            for (int y = 0; y < r.ny(); y++)
-                for (int z = 0; z < r.nz(); z++)
-                    for (int x = 0; x < r.nx(); x++) if (holes.at(x, y, z)) gone.set((y * r.nz() + z) * r.nx() + x);
-            return Solver3.settle(r, gone, settings.fullConnects, () -> false);
+            return holes == null ? r : Solver3.settle(r, gone(r, holes), settings.fullConnects, () -> false);
         }
     }
 
     /** Blocks to empty after a solve. */
     public interface Holes { boolean at(int x, int y, int z); }
 
+    /** The cells of this grid that {@code holes} empties, indexed like the grid. */
+    public static BitSet gone(Solver3.Result r, Holes holes) {
+        BitSet gone = new BitSet(r.grid().length);
+        for (int y = 0; y < r.ny(); y++)
+            for (int z = 0; z < r.nz(); z++)
+                for (int x = 0; x < r.nx(); x++) if (holes.at(x, y, z)) gone.set((y * r.nz() + z) * r.nx() + x);
+        return gone;
+    }
+
     /** About one block in nine, scattered. */
-    private static final Holes SCATTERED = (x, y, z) -> (5 * x + 3 * y + 7 * z) % 9 == 0;
+    static final Holes SCATTERED = (x, y, z) -> (5 * x + 3 * y + 7 * z) % 9 == 0;
 
     /** A lattice's openings, 2 blocks across with bars 1 wide, run straight through the shape from front to back, as a pattern's holes do. */
-    private static final Holes LATTICE = (x, y, _) -> x % 3 != 0 && y % 3 != 0;
+    static final Holes LATTICE = (x, y, _) -> x % 3 != 0 && y % 3 != 0;
 
     /** A shape given only by its box and field, with none of the optional hints. */
     public interface Field { double at(double x, double y, double z); }

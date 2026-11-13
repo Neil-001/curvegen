@@ -86,6 +86,14 @@ class Paint3Timing {
      * A repaint with "Empty spots: Open" and the bundled lattice, whose openings are about four blocks in nine: the
      * holes come out, the blocks beside them settle, and the picture's faces are listed again. The settling and the
      * faces are what holes add.
+     *
+     * <p>Settling used to work out every cell of the grid; now it works out only the cells near a hole, unless holes
+     * are so many that the whole grid is quicker. On 13 November 2026, on a machine busy with other builds, the two
+     * run back to back gave these repaint and settle times (the earlier figures on a quiet machine in brackets):
+     * hollow ball 64 across 5.1 to 12.9 ms before, 3.9 to 4.4 ms after (4.9); 128 across 34 to 36 ms before, 14 to
+     * 17 ms after (19); 256 across 255 to 265 ms before, 71 to 107 ms after (147); the filled ball 128 across, half
+     * its blocks open, still settles every cell, about 96 ms both. Without holes, the hollow balls take 0.9, 1.7 and
+     * 21 ms on a quiet machine.
      */
     @Test
     @Disabled("prints timings; asserts nothing")
