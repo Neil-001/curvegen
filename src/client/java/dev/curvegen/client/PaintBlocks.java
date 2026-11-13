@@ -210,6 +210,17 @@ public final class PaintBlocks {
         return s;
     }
 
+    /**
+     * The side a drawing is seen from, given where its x and y point in the world: the one its turns are anticlockwise
+     * from. That is {@code right × up}: up for a flat shape, towards the viewer of an upright one.
+     */
+    public static Direction viewer(Direction right, Direction up) {
+        int x = right.getStepY() * up.getStepZ() - right.getStepZ() * up.getStepY();
+        int y = right.getStepZ() * up.getStepX() - right.getStepX() * up.getStepZ();
+        int z = right.getStepX() * up.getStepY() - right.getStepY() * up.getStepX();
+        return Direction.getNearest(x, y, z, Direction.UP);
+    }
+
     /** A direction turned by quarter turns anticlockwise as seen from {@code viewer}: each is {@code viewer × d}. */
     static Direction turn(Direction d, int quarters, Direction viewer) {
         for (int k = 0; k < quarters; k++) {

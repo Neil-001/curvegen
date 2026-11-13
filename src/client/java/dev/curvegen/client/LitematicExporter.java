@@ -45,7 +45,7 @@ public final class LitematicExporter {
         int sx = layout.width(), sy = floor ? d : layout.height(), sz = floor ? layout.height() : d;
         Region region = new Region(sx, sy, sz);
         Direction forward = floor ? Direction.NORTH : Direction.SOUTH;
-        PaintBlocks.Resolved paint = painted == null ? null : PaintBlocks.resolve(painted, floor ? Direction.UP : forward.getOpposite());
+        PaintBlocks.Resolved paint = painted == null ? null : PaintBlocks.resolve(painted, PaintBlocks.viewer(Direction.EAST, floor ? forward : Direction.UP));
         for (Layout.Cell c : layout.cells())
             for (int k = 0; k < d; k++) {
                 int entry = paint == null ? -1 : painted.at((painted.layers() == 1 ? 0 : k) * cells + c.cell());

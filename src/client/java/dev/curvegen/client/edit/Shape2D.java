@@ -104,7 +104,7 @@ final class Shape2D implements EditShape {
         List<BlockPos> carve = new ArrayList<>();
         boolean[] cv = r.target().carve;
         Painted painted = v.painted;
-        PaintBlocks.Resolved paint = painted == null ? null : PaintBlocks.resolve(painted, floor ? Direction.UP : forward.getOpposite());
+        PaintBlocks.Resolved paint = painted == null ? null : PaintBlocks.resolve(painted, PaintBlocks.viewer(right, floor ? forward : Direction.UP));
         int n = r.nx() * r.ny();
         for (int j = 0; j < r.ny(); j++)
             for (int i = 0; i < r.nx(); i++) {

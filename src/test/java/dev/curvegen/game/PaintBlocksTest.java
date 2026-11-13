@@ -54,4 +54,14 @@ class PaintBlocksTest {
         assertEquals(Direction.DOWN, PaintBlocks.turn(observer.setValue(BlockStateProperties.FACING, Direction.EAST), 1, Direction.NORTH)
                 .getValue(BlockStateProperties.FACING));
     }
+
+    @Test
+    void aDrawingIsSeenFromRightCrossUp() {
+        // The export's upright drawing runs x east and y up, so it is seen from the south; its flat one from above.
+        assertEquals(Direction.SOUTH, PaintBlocks.viewer(Direction.EAST, Direction.UP));
+        assertEquals(Direction.UP, PaintBlocks.viewer(Direction.EAST, Direction.NORTH));
+        // Turned a quarter with the pattern, an observer facing the drawing's right faces its up.
+        BlockState observer = Blocks.OBSERVER.defaultBlockState().setValue(BlockStateProperties.FACING, Direction.EAST);
+        assertEquals(Direction.UP, PaintBlocks.turn(observer, 1, PaintBlocks.viewer(Direction.EAST, Direction.UP)).getValue(BlockStateProperties.FACING));
+    }
 }
