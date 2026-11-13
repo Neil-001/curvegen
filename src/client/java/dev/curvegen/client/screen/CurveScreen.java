@@ -664,7 +664,7 @@ public class CurveScreen extends ControlScreen {
             for (int st : statesFor(f, floor)) merged.computeIfAbsent(Pieces.SHORT_NAME[st], _ -> new int[]{st, 0})[1] += result.counts()[st] * mult;
             long total = 0;
             for (int[] m : merged.values()) total += m[1];
-            if (painted != null) total = java.util.Arrays.stream(painted.counts()[f.ordinal()]).sum();   // a pattern's holes left out
+            if (painted != null && painted.open() > 0) total = java.util.Arrays.stream(painted.counts()[f.ordinal()]).sum();   // a pattern's holes left out
             boolean unused = floor && (f == Family.SLAB || f == Family.STAIRS);
             String blockName = BlockChoices.CHOICE.get(f).getName().getString();
             String n = String.valueOf(total);

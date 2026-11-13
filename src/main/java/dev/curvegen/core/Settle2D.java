@@ -20,14 +20,10 @@ public final class Settle2D {
     public static final int LEFT = 0, RIGHT = 2, FRONT = 4, BACK = 6, POST = 1 << 8;
 
     private final Solver.Result r;
-    private final int depth;
     /** The settled 3D state of each block, numbered like the blocks. */
     private final short[] states;
-    private final int gone;
 
-    private Settle2D(Solver.Result r, int depth, short[] states, int gone) {
-        this.r = r; this.depth = depth; this.states = states; this.gone = gone;
-    }
+    private Settle2D(Solver.Result r, short[] states) { this.r = r; this.states = states; }
 
     /**
      * Empties the blocks in {@code gone}, numbered as the blocks are over {@code depth} layers, and settles the rest.
@@ -40,13 +36,12 @@ public final class Settle2D {
         int sy = floor ? d : ny, sz = floor ? ny : d;
         short[] grid = new short[nx * sy * sz];
         int[] counts = new int[Pieces3.COUNT];
-        int emptied = 0;
         for (int k = 0; k < d; k++)
             for (int j = 0; j < ny; j++)
                 for (int i = 0; i < nx; i++) {
                     int p = r.at(i, j);
                     if (p == Pieces.EMPTY) continue;
-                    if (gone.get((k * ny + j) * nx + i)) { emptied++; continue; }
+                    if (gone.get((k * ny + j) * nx + i)) continue;
                     int s = state(p, floor);
                     grid[cell(i, j, k, nx, ny, sz, floor)] = (short) s;
                     counts[s]++;
@@ -57,7 +52,7 @@ public final class Settle2D {
         for (int k = 0; k < d; k++)
             for (int j = 0; j < ny; j++)
                 for (int i = 0; i < nx; i++) states[(k * ny + j) * nx + i] = settled.grid()[cell(i, j, k, nx, ny, sz, floor)];
-        return new Settle2D(r, d, states, emptied);
+        return new Settle2D(r, states);
     }
 
     private static int cell(int i, int j, int k, int nx, int ny, int sz, boolean floor) {
@@ -108,13 +103,6 @@ public final class Settle2D {
             default -> throw new IllegalArgumentException(String.valueOf(p));
         };
     }
-
-    public int nx() { return r.nx(); }
-    public int ny() { return r.ny(); }
-    public int depth() { return depth; }
-    public boolean floor() { return r.floor(); }
-    /** How many blocks were emptied, in every layer. */
-    public int gone() { return gone; }
 
     /** Whether there's a block at column i, row j and layer k. */
     public boolean filled(int i, int j, int k) { return states[(k * r.ny() + j) * r.nx() + i] != Pieces3.AIR; }
