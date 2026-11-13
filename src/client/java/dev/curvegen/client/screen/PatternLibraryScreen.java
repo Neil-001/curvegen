@@ -19,7 +19,6 @@ import dev.curvegen.core.paint.Pattern;
 import dev.curvegen.core.paint.PatternNames;
 import dev.curvegen.core.paint.Patterns;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -32,7 +31,6 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.Style;
 import net.minecraft.world.level.block.Block;
 
 /**
@@ -229,7 +227,8 @@ public class PatternLibraryScreen extends Screen {
             String n = saved != null ? saved.name() : tr("curvegen.patterns.unsaved", PatternStore.shownName(p));
             String size = p.width + "×" + p.height;
             int nameX = x0 + SWATCH + 9, right = icons || saved != null && saved.pinned ? iconX(0) - 4 : x1 - 5 - font.width(size) - 6;
-            if (font.width(n) > right - nameX) n = font.plainSubstrByWidth(n, right - nameX - font.width("…")) + "…";
+            String whole = null;   // the whole name, for the tooltip, when the row cuts it
+            if (font.width(n) > right - nameX) { whole = n; n = font.plainSubstrByWidth(n, right - nameX - font.width("…")) + "…"; }
             ctx.text(font, n, nameX, y + 7, 0xFFE4E9EF, false);
             int iy = y + (ROW - ICON) / 2;
             if (icons) {
@@ -247,7 +246,10 @@ public class PatternLibraryScreen extends Screen {
                 if (saved != null && saved.pinned) PresetsScreen.drawArt(ctx, PresetsScreen.PIN, iconX(0), iy, 0xFFFFC04D);
                 else ctx.text(font, size, x1 - 5 - font.width(size), y + 7, 0xFF9AA5B3, false);
             }
-            if (hov && tip == null) tip = saved == null ? tr("curvegen.patterns.unsaved_tip") : tip(p);
+            if (hov && tip == null) {
+                tip = saved == null ? tr("curvegen.patterns.unsaved_tip") : tip(p);
+                if (whole != null) tip = tip == null ? whole : whole + '\n' + '\n' + tip;
+            }
         }
         if (rows() > visible()) {
             int h = visible() * ROW, bar = Math.max(8, h * visible() / rows());
@@ -260,7 +262,11 @@ public class PatternLibraryScreen extends Screen {
         picture.draw(ctx, font, S.is3d(), px0, py0, px1, py1 - infoH);
         ctx.fill(px0, py1 - infoH, px1, py1, 0xB0000000);
         String info = PatternStore.shownName(target) + "  " + target.width + "×" + target.height;
-        ctx.text(font, font.plainSubstrByWidth(info, px1 - px0 - 12), px0 + 6, py1 - infoH + 3, 0xFFFFFFFF, false);
+        // A name too long for the caption is cut with "…", and hovering the caption gives it whole.
+        if (font.width(info) > px1 - px0 - 12) {
+            ctx.text(font, font.plainSubstrByWidth(info, px1 - px0 - 12 - font.width("…")) + "…", px0 + 6, py1 - infoH + 3, 0xFFFFFFFF, false);
+            if (tip == null && mx >= px0 && mx < px1 && my >= py1 - infoH && my < py1) tip = info;
+        } else ctx.text(font, info, px0 + 6, py1 - infoH + 3, 0xFFFFFFFF, false);
 
         // Between the bottom buttons: that pictures can be dropped here, or why the last one made nothing.
         int hx0 = captureButton.getRight() + 8, hx1 = cancelButton.getX() - 8, hy = cancelButton.getY();
@@ -269,22 +275,14 @@ public class PatternLibraryScreen extends Screen {
             String hint = dropProblem != null ? dropProblem : tr("curvegen.patterns.drop_hint");
             // One line, or two in the buttons' height when it's longer, the second cut with "…" if it still doesn't fit.
             int room = hx1 - hx0;
-            List<String> lines = new ArrayList<>();
-            font.getSplitter().splitLines(hint, room, Style.EMPTY).forEach(l -> lines.add(l.getString()));
-            boolean cut = lines.size() > 2;
-            if (cut) {
-                String rest = hint.substring(Math.min(hint.length(), lines.getFirst().length())).stripLeading();
-                lines.subList(1, lines.size()).clear();
-                lines.add(font.plainSubstrByWidth(rest, room - font.width("…")) + "…");
-            }
-            int colour = dropProblem != null ? 0xFFFF8098 : can ? 0xFF9AA5B3 : 0xFF5C6470, wide = 0;
-            for (int k = 0; k < lines.size(); k++) {
+            TwoLines two = TwoLines.of(font, hint, room);
+            List<String> lines = two.lines();
+            int colour = dropProblem != null ? 0xFFFF8098 : can ? 0xFF9AA5B3 : 0xFF5C6470;
+            for (int k = 0; k < lines.size(); k++)
                 ctx.text(font, lines.get(k), hx0, lines.size() == 1 ? hy + 6 : hy + 1 + 10 * k, colour, false);
-                wide = Math.max(wide, font.width(lines.get(k)));
-            }
-            if (mx >= hx0 && mx < hx0 + wide && my >= hy && my < hy + 20) {
+            if (mx >= hx0 && mx < hx0 + two.width(font) && my >= hy && my < hy + 20) {
                 tip = dropProblem != null ? dropProblemTip : tr(can ? "curvegen.patterns.drop_hint_tip" : "curvegen.patterns.drop_needs");
-                if (cut && dropProblem == null) tip = hint + '\n' + '\n' + tip;
+                if (two.cut() && dropProblem == null) tip = hint + '\n' + '\n' + tip;
             }
         }
         if (tip != null) ctx.setTooltipForNextFrame(font.split(Component.literal(tip), 200), mx, my);

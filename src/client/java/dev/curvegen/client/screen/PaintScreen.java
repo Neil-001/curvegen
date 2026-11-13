@@ -409,15 +409,15 @@ public class PaintScreen extends ControlScreen {
         String[] status = status();
         int sy = y(ROWS) + 3;
         // Up to two lines under the rows: the left side of the bottom is free, as Done sits on the right.
-        var lines = font.split(Component.literal(status[0]), pw);
-        int shown = Math.min(lines.size(), 2);
+        // A longer status ends its second line with "…", and its tooltip starts with the whole of it.
+        TwoLines two = TwoLines.of(font, status[0], pw);
+        int shown = two.lines().size(), bandW = two.width(font);
         // Light on a dark band, as the main screen's status line is, so it reads over a bright sky or snow too.
-        int bandW = 0;
-        for (int k = 0; k < shown; k++) bandW = Math.max(bandW, font.width(lines.get(k)));
         if (shown > 0 && bandW > 0) ctx.fill(M - 3, sy - 2, M + bandW + 3, sy + 10 * shown, 0xB0000000);
-        for (int k = 0; k < shown; k++) ctx.text(font, lines.get(k), M, sy + k * 10, 0xFFC8CED6, true);
-        if (status[1] != null && mx >= M && mx < M + pw && my >= sy - 2 && my < sy + 10 * shown)
-            ctx.setTooltipForNextFrame(font.split(Component.literal(status[1]), 240), mx, my);
+        for (int k = 0; k < shown; k++) ctx.text(font, two.lines().get(k), M, sy + k * 10, 0xFFC8CED6, true);
+        String statusTip = two.cut() ? status[1] == null ? status[0] : status[0] + '\n' + '\n' + status[1] : status[1];
+        if (statusTip != null && mx >= M && mx < M + pw && my >= sy - 2 && my < sy + 10 * shown)
+            ctx.setTooltipForNextFrame(font.split(Component.literal(statusTip), 240), mx, my);
 
         picture.draw(ctx, font, S.is3d(), pvX0(), TOP, width - M, pvY1());
     }
