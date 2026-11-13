@@ -740,7 +740,6 @@
   "curvegen.screen.reverses_which_way_scrolling_moves_a_handle_while_you": "Odwraca przewijanie podczas przeciągania uchwytu.",
   "curvegen.screen.key_bindings": "Przypisania klawiszy…",
   "curvegen.screen.reset_to_defaults": "Przywróć domyślne",
-  "curvegen.screen.preset_name": "Nazwa szablonu",
   "curvegen.screen.save": "Zapisz",
   "curvegen.screen.cancel": "Anuluj",
   "curvegen.screen.search": "Szukaj",

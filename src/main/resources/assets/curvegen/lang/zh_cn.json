@@ -740,7 +740,6 @@
   "curvegen.screen.reverses_which_way_scrolling_moves_a_handle_while_you": "拖动控制柄时反转滚轮方向。",
   "curvegen.screen.key_bindings": "按键绑定…",
   "curvegen.screen.reset_to_defaults": "恢复默认",
-  "curvegen.screen.preset_name": "预设名称",
   "curvegen.screen.save": "保存",
   "curvegen.screen.cancel": "取消",
   "curvegen.screen.search": "搜索",

@@ -740,7 +740,6 @@
   "curvegen.screen.reverses_which_way_scrolling_moves_a_handle_while_you": "Inverse le défilement pendant le déplacement d'une poignée.",
   "curvegen.screen.key_bindings": "Raccourcis clavier…",
   "curvegen.screen.reset_to_defaults": "Rétablir par défaut",
-  "curvegen.screen.preset_name": "Nom du préréglage",
   "curvegen.screen.save": "Enregistrer",
   "curvegen.screen.cancel": "Annuler",
   "curvegen.screen.search": "Rechercher",

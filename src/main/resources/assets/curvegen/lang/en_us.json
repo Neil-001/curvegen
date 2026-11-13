@@ -740,7 +740,6 @@
   "curvegen.screen.reverses_which_way_scrolling_moves_a_handle_while_you": "Reverses scrolling while dragging a handle.",
   "curvegen.screen.key_bindings": "Key bindings…",
   "curvegen.screen.reset_to_defaults": "Reset to defaults",
-  "curvegen.screen.preset_name": "Preset name",
   "curvegen.screen.save": "Save",
   "curvegen.screen.cancel": "Cancel",
   "curvegen.screen.search": "Search",

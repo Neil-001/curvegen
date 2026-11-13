@@ -740,7 +740,6 @@
   "curvegen.screen.reverses_which_way_scrolling_moves_a_handle_while_you": "손잡이를 끄는 동안 스크롤 방향을 반대로 바꿉니다.",
   "curvegen.screen.key_bindings": "키 설정…",
   "curvegen.screen.reset_to_defaults": "기본값으로 초기화",
-  "curvegen.screen.preset_name": "프리셋 이름",
   "curvegen.screen.save": "저장",
   "curvegen.screen.cancel": "취소",
   "curvegen.screen.search": "검색",

@@ -740,7 +740,6 @@
   "curvegen.screen.reverses_which_way_scrolling_moves_a_handle_while_you": "Invierte el desplazamiento al arrastrar un tirador.",
   "curvegen.screen.key_bindings": "Asignación de teclas…",
   "curvegen.screen.reset_to_defaults": "Restablecer valores",
-  "curvegen.screen.preset_name": "Nombre del preajuste",
   "curvegen.screen.save": "Guardar",
   "curvegen.screen.cancel": "Cancelar",
   "curvegen.screen.search": "Buscar",

@@ -740,7 +740,6 @@
   "curvegen.screen.reverses_which_way_scrolling_moves_a_handle_while_you": "Меняет направление прокрутки при перетаскивании маркера.",
   "curvegen.screen.key_bindings": "Назначение клавиш…",
   "curvegen.screen.reset_to_defaults": "Сбросить настройки",
-  "curvegen.screen.preset_name": "Название шаблона",
   "curvegen.screen.save": "Сохранить",
   "curvegen.screen.cancel": "Отмена",
   "curvegen.screen.search": "Поиск",

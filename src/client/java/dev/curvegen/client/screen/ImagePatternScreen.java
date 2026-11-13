@@ -47,7 +47,7 @@ class ImagePatternScreen extends ControlScreen {
     protected void init() {
         int x = x0() + 10, y = y0() + 24;
         String text = name != null ? name.getValue() : initialName;
-        name = new EditBox(font, x, y, W - 20, 20, Component.translatable("curvegen.screen.preset_name"));
+        name = new EditBox(font, x, y, W - 20, 20, Component.translatable("curvegen.image.title"));
         name.setMaxLength(80);
         name.setValue(text);
         name.setCursorPosition(0);
