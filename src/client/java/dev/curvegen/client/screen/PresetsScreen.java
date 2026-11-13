@@ -228,6 +228,9 @@ public class PresetsScreen extends Screen {
         hovered = hr >= 0 ? shown.get(hr) : null;
         previewButton.active = selected != null;
         loadButton.active = selected != null;
+        Tooltip selectionTip = selected == null ? Tooltip.create(Component.translatable("curvegen.screen.select_a_preset_first")) : null;
+        previewButton.setTooltip(selectionTip);
+        loadButton.setTooltip(selectionTip);
         boolean hasBlocks = selected != null && selected.blocks != null;
         blocksButton.active = hasBlocks;
         blocksButton.setValue(loadBlocks && (selected == null || hasBlocks));

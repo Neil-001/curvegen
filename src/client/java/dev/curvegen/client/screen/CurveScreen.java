@@ -173,7 +173,7 @@ public class CurveScreen extends ControlScreen {
         CycleButton<Boolean> mode = CycleButton.builder((Boolean v) -> Component.translatable(v ? "curvegen.screen.3d" : "curvegen.screen.2d"), mode3d)
                 .withValues(List.of(false, true)).displayOnlyValue()
                 .create(tx, 6, modeText + pad, 20, Component.translatable("curvegen.screen.shapes"), (_, v) -> setMode(v));
-        mode.setTooltip(Tooltip.create(Component.translatable("curvegen.screen.switches_the_tabs_between_flat_shapes_and_3d_shapes")));
+        mode.setTooltip(Tooltip.create(Component.translatable("curvegen.screen.switch_between_2d_and_3d_shapes")));
         reverse.put(mode, () -> setMode(!mode3d));
         addRenderableWidget(mode);
         tx += modeText + pad + 2;
@@ -182,7 +182,6 @@ public class CurveScreen extends ControlScreen {
             int w = tw(names[k]) + pad;
             Button b = Button.builder(Component.literal(names[k]), _ -> switchTab(t)).bounds(tx, 6, w, 20).build();
             b.active = tab != t;
-            if (t == Tab.COUNT) b.setTooltip(Tooltip.create(Component.translatable("curvegen.screen.how_many_of_each_block_and_orientation_the_shape")));
             addRenderableWidget(b);
             tx += w + 2;
         }
@@ -266,7 +265,9 @@ public class CurveScreen extends ControlScreen {
                 : Editor.isActive() ? tr("curvegen.screen.back_to_the_shape_in_the_world_with_the")
                 : tr("curvegen.screen.puts_the_shape_in_the_world_as_a_hologram"))));
         addRenderableWidget(place);
-        addRenderableWidget(Button.builder(Component.translatable("curvegen.screen.export"), _ -> export()).bounds(bx + aw + bgap, by, aw, 20).build());
+        Button export = Button.builder(Component.translatable("curvegen.screen.export"), _ -> export()).bounds(bx + aw + bgap, by, aw, 20).build();
+        export.setTooltip(Tooltip.create(Component.translatable("curvegen.screen.export_litematica")));
+        addRenderableWidget(export);
         addRenderableWidget(Button.builder(Component.translatable("curvegen.screen.done"), _ -> onClose()).bounds(bx + 2 * (aw + bgap), by, aw, 20).build());
     }
 
@@ -277,11 +278,9 @@ public class CurveScreen extends ControlScreen {
     private void presetButtons() {
         int y = presetRowY(), w = (PANEL_W - 4) / 2;
         Button save = Button.builder(Component.translatable("curvegen.screen.save_preset"), _ -> savePreset()).bounds(M, y, w, 20).build();
-        save.setTooltip(Tooltip.create(Component.translatable("curvegen.screen.save_this_tab_s_shape_settings_under_a_name")));
         addRenderableWidget(save);
         Button load = Button.builder(Component.translatable("curvegen.screen.load_preset"),
                 _ -> minecraft.gui.setScreen(new PresetsScreen(this, S.gen, this::loadPreset))).bounds(M + w + 4, y, w, 20).build();
-        load.setTooltip(Tooltip.create(Component.translatable("curvegen.screen.browse_preview_and_load_saved_shapes")));
         addRenderableWidget(load);
     }
 
@@ -340,9 +339,9 @@ public class CurveScreen extends ControlScreen {
     }
 
     private void initEllipse() {
-        spin(M, row(0), 64, 20, String.valueOf(S.eW), v -> { S.eW = clampInt(v, 1, 400, S.eW); dirty = true; }, () -> S.eW, 1, 1, 400, () -> true, true);
+        named(spin(M, row(0), 64, 20, String.valueOf(S.eW), v -> { S.eW = clampInt(v, 1, 400, S.eW); dirty = true; }, () -> S.eW, 1, 1, 400, () -> true, true), "curvegen.screen.width");
         labels.add(new Label(M + 71, row(0) + 6, "×"));
-        spin(M + 86, row(0), 64, 20, String.valueOf(S.eH), v -> { S.eH = clampInt(v, 1, 400, S.eH); dirty = true; }, () -> S.eH, 1, 1, 400, () -> true, true);
+        named(spin(M + 86, row(0), 64, 20, String.valueOf(S.eH), v -> { S.eH = clampInt(v, 1, 400, S.eH); dirty = true; }, () -> S.eH, 1, 1, 400, () -> true, true), "curvegen.screen.height");
         addRenderableWidget(cycler(List.of(EllipseMode.values()), S.eMode, m -> Component.literal(switch (m) {
                     case THIN -> tr("curvegen.screen.thin"); case FILLED -> tr("curvegen.screen.filled"); case OUTWARDS -> tr("curvegen.screen.thick_outwards");
                     case INWARDS -> tr("curvegen.screen.thick_inwards"); case MIDDLE -> tr("curvegen.screen.thick_middle"); }),
@@ -352,6 +351,7 @@ public class CurveScreen extends ControlScreen {
         EditBox t = spin(M + 60, row(2), PANEL_W - 60, 20, fmt(S.eT), v -> { S.eT = clampNum(v, 0.0625, 50, S.eT); dirty = true; },
                 () -> S.eT, 0.25, 0.0625, 50, () -> thick, false);
         t.setEditable(thick);
+        t.setTooltip(thick ? null : Tooltip.create(Component.translatable("curvegen.screen.only_the_thick_shapes_have_a_thickness")));
         hint = switch (S.eMode) {
             case THIN -> tr("curvegen.screen.a_hollow_shell_the_outer_surface_follows_the_ellipse");
             case FILLED -> tr("curvegen.screen.everything_inside_the_ellipse");
@@ -367,6 +367,7 @@ public class CurveScreen extends ControlScreen {
         eq.setMaxLength(256);
         eq.setValue(S.src);
         eq.setResponder(v -> { S.src = v; dirty = true; updateEquationControls(); });
+        named(eq, "curvegen.screen.equation_2d_tooltip");
         addRenderableWidget(eq);
         labels.add(new Label(M, row(1) + 6, "x"));
         addRenderableWidget(text(M + 10, row(1), 62, S.xmin, v -> { S.xmin = v; dirty = true; }));
@@ -377,12 +378,12 @@ public class CurveScreen extends ControlScreen {
         labels.add(new Label(M + 76, row(2) + 6, tr("curvegen.screen.to")));
         addRenderableWidget(text(M + 90, row(2), 60, S.ymax, v -> { S.ymax = v; dirty = true; }));
         labels.add(new Label(M, row(3) + 6, tr("curvegen.screen.w")));
-        spin(M + 10, row(3), 62, 20, String.valueOf(S.qW), v -> { S.qW = clampInt(v, 1, 400, S.qW); dirty = true; }, () -> S.qW, 1, 1, 400, () -> true, true);
+        named(spin(M + 10, row(3), 62, 20, String.valueOf(S.qW), v -> { S.qW = clampInt(v, 1, 400, S.qW); dirty = true; }, () -> S.qW, 1, 1, 400, () -> true, true), "curvegen.screen.width");
         labels.add(new Label(M + 76, row(3) + 6, tr("curvegen.screen.h")));
         qHField = spin(M + 90, row(3), 60, 20, String.valueOf(S.qH), v -> { if (!S.qLock) { S.qH = clampInt(v, 1, 400, S.qH); dirty = true; } },
                 () -> S.qH, 1, 1, 400, () -> !S.qLock, true);
         qHField.setEditable(!S.qLock);
-        addRenderableWidget(toggle(S.qLock, M, row(4), PANEL_W, tr("curvegen.screen.same_scale"), v -> { S.qLock = v; qHField.setEditable(!v); dirty = true; }));
+        addRenderableWidget(toggle(S.qLock, M, row(4), PANEL_W, tr("curvegen.screen.same_scale"), v -> { S.qLock = v; qHField.setEditable(!v); dirty = true; updateEquationControls(); }));
         eqShape = cycler(List.of(EqMode.values()), S.qMode, m -> Component.literal(switch (m) {
                     case LINE -> tr("curvegen.screen.line"); case UNDER -> tr("curvegen.screen.fill_under"); case OVER -> tr("curvegen.screen.fill_over"); }),
                 M, row(5), PANEL_W, tr("curvegen.screen.shape"), v -> { S.qMode = v; dirty = true; updateEquationControls(); });
@@ -394,6 +395,9 @@ public class CurveScreen extends ControlScreen {
     }
 
 
+    /** Gives a field with no visible label of its own a short name as its tooltip. */
+    private static void named(EditBox f, String key) { f.setTooltip(Tooltip.create(Component.translatable(key))); }
+
     private static boolean isInequality(String src) { return dev.curvegen.core.edit.Edit2D.isInequality(src); }
 
     /** An inequality decides the filled side itself, so the Shape choice (and line width) don't apply. */
@@ -402,7 +406,12 @@ public class CurveScreen extends ControlScreen {
         boolean ineq = isInequality(S.src);
         eqShape.active = !ineq;
         eqShape.setTooltip(ineq ? Tooltip.create(Component.translatable("curvegen.screen.your_inequality_sets_the_shape_use_to_choose_it")) : null);
-        if (qLWField != null) qLWField.setEditable(!ineq && S.qMode == EqMode.LINE);
+        named(qHField, S.qLock ? "curvegen.screen.same_scale_works_this_out_from_the_width_and" : "curvegen.screen.height");
+        if (qLWField != null) {
+            boolean line = !ineq && S.qMode == EqMode.LINE;
+            qLWField.setEditable(line);
+            qLWField.setTooltip(line ? null : Tooltip.create(Component.translatable("curvegen.screen.filled_shapes_don_t_use_a_line_width")));
+        }
     }
 
     /** A filled Bézier shape ignores line width. */
@@ -413,9 +422,9 @@ public class CurveScreen extends ControlScreen {
     }
 
     private void initBezier() {
-        spin(M, row(0), 64, 20, String.valueOf(S.bW), v -> { S.bW = clampInt(v, 1, 400, S.bW); dirty = true; autoFit = true; }, () -> S.bW, 1, 1, 400, () -> true, true);
+        named(spin(M, row(0), 64, 20, String.valueOf(S.bW), v -> { S.bW = clampInt(v, 1, 400, S.bW); dirty = true; autoFit = true; }, () -> S.bW, 1, 1, 400, () -> true, true), "curvegen.screen.width");
         labels.add(new Label(M + 71, row(0) + 6, "×"));
-        spin(M + 86, row(0), 64, 20, String.valueOf(S.bH), v -> { S.bH = clampInt(v, 1, 400, S.bH); dirty = true; autoFit = true; }, () -> S.bH, 1, 1, 400, () -> true, true);
+        named(spin(M + 86, row(0), 64, 20, String.valueOf(S.bH), v -> { S.bH = clampInt(v, 1, 400, S.bH); dirty = true; autoFit = true; }, () -> S.bH, 1, 1, 400, () -> true, true), "curvegen.screen.height");
         addRenderableWidget(cycler(List.of(BzMode.values()), S.bMode, m -> Component.literal(m == BzMode.LINE ? tr("curvegen.screen.line") : tr("curvegen.screen.filled")),
                 M, row(1), PANEL_W, tr("curvegen.screen.shape"), v -> { S.bMode = v; dirty = true; updateBezierControls(); }));
         labels.add(new Label(M, row(2) + 6, tr("curvegen.screen.line_width")));
@@ -430,11 +439,13 @@ public class CurveScreen extends ControlScreen {
             dirty = true; rebuildWidgets();
         }).bounds(M, row(4), 73, 20).build();
         add.active = S.pts.size() < 10;
+        add.setTooltip(add.active ? null : Tooltip.create(Component.translatable("curvegen.screen.a_curve_can_have_s_points_at_most", 10)));
         Button rem = Button.builder(Component.translatable("curvegen.screen.remove"), _ -> {
             S.pts.remove(S.pts.size() - 2 >= 1 ? S.pts.size() - 2 : S.pts.size() - 1);
             dirty = true; rebuildWidgets();
         }).bounds(M + 77, row(4), 73, 20).build();
         rem.active = S.pts.size() > 2;
+        rem.setTooltip(rem.active ? null : Tooltip.create(Component.translatable("curvegen.screen.curve_minimum_points_tooltip")));
         addRenderableWidget(add);
         addRenderableWidget(rem);
         hint = tr("curvegen.screen.drag_the_numbered_handles_in_the_preview");
@@ -458,7 +469,7 @@ public class CurveScreen extends ControlScreen {
                 if (S.pts.size() > 2) { S.pts.remove(idx); dirty = true; rebuildWidgets(); }
             }).bounds(M + 132, y, 18, 16).build();
             x.active = n > 2;
-            x.setTooltip(Tooltip.create(Component.literal(n > 2 ? tr("curvegen.screen.remove_point_s", k + 1) : tr("curvegen.screen.a_curve_needs_at_least_two_points"))));
+            x.setTooltip(Tooltip.create(Component.literal(n > 2 ? tr("curvegen.screen.remove_point_s", k + 1) : tr("curvegen.screen.curve_minimum_points_tooltip"))));
             addRenderableWidget(x);
             for (int axis = 0; axis < 2; axis++) {
                 EditBox f = axis == 0 ? fx : fy;
@@ -987,7 +998,7 @@ public class CurveScreen extends ControlScreen {
                 if (pts.size() > 2 && idx < pts.size()) { pts.remove(idx); dirty = true; rebuildWidgets(); }
             }).bounds(M + 133, y, 17, 16).build();
             x.active = n > 2;
-            x.setTooltip(Tooltip.create(Component.literal(n > 2 ? tr("curvegen.screen.remove_point_s", k + 1) : tr("curvegen.screen.a_curve_needs_at_least_two_points"))));
+            x.setTooltip(Tooltip.create(Component.literal(n > 2 ? tr("curvegen.screen.remove_point_s", k + 1) : tr("curvegen.screen.curve_minimum_points_tooltip"))));
             addRenderableWidget(x);
         }
     }

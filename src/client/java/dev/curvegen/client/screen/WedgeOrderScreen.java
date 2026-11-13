@@ -44,7 +44,7 @@ public class WedgeOrderScreen extends ControlScreen {
             store();
         }).bounds(end - doneW - 4 - resetW, by, resetW, 20).build();
         reset.active = custom;
-        reset.setTooltip(Tooltip.create(Component.translatable(custom ? "curvegen.screen.put_every_wedge_back_where_it_started" : "curvegen.screen.the_wedges_are_already_in_their_default_order")));
+        reset.setTooltip(custom ? null : Tooltip.create(Component.translatable("curvegen.screen.the_wedges_are_already_in_their_default_order")));
         addRenderableWidget(reset);
         addRenderableWidget(Button.builder(Component.translatable("curvegen.screen.done"), _ -> onClose()).bounds(end - doneW, by, doneW, 20).build());
     }
