@@ -56,8 +56,10 @@ public final class Tiling {
             // As the pattern would lie, from (u, v) to pattern cells, and the loop across, (r w, t h) in pattern cells, rounded.
             double c = Math.cos(theta), sn = Math.sin(theta);
             a00 = c / u; a10 = -sn / v;
-            long r = Math.round(A * sn / (u * w)), t = Math.round(A * c / (v * h));
-            if (r == 0 && t == 0) t = 1;
+            double ir = A * sn / (u * w), it = A * c / (v * h);
+            long r = Math.round(ir), t = Math.round(it);
+            // A loop shorter than a repeat still goes once round the pattern, the way nearest the one it would go.
+            if (r == 0 && t == 0) { if (Math.abs(ir) > Math.abs(it)) r = ir < 0 ? -1 : 1; else t = it < 0 ? -1 : 1; }
             if (strip.closed()) {
                 // Round a strip closed both ways the loop along is (p w, q h) too.
                 long p = Math.round(L * c / (u * w)), q = Math.round(-L * sn / (v * h));
@@ -67,8 +69,15 @@ public final class Tiling {
                 a00 = (double) p * w / L; a10 = (double) q * h / L;
             }
             a01 = (double) r * w / A; a11 = (double) t * h / A;
-            // A loop across that lands along the pattern's own way along would squash it flat: then it goes square to that.
-            if (Math.abs(a00 * a11 - a01 * a10) < 1e-9 * (Math.abs(a00 * a11) + Math.abs(a01 * a10) + 1e-12)) { a01 = 0; a11 = h / A; }
+            // A loop across that lands along the pattern's own way along, or mirrors it, would squash or flip it: then it
+            // goes once round the pattern whichever way lies most square to the way along without mirroring it.
+            if (!(a00 * a11 - a01 * a10 > 1e-9 * (Math.abs(a00 * a11) + Math.abs(a01 * a10) + 1e-12))) {
+                double best = 0;
+                for (int[] d : new int[][]{{1, 0}, {-1, 0}, {0, 1}, {0, -1}}) {
+                    double b01 = (double) d[0] * w / A, b11 = (double) d[1] * h / A, det = a00 * b11 - b01 * a10;
+                    if (det > best) { best = det; a01 = b01; a11 = b11; }
+                }
+            }
             theta = Math.atan2(a01, a00);
         } else if (strip.closed() && fit != Fit.STRETCH) {
             // The loop, (L, 0), seen in pattern cells must be a whole number of repeats each way: (p w, q h).

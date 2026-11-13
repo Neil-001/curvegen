@@ -162,4 +162,23 @@ class TilingTest {
                 assertEquals(8, seen.size(), "every cell still shows at " + turn + "°, " + fit);
             }
     }
+
+    /** Round a tube thinner than one repeat, a turned pattern still shows every cell and meets itself round the tube. */
+    @Test
+    void aThinTubeKeepsATurnedPatternWhole() {
+        Paint p = paint();
+        p.size = 8;
+        for (int turn = 0; turn < 360; turn += 5) {
+            p.turn = turn;
+            double L = 40, A = 2 * Math.PI;
+            Tiling t = new Tiling(P, p, Fit.REPEAT, new Strip(L, A, false, true));
+            java.util.Set<Integer> seen = new java.util.HashSet<>();
+            for (double v = 0.0371; v < A; v += 0.0791)
+                for (double u = 0.3119; u < L; u += 0.5137) {
+                    assertEquals(at(t, u, v), at(t, u, v + A), "across at " + u + ", " + v + ", " + turn + "°");
+                    seen.add(at(t, u, v));
+                }
+            assertTrue(seen.size() >= 4, seen.size() + " cells at " + turn + "°");
+        }
+    }
 }
