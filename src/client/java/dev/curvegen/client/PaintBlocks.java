@@ -1,5 +1,6 @@
 package dev.curvegen.client;
 
+import dev.curvegen.client.chroma.Chroma;
 import dev.curvegen.core.Pieces.Family;
 import dev.curvegen.core.Pieces;
 import dev.curvegen.core.Pieces3;
@@ -35,7 +36,8 @@ import net.minecraft.world.level.block.state.properties.Property;
 
 /**
  * The game's side of painting: the {@link Catalog} a repaint works from, and turning a {@link Painted} shape's block
- * names back into blocks and states. Materials come from the game's own block families, and for blocks those leave
+ * names back into blocks and states. Colours are matched by Chroma Studio's matcher when a new enough one is
+ * installed ({@link Chroma#matcher}), and otherwise as "Match a colour…" always has. Materials come from the game's own block families, and for blocks those leave
  * out, such as a mod's, from their ids ({@link MaterialNames}).
  */
 public final class PaintBlocks {
@@ -161,7 +163,18 @@ public final class PaintBlocks {
         }
         Map<Family, String> choice = new EnumMap<>(Family.class);
         for (var e : base.entrySet()) choice.put(e.getKey(), id(e.getValue()));
-        return new Catalog(allowed, colours, material, variants, noConnect, wooden, choice, Catalog.lab(colours));
+        return new Catalog(allowed, colours, material, variants, noConnect, wooden, choice, Chroma.matcher(top, allowed, Catalog.lab(colours)));
+    }
+
+    /** Each piece type's blocks by id, as the Blocks tab's picker offers them. */
+    public static Map<Family, List<String>> allowedIds() {
+        Map<Family, List<String>> allowed = new EnumMap<>(Family.class);
+        for (Family f : BlockChoices.FAMILIES) {
+            List<String> ids = new ArrayList<>();
+            for (Block b : BlockChoices.candidates(f)) ids.add(id(b));
+            allowed.put(f, ids);
+        }
+        return allowed;
     }
 
     /**

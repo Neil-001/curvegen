@@ -2,6 +2,7 @@ package dev.curvegen.client;
 
 import static dev.curvegen.client.Lang.tr;
 
+import dev.curvegen.client.chroma.Chroma;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
@@ -40,6 +41,11 @@ public final class PaintStore {
         Paint p = CurveGenClient.SETTINGS.paint;
         Map<String, String> d = readFile(file("paint.json"));
         if (d != null) p.apply(d);
+        // A gradient needs Chroma Studio. Without it the gradient is kept, for when it's back, but nothing is painted.
+        if (p.source == Paint.Source.GRADIENT && !Chroma.available()) {
+            p.source = Paint.Source.OFF;
+            noGradient = true;
+        }
         saved = p.copy();
     }
 
@@ -87,8 +93,18 @@ public final class PaintStore {
         return GSON.toJson(o);
     }
 
-    /** Call every client tick. Saves a second after the settings last changed, so a scroll through values writes once. */
+    /** Whether loading turned a gradient's paint off, for want of Chroma Studio, and the player hasn't been told yet. */
+    private static boolean noGradient;
+
+    /**
+     * Call every client tick. Saves a second after the settings last changed, so a scroll through values writes once.
+     * Once the player is in a world, says why paint saved with a gradient came back off.
+     */
     public static void tick() {
+        if (noGradient && net.minecraft.client.Minecraft.getInstance().player != null) {
+            noGradient = false;
+            Placement.say(net.minecraft.network.chat.Component.literal(tr("curvegen.paint.preset_no_gradient")));
+        }
         if (saved == null) return;
         if (savedBlocks == null) loadBlocks();
         Paint now = CurveGenClient.SETTINGS.paint;

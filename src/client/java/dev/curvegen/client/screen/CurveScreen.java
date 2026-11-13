@@ -3,6 +3,7 @@ package dev.curvegen.client.screen;
 import static dev.curvegen.client.Lang.tr;
 
 import com.mojang.blaze3d.platform.InputConstants;
+import dev.curvegen.client.chroma.Chroma;
 import dev.curvegen.client.BlockChoices;
 import dev.curvegen.client.CurveGenClient;
 import dev.curvegen.client.Lang;
@@ -327,14 +328,15 @@ public class CurveScreen extends ControlScreen {
         ShapeSettings.Gen g = p.gen();
         if (g == null) return;
         PresetData.apply(p.data, g, S);
-        if (withBlocks && p.blocks != null) { p.applyBlocks(S, BlockChoices.CHOICE); textureDirty = true; }
+        boolean noGradient = false;
+        if (withBlocks && p.blocks != null) { noGradient = p.applyBlocks(S, BlockChoices.CHOICE); textureDirty = true; }
         tab = tabFor(g);
         mode3d = S.is3d();
         remember();
         pointScroll = 0;
         dirty = true; autoFit = true; fit3 = true;
         rebuildWidgets();
-        flash(tr("curvegen.screen.loaded_preset_s", p.name));
+        flash(noGradient ? tr("curvegen.paint.preset_no_gradient") : tr("curvegen.screen.loaded_preset_s", p.name));
     }
 
     private void switchTab(Tab t) {
@@ -1381,20 +1383,23 @@ public class CurveScreen extends ControlScreen {
     private void repaint() {
         if (paintJob != null && paintJob.isDone()) {
             try { painted = paintJob.get(); } catch (Exception e) { painted = null; flash(tr("curvegen.screen.couldn_t_build_this_shape_s", e.getMessage())); }
-            paintedResult = paintingResult; paintedFor = paintingFor;
+            paintedResult = paintingResult; paintedFor = paintingFor; paintedMatcher = paintingMatcher;
             paintJob = null;
             textureDirty = true; countRows = null;
         }
         if (paintJob != null || job != null || result == null || mode3d) return;
-        if (paintedResult == result && paintedFor != null && paintedFor.same(S.paint)) return;
+        if (paintedResult == result && paintedFor != null && paintedFor.same(S.paint) && (!S.paint.on() || paintedMatcher == Chroma.matcherVersion())) return;
         Paint paint = S.paint.copy();
         Solver.Result r = result;
         int depth = S.depth;
         boolean connects = resultConnects;
         Catalog catalog = paint.on() ? PaintBlocks.catalog(S) : null;
-        paintingResult = r; paintingFor = paint;
+        paintingResult = r; paintingFor = paint; paintingMatcher = Chroma.matcherVersion();
         paintJob = EXEC.submit(() -> Painter2D.paint(r, depth, paint, connects, catalog));
     }
+
+    /** {@link Chroma#matcherVersion} for the 2D paint on show and the paint under way: when it moves on, the shape is painted again. */
+    private int paintedMatcher, paintingMatcher;
 
     /** The paint for the result on show, or null when it's unpainted or its paint isn't ready. */
     Painted painted() { return paintedResult == result && paintedFor != null && paintedFor.same(S.paint) ? painted : null; }

@@ -26,6 +26,9 @@ public interface ClientPlatform {
 
     Path configDir();
 
+    /** Whether the mod with this id is loaded. */
+    boolean isModLoaded(String id);
+
     Path gameDir();
 
     /**

@@ -1,6 +1,7 @@
 package dev.curvegen.client;
 
 import com.mojang.blaze3d.platform.InputConstants;
+import dev.curvegen.client.chroma.Chroma;
 import dev.curvegen.client.edit.Capture;
 import dev.curvegen.client.edit.Editor;
 import dev.curvegen.client.edit.StepHold;
@@ -56,6 +57,7 @@ public final class CurveGenClient {
     public static List<KeyMapping> init(ClientPlatform loader) {
         platform = loader;
         ModSettings.load();
+        Chroma.init();
         PaintStore.load();
         OPEN = key("open", InputConstants.KEY_G);
         RADIAL = key("radial", InputConstants.KEY_V);

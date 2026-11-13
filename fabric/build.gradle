@@ -9,6 +9,18 @@ repositories {
 		url = 'https://maven.terraformersmc.com/releases/'
 		content { includeGroup 'com.terraformersmc' }
 	}
+	// Chroma Studio's releases are GitHub release files, read as an Ivy repository.
+	exclusiveContent {
+		forRepository {
+			ivy {
+				name = 'Chroma Studio releases'
+				url = 'https://github.com/Neil-001/chroma-studio/releases/download/'
+				patternLayout { artifact '[revision]+mc26.3/[module]-[revision].[ext]' }
+				metadataSources { artifact() }
+			}
+		}
+		filter { includeGroup 'dev.chromastudio' }
+	}
 }
 
 loom {
@@ -48,6 +60,10 @@ dependencies {
 	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 	// Mod Menu is optional: only its entrypoint class refers to it, and only Mod Menu loads that class.
 	compileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
+	// Chroma Studio is optional too: only dev.curvegen.client.chroma.ChromaBridge refers to it, and only once it is loaded.
+	compileOnly "dev.chromastudio:chromastudio-fabric:${project.chromastudio_version}"
+	// -PwithChroma runs the dev client with it.
+	if (project.hasProperty('withChroma')) localRuntime "dev.chromastudio:chromastudio-fabric:${project.chromastudio_version}"
 
 	// Tests cover the pure-Java core (dev.curvegen.core) and the settings file. GameRules3Test also loads Minecraft's blocks, without a world or client.
 	testImplementation "org.junit.jupiter:junit-jupiter:5.10.3"

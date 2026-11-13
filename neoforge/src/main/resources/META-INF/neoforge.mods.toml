@@ -28,3 +28,12 @@ type = "required"
 versionRange = "[26.3]"
 ordering = "NONE"
 side = "BOTH"
+
+# Optional: with 1.2 or newer, painting gains its gradients, palettes and colour matching. Any version may be
+# installed, because an older one only counts as missing.
+[[dependencies.curvegen]]
+modId = "chromastudio"
+type = "optional"
+versionRange = "[0,)"
+ordering = "NONE"
+side = "CLIENT"

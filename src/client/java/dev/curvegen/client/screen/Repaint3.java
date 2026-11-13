@@ -1,5 +1,6 @@
 package dev.curvegen.client.screen;
 
+import dev.curvegen.client.chroma.Chroma;
 import dev.curvegen.client.BlockChoices;
 import dev.curvegen.client.PaintBlocks;
 import dev.curvegen.core.Mesh3;
@@ -41,7 +42,7 @@ final class Repaint3 {
         if (job != null && job.isDone()) {
             View v = null;
             try { v = job.get(); } catch (Exception _) { }
-            shown = v; shownSolve = jobSolve; shownPaint = jobPaint; shownChoices = jobChoices; shownTop = jobTop;
+            shown = v; shownSolve = jobSolve; shownPaint = jobPaint; shownChoices = jobChoices; shownTop = jobTop; shownMatcher = jobMatcher;
             job = null;
             done = true;
         }
@@ -50,6 +51,7 @@ final class Repaint3 {
             Catalog catalog = paint.on() ? PaintBlocks.catalog(s) : null;
             int[] byFamily = Preview3.palette(PreviewTexture.Colors.BLOCKS, BlockChoices.CHOICE, s.topColours);
             jobSolve = solve; jobPaint = paint; jobChoices = new EnumMap<>(BlockChoices.CHOICE); jobTop = s.topColours;
+            jobMatcher = Chroma.matcherVersion();
             job = CurveScreen.EXEC.submit(() -> paint(solve, paint, fullConnects, catalog, byFamily));
         }
         return done;
@@ -80,8 +82,12 @@ final class Repaint3 {
     /** Whether the last repaint finished, or failed, for {@code solve} as the settings stand. Paint that is off is all alike. */
     private boolean upToDate(Solve3Painter solve, ShapeSettings s) {
         return solve != null && shownSolve == solve && shownPaint != null && (shownPaint.same(s.paint) || !shownPaint.on() && !s.paint.on())
-                && BlockChoices.CHOICE.equals(shownChoices) && shownTop == s.topColours;
+                && BlockChoices.CHOICE.equals(shownChoices) && shownTop == s.topColours
+                && (!s.paint.on() || shownMatcher == Chroma.matcherVersion());
     }
+
+    /** {@link Chroma#matcherVersion} for the repaint on show and the one under way: when it moves on, the shape is painted again. */
+    private int shownMatcher, jobMatcher;
 
     /** The paint settings the last finished repaint was for, or null before the first. */
     Paint shownPaint() { return shownPaint; }

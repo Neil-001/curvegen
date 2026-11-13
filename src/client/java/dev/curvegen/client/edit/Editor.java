@@ -3,6 +3,7 @@ package dev.curvegen.client.edit;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
+import dev.curvegen.client.chroma.Chroma;
 import dev.curvegen.client.Lang;
 import dev.curvegen.client.BlockChoices;
 import dev.curvegen.client.CurveGenClient;
@@ -119,6 +120,8 @@ public final class Editor {
      * solving it again, and the hologram keeps its old blocks until the new ones are ready.
      */
     private static Paint shownPaint;
+    /** {@link Chroma#matcherVersion} when the blocks on show and the solve under way were painted: when it moves on, they're painted again. */
+    private static int shownMatcher, jobMatcher;
     private static Future<Object> paintJob;
     private static Hologram hologram;
     /** The block limit the hologram was built with, so a change in the settings screen rebuilds it. */
@@ -844,6 +847,7 @@ public final class Editor {
                 lastSolveMillis = System.currentTimeMillis() - jobStarted;
                 shown = jobSettings;
                 shownPaint = jobSettings.paint.copy();
+                shownMatcher = jobMatcher;
                 droppingSince = 0;
                 // The solve may have settled a size the settings left open, such as an equation's locked height.
                 Box fitted = box.refit(worldSize());
@@ -871,6 +875,7 @@ public final class Editor {
             jobStarted = System.currentTimeMillis();
             Paint paint = jobSettings.paint.copy();
             Catalog catalog = paint.on() ? PaintBlocks.catalog(S) : null;
+            jobMatcher = Chroma.matcherVersion();
             jobPaintChoices = paint.on() ? new EnumMap<>(BlockChoices.CHOICE) : null;
             job = EXEC.submit(() -> {
                 Object r = solver.solve(copy, o, cancelled::get);
@@ -902,13 +907,15 @@ public final class Editor {
                 rebuild(new int[]{box.x(), box.y(), box.z()});
             }
         }
-        if (paintJob == null && job == null && !dirty && solved != null && shownPaint != null && !S.paint.same(shownPaint)) {
+        if (paintJob == null && job == null && !dirty && solved != null && shownPaint != null
+                && (!S.paint.same(shownPaint) || S.paint.on() && Chroma.matcherVersion() != shownMatcher)) {
             Paint paint = S.paint.copy();
             Catalog catalog = paint.on() ? PaintBlocks.catalog(S) : null;
             repaintChoices = paint.on() ? new EnumMap<>(BlockChoices.CHOICE) : null;
             EditShape painter = shape;
             Object from = solved;
             shownPaint = paint;
+            shownMatcher = Chroma.matcherVersion();
             paintJob = EXEC.submit(() -> painter.paint(from, paint, catalog));
         }
     }
