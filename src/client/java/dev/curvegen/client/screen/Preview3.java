@@ -47,8 +47,14 @@ final class Preview3 implements AutoCloseable {
     /** No more pixels than this are drawn. A larger preview is drawn coarser and stretched. */
     private static final int MOST_PIXELS = 1_600_000;
 
-    /** The faces to draw. {@code pad} is the room the shape's own box adds around the one the player set. */
-    void mesh(Mesh3 m, int pad) { mesh = m; meshPad = pad; dirty = true; }
+    /**
+     * The faces to draw. {@code pad} is the room the shape's own box adds around the one the player set. Giving the
+     * mesh already on show again does nothing.
+     */
+    void mesh(Mesh3 m, int pad) {
+        if (m == mesh && pad == meshPad) return;
+        mesh = m; meshPad = pad; dirty = true;
+    }
 
     /** The outline, as {@code Shape3.wireframe} gives it. */
     void wires(List<double[]> lines, int pad) { wires = lines; wirePad = pad; dirty = true; }

@@ -1,6 +1,7 @@
 package dev.curvegen.core.paint;
 
 import dev.curvegen.core.Pieces.Family;
+import dev.curvegen.core.Settle2D;
 import dev.curvegen.core.paint.Ladder.Why;
 import java.util.List;
 
@@ -16,11 +17,24 @@ import java.util.List;
  *
  * <p>{@code why} counts blocks by piece type and {@link Why}, and {@code counts} counts them by piece type and entry,
  * where count {@code [f][0]} is the Blocks tab's choice and {@code [f][e + 1]} entry e. Both count every layer.
+ *
+ * <p>With "Empty spots: Open", a block on an empty pattern cell is a hole: its slot is {@link #OPEN}, and {@code why}
+ * and {@code counts} leave it out. {@code open} counts the holes in every layer. Holes are taken out after the solve,
+ * and the blocks beside them settle as the game would settle them. A 2D shape's settled blocks are in {@code settled},
+ * null when it has no holes. A 3D shape's are in its painter's result ({@link Solve3Painter.Done}), and its slots
+ * already leave the holes out.
  */
-public record Painted(int[] slots, int layers, List<String> blocks, int[] quarters, long[][] why, long[][] counts) {
+public record Painted(int[] slots, int layers, List<String> blocks, int[] quarters, long[][] why, long[][] counts, long open, Settle2D settled) {
+    /** The slot of a block left open. */
+    public static final int OPEN = -2;
+
+    public Painted(int[] slots, int layers, List<String> blocks, int[] quarters, long[][] why, long[][] counts) {
+        this(slots, layers, blocks, quarters, why, counts, 0, null);
+    }
+
     public int at(int slot) { return slots[slot]; }
 
-    /** How many blocks were painted in all. */
+    /** How many blocks were painted in all, holes left out. */
     public long total() {
         long n = 0;
         for (long[] f : why) for (long v : f) n += v;

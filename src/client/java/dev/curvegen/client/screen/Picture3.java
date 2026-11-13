@@ -49,6 +49,7 @@ final class Picture3 implements AutoCloseable {
         }
         repaint.poll(solved == null ? null : solved.painter(), solved != null && solved.fullConnects(), s);
         Repaint3.View v = shown = view(s);
+        if (solved != null && solved.result() != null) preview.mesh(v != null && v.mesh() != null ? v.mesh() : solved.mesh(), solved.result().shape().pad());
         if (v != null) preview.palette(v.palette(), v.perBlock());
         else preview.palette(Preview3.palette(PreviewTexture.Colors.BLOCKS, BlockChoices.CHOICE, s.topColours));
     }

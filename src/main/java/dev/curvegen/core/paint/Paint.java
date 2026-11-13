@@ -21,7 +21,10 @@ public final class Paint {
     /** Where a 2D shape more than one block deep shows its pattern: the face the 2D picture shows, or round its edge. */
     public enum On { FACE, EDGE }
     public enum Fit { REPEAT, REPEAT_ALONG, STRETCH }
-    /** What a pattern's empty cells become. Only FILL is built: they take the Blocks tab's choice. */
+    /**
+     * What a pattern's empty cells become: the Blocks tab's choice, or holes. Only a truly empty cell opens (air in a
+     * capture, a clear pixel in an image); a captured block painting can't use always fills.
+     */
     public enum Empty { FILL, OPEN }
     /** How a pattern goes onto a 3D shape. 2D shapes don't use it. */
     public enum Mapping { WRAP, ABOVE, FRONT, SIDE }
@@ -69,6 +72,25 @@ public final class Paint {
 
     /** Whether "One material per colour" is on for the current source. */
     public boolean oneMaterial() { return source == Source.PATTERN ? patternOneMaterial : source == Source.MIX && mixOneMaterial; }
+
+    /**
+     * Which of the pattern's cells are holes, by palette index: its empty cells, when painting with a pattern and
+     * "Empty spots" is Open. Null when nothing opens, which leaves the shape exactly as Fill would.
+     */
+    public boolean[] holes() {
+        if (source != Source.PATTERN || empty != Empty.OPEN || !hasHoles(pattern)) return null;
+        boolean[] out = new boolean[pattern.paletteSize()];
+        for (int k = 0; k < out.length; k++) out[k] = opens(pattern, k);
+        return out;
+    }
+
+    /** Whether a pattern has a cell that "Empty spots: Open" makes a hole. */
+    public static boolean hasHoles(Pattern p) {
+        for (int k = 0; k < p.paletteSize(); k++) if (opens(p, k)) return true;
+        return false;
+    }
+
+    private static boolean opens(Pattern p, int k) { return p.count(k) > 0 && p.cell(k).equals(Pattern.Cell.EMPTY); }
 
     /** What the current source paints with: the mix's blocks for a mix, and otherwise the pattern's cells. */
     public Palette palette() { return source == Source.MIX ? mix : pattern; }

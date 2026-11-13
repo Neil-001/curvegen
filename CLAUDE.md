@@ -26,7 +26,7 @@ Most classes say what they do in a comment at the top, and their fields and meth
 
 ## Solvers
 
-The 2D solver's results must not change when the 3D one does. The two share nothing but `Pieces.Family` and the settings' piece toggles and `fullConnects`.
+The 2D solver's results must not change when the 3D one does. The two share nothing but `Pieces.Family` and the settings' piece toggles and `fullConnects`. A pattern's holes in a 2D shape are the one exception: `Settle2D` lays the shape out as 3D states and settles it with `Solver3.settle`, after the solve. Run `GameRules2Test` after touching `Settle2D`, the 2D block states or `Solver3`'s rules.
 
 In both, a refinement pick must be judged on every cell whose state it can change. `Solver`'s affected sets and `Solver3`'s `Run.gather` list them. Leave a cell out and a pick can raise the total error, and then refinement can cycle.
 
