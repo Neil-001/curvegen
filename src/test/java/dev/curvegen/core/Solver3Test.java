@@ -418,4 +418,20 @@ class Solver3Test {
         // The holes did reshape blocks beside them, so the cells near them were really worked out again.
         assertTrue(changed > 100, changed + " settles changed a block");
     }
+
+    /** Settling near holes atop tall walls, which reach all the way down, still gives up soon after it's cancelled. */
+    @Test
+    void settlingNearTheHolesStopsWhenCancelled() {
+        int nx = 64, ny = 256, nz = 64;
+        short[] tokens = new short[nx * ny * nz];
+        java.util.Arrays.fill(tokens, (short) WALL_POST);
+        int[] counts = new int[COUNT];
+        counts[WALL_POST] = tokens.length;
+        Solver3.Result r = Solver3.settleAll(new Solver3.Result(tokens, nx, ny, nz, 0, 0, counts, null, 0), new BitSet(), true, () -> false);
+        BitSet gone = new BitSet();
+        for (int c = 0; c < nx * nz; c += 16) gone.set((ny - 1) * nx * nz + c);
+        java.util.concurrent.atomic.AtomicInteger asked = new java.util.concurrent.atomic.AtomicInteger();
+        assertNull(Solver3.settleNear(r, gone, true, () -> asked.incrementAndGet() >= 3));
+        assertNotNull(Solver3.settleNear(r, gone, true, () -> false));
+    }
 }

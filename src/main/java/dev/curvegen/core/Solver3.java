@@ -128,29 +128,28 @@ public final class Solver3 {
 
     /**
      * {@link #settle} working out only the cells an emptied cell can reach: those {@link Run#gather} lists for a
-     * changed token. The rest keep their state, so {@code r} must be settled already.
+     * changed token. The rest keep their state, so {@code r} must be settled already. It asks {@code cancelled}
+     * every few thousand cells it looks at.
      */
     static Result settleNear(Result r, BitSet gone, boolean fullConnects, BooleanSupplier cancelled) {
         int nx = r.nx(), nz = r.nz(), level = nx * nz;
-        Near s = new Near(r, gone, fullConnects);
-        for (int c = gone.nextSetBit(0), last = -1; c >= 0; c = gone.nextSetBit(c + 1)) {
-            if (c / level != last) {
-                if (cancelled.getAsBoolean()) return null;
-                last = c / level;
-            }
+        Near s = new Near(r, gone, fullConnects, cancelled);
+        for (int c = gone.nextSetBit(0); c >= 0; c = gone.nextSetBit(c + 1)) {
+            if (s.stop()) return null;
             int i = c % nx, k = c / nx % nz;
-            s.column(c);
+            if (!s.column(c)) return null;
             for (int[] d : NEAR) {
                 int x = i + d[0], z = k + d[1];
                 if (x < 0 || x >= nx || z < 0 || z >= nz) continue;
                 int q = c + d[0] + d[1] * nx;
-                if (dependent(s.token(q))) s.column(q);
+                if (dependent(s.token(q)) && !s.column(q)) return null;
             }
         }
         if (cancelled.getAsBoolean()) return null;
         short[] grid = r.grid().clone();
         int[] counts = r.counts().clone();
         for (int m = 0; m < s.n; m++) {
+            if (s.stop()) return null;
             int c = s.cells[m], v = s.resolve(s.at(c % nx, c / level, c / nx % nz));
             counts[grid[c]]--;
             counts[v]++;
@@ -199,10 +198,26 @@ public final class Solver3 {
         int[] cells = new int[256];
         int n;
 
-        Near(Result r, BitSet gone, boolean fullConnects) {
+        final BooleanSupplier cancelled;
+        /** Steps taken since {@link #cancelled} was last asked. */
+        int steps;
+
+        Near(Result r, BitSet gone, boolean fullConnects, BooleanSupplier cancelled) {
             super(r.nx(), r.ny(), r.nz(), fullConnects, false);
-            grid = r.grid(); this.gone = gone;
+            grid = r.grid(); this.gone = gone; this.cancelled = cancelled;
         }
+
+        /**
+         * Counts a step and says whether to give up. It asks {@link #cancelled} every {@link #ASK_EVERY} steps,
+         * more often than once a level of any grid the editor solves.
+         */
+        boolean stop() {
+            if (++steps < ASK_EVERY) return false;
+            steps = 0;
+            return cancelled.getAsBoolean();
+        }
+
+        static final int ASK_EVERY = 4096;
 
         /** The token in grid cell c. */
         int token(int c) { return gone.get(c) ? AIR : Solver3.token(grid[c]); }
@@ -217,10 +232,14 @@ public final class Solver3 {
 
         @Override void cacheWall(int p, int state) { walls.put(p, (short) state); }
 
-        /** Adds grid cell c to the cells to work out again, and the walls below it, as {@link Run#column} does. */
-        void column(int c) {
+        /**
+         * Adds grid cell c to the cells to work out again, and the walls below it, as {@link Run#column} does.
+         * False if cancelled.
+         */
+        boolean column(int c) {
             int level = nx * nz;
             do {
+                if (stop()) return false;
                 if (!seen.get(c)) {
                     if (n == cells.length) cells = Arrays.copyOf(cells, n * 2);
                     seen.set(c);
@@ -228,6 +247,7 @@ public final class Solver3 {
                 }
                 c -= level;
             } while (c >= 0 && token(c) == WALL_POST);
+            return true;
         }
     }
 

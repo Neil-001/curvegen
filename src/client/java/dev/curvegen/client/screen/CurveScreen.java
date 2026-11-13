@@ -687,17 +687,14 @@ public class CurveScreen extends ControlScreen {
         return rows;
     }
 
-    /** How many of the drawing's pieces a pattern's holes open in every layer, so that nothing of them is placed. */
+    /** How many of the drawing's pieces a pattern's holes open in the front layer, which the picture shows. */
     private int openPieces() {
         Painted p = painted();
         if (p == null || p.open() == 0 || result == null) return 0;
         if (p == openFor) return openPieces;
         int n = result.nx() * result.ny(), open = 0;
         for (int c = 0; c < n; c++) {
-            if (result.grid()[c] == Pieces.EMPTY) continue;
-            boolean all = true;
-            for (int k = 0; k < p.layers() && all; k++) all = p.at(k * n + c) == Painted.OPEN;
-            if (all) open++;
+            if (result.grid()[c] != Pieces.EMPTY && p.at(c) == Painted.OPEN) open++;
         }
         openFor = p;
         return openPieces = open;
