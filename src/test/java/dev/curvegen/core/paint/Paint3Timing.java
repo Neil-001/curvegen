@@ -81,4 +81,39 @@ class Paint3Timing {
         s.gen = Gen.EQUATION3; s.q3W = 128;
         time("3D equation, 128 across", s);
     }
+
+    /**
+     * A repaint with "Empty spots: Open" and the bundled lattice, whose openings are about four blocks in nine: the
+     * holes come out, the blocks beside them settle, and the picture's faces are listed again. The settling and the
+     * faces are what holes add.
+     */
+    @Test
+    @Disabled("prints timings; asserts nothing")
+    void holeTimings() {
+        ShapeSettings filled = dome(128);
+        filled.e3Mode = ShapeSettings.EllipseMode.FILLED;
+        for (ShapeSettings s : new ShapeSettings[]{dome(64), dome(128), dome(256), filled}) {
+            s.paint.pattern = Patterns.LATTICE;
+            s.paint.empty = Paint.Empty.OPEN;
+            Shape3 own = Shape3.of(s);
+            Solver3.Result r = Solver3.run(s);
+            Solve3Painter painter = new Solve3Painter(r, own, new Orient(Orient.EAST, Orient.UP, Orient.SOUTH));
+            Catalog c = TestWorld.catalog();
+            long[] paint = new long[9], faces = new long[9];
+            Solve3Painter.Done d = null;
+            for (int k = 0; k < paint.length; k++) {
+                s.paint.along++;
+                long t = System.nanoTime();
+                d = painter.paint(s.paint, s.fullConnects, c);
+                paint[k] = System.nanoTime() - t;
+                t = System.nanoTime();
+                new dev.curvegen.core.Mesh3(d.result());
+                faces[k] = System.nanoTime() - t;
+            }
+            Arrays.sort(paint);
+            Arrays.sort(faces);
+            System.out.printf("%s %d across: %d blocks, %d open: repaint and settle %6.1f ms, faces %6.1f ms%n", s.e3Mode, s.e3W,
+                    d.painted().slots().length + d.painted().open(), d.painted().open(), paint[4] / 1e6, faces[4] / 1e6);
+        }
+    }
 }

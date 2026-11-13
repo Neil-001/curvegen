@@ -78,7 +78,7 @@ class Solver3Test {
     @Test
     void solvesAreMirrorSymmetric() {
         for (Shapes3Cases.Case c : Shapes3Cases.all()) {
-            if (!c.shape().symX()) continue;
+            if (!c.shape().symX() || c.holes() != null) continue;   // holes needn't be symmetric
             Solver3.Result r = c.solve();
             int nx = r.nx(), ny = r.ny(), nz = r.nz();
             for (int y = 0; y < ny; y++)

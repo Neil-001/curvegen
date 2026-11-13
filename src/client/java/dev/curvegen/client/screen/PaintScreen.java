@@ -97,7 +97,7 @@ public class PaintScreen extends ControlScreen {
         need = Math.max(need, fit + PAD + GAP + tw(tr("curvegen.paint.size")) + 3 + DIGIT);
         need = Math.max(need, tw(tr("curvegen.paint.turn")) + 3 + NUM + GAP + onOffWidth(tr("curvegen.paint.mirror")) + PAD);
         need = Math.max(need, 2 * (Math.max(tw(tr("curvegen.paint.along")), tw(tr("curvegen.paint.across"))) + 3 + NUM) + GAP);
-        need = Math.max(need, opt(tr("curvegen.paint.empty"), emptyName(Empty.FILL)) + PAD);
+        for (Empty e : Empty.values()) need = Math.max(need, opt(tr("curvegen.paint.empty"), emptyName(e)) + PAD);
         need = Math.max(need, onOffWidth(tr("curvegen.paint.one_material")) + PAD);
         for (Arrange a : Arrange.values()) need = Math.max(need, opt(tr("curvegen.paint.arrange"), arrangeName(a)) + PAD);
         need = Math.max(need, tw(tr("curvegen.paint.patch")) + 3 + NUM);
@@ -198,9 +198,10 @@ public class PaintScreen extends ControlScreen {
         number(M + half + GAP, y(5), pw - half - GAP, tr("curvegen.paint.across"), () -> S.paint.across, v -> S.paint.across = v, 1,
                 -Paint.MAX_SLIDE, Paint.MAX_SLIDE, on, tr("curvegen.paint.across_tip"), offTip);
 
-        // Empty cells: only Fill so far.
-        add(cycler(List.of(Empty.FILL), Empty.FILL, PaintScreen::emptyName, M, y(6), pw, tr("curvegen.paint.empty"), v -> S.paint.empty = v),
-                false, null, on ? tr("curvegen.paint.empty_tip") : offTip);
+        // Whether the pattern's empty cells fill or open. A pattern without any has nothing to open.
+        boolean holes = Paint.hasHoles(p.pattern);
+        add(cycler(List.of(Empty.values()), p.empty, PaintScreen::emptyName, M, y(6), pw, tr("curvegen.paint.empty"), v -> S.paint.empty = v),
+                on && holes, tr("curvegen.paint.empty_tip"), !on ? offTip : tr("curvegen.paint.empty_none_tip"));
     }
 
     /** The second row's button that opens {@code open}, named {@code name} and cut to fit, with the swatch beside it. */
@@ -317,8 +318,10 @@ public class PaintScreen extends ControlScreen {
             if (!tip.isEmpty()) tip.append('\n').append('\n');
             tip.append(tr("curvegen.paint.why." + w.name().toLowerCase(Locale.ROOT))).append(lines);
         }
-        return new String[]{tr("curvegen.paint.status", painted.closest(), painted.total()),
-                tip.isEmpty() ? tr("curvegen.paint.why.none") : tip.toString()};
+        if (tip.isEmpty()) tip.append(tr("curvegen.paint.why.none"));
+        if (painted.open() == 0) return new String[]{tr("curvegen.paint.status", painted.closest(), painted.total()), tip.toString()};
+        tip.append('\n').append('\n').append(tr("curvegen.paint.why.open", painted.open()));
+        return new String[]{tr("curvegen.paint.status_open", painted.closest(), painted.total(), painted.open()), tip.toString()};
     }
 
     @Override
@@ -335,7 +338,8 @@ public class PaintScreen extends ControlScreen {
         // Up to two lines under the rows: the left side of the bottom is free, as Done sits on the right.
         var lines = font.split(Component.literal(status[0]), pw);
         int shown = Math.min(lines.size(), 2);
-        for (int k = 0; k < shown; k++) ctx.text(font, lines.get(k), M, sy + k * 10, 0xFF9AA5B3, false);
+        // Light, with a shadow, so it reads over a bright sky or snow as well as over the darkened menu background.
+        for (int k = 0; k < shown; k++) ctx.text(font, lines.get(k), M, sy + k * 10, 0xFFC8CED6, true);
         if (status[1] != null && mx >= M && mx < M + pw && my >= sy - 2 && my < sy + 10 * shown)
             ctx.setTooltipForNextFrame(font.split(Component.literal(status[1]), 240), mx, my);
 

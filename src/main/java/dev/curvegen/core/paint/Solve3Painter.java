@@ -6,6 +6,7 @@ import dev.curvegen.core.Shape3;
 import dev.curvegen.core.Solver3;
 import dev.curvegen.core.edit.Orient;
 import dev.curvegen.core.paint.Paint.Mapping;
+import java.util.BitSet;
 
 /**
  * One 3D solve, ready to be painted again and again. It keeps the shape's wrapping and the last {@link Wrap3}, so a
@@ -16,8 +17,12 @@ public final class Solve3Painter {
     /** Above this many blocks a {@link Wrap3} isn't kept: it takes 8 bytes a block, and placing again is quick. */
     private static final int KEEP_UP_TO = 2_000_000;
 
-    /** A painted solve: its blocks, and which way the pattern's right and up point, as in {@link Wrap3}. */
-    public record Done(Painted painted, int right, int up) {}
+    /**
+     * A painted solve: its blocks, which way the pattern's right and up point, as in {@link Wrap3}, and the solve as
+     * it's built. That's the painter's own result unless a pattern opened holes in it, which are then air, with the
+     * blocks beside them settled ({@link Solver3#settle}). The paint's slots follow that result's blocks.
+     */
+    public record Done(Painted painted, int right, int up, Solver3.Result result) {}
 
     public final Solver3.Result result;
     private final Shape3 own;
@@ -40,9 +45,21 @@ public final class Solve3Painter {
     /** Paints the solve, or returns null while paint is off or the shape has an error. */
     public Done paint(Paint paint, boolean fullConnects, Catalog catalog) {
         if (!paint.on() || own.error() != null) return null;
-        if (paint.source == Paint.Source.MIX) return new Done(Painter3.mix(result, own, orient, paint, fullConnects, catalog), -1, -1);
+        if (paint.source == Paint.Source.MIX) return new Done(Painter3.mix(result, own, orient, paint, fullConnects, catalog), -1, -1, result);
         Wrap3 w = wrap(paint.mappingFor(wraps()));
-        return new Done(Painter3.paint(result, w, paint, fullConnects, catalog), w.right, w.up);
+        Painted p = Painter3.paint(result, w, paint, fullConnects, catalog);
+        if (p.open() == 0) return new Done(p, w.right, w.up, result);
+        // Take the holes out, settle the rest, and number the slots over the blocks that are left.
+        short[] grid = result.grid();
+        BitSet gone = new BitSet(grid.length);
+        int[] slots = new int[p.slots().length - (int) p.open()];
+        for (int c = 0, k = 0, o = 0; c < grid.length; c++) {
+            if (grid[c] == Pieces3.AIR) continue;
+            int e = p.slots()[k++];
+            if (e == Painted.OPEN) gone.set(c); else slots[o++] = e;
+        }
+        Solver3.Result settled = Solver3.settle(result, gone, fullConnects, () -> false);
+        return new Done(new Painted(slots, 1, p.blocks(), p.quarters(), p.why(), p.counts(), p.open(), null), w.right, w.up, settled);
     }
 
     private synchronized Wrap3 wrap(Mapping m) {

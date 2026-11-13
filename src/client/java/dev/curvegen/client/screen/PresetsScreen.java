@@ -65,9 +65,14 @@ public class PresetsScreen extends Screen {
     private record Shown(Solver.Result result, Painted painted) {}
     private final Map<Key, Shown> results = new HashMap<>();
     private final Map<Key, Future<Shown>> jobs = new HashMap<>();
-    /** A 3D preset's picture is solved the same way, and a solve is dropped when the mouse has moved on to another preset. */
-    private record Job3(Future<CurveScreen.Solved3> future, AtomicBoolean cancelled) {}
+    /**
+     * A 3D preset's solve, and its paint when it was loaded with its blocks and paints, or null. A 3D preset's picture
+     * is solved the same way, and a solve is dropped when the mouse has moved on to another preset.
+     */
+    private record Shown3(CurveScreen.Solved3 solved, Repaint3.View painted) {}
+    private record Job3(Future<Shown3> future, AtomicBoolean cancelled) {}
     private final Map<Key, CurveScreen.Solved3> solved3 = new HashMap<>();
+    private final Map<Key, Repaint3.View> painted3 = new HashMap<>();
     private final Map<Key, Job3> jobs3 = new HashMap<>();
     private final Preview3 picture = new Preview3();
     private Key pictureFor;
@@ -189,13 +194,27 @@ public class PresetsScreen extends Screen {
         if (job == null) {
             ShapeSettings s = settingsFor(p);
             AtomicBoolean cancelled = new AtomicBoolean();
-            jobs3.put(k, new Job3(CurveScreen.EXEC.submit(() -> CurveScreen.solve3(s, cancelled::get)), cancelled));
+            // As in 2D, only a preset loaded with its blocks brings its paint. The catalog and colours are read on this thread.
+            Paint paint = withBlocks(p) && s.paint.on() ? s.paint.copy() : null;
+            Map<Family, Block> choice = choiceFor(p);
+            Catalog catalog = paint == null ? null : PaintBlocks.catalog(s, choice);
+            int[] byFamily = Preview3.palette(PreviewTexture.Colors.BLOCKS, choice, s.topColours);
+            jobs3.put(k, new Job3(CurveScreen.EXEC.submit(() -> {
+                CurveScreen.Solved3 solved = CurveScreen.solve3(s, cancelled::get);
+                if (solved == null || solved.error() != null || paint == null || cancelled.get()) return new Shown3(solved, null);
+                return new Shown3(solved, Repaint3.paint(solved.painter(), paint, solved.fullConnects(), catalog, byFamily));
+            }), cancelled));
             return null;
         }
         if (!job.future.isDone()) return null;
         jobs3.remove(k);
-        try { r = job.future.get(); } catch (Exception _) { return null; }
-        if (r != null) solved3.put(k, r);
+        Shown3 shown;
+        try { shown = job.future.get(); } catch (Exception _) { return null; }
+        r = shown.solved();
+        if (r != null) {
+            solved3.put(k, r);
+            if (shown.painted() != null) painted3.put(k, shown.painted());
+        }
         return r;
     }
 
@@ -207,10 +226,12 @@ public class PresetsScreen extends Screen {
         if (!k.equals(pictureFor) || !java.util.Arrays.equals(in, pictureIn)) {
             pictureFor = k; pictureIn = in;
             var shape = r.result().shape();
-            picture.mesh(r.mesh(), shape.pad());
+            Repaint3.View painted = painted3.get(k);
+            // A pattern's holes change the blocks, so they show in every colouring. Only Block colours shows the paint.
+            picture.mesh(painted != null && painted.mesh() != null ? painted.mesh() : r.mesh(), shape.pad());
             picture.wires(List.of(), 0);
-            // 3D shapes aren't painted yet. A painted picture plugs in here, painting r's mesh with the preset's paint.
-            picture.palette(Preview3.palette(CurveScreen.colors, choiceFor(target), CurveGenClient.SETTINGS.topColours));
+            if (painted != null && CurveScreen.colors == PreviewTexture.Colors.BLOCKS) picture.palette(painted.palette(), painted.perBlock());
+            else picture.palette(Preview3.palette(CurveScreen.colors, choiceFor(target), CurveGenClient.SETTINGS.topColours));
             picture.fit(shape.nx(), shape.ny(), shape.nz(), shape.pad(), x0, y0, x1, y1);
         }
         ctx.enableScissor(x0, y0, x1, y1);
@@ -416,6 +437,7 @@ public class PresetsScreen extends Screen {
                 if (previewed == p) previewed = null;
                 results.keySet().removeIf(k -> k.preset() == p);
                 solved3.keySet().removeIf(k -> k.preset() == p);
+                painted3.keySet().removeIf(k -> k.preset() == p);
                 refilter();
             }
             minecraft.gui.setScreen(this);

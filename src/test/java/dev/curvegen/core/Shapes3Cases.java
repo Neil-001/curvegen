@@ -31,6 +31,9 @@ public final class Shapes3Cases {
     /** About one block in nine, scattered. */
     private static final Holes SCATTERED = (x, y, z) -> (5 * x + 3 * y + 7 * z) % 9 == 0;
 
+    /** A lattice's openings, 2 blocks across with bars 1 wide, run straight through the shape from front to back, as a pattern's holes do. */
+    private static final Holes LATTICE = (x, y, _) -> x % 3 != 0 && y % 3 != 0;
+
     /** A shape given only by its box and field, with none of the optional hints. */
     public interface Field { double at(double x, double y, double z); }
 
@@ -104,6 +107,14 @@ public final class Shapes3Cases {
                     if (d[5] == 13) s.tD = 13;
                     out.add(new Case("torus " + d[0] + "/" + d[1] + " in " + s.tW + "x" + s.tH + "x" + s.tD + tag, Shape3.of(s), s));
                 }
+                for (ShapeSettings.EllipseMode m : new ShapeSettings.EllipseMode[]{ShapeSettings.EllipseMode.MIDDLE, ShapeSettings.EllipseMode.FILLED}) {
+                    ShapeSettings s = base.copy();
+                    s.gen = ShapeSettings.Gen.ELLIPSOID; s.e3W = 16; s.e3H = 13; s.e3D = 11; s.e3Mode = m; s.e3T = 2.5;
+                    out.add(new Case("ellipsoid " + m + " with a lattice through it" + tag, Shape3.of(s), s, LATTICE));
+                }
+                ShapeSettings ring = base.copy();
+                ring.gen = ShapeSettings.Gen.TORUS; ring.tRing = 16; ring.tTube = 6; ring.tW = 22; ring.tH = 9; ring.tD = 22;
+                out.add(new Case("torus with a lattice through it" + tag, Shape3.of(ring), ring, LATTICE));
                 for (ShapeSettings s : List.of(Shapes3Test.equation("z = x y / 3", ShapeSettings.Eq3Mode.SURFACE, 0.75, 14, "-3", "3", "-3", "3", "-3", "3"),
                         Shapes3Test.equation("z < 2 - floor(x^2 + y^2)/3", ShapeSettings.Eq3Mode.SURFACE, 1, 14, "-3", "3", "-3", "3", "-1", "3"),
                         Shapes3Test.curve(14, 10, 14, 1.25, 1, 1, 2, 4, 12, 13, 13, 9, 1, 12, 2, 12),

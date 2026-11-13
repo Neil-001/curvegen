@@ -1,8 +1,11 @@
 package dev.curvegen.client;
 
 import dev.curvegen.core.Pieces.Family;
+import dev.curvegen.core.Pieces;
 import dev.curvegen.core.Pieces3;
+import dev.curvegen.core.Settle2D;
 import dev.curvegen.core.ShapeSettings;
+import dev.curvegen.core.Solver;
 import dev.curvegen.core.paint.Catalog;
 import dev.curvegen.core.paint.MaterialNames;
 import dev.curvegen.core.paint.Paint;
@@ -202,6 +205,24 @@ public final class PaintBlocks {
             full[k] = BlockChoices.finish(turn(state(block, b < 0 ? "" : s.substring(b + 1, s.length() - 1)), p.quarters()[k], viewer));
         }
         return new Resolved(blocks, full);
+    }
+
+    /**
+     * The state of the block in layer k of a solved 2D shape's cell (i, j), as {@code painted} paints it and
+     * {@code paint} resolves that, or null for an empty cell or a hole. Both are null for an unpainted shape. Beside a
+     * pattern's holes, a fence, pane or wall joins what {@link Painted#settled} says it does.
+     */
+    public static BlockState state2D(Solver.Result r, int i, int j, int k, int depth, Direction right, Direction forward, Painted painted, Resolved paint) {
+        int p = r.at(i, j);
+        if (p == Pieces.EMPTY) return null;
+        int entry = painted == null ? -1 : painted.at((painted.layers() == 1 ? 0 : k) * r.nx() * r.ny() + j * r.nx() + i);
+        if (entry == Painted.OPEN) return null;
+        if (entry >= 0 && p == Pieces.FULL && paint.full()[entry] != null) return paint.full()[entry];
+        Block block = paint == null ? null : paint.block(entry);
+        Settle2D settled = painted == null ? null : painted.settled();
+        if (settled != null && Pieces.isConnector(p)) return BlockChoices.connector(p, settled.joints(i, j, k), right, forward, block);
+        int above = j + 1 < r.ny() ? r.at(i, j + 1) : Pieces.EMPTY;
+        return BlockChoices.stateFor(p, above, right, forward, k, depth, r.floor(), block);
     }
 
     /** A painted 3D shape's states, by piece and entry, each worked out the first time it's asked for. */
