@@ -48,7 +48,10 @@ public final class PatternStore {
     private static List<Saved> all;
 
     /** A pattern's name as the player sees it: a bundled pattern's is translated. */
-    public static String shownName(Pattern p) { return p.name.startsWith(Pattern.BUNDLED) ? tr(p.name) : p.name; }
+    public static String shownName(Pattern p) { return shownName(p.name); }
+
+    /** A pattern's or a mix's stored name as the player sees it: one from a bundled pattern is translated. */
+    public static String shownName(String name) { return name.startsWith(Pattern.BUNDLED) ? tr(name) : name; }
 
     private static Path dir() { return CurveGenClient.platform.configDir().resolve("curvegen").resolve("patterns"); }
 

@@ -282,9 +282,16 @@ public class PaintScreen extends ControlScreen {
         add(cycler(flows, p.flowFor(wraps), PaintScreen::flowName, M, y(2), pw, tr("curvegen.paint.flow"), v -> S.paint.flow = v),
                 ok, wraps ? tr("curvegen.paint.flow_tip") : tr("curvegen.paint.flow_tip") + '\n' + '\n' + tr("curvegen.paint.flow_no_wrap_tip"), needs);
 
-        int reverseW = onOffWidth(tr("curvegen.paint.reverse")) + PAD, edgesW = pw - GAP - reverseW;
+        // Reverse and Edges share a row. When the panel is at its widest and they still don't fit, the padding and the
+        // gap between them close up, and Edges takes what is left.
+        int reverseText = onOffWidth(tr("curvegen.paint.reverse")), edgesText = 0;
+        for (Edges e : Edges.values()) edgesText = Math.max(edgesText, opt(tr("curvegen.paint.edges"), edgesName(e)));
+        int pad = PAD, gap = GAP;
+        while (reverseText + edgesText + 2 * pad + gap > pw && pad > 4) pad -= 2;
+        if (reverseText + edgesText + 2 * pad + gap > pw) gap = 2;
+        int reverseW = reverseText + pad, edgesW = pw - gap - reverseW;
         add(toggle(p.reverse, M, y(3), reverseW, tr("curvegen.paint.reverse"), v -> S.paint.reverse = v), ok, tr("curvegen.paint.reverse_tip"), needs);
-        add(cycler(List.of(Edges.values()), p.edges, PaintScreen::edgesName, M + reverseW + GAP, y(3), edgesW, tr("curvegen.paint.edges"),
+        add(cycler(List.of(Edges.values()), p.edges, PaintScreen::edgesName, M + reverseW + gap, y(3), edgesW, tr("curvegen.paint.edges"),
                 v -> S.paint.edges = v), ok, tr("curvegen.paint.edges_tip"), needs);
 
         add(Button.builder(Component.translatable("curvegen.paint.open_chroma"),
@@ -397,7 +404,10 @@ public class PaintScreen extends ControlScreen {
         // Up to two lines under the rows: the left side of the bottom is free, as Done sits on the right.
         var lines = font.split(Component.literal(status[0]), pw);
         int shown = Math.min(lines.size(), 2);
-        // Light, with a shadow, so it reads over a bright sky or snow as well as over the darkened menu background.
+        // Light on a dark band, as the main screen's status line is, so it reads over a bright sky or snow too.
+        int bandW = 0;
+        for (int k = 0; k < shown; k++) bandW = Math.max(bandW, font.width(lines.get(k)));
+        if (shown > 0 && bandW > 0) ctx.fill(M - 3, sy - 2, M + bandW + 3, sy + 10 * shown, 0xB0000000);
         for (int k = 0; k < shown; k++) ctx.text(font, lines.get(k), M, sy + k * 10, 0xFFC8CED6, true);
         if (status[1] != null && mx >= M && mx < M + pw && my >= sy - 2 && my < sy + 10 * shown)
             ctx.setTooltipForNextFrame(font.split(Component.literal(status[1]), 240), mx, my);

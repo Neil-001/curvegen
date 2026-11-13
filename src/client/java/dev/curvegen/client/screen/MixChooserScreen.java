@@ -2,10 +2,10 @@ package dev.curvegen.client.screen;
 
 import static dev.curvegen.client.Lang.tr;
 
-import dev.curvegen.client.ColorIndex;
 import dev.curvegen.client.CurveGenClient;
 import dev.curvegen.client.MixSources;
 import dev.curvegen.client.PaintBlocks;
+import dev.curvegen.client.PatternStore;
 import dev.curvegen.core.paint.Mix;
 import dev.curvegen.core.paint.MixLayout;
 import dev.curvegen.core.paint.Paint.Arrange;
@@ -61,18 +61,13 @@ public class MixChooserScreen extends Screen {
     }
 
     /** A mix's name as the player sees it: one taken from a bundled pattern is translated. */
-    static String name(Mix m) { return m.name.startsWith(Pattern.BUNDLED) ? tr(m.name) : m.name; }
-
-    private static int colour(Pattern.Cell c) {
-        Block b = c.block() == null ? null : PaintBlocks.block(c.block());
-        return b != null ? 0xFF000000 | ColorIndex.of(b) : c.rgb() >= 0 ? 0xFF000000 | c.rgb() : 0xFF000000;
-    }
+    static String name(Mix m) { return PatternStore.shownName(m.name); }
 
     /** Draws a mix in a {@code size}-pixel square: its blocks' colours scattered two pixels at a time, in their shares. */
     static void drawSwatch(GuiGraphicsExtractor ctx, Mix m, int x, int y, int size) {
         ctx.fill(x - 1, y - 1, x + size + 1, y + size + 1, 0x40FFFFFF);
         int[] colour = new int[m.paletteSize()];
-        for (int k = 0; k < colour.length; k++) colour[k] = colour(m.cell(k));
+        for (int k = 0; k < colour.length; k++) colour[k] = PatternLibraryScreen.colour(m.cell(k)) | 0xFF000000;   // black for a cell with neither
         MixLayout scatter = new MixLayout(m, Arrange.SCATTER, MixLayout.MIN_PATCH, 0);
         for (int py = 0; py < size; py += 2)
             for (int px = 0; px < size; px += 2)

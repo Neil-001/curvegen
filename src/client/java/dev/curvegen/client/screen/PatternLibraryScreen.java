@@ -76,6 +76,12 @@ public class PatternLibraryScreen extends Screen {
         return p.sameCells(Patterns.TWO_LANE_ROAD) ? tr("curvegen.paint.two_lane_road_tip") : p.sameCells(Patterns.LATTICE) ? tr("curvegen.paint.lattice_tip") : null;
     }
 
+    /** A cell's colour, opaque: its block's, or its own without one, or 0 for an empty cell. */
+    static int colour(Pattern.Cell c) {
+        Block b = c.block() == null ? null : PaintBlocks.block(c.block());
+        return b != null ? 0xFF000000 | ColorIndex.of(b) : c.rgb() >= 0 ? 0xFF000000 | c.rgb() : 0;
+    }
+
     /**
      * Draws a pattern flat in a {@code size}-pixel square, top row at the top, from its cells' block colours or their
      * own colours. Empty cells are left dark.
@@ -84,11 +90,7 @@ public class PatternLibraryScreen extends Screen {
         ctx.fill(x - 1, y - 1, x + size + 1, y + size + 1, 0x40FFFFFF);
         ctx.fill(x, y, x + size, y + size, PreviewTexture.BG);
         int[] colour = new int[p.paletteSize()];
-        for (int k = 0; k < colour.length; k++) {
-            Pattern.Cell c = p.cell(k);
-            Block b = c.block() == null ? null : PaintBlocks.block(c.block());
-            colour[k] = b != null ? 0xFF000000 | ColorIndex.of(b) : c.rgb() >= 0 ? 0xFF000000 | c.rgb() : 0;
-        }
+        for (int k = 0; k < colour.length; k++) colour[k] = colour(p.cell(k));
         int cell = size / Math.max(p.width, p.height);
         if (cell >= 1) {
             // Whole pixels per cell, centred, so small patterns stay crisp.
