@@ -76,11 +76,11 @@ public class PresetsScreen extends Screen {
 
     private static final int ROW = 20, ICON = 12;
     // 9×9 pixel icons
-    private static final String[] PIN = {
+    static final String[] PIN = {
             "..#####..", "..#####..", "...###...", "...###...", ".#######.", "#########", "....#....", "....#....", "....#...."};
-    private static final String[] PENCIL = {
+    static final String[] PENCIL = {
             "......##.", ".....#..#", "....#..#.", "...#..#..", "..#..#...", ".#..#....", "#.##.....", "##.......", "#........"};
-    private static final String[] TRASH = {
+    static final String[] TRASH = {
             "...###...", "#########", ".#######.", ".#.#.#.#.", ".#.#.#.#.", ".#.#.#.#.", ".#.#.#.#.", ".#.#.#.#.", "..#####.."};
 
     public PresetsScreen(Screen parent, ShapeSettings.Gen gen, BiConsumer<Preset, Boolean> onLoad) {
@@ -341,7 +341,7 @@ public class PresetsScreen extends Screen {
         if (tip != null) ctx.setTooltipForNextFrame(font, Component.literal(tip), mx, my);
     }
 
-    private static void drawArt(GuiGraphicsExtractor ctx, String[] art, int x, int y, int color) {
+    static void drawArt(GuiGraphicsExtractor ctx, String[] art, int x, int y, int color) {
         int ox = x + (ICON - 9) / 2, oy = y + (ICON - 9) / 2;
         for (int r = 0; r < art.length; r++)
             for (int c = 0; c < art[r].length(); c++)

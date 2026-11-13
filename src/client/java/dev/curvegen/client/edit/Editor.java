@@ -915,8 +915,8 @@ public final class Editor {
 
     // ---------- rendering ----------
 
-    /** Line segments for one frame: six coordinates and a colour each. */
-    private static final class Lines {
+    /** Line segments for one frame: six coordinates and a colour each. {@link Capture} draws its box with them too. */
+    static final class Lines {
         float[] xyz = new float[1024];
         int[] color = new int[170];
         int n;
@@ -1103,12 +1103,12 @@ public final class Editor {
 
     // ---------- HUD ----------
 
-    private static String key(KeyMapping k) { return k.getTranslatedKeyMessage().getString(); }
+    static String key(KeyMapping k) { return k.getTranslatedKeyMessage().getString(); }
 
     public static void renderHud(GuiGraphicsExtractor dc) {
         Minecraft mc = Minecraft.getInstance();
-        // A screen covers the hints or draws its own, and the menu's labels need the room.
-        if (!active || mc.player == null || mc.gui.screen() != null) return;
+        // A screen covers the hints or draws its own, and the menu's labels need the room. Capture has the lines while it runs.
+        if (!active || Capture.isActive() || mc.player == null || mc.gui.screen() != null) return;
         StepHold.renderBar(dc);
         var font = mc.font;
         int room = dc.guiWidth() - 12;
