@@ -114,11 +114,11 @@ public final class Solver3 {
         int nx = r.nx(), ny = r.ny(), nz = r.nz();
         States s = new States(nx, ny, nz, fullConnects);
         for (int v = WALL; v < COUNT; v++) if (r.counts()[v] > 0) { s.cacheWalls(); break; }
-        for (int j = 0; j < ny; j++)
+        for (int j = 0, c = 0; j < ny; j++) {
+            if (cancelled.getAsBoolean()) return null;
             for (int k = 0; k < nz; k++)
-                for (int i = 0; i < nx; i++) s.tok[s.at(i, j, k)] = (short) token(r.at(i, j, k));
-        for (int c = gone.nextSetBit(0); c >= 0 && c < r.grid().length; c = gone.nextSetBit(c + 1))
-            s.tok[s.at(c % nx, c / nx / nz, c / nx % nz)] = AIR;
+                for (int i = 0; i < nx; i++, c++) s.tok[s.at(i, j, k)] = (short) (gone.get(c) ? AIR : token(r.grid()[c]));
+        }
         short[] grid = new short[r.grid().length];
         int[] counts = new int[COUNT];
         for (int j = 0; j < ny; j++) {

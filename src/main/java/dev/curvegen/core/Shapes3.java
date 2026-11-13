@@ -676,7 +676,7 @@ public final class Shapes3 {
                 a = b;
             }
             if (open) {
-                double[] before = beyond(line, 0, 1), after = beyond(line, line.size() - 1, -1);
+                double[] before = beyond(line.getFirst(), pts, 0, 1), after = beyond(line.getLast(), pts, pts.size() - 1, -1);
                 line.add(0, before);
                 line.add(after);
             }
@@ -691,15 +691,16 @@ public final class Shapes3 {
         }
 
         /**
-         * The point {@link #PAST} blocks out from the line's end at index {@code at}, straight on the way the line was
-         * heading there, where {@code step} leads back along the line. A curve with no length heads nowhere, so its
-         * stretch is the end itself and cuts nothing.
+         * The point {@link #PAST} blocks out from the curve's end, straight on the way the curve heads there. That's
+         * from the nearest control point that isn't on the end, the one at index {@code at}, where {@code step} leads
+         * in. Not from the flattened line, whose last piece can be a hundredth of a block long and well off the
+         * tangent. A curve with no length heads nowhere, so its stretch is the end itself and cuts nothing.
          */
-        private static double[] beyond(List<double[]> line, int at, int step) {
-            double[] end = line.get(at);
-            for (int k = at + step; k >= 0 && k < line.size(); k += step) {
-                double[] p = line.get(k);
-                double dx = end[0] - p[0], dy = end[1] - p[1], dz = end[2] - p[2], l = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        private static double[] beyond(double[] end, List<double[]> pts, int at, int step) {
+            double[] e = pts.get(at);
+            for (int k = at + step; k >= 0 && k < pts.size(); k += step) {
+                double[] p = pts.get(k);
+                double dx = e[0] - p[0], dy = e[1] - p[1], dz = e[2] - p[2], l = Math.sqrt(dx * dx + dy * dy + dz * dz);
                 if (l > 1e-9) return new double[]{end[0] + dx / l * PAST, end[1] + dy / l * PAST, end[2] + dz / l * PAST};
             }
             return end;

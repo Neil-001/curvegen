@@ -537,6 +537,20 @@ class Shapes3Test {
     }
 
     @Test
+    void anOpenEndIsCutSquareToTheCurveNotToItsFirstPiece() {
+        // The curve leaves its start along +z, but its first flattened piece is very short and well off that way.
+        ShapeSettings s = hollow(curve(120, 24, 24, 22, 12, 12, 12, 12, 12, 13, 112, 12, 13), true);
+        Solver3.Result open = Solver3.run(s), capped = Solver3.run(hollow(s.copy(), false));
+        int pad = open.shape().pad();
+        assertNotEquals(AIR, open.at(1 + pad, 12 + pad, 14 + pad));
+        // Behind the cut, the open tube is the capped one.
+        for (int y = 0; y < open.ny(); y++)
+            for (int x = 0; x < open.nx(); x++)
+                for (int z = 15 + pad; z < open.nz(); z++)
+                    if (x < 109 + pad) assertEquals(capped.at(x, y, z), open.at(x, y, z), x + "," + y + "," + z);
+    }
+
+    @Test
     void aSlantedOpenEndIsCutLevelWithTheCurvesEnd() {
         ShapeSettings s = hollow(curve(18, 14, 18, 5.5, 2, 2, 3, 9, 10, 4, 6, 12, 12, 14, 4, 13), true);
         for (ShapeSettings pieces : Shapes3Cases.pieceSets()) {
