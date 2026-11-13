@@ -51,7 +51,8 @@ public class NameDialogScreen extends Screen {
     protected void init() {
         int x = x0() + 10, y = y0() + 24;
         String text = field != null ? field.getValue() : initial;
-        field = new EditBox(font, x, y, W - 20, 20, Component.translatable("curvegen.screen.preset_name"));
+        // The field reads out as the dialog it is in: a preset, a pattern or a renaming.
+        field = new EditBox(font, x, y, W - 20, 20, title);
         field.setMaxLength(80);
         field.setValue(text);
         field.setCursorPosition(0);               // select it all, so typing replaces the suggestion
