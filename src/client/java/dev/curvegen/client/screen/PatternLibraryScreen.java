@@ -6,9 +6,11 @@ import com.mojang.blaze3d.platform.InputConstants;
 import dev.curvegen.client.BlockChoices;
 import dev.curvegen.client.ColorIndex;
 import dev.curvegen.client.CurveGenClient;
+import dev.curvegen.client.ImageFile;
 import dev.curvegen.client.PaintBlocks;
 import dev.curvegen.client.PatternStore;
 import dev.curvegen.client.PatternStore.Saved;
+import dev.curvegen.client.chroma.Chroma;
 import dev.curvegen.client.edit.Capture;
 import dev.curvegen.client.edit.Editor;
 import dev.curvegen.core.ShapeSettings;
@@ -16,6 +18,7 @@ import dev.curvegen.core.paint.Paint;
 import dev.curvegen.core.paint.Pattern;
 import dev.curvegen.core.paint.PatternNames;
 import dev.curvegen.core.paint.Patterns;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -36,6 +39,10 @@ import net.minecraft.world.level.block.Block;
  * it. "Capture new…" closes the menus to capture one from the world ({@link Capture}), and once it's named chooses it
  * and opens what {@code reopen} gives. The current pattern shows first, marked as not saved, when the library doesn't
  * hold it, as after loading a preset that carries its own.
+ *
+ * <p>A picture file dropped onto the library becomes a pattern of colours ({@link ImagePatternScreen}), when Chroma
+ * Studio is installed to match them well. A line beside "Capture new…" says so, greyed without it, and says why after
+ * a drop that made nothing.
  */
 public class PatternLibraryScreen extends Screen {
     private static final ShapeSettings S = CurveGenClient.SETTINGS;
@@ -51,6 +58,9 @@ public class PatternLibraryScreen extends Screen {
     private Pattern unsaved;
     private int scroll;
     private final PaintPicture picture = new PaintPicture();
+    private Button captureButton, cancelButton;
+    /** Why the last drop made no pattern, shown in place of the hint until the next one, or null. */
+    private String dropProblem;
 
     /**
      * @param onPick given the chosen pattern, before the library goes back to {@code parent}
@@ -119,11 +129,11 @@ public class PatternLibraryScreen extends Screen {
 
         int by = height - 26;
         int cw = Math.max(80, font.width(tr("curvegen.screen.cancel")) + 24);
-        addRenderableWidget(Button.builder(Component.translatable("curvegen.screen.cancel"), _ -> onClose()).bounds(width - M - cw, by, cw, 20).build());
+        cancelButton = addRenderableWidget(Button.builder(Component.translatable("curvegen.screen.cancel"), _ -> onClose()).bounds(width - M - cw, by, cw, 20).build());
         int nw = Math.min(listW(), font.width(tr("curvegen.patterns.capture")) + 24);
         Button capture = Button.builder(Component.translatable("curvegen.patterns.capture"), _ -> capture()).bounds(listX(), by, nw, 20).build();
         capture.setTooltip(Tooltip.create(Component.translatable("curvegen.patterns.capture_tip")));
-        addRenderableWidget(capture);
+        captureButton = addRenderableWidget(capture);
         refilter();
     }
 
@@ -237,6 +247,19 @@ public class PatternLibraryScreen extends Screen {
         ctx.fill(px0, py1 - infoH, px1, py1, 0xB0000000);
         String info = PatternStore.shownName(target) + "  " + target.width + "×" + target.height;
         ctx.text(font, font.plainSubstrByWidth(info, px1 - px0 - 12), px0 + 6, py1 - infoH + 3, 0xFFFFFFFF, false);
+
+        // Between the bottom buttons: that pictures can be dropped here, or why the last one made nothing.
+        int hx0 = captureButton.getRight() + 8, hx1 = cancelButton.getX() - 8, hy = cancelButton.getY();
+        if (hx1 - hx0 > 20) {
+            boolean can = Chroma.available();
+            String hint = dropProblem != null ? dropProblem : tr("curvegen.patterns.drop_hint");
+            String shown = font.width(hint) <= hx1 - hx0 ? hint : font.plainSubstrByWidth(hint, hx1 - hx0 - font.width("…")) + "…";
+            int colour = dropProblem != null ? 0xFFFF8098 : can ? 0xFF9AA5B3 : 0xFF5C6470;
+            ctx.text(font, shown, hx0, hy + 6, colour, false);
+            if (mx >= hx0 && mx < hx0 + font.width(shown) && my >= hy && my < hy + 20) {
+                tip = dropProblem != null ? dropProblem : tr(can ? "curvegen.patterns.drop_hint_tip" : "curvegen.patterns.drop_needs");
+            }
+        }
         if (tip != null) ctx.setTooltipForNextFrame(font.split(Component.literal(tip), 200), mx, my);
     }
 
@@ -266,6 +289,28 @@ public class PatternLibraryScreen extends Screen {
             return true;
         }
         return super.mouseScrolled(mx, my, h, v);
+    }
+
+    /** A picture file dropped on the library: asks for its width, then saves it as a pattern. */
+    @Override
+    public void onFilesDrop(List<Path> files) {
+        if (!Chroma.available()) { dropProblem = tr("curvegen.patterns.drop_needs"); return; }
+        if (files.size() != 1) { dropProblem = tr("curvegen.patterns.drop_one"); return; }
+        String file = files.getFirst().getFileName().toString();
+        ImageFile.Result read = ImageFile.read(files.getFirst());
+        if (read.image() == null) {
+            dropProblem = tr(read.problem() == ImageFile.Problem.TOO_LARGE ? "curvegen.patterns.drop_too_large" : "curvegen.patterns.drop_unreadable", file);
+            return;
+        }
+        dropProblem = null;
+        int dot = file.lastIndexOf('.');
+        String stem = (dot > 0 ? file.substring(0, dot) : file).trim();
+        String name = PatternStore.unique(stem.isEmpty() ? tr("curvegen.image.default_name") : stem);
+        minecraft.gui.setScreen(new ImagePatternScreen(this, read.image(), name, p -> {
+            dropProblem = p == null ? tr("curvegen.patterns.drop_clear", file) : null;
+            scroll = 0;
+            refilter();
+        }));
     }
 
     private void rename(Saved s) {
