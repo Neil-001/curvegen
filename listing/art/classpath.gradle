@@ -1,0 +1,10 @@
+// An init script for render.py: prints the class path Fabric's tests run with, which holds Minecraft and the mod's
+// classes, so Blocks.java can run against the game's own blocks. Run with -I; it changes nothing in the build.
+allprojects {
+    afterEvaluate { p ->
+        if (p.path == ':fabric') p.tasks.register('artClasspath') {
+            def cp = p.sourceSets.test.runtimeClasspath
+            doLast { println 'CP=' + cp.asPath }
+        }
+    }
+}
