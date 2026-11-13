@@ -11,10 +11,13 @@ import java.util.function.Predicate;
  * carry them. A setting a shape can't use stays as chosen, and the shape reads it through {@link #fitFor} or
  * {@link #onFor}, which give the nearest valid one.
  *
- * <p>Sources added later (a mix, a gradient) add their own fields here, with copy, set, same, capture and apply.
+ * <p>Each source has its own fields here, with copy, set, same, capture and apply. A later source (a gradient) adds
+ * its own the same way.
  */
 public final class Paint {
-    public enum Source { OFF, PATTERN }
+    public enum Source { OFF, PATTERN, MIX }
+    /** How a mix lays out its blocks: each on its own, or in patches. */
+    public enum Arrange { SCATTER, PATCHES }
     /** Where a 2D shape more than one block deep shows its pattern: the face the 2D picture shows, or round its edge. */
     public enum On { FACE, EDGE }
     public enum Fit { REPEAT, REPEAT_ALONG, STRETCH }
@@ -43,6 +46,16 @@ public final class Paint {
     /** "One material per colour" for a pattern. Off by default; a gradient will want its own, on by default. */
     public boolean patternOneMaterial;
 
+    /** The mix to paint with. Never null: it starts as the bundled mossy pattern's blocks. */
+    public Mix mix = Mix.of(Patterns.MOSSY_MIX);
+    public Arrange arrange = Arrange.PATCHES;
+    /** About how many blocks across a mix's patches are. */
+    public int patch = 4;
+    /** Which arrangement of the mix: Shuffle picks another. Saved with the shape, so preview and placing agree. */
+    public int seed;
+    /** "One material per colour" for a mix. Off by default. */
+    public boolean mixOneMaterial;
+
     public boolean on() { return source != Source.OFF; }
 
     /** The fit a shape uses: the chosen one, or Repeat along for a line and Repeat for anything else. */
@@ -55,7 +68,10 @@ public final class Paint {
     public On onFor(int depth) { return depth > 1 ? on : On.FACE; }
 
     /** Whether "One material per colour" is on for the current source. */
-    public boolean oneMaterial() { return source == Source.PATTERN && patternOneMaterial; }
+    public boolean oneMaterial() { return source == Source.PATTERN ? patternOneMaterial : source == Source.MIX && mixOneMaterial; }
+
+    /** What the current source paints with: the mix's blocks for a mix, and otherwise the pattern's cells. */
+    public Palette palette() { return source == Source.MIX ? mix : pattern; }
 
     public Paint copy() {
         Paint p = new Paint();
@@ -66,19 +82,21 @@ public final class Paint {
     public void set(Paint o) {
         source = o.source; pattern = o.pattern; on = o.on; mapping = o.mapping; fit = o.fit; size = o.size; turn = o.turn;
         mirror = o.mirror; along = o.along; across = o.across; empty = o.empty; patternOneMaterial = o.patternOneMaterial;
+        mix = o.mix; arrange = o.arrange; patch = o.patch; seed = o.seed; mixOneMaterial = o.mixOneMaterial;
     }
 
     public boolean same(Paint o) {
         return source == o.source && pattern.equals(o.pattern) && on == o.on && mapping == o.mapping && fit == o.fit && size == o.size
                 && turn == o.turn && mirror == o.mirror && along == o.along && across == o.across && empty == o.empty
-                && patternOneMaterial == o.patternOneMaterial;
+                && patternOneMaterial == o.patternOneMaterial && mix.equals(o.mix) && arrange == o.arrange && patch == o.patch
+                && seed == o.seed && mixOneMaterial == o.mixOneMaterial;
     }
 
     /**
-     * Whether fences, panes and walls should attach to the shape's full blocks, going by what most of the pattern's
-     * blocks do. Null when the pattern has no blocks, only colours or empty cells, so the Blocks tab's choice decides.
+     * Whether fences, panes and walls should attach to the shape's full blocks, going by what most of the pattern's or
+     * mix's blocks do. Null when it has no blocks, only colours or empty cells, so the Blocks tab's choice decides.
      */
-    public static Boolean connects(Pattern p, Predicate<String> connects) {
+    public static Boolean connects(Palette p, Predicate<String> connects) {
         long yes = 0, no = 0;
         for (int k = 0; k < p.paletteSize(); k++) {
             String b = p.cell(k).block();
@@ -90,7 +108,7 @@ public final class Paint {
 
     // ---------- as text ----------
 
-    /** The settings as text, for the player's paint file and presets, with a copy of the pattern under "pattern.". */
+    /** The settings as text, for the player's paint file and presets, with a copy of the pattern under "pattern." and the mix under "mix.". */
     public Map<String, String> capture() {
         Map<String, String> d = new LinkedHashMap<>();
         d.put("source", source.name());
@@ -104,13 +122,18 @@ public final class Paint {
         d.put("across", String.valueOf(across));
         d.put("empty", empty.name());
         d.put("patternOneMaterial", String.valueOf(patternOneMaterial));
+        d.put("arrange", arrange.name());
+        d.put("patch", String.valueOf(patch));
+        d.put("seed", String.valueOf(seed));
+        d.put("mixOneMaterial", String.valueOf(mixOneMaterial));
         for (var e : pattern.encode().entrySet()) d.put("pattern." + e.getKey(), e.getValue());
+        for (var e : mix.encode().entrySet()) d.put("mix." + e.getKey(), e.getValue());
         return d;
     }
 
     /**
      * Takes settings from {@link #capture}'s text. Missing or unreadable values keep their current setting, and so
-     * does the pattern unless the text holds a whole, valid one. A source this version doesn't know turns paint off.
+     * do the pattern and the mix unless the text holds a whole, valid one. A source this version doesn't know turns paint off.
      */
     public void apply(Map<String, String> d) {
         if (d.containsKey("source")) source = enumOf(Source.class, d.get("source"), Source.OFF);
@@ -124,10 +147,20 @@ public final class Paint {
         across = integer(d, "across", -MAX_SLIDE, MAX_SLIDE, across);
         empty = enumOf(Empty.class, d.get("empty"), empty);
         if (d.containsKey("patternOneMaterial")) patternOneMaterial = Boolean.parseBoolean(d.get("patternOneMaterial"));
-        Map<String, String> p = new LinkedHashMap<>();
-        for (var e : d.entrySet()) if (e.getKey().startsWith("pattern.")) p.put(e.getKey().substring(8), e.getValue());
-        Pattern read = Pattern.decode(p);
+        arrange = enumOf(Arrange.class, d.get("arrange"), arrange);
+        patch = integer(d, "patch", MixLayout.MIN_PATCH, MixLayout.MAX_PATCH, patch);
+        seed = integer(d, "seed", Integer.MIN_VALUE, Integer.MAX_VALUE, seed);
+        if (d.containsKey("mixOneMaterial")) mixOneMaterial = Boolean.parseBoolean(d.get("mixOneMaterial"));
+        Pattern read = Pattern.decode(under(d, "pattern."));
         if (read != null) pattern = read;
+        Mix m = Mix.decode(under(d, "mix."));
+        if (m != null) mix = m;
+    }
+
+    private static Map<String, String> under(Map<String, String> d, String prefix) {
+        Map<String, String> p = new LinkedHashMap<>();
+        for (var e : d.entrySet()) if (e.getKey().startsWith(prefix)) p.put(e.getKey().substring(prefix.length()), e.getValue());
+        return p;
     }
 
     private static int integer(Map<String, String> d, String k, int lo, int hi, int def) {

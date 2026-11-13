@@ -12,7 +12,9 @@ import dev.curvegen.core.Solver;
 import dev.curvegen.core.edit.Stepper;
 import dev.curvegen.core.paint.Catalog;
 import dev.curvegen.core.paint.Ladder.Why;
+import dev.curvegen.core.paint.MixLayout;
 import dev.curvegen.core.paint.Paint;
+import dev.curvegen.core.paint.Paint.Arrange;
 import dev.curvegen.core.paint.Paint.Empty;
 import dev.curvegen.core.paint.Paint.Fit;
 import dev.curvegen.core.paint.Paint.Mapping;
@@ -27,6 +29,7 @@ import java.util.concurrent.Future;
 import java.util.function.BooleanSupplier;
 import java.util.function.IntConsumer;
 import java.util.function.IntSupplier;
+import java.util.function.Supplier;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
@@ -42,7 +45,8 @@ import net.minecraft.network.chat.Component;
  * The Paint screen: the paint source and its settings on the left, and the shape on the right in its block colours,
  * painted as the settings stand. Every control changes {@code ShapeSettings.paint} at once, and the editor and the main
  * screen repaint from it. The rows under Source belong to the source, built by one method per source, so a new source
- * brings its own rows without reshaping the screen. With Source: Off the pattern's rows stay, greyed out.
+ * brings its own rows without reshaping the screen. With Source: Off the pattern's rows stay, greyed out. A mix has
+ * fewer rows, so it leaves two empty above "One material per colour".
  *
  * <p>The picture solves the shape once and solves again only when something other than its paint changes, such as
  * whether fences attach to full blocks, which follows the pattern. A paint change repaints that solve on the worker
@@ -61,6 +65,7 @@ public class PaintScreen extends ControlScreen {
     private int pw, pitch, h;
     private record Label(int x, int y, String text) {}
     private final List<Label> labels = new ArrayList<>();
+    /** Where the pattern's or the mix's swatch sits, beside the button that chooses it, or -1 for none. */
     private int swatchY = -1;
     /** Whether the shape on show was a line when the Fit button was made, as the default fit depends on it. */
     private boolean lineShown;
@@ -90,6 +95,7 @@ public class PaintScreen extends ControlScreen {
     private static Component onName(On o) { return Component.translatable("curvegen.paint.on." + o.name().toLowerCase(Locale.ROOT)); }
     private static Component fitName(Fit f) { return Component.translatable("curvegen.paint.fit." + f.name().toLowerCase(Locale.ROOT)); }
     private static Component emptyName(Empty e) { return Component.translatable("curvegen.paint.empty." + e.name().toLowerCase(Locale.ROOT)); }
+    private static Component arrangeName(Arrange a) { return Component.translatable("curvegen.paint.arrange." + a.name().toLowerCase(Locale.ROOT)); }
 
     // ---------- layout ----------
     private int y(int row) { return TOP + row * pitch; }
@@ -114,6 +120,9 @@ public class PaintScreen extends ControlScreen {
         need = Math.max(need, 2 * (Math.max(tw(tr("curvegen.paint.along")), tw(tr("curvegen.paint.across"))) + 3 + NUM) + GAP);
         need = Math.max(need, opt(tr("curvegen.paint.empty"), emptyName(Empty.FILL)) + PAD);
         need = Math.max(need, onOffWidth(tr("curvegen.paint.one_material")) + PAD);
+        for (Arrange a : Arrange.values()) need = Math.max(need, opt(tr("curvegen.paint.arrange"), arrangeName(a)) + PAD);
+        need = Math.max(need, tw(tr("curvegen.paint.patch")) + 3 + NUM);
+        need = Math.max(need, tw(tr("curvegen.paint.shuffle")) + PAD);
         return Math.min(need, width / 2);
     }
 
@@ -145,6 +154,7 @@ public class PaintScreen extends ControlScreen {
         }), tr("curvegen.paint.source_tip"));
         switch (src) {
             case OFF, PATTERN -> patternRows(src == Source.PATTERN);
+            case MIX -> mixRows();
         }
         oneMaterialRow(y(ROWS - 1));
 
@@ -168,16 +178,11 @@ public class PaintScreen extends ControlScreen {
         String offTip = tr("curvegen.paint.off_tip");
 
         // Which pattern, with its colours beside it. It can be chosen while paint is off: choosing one turns it on.
-        swatchY = y(1) + (h - 16) / 2;
-        String name = PatternChooserScreen.name(p.pattern), text = name + "…";
-        int bw = pw - 20;
-        boolean cut = tw(text) > bw - 8;
-        if (cut) text = font.plainSubstrByWidth(name, bw - 8 - tw("…")) + "…";
-        add(Button.builder(Component.literal(text), _ -> minecraft.gui.setScreen(new PatternChooserScreen(this, chosen -> {
+        chooser(PatternChooserScreen.name(p.pattern), tr("curvegen.paint.choose_tip"), () -> new PatternChooserScreen(this, chosen -> {
             S.paint.pattern = chosen;
             if (!S.paint.on()) S.paint.source = Source.PATTERN;
             paintChanged(false);
-        }))).bounds(M + 20, y(1), bw, h).build(), cut ? name + '\n' + tr("curvegen.paint.choose_tip") : tr("curvegen.paint.choose_tip"));
+        }));
 
         if (S.is3d()) {
             // How the pattern goes onto a 3D shape. A 3D equation can't be wrapped, so it only offers the three projections.
@@ -222,12 +227,53 @@ public class PaintScreen extends ControlScreen {
                 false, null, on ? tr("curvegen.paint.empty_tip") : offTip);
     }
 
+    /** The second row's button that opens {@code open}, named {@code name} and cut to fit, with the swatch beside it. */
+    private void chooser(String name, String tip, Supplier<Screen> open) {
+        swatchY = y(1) + (h - 16) / 2;
+        String text = name + "…";
+        int bw = pw - 20;
+        boolean cut = tw(text) > bw - 8;
+        if (cut) text = font.plainSubstrByWidth(name, bw - 8 - tw("…")) + "…";
+        add(Button.builder(Component.literal(text), _ -> minecraft.gui.setScreen(open.get())).bounds(M + 20, y(1), bw, h).build(),
+                cut ? name + '\n' + tip : tip);
+    }
+
+    /** A mix's rows: which blocks, Scatter or Patches, the patches' size and Shuffle. */
+    private void mixRows() {
+        Paint p = S.paint;
+        chooser(MixChooserScreen.name(p.mix), tr("curvegen.paint.mix_choose_tip"), () -> new MixChooserScreen(this, chosen -> {
+            S.paint.mix = chosen;
+            paintChanged(false);
+        }));
+
+        add(cycler(List.of(Arrange.values()), p.arrange, PaintScreen::arrangeName, M, y(2), pw, tr("curvegen.paint.arrange"), v -> {
+            S.paint.arrange = v;
+            paintChanged(true);   // Patch size greys out under Scatter
+        }), tr("curvegen.paint.arrange_tip"));
+        boolean patches = p.arrange == Arrange.PATCHES;
+        number(M, y(3), pw, tr("curvegen.paint.patch"), () -> S.paint.patch, v -> S.paint.patch = v, 1, MixLayout.MIN_PATCH, MixLayout.MAX_PATCH,
+                patches, tr("curvegen.paint.patch_tip"), tr("curvegen.paint.patch_scatter_tip"));
+
+        add(Button.builder(Component.translatable("curvegen.paint.shuffle"), _ -> {
+            int seed;
+            do seed = java.util.concurrent.ThreadLocalRandom.current().nextInt(); while (seed == S.paint.seed);
+            S.paint.seed = seed;
+        }).bounds(M, y(4), pw, h).build(), tr("curvegen.paint.shuffle_tip"));
+
+        // A 3D shape's mapping, greyed: a mix places blocks by where they are, not by laying a pattern on the shape.
+        if (S.is3d()) {
+            boolean wraps = S.gen != ShapeSettings.Gen.EQUATION3;
+            add(cycler(List.of(p.mappingFor(wraps)), p.mappingFor(wraps), PaintScreen::mappingName, M, y(5), pw, tr("curvegen.paint.mapping"), _ -> { }),
+                    false, null, tr("curvegen.paint.mapping_mix_tip"));
+        }
+    }
+
     /** "One material per colour", which every source has, each with its own setting. */
     private void oneMaterialRow(int y) {
         Source src = S.paint.source;
-        boolean value = switch (src) { case OFF, PATTERN -> S.paint.patternOneMaterial; };
+        boolean value = switch (src) { case OFF, PATTERN -> S.paint.patternOneMaterial; case MIX -> S.paint.mixOneMaterial; };
         add(toggle(value, M, y, pw, tr("curvegen.paint.one_material"), v -> {
-            switch (src) { case OFF, PATTERN -> S.paint.patternOneMaterial = v; }
+            switch (src) { case OFF, PATTERN -> S.paint.patternOneMaterial = v; case MIX -> S.paint.mixOneMaterial = v; }
         }), S.paint.on(), tr("curvegen.paint.one_material_tip"), tr("curvegen.paint.off_tip"));
     }
 
@@ -352,7 +398,8 @@ public class PaintScreen extends ControlScreen {
         super.extractRenderState(ctx, mx, my, delta);
         ctx.text(font, title, M, 10, 0xFFFFFFFF);
         for (Label l : labels) ctx.text(font, l.text, l.x, l.y, S.paint.on() ? 0xFFC8CED6 : 0xFF808A96);
-        if (swatchY >= 0) PatternChooserScreen.drawSwatch(ctx, S.paint.pattern, M + 1, swatchY, 16);
+        if (swatchY >= 0 && S.paint.source == Source.MIX) MixChooserScreen.drawSwatch(ctx, S.paint.mix, M + 1, swatchY, 16);
+        else if (swatchY >= 0) PatternChooserScreen.drawSwatch(ctx, S.paint.pattern, M + 1, swatchY, 16);
 
         String[] status = status();
         int sy = y(ROWS) + 3;

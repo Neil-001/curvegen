@@ -40,6 +40,7 @@ public final class Solve3Painter {
     /** Paints the solve, or returns null while paint is off or the shape has an error. */
     public Done paint(Paint paint, boolean fullConnects, Catalog catalog) {
         if (!paint.on() || own.error() != null) return null;
+        if (paint.source == Paint.Source.MIX) return new Done(Painter3.mix(result, own, orient, paint, fullConnects, catalog), -1, -1);
         Wrap3 w = wrap(paint.mappingFor(wraps()));
         return new Done(Painter3.paint(result, w, paint, fullConnects, catalog), w.right, w.up);
     }

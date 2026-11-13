@@ -32,6 +32,11 @@ public final class Target {
     public double[] rim;
     /** Cells whose centre lies in the space the shape encloses; cleared to air when carving (null = never carve). */
     public boolean[] carve;
+    /**
+     * How many cells the grid extends past the shape's box on each side: an ellipse's grows for a wall that reaches
+     * outwards. Painting places a mix by position in the box, so it takes this off; nothing in the solve reads it.
+     */
+    public int margin;
     public Message error;
     /** For equations: block → math coordinates. */
     public double mx0, msx, my0, msy;
@@ -117,6 +122,7 @@ public final class Target {
         int nx = s.eW + 2 * m, ny = s.eH + 2 * m;
         double x0 = -a - m, y0 = -b - m;
         Target t = new Target(nx, ny);
+        t.margin = m;
         t.symX = t.symY = true;
         t.hollow = s.eMode == ShapeSettings.EllipseMode.THIN;
         final double flo = lo, fhi = hi;

@@ -322,4 +322,34 @@ class Painter3Test {
         Paint3Timing.millis(r, w, s, TestWorld.catalog());   // warm up
         assertTrue(Paint3Timing.millis(r, w, s, TestWorld.catalog()) < 100);
     }
+
+    /** A mix places blocks by where they are in the shape's own box, so they turn with the shape, and never changes a piece. */
+    @Test
+    void aMixTurnsWithTheShape() {
+        ShapeSettings s = new ShapeSettings();
+        s.gen = Gen.TORUS;
+        s.paint.source = Paint.Source.MIX;
+        s.paint.arrange = Paint.Arrange.PATCHES;
+        Shape3 own = Shape3.of(s);
+        java.util.Map<String, String> byOwnCell = new java.util.HashMap<>();
+        for (Orient o : new Orient[]{UNTURNED, Orient.facing(Orient.NORTH), Orient.facing(Orient.EAST).tip(Orient.EAST)}) {
+            Solver3.Result r = Solver3.solve(Turned.of(own, o), s, () -> false);
+            short[] before = r.grid().clone();
+            Painted p = new Solve3Painter(r, own, o).paint(s.paint, s.fullConnects, TestWorld.catalog()).painted();
+            assertArrayEquals(before, r.grid());
+            assertEquals(blocks(r), p.total());
+            int[] size = {own.nx(), own.ny(), own.nz()};
+            for (int y = 0, k = 0; y < r.ny(); y++)
+                for (int z = 0; z < r.nz(); z++)
+                    for (int x = 0; x < r.nx(); x++) {
+                        if (r.at(x, y, z) == Pieces3.AIR) continue;
+                        double[] at = o.toOwn(new double[]{x + .5, y + .5, z + .5}, size);
+                        String key = (int) at[0] + "," + (int) at[1] + "," + (int) at[2] + "/" + Pieces3.FAMILY[r.at(x, y, z)];
+                        int e = p.at(k++);
+                        String block = e < 0 ? "tab" : p.blocks().get(e);
+                        String seen = byOwnCell.putIfAbsent(key, block);
+                        if (seen != null) assertEquals(seen, block, "at " + key);
+                    }
+        }
+    }
 }
