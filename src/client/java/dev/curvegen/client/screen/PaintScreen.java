@@ -333,8 +333,11 @@ public class PaintScreen extends ControlScreen {
 
         String[] status = status();
         int sy = y(ROWS) + 3;
-        ctx.text(font, font.plainSubstrByWidth(status[0], pw), M, sy, 0xFF9AA5B3, false);
-        if (status[1] != null && mx >= M && mx < M + pw && my >= sy - 2 && my < sy + 10)
+        // Up to two lines under the rows: the left side of the bottom is free, as Done sits on the right.
+        var lines = font.split(Component.literal(status[0]), pw);
+        int shown = Math.min(lines.size(), 2);
+        for (int k = 0; k < shown; k++) ctx.text(font, lines.get(k), M, sy + k * 10, 0xFF9AA5B3, false);
+        if (status[1] != null && mx >= M && mx < M + pw && my >= sy - 2 && my < sy + 10 * shown)
             ctx.setTooltipForNextFrame(font.split(Component.literal(status[1]), 240), mx, my);
 
         int px0 = pvX0(), py0 = TOP, px1 = width - M, py1 = pvY1();
