@@ -1,5 +1,6 @@
 package dev.curvegen.core;
 
+import dev.curvegen.core.paint.Paint;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -107,6 +108,11 @@ public final class ShapeSettings {
     public boolean carve = false;
     /** 3D shapes: match block colours to the top texture rather than the side. */
     public boolean topColours = false;
+    /**
+     * How the shape is painted after it's solved. Painting never changes the solve, so code that decides whether a
+     * shape needs solving again compares everything but this.
+     */
+    public final Paint paint = new Paint();
 
     /** Independent copy, so the solver can run on a worker thread while the UI keeps editing. */
     public ShapeSettings copy() {
@@ -132,6 +138,7 @@ public final class ShapeSettings {
         slab = o.slab; stair = o.stair; trap = o.trap; shelf = o.shelf; fence = o.fence; pane = o.pane; wall = o.wall; chain = o.chain; rod = o.rod;
         fullConnects = o.fullConnects; depth = o.depth; overwrite = o.overwrite; carve = o.carve; floor = o.floor;
         topColours = o.topColours;
+        paint.set(o.paint);
     }
 
     private static void copy(List<double[]> from, List<double[]> to) {
@@ -161,6 +168,6 @@ public final class ShapeSettings {
                 && slab == o.slab && stair == o.stair && trap == o.trap && shelf == o.shelf && fence == o.fence && pane == o.pane
                 && wall == o.wall && chain == o.chain && rod == o.rod
                 && fullConnects == o.fullConnects && depth == o.depth && overwrite == o.overwrite && carve == o.carve && floor == o.floor
-                && topColours == o.topColours;
+                && topColours == o.topColours && paint.same(o.paint);
     }
 }
