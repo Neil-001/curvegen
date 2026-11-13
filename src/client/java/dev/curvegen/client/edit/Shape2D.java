@@ -2,11 +2,16 @@ package dev.curvegen.client.edit;
 
 import dev.curvegen.client.Lang;
 import dev.curvegen.client.BlockChoices;
+import dev.curvegen.client.PaintBlocks;
 import dev.curvegen.core.Pieces;
 import dev.curvegen.core.ShapeSettings;
 import dev.curvegen.core.ShapeSettings.Gen;
 import dev.curvegen.core.Solver;
 import dev.curvegen.core.edit.Edit2D;
+import dev.curvegen.core.paint.Catalog;
+import dev.curvegen.core.paint.Paint;
+import dev.curvegen.core.paint.Painted;
+import dev.curvegen.core.paint.Painter2D;
 import dev.curvegen.core.edit.Option;
 import dev.curvegen.core.edit.Orient;
 import java.util.ArrayList;
@@ -26,8 +31,11 @@ final class Shape2D implements EditShape {
 
     Shape2D(ShapeSettings s) { this.s = s; }
 
-    /** A solver result with the box it was solved for, which the settings may since have moved on from. */
-    private record Solved(Solver.Result result, int[] size, int depth) {
+    /**
+     * A solver result with the box it was solved for, which the settings may since have moved on from, whether fences
+     * attached to its full blocks, and its paint, or null while it's unpainted.
+     */
+    private record Solved(Solver.Result result, int[] size, int depth, boolean fullConnects, Painted painted) {
         /** How many cells the grid extends past the box on each side. Only an ellipse's does, for a wall that grows outwards. */
         int margin() { return (result.nx() - size[0]) / 2; }
     }
@@ -71,7 +79,14 @@ final class Shape2D implements EditShape {
     @Override
     public Object solve(ShapeSettings copy, Orient orient, BooleanSupplier cancelled) {
         Solver.Result r = Solver.run(copy);   // settles the equation's locked height in the copy
-        return new Solved(r, Edit2D.size(copy), Math.max(1, copy.depth));
+        return new Solved(r, Edit2D.size(copy), Math.max(1, copy.depth), copy.fullConnects, null);
+    }
+
+    @Override
+    public Object paint(Object solved, Paint paint, Catalog catalog) {
+        Solved v = (Solved) solved;
+        Painted p = Painter2D.paint(v.result, v.depth, paint, v.fullConnects, catalog);
+        return new Solved(v.result, v.size, v.depth, v.fullConnects, p);
     }
 
     @Override
@@ -88,6 +103,9 @@ final class Shape2D implements EditShape {
         List<Placed> blocks = new ArrayList<>();
         List<BlockPos> carve = new ArrayList<>();
         boolean[] cv = r.target().carve;
+        Painted painted = v.painted;
+        PaintBlocks.Resolved paint = painted == null ? null : PaintBlocks.resolve(painted, PaintBlocks.viewer(right, floor ? forward : Direction.UP));
+        int n = r.nx() * r.ny();
         for (int j = 0; j < r.ny(); j++)
             for (int i = 0; i < r.nx(); i++) {
                 int p = r.at(i, j);
@@ -96,7 +114,10 @@ final class Shape2D implements EditShape {
                 for (int k = 0; k < depth; k++) {
                     int[] w = at.cell(i - m, j - m, k, size);
                     if (p == Pieces.EMPTY) { carve.add(new BlockPos(w[0], w[1], w[2])); continue; }
-                    BlockState state = BlockChoices.stateFor(p, above, right, forward, k, depth, floor);
+                    BlockState state;
+                    int entry = paint == null ? -1 : painted.at((painted.layers() == 1 ? 0 : k) * n + j * r.nx() + i);
+                    if (entry >= 0 && p == Pieces.FULL && paint.full()[entry] != null) state = paint.full()[entry];
+                    else state = BlockChoices.stateFor(p, above, right, forward, k, depth, floor, paint == null ? null : paint.block(entry));
                     blocks.add(new Placed(w[0], w[1], w[2], state));
                 }
             }

@@ -125,7 +125,7 @@ public class RadialScreen extends Screen {
         Gen g = p.gen();
         if (g == null) return;
         PresetData.apply(p.data, g, S);
-        if (withBlocks && p.blocks != null) BlockChoices.apply(p.blocks, S, BlockChoices.CHOICE);
+        if (withBlocks) p.applyBlocks(S, BlockChoices.CHOICE);
         // A hologram that's out takes the change when the presets screen closes.
         if (!Editor.isActive() && EditShape.supports(S.gen)) Editor.start();
     }
@@ -157,7 +157,7 @@ public class RadialScreen extends Screen {
                 new ItemStack(block), full ? null : _ -> Editor.edit(new Group(this, name), () -> S.allow(f, !S.allows(f))), Stay.NEVER,
                 () -> minecraft.gui.setScreen(new BlockPickerScreen(null, f, chosen -> {
                     BlockChoices.CHOICE.put(f, chosen);
-                    S.fullConnects = BlockChoices.fullBlockConnects();
+                    S.fullConnects = BlockChoices.fullConnects(S);
                 })));
     }
 

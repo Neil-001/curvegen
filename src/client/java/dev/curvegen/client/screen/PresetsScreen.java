@@ -133,14 +133,14 @@ public class PresetsScreen extends Screen {
     /** The block choices the preview of p uses. */
     private Map<Family, Block> choiceFor(Preset p) {
         Map<Family, Block> choice = new EnumMap<>(BlockChoices.CHOICE);
-        if (withBlocks(p)) BlockChoices.apply(p.blocks, CurveGenClient.SETTINGS.copy(), choice);
+        if (withBlocks(p)) p.applyBlocks(CurveGenClient.SETTINGS.copy(), choice);
         return choice;
     }
 
     private ShapeSettings settingsFor(Preset p) {
         ShapeSettings s = CurveGenClient.SETTINGS.copy();   // current orientation and depth, and pieces unless it has its own
         PresetData.apply(p.data, gen, s);
-        if (withBlocks(p)) BlockChoices.apply(p.blocks, s, new EnumMap<>(BlockChoices.CHOICE));
+        if (withBlocks(p)) p.applyBlocks(s, new EnumMap<>(BlockChoices.CHOICE));
         return s;
     }
 
@@ -300,7 +300,7 @@ public class PresetsScreen extends Screen {
             else if (r.target().error != null)
                 ctx.textWithWordWrap(font, Component.literal(Lang.text(r.target().error)), px0 + 8, py0 + 8, px1 - px0 - 16, 0xFFFF8098, false);
             else {
-                if (textureFor != target || texture.id() == null) { texture.update(r, CurveScreen.colors, true, true, choiceFor(target)); textureFor = target; }
+                if (textureFor != target || texture.id() == null) { texture.update(r, CurveScreen.colors, true, true, choiceFor(target), null); textureFor = target; }
                 float aw = px1 - px0 - 12, ah = py1 - py0 - 12 - infoH;
                 float z = Math.min(aw / r.nx(), ah / r.ny());
                 float ox = px0 + (px1 - px0 - r.nx() * z) / 2f, oy = py0 + 6 + (ah - r.ny() * z) / 2f;
