@@ -149,6 +149,27 @@ class Painter3Test {
         assertEquals(out[1], in[1], 1e-9);
     }
 
+    /**
+     * Inside a long, thin filled ellipsoid, each block takes the place of its nearest point on the surface, not of the
+     * point straight out from the middle, so the pattern runs straight through the thickness.
+     */
+    @Test
+    void insideAnEllipsoidTheNearestSurfaceDecides() {
+        ShapeSettings s = new ShapeSettings();
+        s.gen = Gen.ELLIPSOID; s.e3W = 60; s.e3H = 20; s.e3D = 20; s.e3Mode = ShapeSettings.EllipseMode.FILLED;
+        Shape3.Wrapping w = Shape3.of(s).wrapping();
+        // Under the top at x = 50, a point deeper in lies straight below its nearest surface point.
+        double[] top = new double[2];
+        double x = 50, y = 10 + 10 * Math.sqrt(1 - Math.pow((x - 30) / 30, 2));
+        w.place(x, y, 10, top);
+        for (double depth = 0.5; depth < 3; depth += 0.5) {
+            double nx = (x - 30) / (30 * 30), ny = (y - 10) / (10 * 10), l = Math.hypot(nx, ny);
+            double[] in = place(w, x - depth * nx / l, y - depth * ny / l, 10);
+            assertEquals(top[0], in[0], 1e-6, "along, " + depth + " in");
+            assertEquals(top[1], in[1], 1e-6, "across, " + depth + " in");
+        }
+    }
+
     @Test
     void aTorusWrapsRoundItsRingAndRoundItsTubeFromUnderneath() {
         ShapeSettings s = new ShapeSettings();

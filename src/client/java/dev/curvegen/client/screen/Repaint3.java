@@ -24,8 +24,9 @@ final class Repaint3 {
     private Solve3Painter jobSolve, shownSolve;
     private Paint jobPaint, shownPaint;
     private View shown;
-    /** The Blocks tab's choices each was painted with: a fallback block or a colour may change with them. */
+    /** The Blocks tab's choices and the face colours are matched by, for each: blocks and colours change with them. */
     private Map<Family, Block> jobChoices, shownChoices;
+    private boolean jobTop, shownTop;
 
     /**
      * Call every frame with the solve on show, or null, the setting it was solved with for whether fences attach to
@@ -36,15 +37,15 @@ final class Repaint3 {
         if (job != null && job.isDone()) {
             View v = null;
             try { v = job.get(); } catch (Exception _) { }
-            shown = v; shownSolve = jobSolve; shownPaint = jobPaint; shownChoices = jobChoices;
+            shown = v; shownSolve = jobSolve; shownPaint = jobPaint; shownChoices = jobChoices; shownTop = jobTop;
             job = null;
             done = true;
         }
-        if (job == null && solve != null && (shownSolve != solve || shownPaint == null || !shownPaint.same(s.paint) || !BlockChoices.CHOICE.equals(shownChoices))) {
+        if (job == null && solve != null && !upToDate(solve, s)) {
             Paint paint = s.paint.copy();
             Catalog catalog = paint.on() ? PaintBlocks.catalog(s) : null;
             int[] byFamily = Preview3.palette(PreviewTexture.Colors.BLOCKS, BlockChoices.CHOICE, s.topColours);
-            jobSolve = solve; jobPaint = paint; jobChoices = new EnumMap<>(BlockChoices.CHOICE);
+            jobSolve = solve; jobPaint = paint; jobChoices = new EnumMap<>(BlockChoices.CHOICE); jobTop = s.topColours;
             job = CurveScreen.EXEC.submit(() -> {
                 Solve3Painter.Done d = solve.paint(paint, fullConnects, catalog);
                 if (d == null) return null;
@@ -54,11 +55,23 @@ final class Repaint3 {
         return done;
     }
 
-    /** The paint of {@code solve} as {@code paint} has it, or null while it's unpainted or not ready yet. */
+    /**
+     * The paint to show on {@code solve}: the last finished for it, kept while a repaint for other paint settings runs,
+     * or null while paint is off or the solve hasn't been painted yet.
+     */
     View current(Solve3Painter solve, Paint paint) {
-        return solve != null && shownSolve == solve && shownPaint != null && shownPaint.same(paint) ? shown : null;
+        return paint.on() && solve != null && shownSolve == solve ? shown : null;
     }
 
-    /** Whether {@code solve} still waits for the paint {@code paint} asks for. */
-    boolean pending(Solve3Painter solve, Paint paint) { return paint.on() && solve != null && current(solve, paint) == null; }
+    /** The paint of {@code solve} exactly as the settings ask for it, or null while it's unpainted or not ready yet. */
+    View fresh(Solve3Painter solve, ShapeSettings s) { return upToDate(solve, s) ? shown : null; }
+
+    /** Whether the last repaint finished, or failed, for {@code solve} as the settings stand. Paint that is off is all alike. */
+    private boolean upToDate(Solve3Painter solve, ShapeSettings s) {
+        return solve != null && shownSolve == solve && shownPaint != null && (shownPaint.same(s.paint) || !shownPaint.on() && !s.paint.on())
+                && BlockChoices.CHOICE.equals(shownChoices) && shownTop == s.topColours;
+    }
+
+    /** Whether {@code solve} still waits for the paint the settings ask for, as an export must. */
+    boolean pending(Solve3Painter solve, ShapeSettings s) { return s.paint.on() && solve != null && fresh(solve, s) == null; }
 }

@@ -11,9 +11,10 @@ import dev.curvegen.core.paint.Paint.Fit;
  * also the angle, are nudged so a whole number of repeats meets itself without a seam: a tilted stripe round a loop
  * becomes a spiral. With Stretch the seam stays where the strip starts.
  *
- * <p>Round a strip closed both ways, both loops must be whole numbers of repeats, which a turn and a size alone can't
- * always give. There the pattern is also sheared a little: each loop is rounded to the nearest whole number of repeats
- * along and across the pattern as it would lie, and the pattern is fitted to those exactly.
+ * <p>Round a strip closed across, as a tube is, and more so round one closed both ways, as a torus is, each closed
+ * loop must be a whole number of repeats, which a turn and a size alone can't always give. There the pattern is also
+ * sheared a little: each closed loop is rounded to the nearest whole number of repeats along and across the pattern
+ * as it would lie, and the pattern is fitted to those exactly.
  */
 public final class Tiling {
     /** The space a pattern is laid on. {@code closed} is along it; a torus's tube is closed across it as well. */
@@ -49,19 +50,26 @@ public final class Tiling {
         // Across a "Repeat along" strip the pattern is stretched once, unless it's turned or the strip is closed across:
         // then it repeats that way too.
         wrapAcross = fit == Fit.REPEAT || turned || strip.closedAcross() && fit != Fit.STRETCH;
-        sheared = strip.closed() && strip.closedAcross() && fit != Fit.STRETCH;
+        sheared = strip.closedAcross() && fit != Fit.STRETCH;
         double a00 = 0, a01 = 0, a10 = 0, a11 = 0;
         if (sheared) {
-            // As the pattern would lie, the loop along is (p w, q h) in pattern cells and the loop across (r w, t h), rounded.
+            // As the pattern would lie, from (u, v) to pattern cells, and the loop across, (r w, t h) in pattern cells, rounded.
             double c = Math.cos(theta), sn = Math.sin(theta);
-            long p = Math.round(L * c / (u * w)), q = Math.round(-L * sn / (v * h));
+            a00 = c / u; a10 = -sn / v;
             long r = Math.round(A * sn / (u * w)), t = Math.round(A * c / (v * h));
-            if (p == 0 && q == 0) p = c < 0 ? -1 : 1;
             if (r == 0 && t == 0) t = 1;
-            // Both loops running the same way round the pattern would squash it flat. Then the loop across goes square to the other.
-            if (p * t - q * r == 0) { r = -q; t = p; }
-            a00 = (double) p * w / L; a01 = (double) r * w / A; a10 = (double) q * h / L; a11 = (double) t * h / A;
-            theta = Math.atan2(a01 / w, a00 / w);
+            if (strip.closed()) {
+                // Round a strip closed both ways the loop along is (p w, q h) too.
+                long p = Math.round(L * c / (u * w)), q = Math.round(-L * sn / (v * h));
+                if (p == 0 && q == 0) p = c < 0 ? -1 : 1;
+                // Both loops running the same way round the pattern would squash it flat. Then the loop across goes square to the other.
+                if (p * t - q * r == 0) { r = -q; t = p; }
+                a00 = (double) p * w / L; a10 = (double) q * h / L;
+            }
+            a01 = (double) r * w / A; a11 = (double) t * h / A;
+            // A loop across that lands along the pattern's own way along would squash it flat: then it goes square to that.
+            if (Math.abs(a00 * a11 - a01 * a10) < 1e-9 * (Math.abs(a00 * a11) + Math.abs(a01 * a10) + 1e-12)) { a01 = 0; a11 = h / A; }
+            theta = Math.atan2(a01, a00);
         } else if (strip.closed() && fit != Fit.STRETCH) {
             // The loop, (L, 0), seen in pattern cells must be a whole number of repeats each way: (p w, q h).
             double cx = L * Math.cos(theta) / (u * w), cy = -L * Math.sin(theta) / (v * h);

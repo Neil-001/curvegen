@@ -1164,7 +1164,7 @@ public class CurveScreen extends ControlScreen {
         }
     }
 
-    /** The paint of the 3D shape on show, or null while it's unpainted or its paint isn't ready. */
+    /** The paint the 3D shape on show is drawn with: the last finished for this solve, kept while a repaint runs. */
     private Repaint3.View painted3() { return solved3 == null ? null : repaint3.current(solved3.painter, S.paint); }
 
     /** Runs on the worker thread. Returns null once the solve is no longer wanted. */
@@ -1241,10 +1241,10 @@ public class CurveScreen extends ControlScreen {
     }
 
     private void export3() {
-        if (solved3 == null || job3 != null || dirty || solved3.error == null && repaint3.pending(solved3.painter, S.paint)) { flash(tr("curvegen.screen.still_working_on_the_shape_try_again_in_a")); return; }
+        if (solved3 == null || job3 != null || dirty || solved3.error == null && repaint3.pending(solved3.painter, S)) { flash(tr("curvegen.screen.still_working_on_the_shape_try_again_in_a")); return; }
         if (solved3.error != null) { flash(tr("curvegen.screen.fix_the_shape_first_s", Lang.text(solved3.error))); return; }
         Solver3.Result r = solved3.result;
-        Repaint3.View view = painted3();
+        Repaint3.View view = repaint3.fresh(solved3.painter, S);
         Painted painted = view == null ? null : view.done().painted();
         PaintBlocks.States3 states = new PaintBlocks.States3(painted == null ? null : PaintBlocks.resolve(painted, PaintBlocks.viewer3(view.done())));
         List<EditShape.Placed> blocks = new ArrayList<>(solved3.blocks);

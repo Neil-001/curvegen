@@ -22,7 +22,11 @@ public final class Shapes3 {
      * point is e²y/(t + e²) on each axis, for the largest root t of Σ(e·y/(t + e²))² = 1. Newton's method reaches
      * it from the left without overshooting, because the sum is convex and falling there.
      */
-    public static double sdEllipsoid(double px, double py, double pz, double a, double b, double c) {
+    public static double sdEllipsoid(double px, double py, double pz, double a, double b, double c) { return sdEllipsoid(px, py, pz, a, b, c, null); }
+
+    /** The same, also writing the nearest surface point into {@code near} unless it's null. At the very middle that is the middle. */
+    static double sdEllipsoid(double px, double py, double pz, double a, double b, double c, double[] near) {
+        if (near != null) { near[0] = near[1] = near[2] = 0; }
         double x = Math.abs(px), y = Math.abs(py), z = Math.abs(pz);
         // Too close to a plane of symmetry to tell from being on it, and the sums below would divide by nearly nothing.
         if (x < 1e-9 * a) x = 0;
@@ -61,6 +65,7 @@ public final class Shapes3 {
             else qz = c * rest;
         }
         double d = Math.sqrt((qx - x) * (qx - x) + (qy - y) * (qy - y) + (qz - z) * (qz - z));
+        if (near != null) { near[0] = Math.copySign(qx, px); near[1] = Math.copySign(qy, py); near[2] = Math.copySign(qz, pz); }
         return inside ? -d : d;
     }
 
@@ -123,15 +128,17 @@ public final class Shapes3 {
         }
 
         /**
-         * Round the equator from the back, and from the bottom pole to the top. A point takes the place on the
-         * surface straight out from the middle, after squashing the ellipsoid into a ball, so the same number of
-         * repeats goes round at every height and they squeeze together towards the poles.
+         * Round the equator from the back, and from the bottom pole to the top, by the angles of a point on the
+         * surface once the ellipsoid is squashed into a ball, so the same number of repeats goes round at every
+         * height and they squeeze together towards the poles. A point off the surface takes its nearest point on it.
          */
         @Override public Wrapping wrapping() {
             double around = perimeter(a, c), up = (perimeter(a, b) + perimeter(c, b)) / 4;
             double ox = pad + a, oy = pad + b, oz = pad + c;
             return new Wrap(around, up, true, false, (x, y, z, out) -> {
-                double px = (x - ox) / a, py = (y - oy) / b, pz = (z - oz) / c;
+                double[] q = new double[3];
+                sdEllipsoid(x - ox, y - oy, z - oz, a, b, c, q);
+                double px = q[0] / a, py = q[1] / b, pz = q[2] / c;
                 out[0] = turn(Math.atan2(-px, pz)) * around;
                 out[1] = (Math.atan2(py, Math.hypot(px, pz)) / Math.PI + 0.5) * up;
             });
