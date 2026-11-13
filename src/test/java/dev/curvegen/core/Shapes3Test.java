@@ -521,6 +521,22 @@ class Shapes3Test {
     }
 
     @Test
+    void aThickOpenTubeIsCutRightAcross() {
+        // 22 thick: the corners of the cut are far nearer the stretch past the end than the curve.
+        ShapeSettings s = hollow(curve(30, 24, 24, 22, 3, 12, 12, 27, 12, 12), true);
+        Solver3.Result r = Solver3.run(s);
+        int pad = r.shape().pad(), cut = 0;
+        for (int y = 0; y < r.ny(); y++)
+            for (int z = 0; z < r.nz(); z++)
+                for (int x = 0; x < r.nx(); x++) {
+                    if (x >= 3 + pad && x < 27 + pad) continue;
+                    assertEquals(AIR, r.at(x, y, z), x + "," + y + "," + z);
+                    if (r.shape().field(x + .5, y + .5, z + .5) < r.shape().hi()) cut++;
+                }
+        assertTrue(cut > 2000, cut + " cut");
+    }
+
+    @Test
     void aSlantedOpenEndIsCutLevelWithTheCurvesEnd() {
         ShapeSettings s = hollow(curve(18, 14, 18, 5.5, 2, 2, 3, 9, 10, 4, 6, 12, 12, 14, 4, 13), true);
         for (ShapeSettings pieces : Shapes3Cases.pieceSets()) {

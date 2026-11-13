@@ -658,8 +658,9 @@ public final class Shapes3 {
                 if (items[q] == 0 || items[q] == last) beyond = Math.min(beyond, d);
                 else curve = Math.min(curve, d);
             }
-            // A block whose centre is level with the end is as near the curve's last point either way, and stays.
-            return beyond < curve - 1e-9 * (1 + curve);
+            // A block whose centre is level with the end is as near the curve's last point either way, and stays. The
+            // curve may be out of the bucket's reach, which leaves it at infinity.
+            return beyond < curve - 1e-9 * (1 + beyond);
         }
 
         private double[] segs() {
