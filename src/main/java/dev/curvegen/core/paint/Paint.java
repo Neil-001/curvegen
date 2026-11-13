@@ -11,11 +11,10 @@ import java.util.function.Predicate;
  * carry them. A setting a shape can't use stays as chosen, and the shape reads it through {@link #fitFor} or
  * {@link #onFor}, which give the nearest valid one.
  *
- * <p>Each source has its own fields here, with copy, set, same, capture and apply. A later source (a gradient) adds
- * its own the same way.
+ * <p>Each source has its own fields here, with copy, set, same, capture and apply.
  */
 public final class Paint {
-    public enum Source { OFF, PATTERN, MIX }
+    public enum Source { OFF, PATTERN, MIX, GRADIENT }
     /** How a mix lays out its blocks: each on its own, or in patches. */
     public enum Arrange { SCATTER, PATCHES }
     /** Where a 2D shape more than one block deep shows its pattern: the face the 2D picture shows, or round its edge. */
@@ -23,6 +22,10 @@ public final class Paint {
     public enum Fit { REPEAT, REPEAT_ALONG, STRETCH }
     /** What a pattern's empty cells become. Only FILL is built: they take the Blocks tab's choice. */
     public enum Empty { FILL, OPEN }
+    /** Which way a gradient runs: bottom to top, along the shape, across it, or outwards from its middle. */
+    public enum Flow { UP, ALONG, ACROSS, OUT }
+    /** Whether a gradient's steps meet in straight lines or scatter into each other. */
+    public enum Edges { SHARP, RAGGED }
     /** How a pattern goes onto a 3D shape. 2D shapes don't use it. */
     public enum Mapping { WRAP, ABOVE, FRONT, SIDE }
 
@@ -56,7 +59,16 @@ public final class Paint {
     /** "One material per colour" for a mix. Off by default. */
     public boolean mixOneMaterial;
 
-    public boolean on() { return source != Source.OFF; }
+    /** The gradient to paint with, copied from Chroma Studio, or null until one is chosen: paint is then off. */
+    public Gradient gradient;
+    public Flow flow = Flow.UP;
+    public boolean reverse;
+    public Edges edges = Edges.RAGGED;
+    /** "One material per colour" for a gradient. On by default. */
+    public boolean gradientOneMaterial = true;
+
+    /** Whether the shape is painted: a source is chosen, and for a gradient, a gradient too. */
+    public boolean on() { return source != Source.OFF && (source != Source.GRADIENT || gradient != null); }
 
     /** The fit a shape uses: the chosen one, or Repeat along for a line and Repeat for anything else. */
     public Fit fitFor(boolean line) { return fit != null ? fit : line ? Fit.REPEAT_ALONG : Fit.REPEAT; }
@@ -64,14 +76,25 @@ public final class Paint {
     /** The mapping a 3D shape uses: the chosen one, or From above for a shape a pattern can't wrap round, a 3D equation. */
     public Mapping mappingFor(boolean wraps) { return mapping == Mapping.WRAP && !wraps ? Mapping.ABOVE : mapping; }
 
+    /** The way a gradient runs on a shape: the chosen one, or Bottom to top along or across a shape it can't wrap round, a 3D equation. */
+    public Flow flowFor(boolean wraps) { return !wraps && (flow == Flow.ALONG || flow == Flow.ACROSS) ? Flow.UP : flow; }
+
     /** Edge only applies to a shape more than one block deep. */
     public On onFor(int depth) { return depth > 1 ? on : On.FACE; }
 
     /** Whether "One material per colour" is on for the current source. */
-    public boolean oneMaterial() { return source == Source.PATTERN ? patternOneMaterial : source == Source.MIX && mixOneMaterial; }
+    public boolean oneMaterial() {
+        return switch (source) {
+            case OFF, PATTERN -> patternOneMaterial;
+            case MIX -> mixOneMaterial;
+            case GRADIENT -> gradientOneMaterial;
+        };
+    }
 
-    /** What the current source paints with: the mix's blocks for a mix, and otherwise the pattern's cells. */
-    public Palette palette() { return source == Source.MIX ? mix : pattern; }
+    /** What the current source paints with: the mix's blocks, the gradient's steps, or otherwise the pattern's cells. */
+    public Palette palette() {
+        return source == Source.MIX ? mix : source == Source.GRADIENT && gradient != null ? gradient : pattern;
+    }
 
     public Paint copy() {
         Paint p = new Paint();
@@ -83,13 +106,15 @@ public final class Paint {
         source = o.source; pattern = o.pattern; on = o.on; mapping = o.mapping; fit = o.fit; size = o.size; turn = o.turn;
         mirror = o.mirror; along = o.along; across = o.across; empty = o.empty; patternOneMaterial = o.patternOneMaterial;
         mix = o.mix; arrange = o.arrange; patch = o.patch; seed = o.seed; mixOneMaterial = o.mixOneMaterial;
+        gradient = o.gradient; flow = o.flow; reverse = o.reverse; edges = o.edges; gradientOneMaterial = o.gradientOneMaterial;
     }
 
     public boolean same(Paint o) {
         return source == o.source && pattern.equals(o.pattern) && on == o.on && mapping == o.mapping && fit == o.fit && size == o.size
                 && turn == o.turn && mirror == o.mirror && along == o.along && across == o.across && empty == o.empty
                 && patternOneMaterial == o.patternOneMaterial && mix.equals(o.mix) && arrange == o.arrange && patch == o.patch
-                && seed == o.seed && mixOneMaterial == o.mixOneMaterial;
+                && seed == o.seed && mixOneMaterial == o.mixOneMaterial && java.util.Objects.equals(gradient, o.gradient)
+                && flow == o.flow && reverse == o.reverse && edges == o.edges && gradientOneMaterial == o.gradientOneMaterial;
     }
 
     /**
@@ -108,7 +133,10 @@ public final class Paint {
 
     // ---------- as text ----------
 
-    /** The settings as text, for the player's paint file and presets, with a copy of the pattern under "pattern." and the mix under "mix.". */
+    /**
+     * The settings as text, for the player's paint file and presets, with a copy of the pattern under "pattern.", the
+     * mix under "mix." and the gradient, when there is one, under "gradient.".
+     */
     public Map<String, String> capture() {
         Map<String, String> d = new LinkedHashMap<>();
         d.put("source", source.name());
@@ -126,14 +154,19 @@ public final class Paint {
         d.put("patch", String.valueOf(patch));
         d.put("seed", String.valueOf(seed));
         d.put("mixOneMaterial", String.valueOf(mixOneMaterial));
+        d.put("flow", flow.name());
+        d.put("reverse", String.valueOf(reverse));
+        d.put("edges", edges.name());
+        d.put("gradientOneMaterial", String.valueOf(gradientOneMaterial));
         for (var e : pattern.encode().entrySet()) d.put("pattern." + e.getKey(), e.getValue());
         for (var e : mix.encode().entrySet()) d.put("mix." + e.getKey(), e.getValue());
+        if (gradient != null) for (var e : gradient.encode().entrySet()) d.put("gradient." + e.getKey(), e.getValue());
         return d;
     }
 
     /**
      * Takes settings from {@link #capture}'s text. Missing or unreadable values keep their current setting, and so
-     * do the pattern and the mix unless the text holds a whole, valid one. A source this version doesn't know turns paint off.
+     * do the pattern, the mix and the gradient unless the text holds a whole, valid one. A source this version doesn't know turns paint off.
      */
     public void apply(Map<String, String> d) {
         if (d.containsKey("source")) source = enumOf(Source.class, d.get("source"), Source.OFF);
@@ -151,10 +184,16 @@ public final class Paint {
         patch = integer(d, "patch", MixLayout.MIN_PATCH, MixLayout.MAX_PATCH, patch);
         seed = integer(d, "seed", Integer.MIN_VALUE, Integer.MAX_VALUE, seed);
         if (d.containsKey("mixOneMaterial")) mixOneMaterial = Boolean.parseBoolean(d.get("mixOneMaterial"));
+        flow = enumOf(Flow.class, d.get("flow"), flow);
+        if (d.containsKey("reverse")) reverse = Boolean.parseBoolean(d.get("reverse"));
+        edges = enumOf(Edges.class, d.get("edges"), edges);
+        if (d.containsKey("gradientOneMaterial")) gradientOneMaterial = Boolean.parseBoolean(d.get("gradientOneMaterial"));
         Pattern read = Pattern.decode(under(d, "pattern."));
         if (read != null) pattern = read;
         Mix m = Mix.decode(under(d, "mix."));
         if (m != null) mix = m;
+        Gradient g = Gradient.decode(under(d, "gradient."));
+        if (g != null) gradient = g;
     }
 
     private static Map<String, String> under(Map<String, String> d, String prefix) {

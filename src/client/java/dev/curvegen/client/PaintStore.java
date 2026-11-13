@@ -2,6 +2,7 @@ package dev.curvegen.client;
 
 import static dev.curvegen.client.Lang.tr;
 
+import dev.curvegen.client.chroma.Chroma;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
@@ -39,6 +40,8 @@ public final class PaintStore {
         Paint p = CurveGenClient.SETTINGS.paint;
         Map<String, String> d = readFile(file("paint.json"));
         if (d != null) p.apply(d);
+        // A gradient needs Chroma Studio. Without it the gradient is kept, for when it's back, but nothing is painted.
+        if (p.source == Paint.Source.GRADIENT && !Chroma.available()) p.source = Paint.Source.OFF;
         saved = p.copy();
     }
 

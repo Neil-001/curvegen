@@ -327,14 +327,15 @@ public class CurveScreen extends ControlScreen {
         ShapeSettings.Gen g = p.gen();
         if (g == null) return;
         PresetData.apply(p.data, g, S);
-        if (withBlocks && p.blocks != null) { p.applyBlocks(S, BlockChoices.CHOICE); textureDirty = true; }
+        boolean noGradient = false;
+        if (withBlocks && p.blocks != null) { noGradient = p.applyBlocks(S, BlockChoices.CHOICE); textureDirty = true; }
         tab = tabFor(g);
         mode3d = S.is3d();
         remember();
         pointScroll = 0;
         dirty = true; autoFit = true; fit3 = true;
         rebuildWidgets();
-        flash(tr("curvegen.screen.loaded_preset_s", p.name));
+        flash(noGradient ? tr("curvegen.paint.preset_no_gradient", p.name) : tr("curvegen.screen.loaded_preset_s", p.name));
     }
 
     private void switchTab(Tab t) {

@@ -41,6 +41,10 @@ public final class Solve3Painter {
     public Done paint(Paint paint, boolean fullConnects, Catalog catalog) {
         if (!paint.on() || own.error() != null) return null;
         if (paint.source == Paint.Source.MIX) return new Done(Painter3.mix(result, own, orient, paint, fullConnects, catalog), -1, -1);
+        if (paint.source == Paint.Source.GRADIENT) {
+            boolean along = paint.flowFor(wraps()) == Paint.Flow.ALONG || paint.flowFor(wraps()) == Paint.Flow.ACROSS;
+            return new Done(Painter3.gradient(result, own, orient, along ? wrap(Mapping.WRAP) : null, paint, fullConnects, catalog), -1, -1);
+        }
         Wrap3 w = wrap(paint.mappingFor(wraps()));
         return new Done(Painter3.paint(result, w, paint, fullConnects, catalog), w.right, w.up);
     }

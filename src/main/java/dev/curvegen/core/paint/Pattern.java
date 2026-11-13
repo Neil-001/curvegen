@@ -52,7 +52,8 @@ public final class Pattern implements Palette {
             return rgb < 0 ? "-" : String.format(Locale.ROOT, "#%06x", rgb);
         }
 
-        static Cell parse(String t) {
+        /** A cell from its text, as {@link Pattern} writes one, or null when the text isn't one. */
+        public static Cell parse(String t) {
             if (t.equals("-")) return EMPTY;
             if (t.equals("?")) return UNUSABLE;
             if (t.startsWith("#") && t.length() == 7) {

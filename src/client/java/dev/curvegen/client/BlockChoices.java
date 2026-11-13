@@ -2,6 +2,7 @@ package dev.curvegen.client;
 
 import static dev.curvegen.client.Lang.tr;
 
+import dev.curvegen.client.chroma.Chroma;
 import dev.curvegen.core.Pieces.Family;
 import dev.curvegen.core.Pieces;
 import dev.curvegen.core.Pieces3;
@@ -114,7 +115,18 @@ public final class BlockChoices {
         }
     }
 
+    /**
+     * The block of a piece type closest to a colour, on the face the build is matched by: by Chroma Studio's matcher
+     * when it's installed, and otherwise by distance between average colours.
+     */
     public static Block closest(Family f, int rgb) {
+        if (Chroma.available()) {
+            ShapeSettings s = CurveGenClient.SETTINGS;
+            Map<Family, List<String>> allowed = PaintBlocks.allowedIds();
+            String id = Chroma.matcher(s.is3d() ? s.topColours : s.floor, allowed, (_, _) -> null).closest(rgb, allowed.get(f));
+            Block b = id == null ? null : PaintBlocks.block(id);
+            if (b != null) return b;
+        }
         Block best = null; double bd = Double.MAX_VALUE;
         for (Block b : candidates(f)) {
             double d = ColorIndex.distance(ColorIndex.of(b), rgb);

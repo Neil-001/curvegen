@@ -27,6 +27,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
+import net.neoforged.fml.ModList;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.loading.FMLPaths;
 import net.neoforged.neoforge.client.event.AddClientReloadListenersEvent;
@@ -92,6 +93,7 @@ public final class CurveGenNeoForgeClient implements ClientPlatform {
     @Override public void sendToServer(PlaceBlocksPayload payload) { ClientPacketDistributor.sendToServer(payload); }
     @Override public Path configDir() { return FMLPaths.CONFIGDIR.get(); }
     @Override public Path gameDir() { return FMLPaths.GAMEDIR.get(); }
+    @Override public boolean isModLoaded(String id) { return ModList.get().isLoaded(id); }
     // The colours are worked out without a world, so NeoForge's methods get an empty one.
     @Override public void modelParts(BlockStateModel model, BlockState state, RandomSource random, List<BlockStateModelPart> out) {
         model.collectParts(BlockAndTintGetter.EMPTY, BlockPos.ZERO, state, random, out);

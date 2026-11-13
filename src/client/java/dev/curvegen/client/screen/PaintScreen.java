@@ -5,6 +5,7 @@ import static dev.curvegen.client.Lang.tr;
 import dev.curvegen.client.BlockChoices;
 import dev.curvegen.client.CurveGenClient;
 import dev.curvegen.client.PatternStore;
+import dev.curvegen.client.chroma.Chroma;
 import dev.curvegen.core.Pieces.Family;
 import dev.curvegen.core.ShapeSettings;
 import dev.curvegen.core.edit.Stepper;
@@ -12,8 +13,10 @@ import dev.curvegen.core.paint.Ladder.Why;
 import dev.curvegen.core.paint.MixLayout;
 import dev.curvegen.core.paint.Paint;
 import dev.curvegen.core.paint.Paint.Arrange;
+import dev.curvegen.core.paint.Paint.Edges;
 import dev.curvegen.core.paint.Paint.Empty;
 import dev.curvegen.core.paint.Paint.Fit;
+import dev.curvegen.core.paint.Paint.Flow;
 import dev.curvegen.core.paint.Paint.Mapping;
 import dev.curvegen.core.paint.Paint.On;
 import dev.curvegen.core.paint.Paint.Source;
@@ -75,6 +78,8 @@ public class PaintScreen extends ControlScreen {
     private static Component fitName(Fit f) { return Component.translatable("curvegen.paint.fit." + f.name().toLowerCase(Locale.ROOT)); }
     private static Component emptyName(Empty e) { return Component.translatable("curvegen.paint.empty." + e.name().toLowerCase(Locale.ROOT)); }
     private static Component arrangeName(Arrange a) { return Component.translatable("curvegen.paint.arrange." + a.name().toLowerCase(Locale.ROOT)); }
+    private static Component flowName(Flow f) { return Component.translatable("curvegen.paint.flow." + f.name().toLowerCase(Locale.ROOT)); }
+    private static Component edgesName(Edges e) { return Component.translatable("curvegen.paint.edges." + e.name().toLowerCase(Locale.ROOT)); }
 
     // ---------- layout ----------
     private int y(int row) { return TOP + row * pitch; }
@@ -102,6 +107,11 @@ public class PaintScreen extends ControlScreen {
         for (Arrange a : Arrange.values()) need = Math.max(need, opt(tr("curvegen.paint.arrange"), arrangeName(a)) + PAD);
         need = Math.max(need, tw(tr("curvegen.paint.patch")) + 3 + NUM);
         need = Math.max(need, tw(tr("curvegen.paint.shuffle")) + PAD);
+        for (Flow f : Flow.values()) need = Math.max(need, opt(tr("curvegen.paint.flow"), flowName(f)) + PAD);
+        int edges = 0;
+        for (Edges e : Edges.values()) edges = Math.max(edges, opt(tr("curvegen.paint.edges"), edgesName(e)));
+        need = Math.max(need, onOffWidth(tr("curvegen.paint.reverse")) + PAD + GAP + edges + PAD);
+        need = Math.max(need, tw(tr("curvegen.paint.open_chroma")) + PAD);
         return Math.min(need, width / 2);
     }
 
@@ -127,13 +137,17 @@ public class PaintScreen extends ControlScreen {
         lineShown = picture.line();
 
         Source src = S.paint.source;
-        add(cycler(List.of(Source.values()), src, PaintScreen::sourceName, M, y(0), pw, tr("curvegen.paint.source"), v -> {
+        // A cycle can't grey one choice, so without Chroma Studio Gradient is left out, and the tooltip says why.
+        List<Source> sources = new ArrayList<>(List.of(Source.values()));
+        if (!Chroma.available() && src != Source.GRADIENT) sources.remove(Source.GRADIENT);
+        add(cycler(sources, src, PaintScreen::sourceName, M, y(0), pw, tr("curvegen.paint.source"), v -> {
             S.paint.source = v;
             paintChanged(true);
-        }), tr("curvegen.paint.source_tip"));
+        }), Chroma.available() ? tr("curvegen.paint.source_tip") : tr("curvegen.paint.source_tip") + "\n\n" + tr("curvegen.paint.source_gradient_needs"));
         switch (src) {
             case OFF, PATTERN -> patternRows(src == Source.PATTERN);
             case MIX -> mixRows();
+            case GRADIENT -> gradientRows();
         }
         oneMaterialRow(y(ROWS - 1));
 
@@ -204,14 +218,17 @@ public class PaintScreen extends ControlScreen {
     }
 
     /** The second row's button that opens {@code open}, named {@code name} and cut to fit, with the swatch beside it. */
-    private void chooser(String name, String tip, Supplier<Screen> open) {
+    private void chooser(String name, String tip, Supplier<Screen> open) { chooser(name, true, tip, null, open); }
+
+    /** The same, greyed with {@code offTip} unless {@code active}. */
+    private void chooser(String name, boolean active, String tip, String offTip, Supplier<Screen> open) {
         swatchY = y(1) + (h - 16) / 2;
         String text = name + "…";
         int bw = pw - 20;
         boolean cut = tw(text) > bw - 8;
         if (cut) text = font.plainSubstrByWidth(name, bw - 8 - tw("…")) + "…";
         add(Button.builder(Component.literal(text), _ -> minecraft.gui.setScreen(open.get())).bounds(M + 20, y(1), bw, h).build(),
-                cut ? name + '\n' + tip : tip);
+                active, cut ? name + '\n' + tip : tip, offTip);
     }
 
     /** A mix's rows: which blocks, Scatter or Patches, the patches' size and Shuffle. */
@@ -244,12 +261,49 @@ public class PaintScreen extends ControlScreen {
         }
     }
 
+    /**
+     * A gradient's rows: which gradient, its direction, Reverse and Edges, and a button to Chroma Studio. A 3D equation
+     * can't run one along or across itself, so it only offers the other two directions. Without Chroma Studio, which
+     * only a paint setting kept from before can lead to, they show greyed.
+     */
+    private void gradientRows() {
+        Paint p = S.paint;
+        boolean ok = Chroma.available();
+        String needs = tr("curvegen.paint.needs_chroma");
+        chooser(p.gradient == null ? tr("curvegen.paint.gradient_choose") : p.gradient.name, ok, tr("curvegen.paint.gradient_choose_tip"), needs,
+                () -> new GradientChooserScreen(this, chosen -> {
+                    S.paint.gradient = chosen;
+                    paintChanged(false);
+                }));
+
+        boolean wraps = !S.is3d() || S.gen != ShapeSettings.Gen.EQUATION3;
+        List<Flow> flows = wraps ? List.of(Flow.values()) : List.of(Flow.UP, Flow.OUT);
+        add(cycler(flows, p.flowFor(wraps), PaintScreen::flowName, M, y(2), pw, tr("curvegen.paint.flow"), v -> S.paint.flow = v),
+                ok, wraps ? tr("curvegen.paint.flow_tip") : tr("curvegen.paint.flow_tip") + "\n\n" + tr("curvegen.paint.flow_no_wrap_tip"), needs);
+
+        int reverseW = onOffWidth(tr("curvegen.paint.reverse")) + PAD, edgesW = pw - GAP - reverseW;
+        add(toggle(p.reverse, M, y(3), reverseW, tr("curvegen.paint.reverse"), v -> S.paint.reverse = v), ok, tr("curvegen.paint.reverse_tip"), needs);
+        add(cycler(List.of(Edges.values()), p.edges, PaintScreen::edgesName, M + reverseW + GAP, y(3), edgesW, tr("curvegen.paint.edges"),
+                v -> S.paint.edges = v), ok, tr("curvegen.paint.edges_tip"), needs);
+
+        add(Button.builder(Component.translatable("curvegen.paint.open_chroma"),
+                _ -> Chroma.openGradientTab(S.paint.gradient == null ? null : S.paint.gradient.name)).bounds(M, y(4), pw, h).build(), ok, tr("curvegen.paint.open_chroma_tip"), needs);
+    }
+
     /** "One material per colour", which every source has, each with its own setting. */
     private void oneMaterialRow(int y) {
         Source src = S.paint.source;
-        boolean value = switch (src) { case OFF, PATTERN -> S.paint.patternOneMaterial; case MIX -> S.paint.mixOneMaterial; };
+        boolean value = switch (src) {
+            case OFF, PATTERN -> S.paint.patternOneMaterial;
+            case MIX -> S.paint.mixOneMaterial;
+            case GRADIENT -> S.paint.gradientOneMaterial;
+        };
         add(toggle(value, M, y, pw, tr("curvegen.paint.one_material"), v -> {
-            switch (src) { case OFF, PATTERN -> S.paint.patternOneMaterial = v; case MIX -> S.paint.mixOneMaterial = v; }
+            switch (src) {
+                case OFF, PATTERN -> S.paint.patternOneMaterial = v;
+                case MIX -> S.paint.mixOneMaterial = v;
+                case GRADIENT -> S.paint.gradientOneMaterial = v;
+            }
         }), S.paint.on(), tr("curvegen.paint.one_material_tip"), tr("curvegen.paint.off_tip"));
     }
 
@@ -302,6 +356,8 @@ public class PaintScreen extends ControlScreen {
 
     /** The status line and its tooltip: how many blocks fell to the closest colour, and which and why. */
     private String[] status() {
+        if (S.paint.source == Source.GRADIENT && !S.paint.on())
+            return new String[]{tr(Chroma.available() ? "curvegen.paint.status_no_gradient" : "curvegen.paint.needs_chroma"), null};
         if (!S.paint.on()) return new String[]{tr("curvegen.paint.status_off"), tr("curvegen.paint.source_tip")};
         if (picture.error() != null) return new String[]{"", null};
         Painted painted = picture.painted();
@@ -328,6 +384,9 @@ public class PaintScreen extends ControlScreen {
         ctx.text(font, title, M, 10, 0xFFFFFFFF);
         for (Label l : labels) ctx.text(font, l.text, l.x, l.y, S.paint.on() ? 0xFFC8CED6 : 0xFF808A96);
         if (swatchY >= 0 && S.paint.source == Source.MIX) MixChooserScreen.drawSwatch(ctx, S.paint.mix, M + 1, swatchY, 16);
+        else if (swatchY >= 0 && S.paint.source == Source.GRADIENT) {
+            if (S.paint.gradient != null) GradientChooserScreen.drawSwatch(ctx, S.paint.gradient, M + 1, swatchY, 16, 16);
+        }
         else if (swatchY >= 0) PatternLibraryScreen.drawSwatch(ctx, S.paint.pattern, M + 1, swatchY, 16);
 
         String[] status = status();

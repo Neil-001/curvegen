@@ -17,6 +17,7 @@ class PaintTest {
         else if (t == boolean.class) f.setBoolean(p, !f.getBoolean(p));
         else if (t == Pattern.class) f.set(p, Patterns.CHECKER);
         else if (t == Mix.class) f.set(p, Mix.of(Patterns.CHECKER));
+        else if (t == Gradient.class) f.set(p, f.get(p) == null ? GradientTest.GREYS : null);
         else if (t.isEnum()) {
             Object[] all = t.getEnumConstants();
             Object v = f.get(p);
@@ -44,7 +45,7 @@ class PaintTest {
     void unreadableTextKeepsTheCurrentSettings() {
         Paint p = new Paint();
         p.size = 3; p.pattern = Patterns.MOSSY_MIX;
-        Map<String, String> d = new HashMap<>(Map.of("size", "lots", "turn", "720", "source", "GRADIENT", "pattern.width", "2"));
+        Map<String, String> d = new HashMap<>(Map.of("size", "lots", "turn", "720", "source", "SOMETHING_NEW", "pattern.width", "2"));
         p.apply(d);
         assertEquals(3, p.size);
         assertEquals(359, p.turn);
