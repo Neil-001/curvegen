@@ -750,7 +750,7 @@
   "curvegen.screen.carve_2d_tooltip": "Entfernt Blöcke im Inneren hohler Ellipsen oder auf der ungefüllten Seite von Gleichungen. Linien, gefüllte Ellipsen und Bézierkurven höhlen nichts aus.",
   "curvegen.screen.height_tooltip": "Höhe",
   "curvegen.screen.curve_minimum_points_tooltip": "Eine Kurve braucht mindestens zwei Punkte.",
-  "curvegen.screen.switch_between_2d_and_3d_shapes": "Wechselt zwischen 2D- und 3D-Formen",
+  "curvegen.screen.switch_between_2d_and_3d_shapes": "Wechselt zwischen 2D- und 3D-Formen.",
   "curvegen.screen.equation_2d_tooltip": "Nutze x und y mit =, < oder >. Ein Ausdruck allein bedeutet y = Ausdruck.",
   "curvegen.screen.empty_export": "Die Form ist leer, es gibt nichts zu exportieren.",
   "curvegen.screen.empty_placement": "Die Form ist leer, es gibt nichts zu platzieren.",

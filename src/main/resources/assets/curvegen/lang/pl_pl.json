@@ -750,7 +750,7 @@
   "curvegen.screen.carve_2d_tooltip": "Usuwa bloki wewnątrz pustych elips lub po niewypełnionej stronie równań. Linie, wypełnione elipsy i krzywe Béziera nie drążą.",
   "curvegen.screen.height_tooltip": "Wysokość",
   "curvegen.screen.curve_minimum_points_tooltip": "Krzywa wymaga co najmniej dwóch punktów.",
-  "curvegen.screen.switch_between_2d_and_3d_shapes": "Przełącza między kształtami 2D i 3D",
+  "curvegen.screen.switch_between_2d_and_3d_shapes": "Przełącza między kształtami 2D i 3D.",
   "curvegen.screen.equation_2d_tooltip": "Użyj x i y z =, < lub >. Samo wyrażenie oznacza y = wyrażenie.",
   "curvegen.screen.empty_export": "Kształt jest pusty, więc nie ma czego eksportować.",
   "curvegen.screen.empty_placement": "Kształt jest pusty, więc nie ma czego umieścić.",

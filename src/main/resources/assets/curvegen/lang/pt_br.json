@@ -750,7 +750,7 @@
   "curvegen.screen.carve_2d_tooltip": "Limpa blocos dentro de elipses ocas ou do lado não preenchido das equações. Linhas, elipses preenchidas e curvas de Bézier não escavam.",
   "curvegen.screen.height_tooltip": "Altura",
   "curvegen.screen.curve_minimum_points_tooltip": "Uma curva precisa de pelo menos dois pontos.",
-  "curvegen.screen.switch_between_2d_and_3d_shapes": "Alterna entre formas 2D e 3D",
+  "curvegen.screen.switch_between_2d_and_3d_shapes": "Alterna entre formas 2D e 3D.",
   "curvegen.screen.equation_2d_tooltip": "Use x e y com =, < ou >. Uma expressão sozinha significa y = expressão.",
   "curvegen.screen.empty_export": "A forma está vazia, então não há nada para exportar.",
   "curvegen.screen.empty_placement": "A forma está vazia, então não há nada para colocar.",

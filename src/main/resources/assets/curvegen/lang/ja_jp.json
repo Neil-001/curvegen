@@ -750,7 +750,7 @@
   "curvegen.screen.carve_2d_tooltip": "中空の楕円の内部や、方程式の塗りつぶさない側のブロックを除去します。線、塗りつぶした楕円、ベジェ曲線はくり抜きません。",
   "curvegen.screen.height_tooltip": "高さ",
   "curvegen.screen.curve_minimum_points_tooltip": "曲線には最低2点が必要です。",
-  "curvegen.screen.switch_between_2d_and_3d_shapes": "2D図形と3D図形を切り替え",
+  "curvegen.screen.switch_between_2d_and_3d_shapes": "2D図形と3D図形を切り替えます。",
   "curvegen.screen.equation_2d_tooltip": "xとyと=、<、>を使って入力します。式だけの場合は y = 式 と解釈します。",
   "curvegen.screen.empty_export": "図形が空のため、エクスポートするものがありません。",
   "curvegen.screen.empty_placement": "図形が空のため、設置するものがありません。",

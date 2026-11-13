@@ -750,7 +750,7 @@
   "curvegen.screen.carve_2d_tooltip": "Clears blocks inside hollow ellipses or on the unfilled side of equations. Lines, filled ellipses and Bézier curves do not carve.",
   "curvegen.screen.height_tooltip": "Height",
   "curvegen.screen.curve_minimum_points_tooltip": "A curve needs at least two points.",
-  "curvegen.screen.switch_between_2d_and_3d_shapes": "Switches between 2D and 3D shapes",
+  "curvegen.screen.switch_between_2d_and_3d_shapes": "Switches between 2D and 3D shapes.",
   "curvegen.screen.equation_2d_tooltip": "Use x and y with =, < or >. An expression alone means y = expression.",
   "curvegen.screen.empty_export": "The shape is empty, so there's nothing to export.",
   "curvegen.screen.empty_placement": "The shape is empty, so there's nothing to place.",

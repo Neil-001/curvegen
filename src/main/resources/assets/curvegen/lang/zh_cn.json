@@ -750,7 +750,7 @@
   "curvegen.screen.carve_2d_tooltip": "清除空心椭圆内部或方程未填充一侧的方块。线条、实心椭圆和贝塞尔曲线不执行挖空。",
   "curvegen.screen.height_tooltip": "高度",
   "curvegen.screen.curve_minimum_points_tooltip": "曲线至少需要两个点。",
-  "curvegen.screen.switch_between_2d_and_3d_shapes": "在 2D 和 3D 形状之间切换",
+  "curvegen.screen.switch_between_2d_and_3d_shapes": "在 2D 和 3D 形状之间切换。",
   "curvegen.screen.equation_2d_tooltip": "使用 x、y 及 =、< 或 >。只写式子则视为 y = 式子。",
   "curvegen.screen.empty_export": "形状为空，没有可导出的内容。",
   "curvegen.screen.empty_placement": "形状为空，没有可放置的内容。",

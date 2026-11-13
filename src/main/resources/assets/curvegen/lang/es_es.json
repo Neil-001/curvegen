@@ -750,7 +750,7 @@
   "curvegen.screen.carve_2d_tooltip": "Elimina bloques dentro de elipses huecas o en el lado sin rellenar de las ecuaciones. Las líneas, las elipses rellenas y las curvas de Bézier no vacían.",
   "curvegen.screen.height_tooltip": "Altura",
   "curvegen.screen.curve_minimum_points_tooltip": "Una curva necesita al menos dos puntos.",
-  "curvegen.screen.switch_between_2d_and_3d_shapes": "Cambia entre formas 2D y 3D",
+  "curvegen.screen.switch_between_2d_and_3d_shapes": "Cambia entre formas 2D y 3D.",
   "curvegen.screen.equation_2d_tooltip": "Usa x e y con =, < o >. Una expresión sola significa y = expresión.",
   "curvegen.screen.empty_export": "La forma está vacía, no hay nada que exportar.",
   "curvegen.screen.empty_placement": "La forma está vacía, no hay nada que colocar.",

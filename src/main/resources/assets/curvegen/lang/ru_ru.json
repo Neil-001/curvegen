@@ -750,7 +750,7 @@
   "curvegen.screen.carve_2d_tooltip": "Удаляет блоки внутри полых эллипсов или с незаполненной стороны уравнений. Линии, сплошные эллипсы и кривые Безье не вырезают блоки.",
   "curvegen.screen.height_tooltip": "Высота",
   "curvegen.screen.curve_minimum_points_tooltip": "Кривой нужны хотя бы две точки.",
-  "curvegen.screen.switch_between_2d_and_3d_shapes": "Переключение между фигурами 2D и 3D",
+  "curvegen.screen.switch_between_2d_and_3d_shapes": "Переключает между фигурами 2D и 3D.",
   "curvegen.screen.equation_2d_tooltip": "Используйте x и y со знаком =, < или >. Одно выражение означает y = выражение.",
   "curvegen.screen.empty_export": "Фигура пуста, экспортировать нечего.",
   "curvegen.screen.empty_placement": "Фигура пуста, размещать нечего.",

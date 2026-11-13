@@ -750,7 +750,7 @@
   "curvegen.screen.carve_2d_tooltip": "Retire les blocs à l'intérieur des ellipses creuses ou du côté non rempli des équations. Les traits, les ellipses remplies et les courbes de Bézier n'évident rien.",
   "curvegen.screen.height_tooltip": "Hauteur",
   "curvegen.screen.curve_minimum_points_tooltip": "Une courbe a besoin d'au moins deux points.",
-  "curvegen.screen.switch_between_2d_and_3d_shapes": "Bascule entre les formes 2D et 3D",
+  "curvegen.screen.switch_between_2d_and_3d_shapes": "Bascule entre les formes 2D et 3D.",
   "curvegen.screen.equation_2d_tooltip": "Utilisez x et y avec =, < ou >. Une expression seule signifie y = expression.",
   "curvegen.screen.empty_export": "La forme est vide, il n'y a rien à exporter.",
   "curvegen.screen.empty_placement": "La forme est vide, il n'y a rien à placer.",
