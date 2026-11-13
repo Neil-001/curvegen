@@ -35,6 +35,9 @@ public final class Painter2D {
         Ladder ladder = new Ladder(catalog, paint.pattern, paint.oneMaterial(), fullConnects, used(r.counts()));
 
         int layers = edge ? d : 1, per = edge ? 1 : d;
+        // Entries are the ladder's blocks, full blocks as each strip turns them: an equation's loops can each be nudged their own way.
+        java.util.Map<Long, Integer> entries = new java.util.HashMap<>();
+        List<Integer> quarters = new ArrayList<>();
         int[] slots = new int[layers * nx * ny];
         java.util.Arrays.fill(slots, -1);
         long[][] why = new long[Family.values().length][Why.values().length];
@@ -48,25 +51,32 @@ public final class Painter2D {
                     Why reason = Why.BLOCKS_TAB;
                     if (s >= 0) {
                         int cell = tilings.get(s).sample(w.u[c], edge ? k + .5 : w.v[c]);
-                        slots[(k * ny + j) * nx + i] = ladder.pick(cell, f);
+                        slots[(k * ny + j) * nx + i] = entry(ladder.pick(cell, f), f == Family.FULL ? tilings.get(s).quarters() : 0, entries, quarters);
                         reason = ladder.why(cell, f);
                     }
                     why[f.ordinal()][reason.ordinal()] += per;
                 }
             }
-        long[][] counts = new long[Family.values().length][ladder.blocks().size() + 1];
+        long[][] counts = new long[Family.values().length][quarters.size() + 1];
         for (int j = 0; j < ny; j++)
             for (int i = 0; i < nx; i++) {
                 int piece = r.at(i, j);
                 if (piece == Pieces.EMPTY) continue;
                 for (int k = 0; k < layers; k++) counts[Pieces.FAMILY[piece].ordinal()][slots[(k * ny + j) * nx + i] + 1] += per;
             }
-        // Blocks turn with the pattern as it was laid, nudge included. Pieces of an equation each nudge on their own; the longest decides.
-        int quarters = Math.floorMod(Math.round(paint.turn / 90f), 4);
-        double longest = -1;
-        for (int k = 0; k < tilings.size(); k++)
-            if (w.strips.get(k).length() > longest) { longest = w.strips.get(k).length(); quarters = tilings.get(k).quarters(); }
-        return new Painted(slots, layers, List.copyOf(ladder.blocks()), quarters, why, counts);
+        String[] names = new String[quarters.size()];
+        int[] turns = new int[quarters.size()];
+        for (var e : entries.entrySet()) {
+            names[e.getValue()] = ladder.blocks().get((int) (e.getKey() >> 2));
+            turns[e.getValue()] = (int) (e.getKey() & 3);
+        }
+        return new Painted(slots, layers, List.of(names), turns, why, counts);
+    }
+
+    /** The entry for a ladder pick turned by {@code quarter} quarter turns, adding it the first time. -1 stays -1. */
+    private static int entry(int pick, int quarter, java.util.Map<Long, Integer> entries, List<Integer> quarters) {
+        if (pick < 0) return -1;
+        return entries.computeIfAbsent((long) pick << 2 | quarter, _ -> { quarters.add(quarter); return quarters.size() - 1; });
     }
 
     /** Piece types the solve placed at least one of. */

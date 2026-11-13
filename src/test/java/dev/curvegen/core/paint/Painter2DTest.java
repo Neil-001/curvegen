@@ -172,6 +172,26 @@ class Painter2DTest {
         s.eW = s.eH = 31; s.eMode = ShapeSettings.EllipseMode.MIDDLE; s.eT = 3;
         Paint p = paint(Pattern.of("two", new Cell[][]{{Cell.block(m("oak_log[axis=x]")), Cell.block(m("stone_bricks"))}}));
         p.fit = Paint.Fit.REPEAT; p.size = 3; p.turn = 44;
-        assertEquals(1, Painter2D.paint(Solver.run(s), 1, p, true, TestWorld.catalog()).quarters());
+        Painted out = Painter2D.paint(Solver.run(s), 1, p, true, TestWorld.catalog());
+        for (int k = 0; k < out.blocks().size(); k++)
+            if (out.blocks().get(k).startsWith(m("oak_log"))) assertEquals(1, out.quarters()[k], "44° is nudged past 45°");
+    }
+
+    /** Two loops of one equation, nudged to either side of 45°, turn their blocks each their own way. */
+    @Test
+    void eachLoopTurnsItsOwnBlocks() {
+        ShapeSettings s = new ShapeSettings();
+        s.gen = Gen.EQUATION; s.src = "((x+6)^2+y^2-9)*((x-6)^2+y^2-4)=0"; s.qLW = 3; s.qLock = false;
+        s.xmin = "-10"; s.xmax = "10"; s.ymin = "-5"; s.ymax = "5"; s.qW = 80; s.qH = 40;
+        Paint p = paint(Pattern.of("two", new Cell[][]{{Cell.block(m("oak_log[axis=x]")), Cell.block(m("stone_bricks"))}}));
+        p.fit = Paint.Fit.REPEAT; p.size = 3; p.turn = 44;
+        Solver.Result r = Solver.run(s);
+        Painted out = Painter2D.paint(r, 1, p, true, TestWorld.catalog());
+        java.util.Set<Integer> turns = new java.util.HashSet<>();
+        for (int c = 0; c < r.nx() * r.ny(); c++) {
+            int e = out.at(c);
+            if (e >= 0 && out.blocks().get(e).startsWith(m("oak_log"))) turns.add(out.quarters()[e] * 1000 + (c % r.nx() < r.nx() / 2 ? 0 : 1));
+        }
+        assertEquals(java.util.Set.of(0, 1001), turns, "the left loop turns 0 quarters, the right one 1");
     }
 }
