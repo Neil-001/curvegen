@@ -25,6 +25,11 @@ public final class Target {
      */
     public List<double[]> centre;
     public double centreWidth;
+    /**
+     * For a filled equation: where its range cuts the filled side off, as segments like {@link #overlay}, meeting the
+     * curve's own ends exactly. With the curve, that is the shape's whole outline. Painting reads it, the solve doesn't.
+     */
+    public double[] rim;
     /** Cells whose centre lies in the space the shape encloses; cleared to air when carving (null = never carve). */
     public boolean[] carve;
     public Message error;
@@ -363,12 +368,38 @@ public final class Target {
                     if (uni) { if (s0 == 1) t.full(idx); continue; }
                     t.mixed(idx, (x, y) -> { double v = Fl.eval(x, y); return under ? v <= 0 : v >= 0; });
                 }
+            t.rim = rim(Fl, V, cols, rows, r, under);
         }
         t.axisX = xmin <= 0 && xmax >= 0 ? -xmin / sx : null;
         t.axisY = ymin <= 0 && ymax >= 0 ? -ymin / sy : null;
         t.overlay.add(sa);
         t.hasMath = true; t.mx0 = xmin; t.msx = sx; t.my0 = ymin; t.msy = sy;
         return t;
+    }
+
+    /**
+     * The edges of an equation's range that its filled side reaches, as segments. A crossing is found with the same
+     * call, on the same samples, as the curve's end on that edge, so the two meet at exactly the same point.
+     */
+    private static double[] rim(Expr.Fn Fl, double[] V, int cols, int rows, int r, boolean under) {
+        Segs out = new Segs();
+        // Each edge as its samples' indices in V, lowest first, as the curve's cells call root() with them.
+        int[][] edges = new int[4][];
+        edges[0] = new int[cols]; edges[1] = new int[cols]; edges[2] = new int[rows]; edges[3] = new int[rows];
+        for (int a = 0; a < cols; a++) { edges[0][a] = a; edges[1][a] = (rows - 1) * cols + a; }
+        for (int b = 0; b < rows; b++) { edges[2][b] = b * cols; edges[3][b] = b * cols + cols - 1; }
+        for (int[] edge : edges)
+            for (int k = 0; k + 1 < edge.length; k++) {
+                int n0 = edge[k], n1 = edge[k + 1];
+                double x0 = (double) (n0 % cols) / r, y0 = (double) (n0 / cols) / r, x1 = (double) (n1 % cols) / r, y1 = (double) (n1 / cols) / r;
+                boolean in0 = st(V[n0], under) == 1, in1 = st(V[n1], under) == 1;
+                if (in0 && in1) { out.add(x0, y0, x1, y1); continue; }
+                if (in0 == in1) continue;
+                double[] c = root(Fl, x0, y0, V[n0], x1, y1, V[n1]);
+                if (c == null) c = new double[]{(x0 + x1) / 2, (y0 + y1) / 2};
+                if (in0) out.add(x0, y0, c[0], c[1]); else out.add(c[0], c[1], x1, y1);
+            }
+        return out.toArray();
     }
 
     /** The height that gives an equation the same scale on both axes. */

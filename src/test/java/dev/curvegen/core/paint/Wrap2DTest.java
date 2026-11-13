@@ -77,24 +77,54 @@ class Wrap2DTest {
         Wrap2D w = Wrap2D.of(r, true, 3);
         for (int c = 0; c < r.nx() * r.ny(); c++) if (r.grid()[c] != Pieces.EMPTY) assertTrue(w.strip[c] >= 0);
         assertEquals(80, w.strips.stream().mapToDouble(Tiling.Strip::length).sum(), 1e-6);
+
+        // Cut off part way up its sides: one loop round the filled part, curve and range edges joined.
+        s.src = "y = 0.2";
+        w = Wrap2D.of(Solver.run(s), true, 3);
+        assertEquals(1, w.strips.size());
+        assertTrue(w.strips.get(0).closed());
+        assertEquals(60.4, w.strips.get(0).length(), 0.05);
+    }
+
+    @Test
+    void aFilledBeziersChordIsntCountedTwice() {
+        ShapeSettings s = new ShapeSettings();
+        s.gen = Gen.BEZIER; s.bMode = ShapeSettings.BzMode.FILLED; s.bW = 40; s.bH = 24;
+        s.pts.clear();
+        s.pts.add(new double[]{0, 0}); s.pts.add(new double[]{0, 24}); s.pts.add(new double[]{40, 24}); s.pts.add(new double[]{40, 0});
+        Wrap2D w = Wrap2D.of(Solver.run(s), true, 3);
+        assertEquals(1, w.strips.size());
+        assertTrue(w.strips.get(0).closed());
     }
 
     @Test
     void cellsInsideAFilledShapeTakeTheNearestSpotOnItsOutline() {
         ShapeSettings s = new ShapeSettings();
         s.gen = Gen.BEZIER; s.bMode = ShapeSettings.BzMode.FILLED;
-        Solver.Result r = Solver.run(s);
+        nearestIsExact(Solver.run(s));
+        s = new ShapeSettings();
+        s.gen = Gen.EQUATION; s.src = "min(x^2+y^2-16, (x-3)^2+(y-1)^2-9) = 0"; s.qMode = ShapeSettings.EqMode.UNDER; s.qLock = false;
+        s.xmin = "-7"; s.xmax = "7"; s.ymin = "-7"; s.ymax = "7"; s.qW = 70; s.qH = 70;
+        nearestIsExact(Solver.run(s));
+    }
+
+    private static void nearestIsExact(Solver.Result r) {
         java.util.List<double[]> segs = new java.util.ArrayList<>(r.target().overlay);
         segs.addAll(r.target().dashed);
+        if (r.target().rim != null) segs.add(r.target().rim);
         java.util.List<Wrap2D.Poly> polys = Wrap2D.Poly.chain(segs, false);
         int[] best = Wrap2D.Nearest.of(r.nx(), r.ny(), polys, 1, null, null);
+        assertFalse(polys.isEmpty());
         double worst = 0;
         for (int c = 0; c < best.length; c++) {
             double x = c % r.nx() + .5, y = c / r.nx() + .5, min = Double.MAX_VALUE;
             for (Wrap2D.Poly p : polys) for (int k = 0; k < p.segments(); k++) min = Math.min(min, p.distance2(k, x, y));
             Wrap2D.Poly p = polys.get(best[c] >>> 20);
-            worst = Math.max(worst, Math.sqrt(p.distance2(best[c] & 0xFFFFF, x, y)) - Math.sqrt(min));
+            double off = Math.sqrt(p.distance2(best[c] & 0xFFFFF, x, y)) - Math.sqrt(min);
+            // Within 16 blocks of the outline the answer is exact; deeper in it may be a little off.
+            if (min < 15 * 15) worst = Math.max(worst, off);
+            else assertTrue(off < 1, "deep inside, at most a spot or so off");
         }
-        assertEquals(0, worst, 0.01);
+        assertEquals(0, worst, 1e-9);
     }
 }

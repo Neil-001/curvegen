@@ -12,9 +12,10 @@ import org.junit.jupiter.api.Test;
  * the mouse wheel on a paint setting waits for. Take the {@code @Disabled} off and run
  * {@code ./gradlew :fabric:test --tests '*Paint2DTiming*' -i} to see the numbers.
  *
- * <p>The target is 25 ms for any shape up to 200 blocks across, so scrolling a setting follows the wheel: in
- * November 2026 the slowest of those, a filled ellipse painted on its edge 8 deep, took 23 ms, and everything else
- * at that size under 3 ms. At 400 across an outline took 7 ms and the filled ellipse on its edge 90 ms.
+ * <p>The target is 10 ms for any shape up to 64 blocks across, the size the spec names for following the wheel,
+ * and 40 ms up to 200 across. In November 2026, on a busy machine, everything at 64 across took under 6 ms. At 200
+ * across a filled ellipse painted on its edge 8 deep, the slowest, took 35 ms, and everything else under 3 ms. At 400
+ * across an outline took 7 ms and the filled ellipse on its edge about 100 ms.
  * {@code Painter2DTest.repaintingIsQuick} holds a loose bound that a slow machine still meets.
  */
 class Paint2DTiming {

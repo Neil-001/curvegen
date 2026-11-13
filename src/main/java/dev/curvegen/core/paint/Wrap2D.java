@@ -60,7 +60,7 @@ public final class Wrap2D {
         List<double[]> segs = new ArrayList<>(line ? t.centre : t.overlay);
         if (!line) {
             segs.addAll(t.dashed);
-            segs.add(border(r));
+            if (t.rim != null) segs.add(t.rim);
         }
         List<Poly> polys = Poly.chain(segs, r.floor());
         // Cells name their chain in 11 bits. An equation with more pieces than that keeps its longest.
@@ -88,26 +88,6 @@ public final class Wrap2D {
                 w.v[c] = edge ? -1 : (float) (width / 2 + at[1]);
             }
         return w;
-    }
-
-    /**
-     * The edges of the grid that blocks touch, as segments: where a filled shape is cut off by the edge of its box,
-     * such as an equation's range, that is part of its outline.
-     */
-    private static double[] border(Solver.Result r) {
-        int nx = r.nx(), ny = r.ny();
-        List<double[]> out = new ArrayList<>();
-        for (int i = 0; i < nx; i++) {
-            if (r.at(i, 0) != Pieces.EMPTY) out.add(new double[]{i, 0, i + 1, 0});
-            if (r.at(i, ny - 1) != Pieces.EMPTY) out.add(new double[]{i, ny, i + 1, ny});
-        }
-        for (int j = 0; j < ny; j++) {
-            if (r.at(0, j) != Pieces.EMPTY) out.add(new double[]{0, j, 0, j + 1});
-            if (r.at(nx - 1, j) != Pieces.EMPTY) out.add(new double[]{nx, j, nx, j + 1});
-        }
-        double[] flat = new double[out.size() * 4];
-        for (int k = 0; k < out.size(); k++) System.arraycopy(out.get(k), 0, flat, k * 4, 4);
-        return flat;
     }
 
     /** A chain of segments: points xs, ys, with the distance along it to each point. */
@@ -276,7 +256,8 @@ public final class Wrap2D {
      * The nearest segment to cells' centres, as (chain index << 20 | segment index), or -1. A cell within
      * {@code reach} cells of a segment checks every segment that near. With {@code only} given, just those cells are
      * worked out, which is enough when every one is that close to the curve. Otherwise the rest take the best of their
-     * neighbours' answers, swept across the grid both ways, and then step along the chain to the nearest segment.
+     * neighbours' answers, swept across the grid both ways, which bounds how far each must look to be made exact.
+     * Cells further than {@link #EXACT} from every segment keep the sweeps' answer, which is at most a spot or so off.
      * Only cells in {@code wanted} (all, when null) are sure to be exact.
      */
     static final class Nearest {
@@ -326,28 +307,66 @@ public final class Wrap2D {
                 for (int j = 0; j < ny; j++) for (int i = 0; i < nx; i++) relax(i, j, nx, ny, fwd, best, dist, polys);
                 for (int j = ny - 1; j >= 0; j--) for (int i = nx - 1; i >= 0; i--) relax(i, j, nx, ny, back, best, dist, polys);
             }
-            // A neighbour's answer can be a few segments off along the same chain: walk along it to the nearest.
-            for (int c = 0; c < n; c++) if (best[c] >= 0 && (wanted == null || wanted[c])) best[c] = climb(polys, best[c], c % nx + .5, c / nx + .5, dist[c]);
+            // A neighbour's answer is near the truth but can be another segment, so each wanted cell near the outline
+            // then checks every segment no further than that answer.
+            exact(nx, ny, polys, best, dist, wanted);
             return best;
         }
 
-        /** From segment {@code code}, steps along its chain while the next segment either way is nearer the point. */
-        private static int climb(List<Poly> polys, int code, double x, double y, double d) {
-            Poly p = polys.get(code >>> 20);
-            int k = code & 0xFFFFF, n = p.segments();
-            for (int steps = 0; steps < n; steps++) {
-                int moved = -1;
-                for (int step : new int[]{-1, 1}) {
-                    int to = k + step;
-                    if (p.closed) to = Math.floorMod(to, n);
-                    else if (to < 0 || to >= n) continue;
-                    double dd = p.distance2(to, x, y);
-                    if (dd < d) { d = dd; moved = to; }
+        private static final int COARSE = 4, EXACT = 16;
+
+        /** Makes each wanted cell's answer exact: every segment within its current distance is checked. */
+        private static void exact(int nx, int ny, List<Poly> polys, int[] best, double[] dist, boolean[] wanted) {
+            // Buckets cover the segments themselves, which can reach past the grid.
+            double minX = Double.MAX_VALUE, minY = Double.MAX_VALUE, maxX = -Double.MAX_VALUE, maxY = -Double.MAX_VALUE;
+            for (Poly p : polys)
+                for (int k = 0; k < p.xs.length; k++) {
+                    minX = Math.min(minX, p.xs[k]); maxX = Math.max(maxX, p.xs[k]);
+                    minY = Math.min(minY, p.ys[k]); maxY = Math.max(maxY, p.ys[k]);
                 }
-                if (moved < 0) break;
-                k = moved;
+            double ox = Math.floor(minX), oy = Math.floor(minY);
+            int bx = (int) ((maxX - ox) / COARSE) + 1, by = (int) ((maxY - oy) / COARSE) + 1;
+            // Each bucket's segments, packed: bucket b's are in[start[b]] to in[start[b + 1] - 1].
+            int[] start = new int[bx * by + 1], in = null, fill = null;
+            for (int pass = 0; pass < 2; pass++) {
+                if (pass == 1) {
+                    for (int k = 0; k < bx * by; k++) start[k + 1] += start[k];
+                    in = new int[start[bx * by]];
+                    fill = start.clone();
+                }
+                for (int p = 0; p < polys.size(); p++) {
+                    Poly poly = polys.get(p);
+                    for (int k = 0; k < poly.segments(); k++) {
+                        int i0 = clamp((int) ((Math.min(poly.xs[k], poly.xs[k + 1]) - ox) / COARSE), bx), i1 = clamp((int) ((Math.max(poly.xs[k], poly.xs[k + 1]) - ox) / COARSE), bx);
+                        int j0 = clamp((int) ((Math.min(poly.ys[k], poly.ys[k + 1]) - oy) / COARSE), by), j1 = clamp((int) ((Math.max(poly.ys[k], poly.ys[k + 1]) - oy) / COARSE), by);
+                        for (int j = j0; j <= j1; j++)
+                            for (int i = i0; i <= i1; i++) {
+                                if (pass == 0) start[j * bx + i + 1]++;
+                                else in[fill[j * bx + i]++] = p << 20 | k;
+                            }
+                    }
+                }
             }
-            return (code >>> 20) << 20 | k;
+            for (int c = 0; c < nx * ny; c++) {
+                // Deep inside a round shape every spot on its outline is about as near, and checking them all for
+                // every block would take seconds, so only blocks within EXACT of the outline are made exact.
+                if (best[c] < 0 || wanted != null && !wanted[c] || dist[c] > EXACT * EXACT) continue;
+                double x = c % nx + .5 - ox, y = c / nx + .5 - oy, rad = Math.sqrt(dist[c]);
+                int i0 = clamp((int) Math.floor((x - rad) / COARSE), bx), i1 = clamp((int) Math.floor((x + rad) / COARSE), bx);
+                int j0 = clamp((int) Math.floor((y - rad) / COARSE), by), j1 = clamp((int) Math.floor((y + rad) / COARSE), by);
+                for (int j = j0; j <= j1; j++)
+                    for (int i = i0; i <= i1; i++) {
+                        // A bucket wholly further than the best so far can't hold anything nearer.
+                        double gx = Math.max(0, Math.max(i * COARSE - x, x - (i + 1) * COARSE));
+                        double gy = Math.max(0, Math.max(j * COARSE - y, y - (j + 1) * COARSE));
+                        if (gx * gx + gy * gy >= dist[c]) continue;
+                        for (int q = start[j * bx + i]; q < start[j * bx + i + 1]; q++) {
+                            int code = in[q];
+                            double d = polys.get(code >>> 20).distance2(code & 0xFFFFF, x + ox, y + oy);
+                            if (d < dist[c]) { dist[c] = d; best[c] = code; }
+                        }
+                    }
+            }
         }
 
         private static void relax(int i, int j, int nx, int ny, int[][] dirs, int[] best, double[] dist, List<Poly> polys) {
