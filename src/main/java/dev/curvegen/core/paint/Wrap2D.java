@@ -58,7 +58,10 @@ public final class Wrap2D {
             return w;
         }
         List<double[]> segs = new ArrayList<>(line ? t.centre : t.overlay);
-        if (!line) segs.addAll(t.dashed);
+        if (!line) {
+            segs.addAll(t.dashed);
+            segs.add(border(r));
+        }
         List<Poly> polys = Poly.chain(segs, r.floor());
         // Cells name their chain in 11 bits. An equation with more pieces than that keeps its longest.
         if (polys.size() > 2047) {
@@ -71,7 +74,7 @@ public final class Wrap2D {
         boolean[] filled = new boolean[nx * ny];
         for (int c = 0; c < filled.length; c++) filled[c] = r.grid()[c] != Pieces.EMPTY;
         // Every block of a line is within half its width of the centre line, so only an outline needs the sweeps.
-        int[] nearest = line ? Nearest.of(nx, ny, polys, (int) Math.ceil(t.centreWidth / 2) + 1, filled) : Nearest.of(nx, ny, polys, 1, null);
+        int[] nearest = line ? Nearest.of(nx, ny, polys, (int) Math.ceil(t.centreWidth / 2) + 1, filled, filled) : Nearest.of(nx, ny, polys, 1, null, filled);
         for (int j = 0; j < ny; j++)
             for (int i = 0; i < nx; i++) {
                 int c = j * nx + i;
@@ -85,6 +88,26 @@ public final class Wrap2D {
                 w.v[c] = edge ? -1 : (float) (width / 2 + at[1]);
             }
         return w;
+    }
+
+    /**
+     * The edges of the grid that blocks touch, as segments: where a filled shape is cut off by the edge of its box,
+     * such as an equation's range, that is part of its outline.
+     */
+    private static double[] border(Solver.Result r) {
+        int nx = r.nx(), ny = r.ny();
+        List<double[]> out = new ArrayList<>();
+        for (int i = 0; i < nx; i++) {
+            if (r.at(i, 0) != Pieces.EMPTY) out.add(new double[]{i, 0, i + 1, 0});
+            if (r.at(i, ny - 1) != Pieces.EMPTY) out.add(new double[]{i, ny, i + 1, ny});
+        }
+        for (int j = 0; j < ny; j++) {
+            if (r.at(0, j) != Pieces.EMPTY) out.add(new double[]{0, j, 0, j + 1});
+            if (r.at(nx - 1, j) != Pieces.EMPTY) out.add(new double[]{nx, j, nx, j + 1});
+        }
+        double[] flat = new double[out.size() * 4];
+        for (int k = 0; k < out.size(); k++) System.arraycopy(out.get(k), 0, flat, k * 4, 4);
+        return flat;
     }
 
     /** A chain of segments: points xs, ys, with the distance along it to each point. */
@@ -253,11 +276,11 @@ public final class Wrap2D {
      * The nearest segment to cells' centres, as (chain index << 20 | segment index), or -1. A cell within
      * {@code reach} cells of a segment checks every segment that near. With {@code only} given, just those cells are
      * worked out, which is enough when every one is that close to the curve. Otherwise the rest take the best of their
-     * neighbours' answers, swept across the grid both ways, which is exact enough for picking a pattern cell and
-     * linear in the grid's size.
+     * neighbours' answers, swept across the grid both ways, and then step along the chain to the nearest segment.
+     * Only cells in {@code wanted} (all, when null) are sure to be exact.
      */
     static final class Nearest {
-        static int[] of(int nx, int ny, List<Poly> polys, int reach, boolean[] only) {
+        static int[] of(int nx, int ny, List<Poly> polys, int reach, boolean[] only, boolean[] wanted) {
             int n = nx * ny;
             // Each cell's nearby segments, packed: cell c's are near[start[c]] to near[start[c + 1] - 1].
             int[] start = new int[n + 1];
@@ -279,12 +302,12 @@ public final class Wrap2D {
                     }
                 }
                 if (pass == 0) { for (int c = 0; c < n; c++) start[c + 1] += start[c]; continue; }
-                return finish(nx, ny, polys, start, near, only == null);
+                return finish(nx, ny, polys, start, near, only == null, wanted);
             }
             throw new IllegalStateException();
         }
 
-        private static int[] finish(int nx, int ny, List<Poly> polys, int[] start, int[] near, boolean sweep) {
+        private static int[] finish(int nx, int ny, List<Poly> polys, int[] start, int[] near, boolean sweep, boolean[] wanted) {
             int n = nx * ny;
             int[] best = new int[n];
             double[] dist = new double[n];
@@ -303,7 +326,28 @@ public final class Wrap2D {
                 for (int j = 0; j < ny; j++) for (int i = 0; i < nx; i++) relax(i, j, nx, ny, fwd, best, dist, polys);
                 for (int j = ny - 1; j >= 0; j--) for (int i = nx - 1; i >= 0; i--) relax(i, j, nx, ny, back, best, dist, polys);
             }
+            // A neighbour's answer can be a few segments off along the same chain: walk along it to the nearest.
+            for (int c = 0; c < n; c++) if (best[c] >= 0 && (wanted == null || wanted[c])) best[c] = climb(polys, best[c], c % nx + .5, c / nx + .5, dist[c]);
             return best;
+        }
+
+        /** From segment {@code code}, steps along its chain while the next segment either way is nearer the point. */
+        private static int climb(List<Poly> polys, int code, double x, double y, double d) {
+            Poly p = polys.get(code >>> 20);
+            int k = code & 0xFFFFF, n = p.segments();
+            for (int steps = 0; steps < n; steps++) {
+                int moved = -1;
+                for (int step : new int[]{-1, 1}) {
+                    int to = k + step;
+                    if (p.closed) to = Math.floorMod(to, n);
+                    else if (to < 0 || to >= n) continue;
+                    double dd = p.distance2(to, x, y);
+                    if (dd < d) { d = dd; moved = to; }
+                }
+                if (moved < 0) break;
+                k = moved;
+            }
+            return (code >>> 20) << 20 | k;
         }
 
         private static void relax(int i, int j, int nx, int ny, int[][] dirs, int[] best, double[] dist, List<Poly> polys) {

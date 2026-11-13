@@ -67,4 +67,34 @@ class Wrap2DTest {
         assertEquals(1, w.strips.size());
         assertTrue(w.strips.get(0).closed());
     }
+
+    @Test
+    void aFilledEquationsEdgeIncludesWhereItsRangeCutsItOff() {
+        ShapeSettings s = new ShapeSettings();
+        s.gen = Gen.EQUATION; s.src = "y = 100"; s.qMode = ShapeSettings.EqMode.UNDER; s.qLock = false;
+        s.xmin = "-10"; s.xmax = "10"; s.ymin = "-10"; s.ymax = "10"; s.qW = 20; s.qH = 20;
+        Solver.Result r = Solver.run(s);
+        Wrap2D w = Wrap2D.of(r, true, 3);
+        for (int c = 0; c < r.nx() * r.ny(); c++) if (r.grid()[c] != Pieces.EMPTY) assertTrue(w.strip[c] >= 0);
+        assertEquals(80, w.strips.stream().mapToDouble(Tiling.Strip::length).sum(), 1e-6);
+    }
+
+    @Test
+    void cellsInsideAFilledShapeTakeTheNearestSpotOnItsOutline() {
+        ShapeSettings s = new ShapeSettings();
+        s.gen = Gen.BEZIER; s.bMode = ShapeSettings.BzMode.FILLED;
+        Solver.Result r = Solver.run(s);
+        java.util.List<double[]> segs = new java.util.ArrayList<>(r.target().overlay);
+        segs.addAll(r.target().dashed);
+        java.util.List<Wrap2D.Poly> polys = Wrap2D.Poly.chain(segs, false);
+        int[] best = Wrap2D.Nearest.of(r.nx(), r.ny(), polys, 1, null, null);
+        double worst = 0;
+        for (int c = 0; c < best.length; c++) {
+            double x = c % r.nx() + .5, y = c / r.nx() + .5, min = Double.MAX_VALUE;
+            for (Wrap2D.Poly p : polys) for (int k = 0; k < p.segments(); k++) min = Math.min(min, p.distance2(k, x, y));
+            Wrap2D.Poly p = polys.get(best[c] >>> 20);
+            worst = Math.max(worst, Math.sqrt(p.distance2(best[c] & 0xFFFFF, x, y)) - Math.sqrt(min));
+        }
+        assertEquals(0, worst, 0.01);
+    }
 }
