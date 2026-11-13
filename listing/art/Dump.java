@@ -48,7 +48,8 @@ import java.util.StringJoiner;
  * starting with "view" say how: viewOut (the file), viewW and viewH (pixels), viewYaw and viewPitch (degrees),
  * viewBg (the background, as RGB), viewColour (one colour for every block instead of the piece type colours), viewWires (the ideal shape's outline), viewCut (leave out the half nearest the
  * camera, to show the inside), viewTop (leave out the bottom half, as if the ground hid it) and viewHandles (the
- * in-world editor's box and its handles).
+ * in-world editor's box and its handles). viewColour, viewCut and viewHandles are unused: only render.py's unused
+ * pictures ask for them, which the listing no longer shows. They stay for when one comes back.
  *
  * <p>A shape is painted as the mod paints it when the line names a catalog of the game's blocks ("catalog=<file>",
  * written by render.py from Blocks.java and the textures) and turns paint on. "paint.<key>=<value>" sets the paint as
@@ -132,7 +133,10 @@ public class Dump {
         }
     }
 
-    /** PreviewTexture's curve colour, and the editor's colours for a face, edge and corner handle. */
+    /**
+     * PreviewTexture's curve colour, and the editor's colours for a face, edge and corner handle. The box's and the
+     * handles' colours are unused, like viewHandles.
+     */
     private static final int CURVE = 0xFF4D73, BOX = 0xFFFFFF, FACE = 0xF2F2F2, EDGE = 0x7FD4FF, CORNER = 0xFFA646;
 
     /** The catalogs read so far, by file and face. */
@@ -257,6 +261,7 @@ public class Dump {
 
         short[] grid = r.grid();
         boolean cut = Boolean.parseBoolean(view.get("viewCut")), top = Boolean.parseBoolean(view.get("viewTop"));
+        // viewCut is unused, like the hollow ellipsoid cut open in render.py's shapes3d() that asked for it.
         if (cut || top) {
             // With viewCut, the camera's side of the upright plane through the middle that faces it most squarely.
             short[] whole = grid;
@@ -285,6 +290,7 @@ public class Dump {
         int[] palette = new int[Pieces.Family.values().length];
         for (Pieces.Family f : Pieces.Family.values())
             for (int p = 1; p < Pieces.COUNT; p++) if (Pieces.FAMILY[p] == f) { palette[f.ordinal()] = Pieces.COLOR[p]; break; }
+        // Unused, like render.py's card3() and editor() that asked for it.
         if (view.containsKey("viewColour")) java.util.Arrays.fill(palette, Integer.parseInt(view.get("viewColour"), 16));
         if (painted != null) palette = painted;
         Raster3 raster = new Raster3(w, h);
@@ -294,6 +300,7 @@ public class Dump {
         if (Boolean.parseBoolean(view.getOrDefault("viewWires", "true")))
             for (double[] l : wireframe)
                 for (int p = 0; p + 5 < l.length; p += 3) raster.line(cam, l[p], l[p + 1], l[p + 2], l[p + 3], l[p + 4], l[p + 5], CURVE, thick);
+        // Unused, like render.py's editor() that asked for it.
         if (Boolean.parseBoolean(view.get("viewHandles"))) {
             // The box the player set, which leaves out the room an outwards shell adds.
             Box box = new Box(pad, pad, pad, nx - 2 * pad, ny - 2 * pad, nz - 2 * pad);
