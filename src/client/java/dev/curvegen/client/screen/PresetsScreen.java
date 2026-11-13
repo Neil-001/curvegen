@@ -7,12 +7,17 @@ import dev.curvegen.client.Lang;
 import com.mojang.blaze3d.platform.InputConstants;
 import dev.curvegen.client.BlockChoices;
 import dev.curvegen.client.CurveGenClient;
+import dev.curvegen.client.PaintBlocks;
 import dev.curvegen.client.PresetStore.Preset;
 import dev.curvegen.client.PresetStore;
 import dev.curvegen.core.Pieces.Family;
 import dev.curvegen.core.PresetData;
 import dev.curvegen.core.ShapeSettings;
 import dev.curvegen.core.Solver;
+import dev.curvegen.core.paint.Catalog;
+import dev.curvegen.core.paint.Paint;
+import dev.curvegen.core.paint.Painted;
+import dev.curvegen.core.paint.Painter2D;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
@@ -56,8 +61,10 @@ public class PresetsScreen extends Screen {
     private Preset textureFor;
     /** A preview is solved per preset, with or without its blocks. */
     private record Key(Preset preset, boolean blocks) {}
-    private final Map<Key, Solver.Result> results = new HashMap<>();
-    private final Map<Key, Future<Solver.Result>> jobs = new HashMap<>();
+    /** A 2D preview's solve, and its paint when the preset's blocks carry some, or null. */
+    private record Shown(Solver.Result result, Painted painted) {}
+    private final Map<Key, Shown> results = new HashMap<>();
+    private final Map<Key, Future<Shown>> jobs = new HashMap<>();
     /** A 3D preset's picture is solved the same way, and a solve is dropped when the mouse has moved on to another preset. */
     private record Job3(Future<CurveScreen.Solved3> future, AtomicBoolean cancelled) {}
     private final Map<Key, CurveScreen.Solved3> solved3 = new HashMap<>();
@@ -69,11 +76,11 @@ public class PresetsScreen extends Screen {
 
     private static final int ROW = 20, ICON = 12;
     // 9×9 pixel icons
-    private static final String[] PIN = {
+    static final String[] PIN = {
             "..#####..", "..#####..", "...###...", "...###...", ".#######.", "#########", "....#....", "....#....", "....#...."};
-    private static final String[] PENCIL = {
+    static final String[] PENCIL = {
             "......##.", ".....#..#", "....#..#.", "...#..#..", "..#..#...", ".#..#....", "#.##.....", "##.......", "#........"};
-    private static final String[] TRASH = {
+    static final String[] TRASH = {
             "...###...", "#########", ".#######.", ".#.#.#.#.", ".#.#.#.#.", ".#.#.#.#.", ".#.#.#.#.", ".#.#.#.#.", "..#####.."};
 
     public PresetsScreen(Screen parent, ShapeSettings.Gen gen, BiConsumer<Preset, Boolean> onLoad) {
@@ -146,12 +153,22 @@ public class PresetsScreen extends Screen {
 
     private boolean is3d() { return ShapeSettings.is3d(gen); }
 
-    private Solver.Result resultFor(Preset p) {
+    private Shown resultFor(Preset p) {
         Key k = new Key(p, withBlocks(p));
-        Solver.Result r = results.get(k);
+        Shown r = results.get(k);
         if (r != null) return r;
-        Future<Solver.Result> job = jobs.get(k);
-        if (job == null) { ShapeSettings s = settingsFor(p); jobs.put(k, CurveScreen.EXEC.submit(() -> Solver.run(s))); return null; }
+        Future<Shown> job = jobs.get(k);
+        if (job == null) {
+            ShapeSettings s = settingsFor(p);
+            // Only a preset loaded with its blocks brings its paint. Otherwise the picture is unpainted.
+            Paint paint = withBlocks(p) && s.paint.on() ? s.paint.copy() : null;
+            Catalog catalog = paint == null ? null : PaintBlocks.catalog(s, choiceFor(p));   // on this thread, as it reads the game
+            jobs.put(k, CurveScreen.EXEC.submit(() -> {
+                Solver.Result solved = Solver.run(s);
+                return new Shown(solved, paint == null ? null : Painter2D.paint(solved, s.depth, paint, s.fullConnects, catalog));
+            }));
+            return null;
+        }
         if (!job.isDone()) return null;
         jobs.remove(k);
         try { r = job.get(); } catch (Exception _) { return null; }
@@ -192,6 +209,7 @@ public class PresetsScreen extends Screen {
             var shape = r.result().shape();
             picture.mesh(r.mesh(), shape.pad());
             picture.wires(List.of(), 0);
+            // 3D shapes aren't painted yet. A painted picture plugs in here, painting r's mesh with the preset's paint.
             picture.palette(Preview3.palette(CurveScreen.colors, choiceFor(target), CurveGenClient.SETTINGS.topColours));
             picture.fit(shape.nx(), shape.ny(), shape.nz(), shape.pad(), x0, y0, x1, y1);
         }
@@ -288,7 +306,8 @@ public class PresetsScreen extends Screen {
             ctx.textWithWordWrap(font, Component.translatable("curvegen.screen.hover_a_preset_to_preview_it_or_select_one"),
                     px0 + 8, py0 + 8, px1 - px0 - 16, 0xFF9AA5B3, false);
         } else {
-            Solver.Result r = is3d() ? null : resultFor(target);
+            Shown shown = is3d() ? null : resultFor(target);
+            Solver.Result r = shown == null ? null : shown.result();
             CurveScreen.Solved3 r3 = is3d() ? solved3For(target) : null;
             int infoH = 24;
             if (is3d()) {
@@ -300,7 +319,7 @@ public class PresetsScreen extends Screen {
             else if (r.target().error != null)
                 ctx.textWithWordWrap(font, Component.literal(Lang.text(r.target().error)), px0 + 8, py0 + 8, px1 - px0 - 16, 0xFFFF8098, false);
             else {
-                if (textureFor != target || texture.id() == null) { texture.update(r, CurveScreen.colors, true, true, choiceFor(target), null); textureFor = target; }
+                if (textureFor != target || texture.id() == null) { texture.update(r, CurveScreen.colors, true, true, choiceFor(target), shown.painted()); textureFor = target; }
                 float aw = px1 - px0 - 12, ah = py1 - py0 - 12 - infoH;
                 float z = Math.min(aw / r.nx(), ah / r.ny());
                 float ox = px0 + (px1 - px0 - r.nx() * z) / 2f, oy = py0 + 6 + (ah - r.ny() * z) / 2f;
@@ -322,7 +341,7 @@ public class PresetsScreen extends Screen {
         if (tip != null) ctx.setTooltipForNextFrame(font, Component.literal(tip), mx, my);
     }
 
-    private static void drawArt(GuiGraphicsExtractor ctx, String[] art, int x, int y, int color) {
+    static void drawArt(GuiGraphicsExtractor ctx, String[] art, int x, int y, int color) {
         int ox = x + (ICON - 9) / 2, oy = y + (ICON - 9) / 2;
         for (int r = 0; r < art.length; r++)
             for (int c = 0; c < art[r].length(); c++)

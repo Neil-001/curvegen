@@ -72,6 +72,9 @@ final class Repaint3 {
                 && BlockChoices.CHOICE.equals(shownChoices) && shownTop == s.topColours;
     }
 
+    /** The paint settings the last finished repaint was for, or null before the first. */
+    Paint shownPaint() { return shownPaint; }
+
     /** Whether {@code solve} still waits for the paint the settings ask for, as an export must. */
     boolean pending(Solve3Painter solve, ShapeSettings s) { return s.paint.on() && solve != null && fresh(solve, s) == null; }
 }

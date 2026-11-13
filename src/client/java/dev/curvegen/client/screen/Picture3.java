@@ -3,6 +3,7 @@ package dev.curvegen.client.screen;
 import dev.curvegen.client.BlockChoices;
 import dev.curvegen.core.Message;
 import dev.curvegen.core.ShapeSettings;
+import dev.curvegen.core.paint.Paint;
 import dev.curvegen.core.paint.Painted;
 import java.util.Arrays;
 import java.util.List;
@@ -23,6 +24,8 @@ final class Picture3 implements AutoCloseable {
     private ShapeSettings solving, solvedFor;
     private CurveScreen.Solved3 solved;
     private int[] fittedIn;
+    /** The paint on show, as of the last poll. */
+    private Repaint3.View shown;
 
     /** Call every frame with the settings on show. */
     void poll(ShapeSettings s) {
@@ -45,7 +48,7 @@ final class Picture3 implements AutoCloseable {
             } else if (solving != null && !sameShape(s, solving)) cancel.set(true);   // dropped, and solved again for the settings as they are
         }
         repaint.poll(solved == null ? null : solved.painter(), solved != null && solved.fullConnects(), s);
-        Repaint3.View v = view(s);
+        Repaint3.View v = shown = view(s);
         if (v != null) preview.palette(v.palette(), v.perBlock());
         else preview.palette(Preview3.palette(PreviewTexture.Colors.BLOCKS, BlockChoices.CHOICE, s.topColours));
     }
@@ -59,11 +62,11 @@ final class Picture3 implements AutoCloseable {
 
     private Repaint3.View view(ShapeSettings s) { return solved == null ? null : repaint.current(solved.painter(), s.paint); }
 
-    /** The paint on show for the settings, or null while it's unpainted or not ready. */
-    Painted painted(ShapeSettings s) {
-        Repaint3.View v = view(s);
-        return v == null ? null : v.done().painted();
-    }
+    /** The paint on show, as of the last poll, or null while it's unpainted or not ready. */
+    Painted painted() { return shown == null ? null : shown.done().painted(); }
+
+    /** The paint settings the last finished repaint was for, or null before the first. */
+    Paint paintedFor() { return repaint.shownPaint(); }
 
     /** Why the shape can't be built, or null. */
     Message error() { return solved == null ? null : solved.error(); }

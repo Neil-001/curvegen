@@ -10,7 +10,9 @@ import dev.curvegen.core.ShapeSettings;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -139,13 +141,30 @@ public final class BlockChoices {
      * mod that isn't installed) or don't fit their piece type keep the current choice.
      */
     public static void apply(Map<String, String> blocks, ShapeSettings s, Map<Family, Block> choice) {
-        PresetData.applyBlocks(blocks, s, (f, id) -> {
-            Identifier key = Identifier.tryParse(id);
-            if (key == null || !BuiltInRegistries.BLOCK.containsKey(key)) return;
-            Block b = BuiltInRegistries.BLOCK.getValue(key);
-            if (fits(b, f)) choice.put(f, b);
-        });
+        PresetData.applyBlocks(blocks, s, (f, id) -> choose(choice, f, id));
         s.fullConnects = connects(choice.get(Family.FULL));
+    }
+
+    /** The block chosen for each piece type, by id under the piece type's name, as {@code PaintStore} saves them. */
+    public static Map<String, String> captureChoices(Map<Family, Block> choice) {
+        Map<String, String> d = new LinkedHashMap<>();
+        for (Family f : FAMILIES) d.put(f.name().toLowerCase(Locale.ROOT), BuiltInRegistries.BLOCK.getKey(choice.get(f)).toString());
+        return d;
+    }
+
+    /** Puts back what {@link #captureChoices} took. A piece type that's missing, or names a block that doesn't exist or fit it, keeps its choice. */
+    public static void applyChoices(Map<String, String> d, Map<Family, Block> choice) {
+        for (Family f : FAMILIES) {
+            String id = d.get(f.name().toLowerCase(Locale.ROOT));
+            if (id != null) choose(choice, f, id);
+        }
+    }
+
+    private static void choose(Map<Family, Block> choice, Family f, String id) {
+        Identifier key = Identifier.tryParse(id);
+        if (key == null || !BuiltInRegistries.BLOCK.containsKey(key)) return;
+        Block b = BuiltInRegistries.BLOCK.getValue(key);
+        if (fits(b, f)) choice.put(f, b);
     }
 
     public static Block blockFor(int piece) { return CHOICE.get(Pieces.FAMILY[piece]); }

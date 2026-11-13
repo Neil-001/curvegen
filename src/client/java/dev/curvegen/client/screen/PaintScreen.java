@@ -4,13 +4,10 @@ import static dev.curvegen.client.Lang.tr;
 
 import dev.curvegen.client.BlockChoices;
 import dev.curvegen.client.CurveGenClient;
-import dev.curvegen.client.Lang;
-import dev.curvegen.client.PaintBlocks;
+import dev.curvegen.client.PatternStore;
 import dev.curvegen.core.Pieces.Family;
 import dev.curvegen.core.ShapeSettings;
-import dev.curvegen.core.Solver;
 import dev.curvegen.core.edit.Stepper;
-import dev.curvegen.core.paint.Catalog;
 import dev.curvegen.core.paint.Ladder.Why;
 import dev.curvegen.core.paint.MixLayout;
 import dev.curvegen.core.paint.Paint;
@@ -21,11 +18,9 @@ import dev.curvegen.core.paint.Paint.Mapping;
 import dev.curvegen.core.paint.Paint.On;
 import dev.curvegen.core.paint.Paint.Source;
 import dev.curvegen.core.paint.Painted;
-import dev.curvegen.core.paint.Painter2D;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.concurrent.Future;
 import java.util.function.BooleanSupplier;
 import java.util.function.IntConsumer;
 import java.util.function.IntSupplier;
@@ -37,21 +32,16 @@ import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 
 /**
  * The Paint screen: the paint source and its settings on the left, and the shape on the right in its block colours,
- * painted as the settings stand. Every control changes {@code ShapeSettings.paint} at once, and the editor and the main
- * screen repaint from it. The rows under Source belong to the source, built by one method per source, so a new source
- * brings its own rows without reshaping the screen. With Source: Off the pattern's rows stay, greyed out. A mix has
- * fewer rows, so it leaves two empty above "One material per colour".
- *
- * <p>The picture solves the shape once and solves again only when something other than its paint changes, such as
- * whether fences attach to full blocks, which follows the pattern. A paint change repaints that solve on the worker
- * thread, and the old picture stays until the new one is ready. A 3D shape's picture is {@link Picture3}, which works
- * the same way and turns when dragged.
+ * painted as the settings stand ({@link PaintPicture}). Every control changes {@code ShapeSettings.paint} at once, and
+ * the editor and the main screen repaint from it. The rows under Source belong to the source, built by one method per
+ * source, so a new source brings its own rows without reshaping the screen. With Source: Off the pattern's rows stay,
+ * greyed out. A mix has fewer rows, so it leaves two empty above "One material per colour". Dragging a 3D shape's
+ * picture turns it.
  */
 public class PaintScreen extends ControlScreen {
     private static final ShapeSettings S = CurveGenClient.SETTINGS;
@@ -70,19 +60,8 @@ public class PaintScreen extends ControlScreen {
     /** Whether the shape on show was a line when the Fit button was made, as the default fit depends on it. */
     private boolean lineShown;
 
-    private final PreviewTexture texture = new PreviewTexture();
-    /** The solve under way and what it's for, and the last one finished and what it was for. */
-    private Future<Solver.Result> solveJob;
-    private ShapeSettings solving, solvedFor;
-    private Solver.Result result;
-    /** The paint under way, and the last finished: its paint, the solve it painted, and the painted blocks. */
-    private Future<Painted> paintJob;
-    private Paint paintingFor, paintedFor;
-    private Solver.Result paintingResult, paintedResult;
-    private Painted painted;
-    private boolean pictureDirty;
-    /** A 3D shape's picture, and whether it's being turned by a drag. */
-    private final Picture3 picture3 = new Picture3();
+    private final PaintPicture picture = new PaintPicture();
+    /** Whether a 3D shape's picture is being turned by a drag. */
     private boolean turning;
 
     public PaintScreen(Screen parent) {
@@ -145,7 +124,7 @@ public class PaintScreen extends ControlScreen {
         // On short screens the rows close up, as the Blocks tab's do, leaving a line for the status under them.
         pitch = Math.min(22, (height - 30 - TOP - 12) / ROWS);
         h = Math.min(20, pitch - 1);
-        lineShown = line();
+        lineShown = picture.line();
 
         Source src = S.paint.source;
         add(cycler(List.of(Source.values()), src, PaintScreen::sourceName, M, y(0), pw, tr("curvegen.paint.source"), v -> {
@@ -163,9 +142,9 @@ public class PaintScreen extends ControlScreen {
     }
 
     /**
-     * After a change to the paint. A change of source or pattern can change whether fences, panes and walls attach to
-     * full blocks, which the shape is solved with, so that is worked out again; the picture and the main screen solve
-     * again when it changes.
+     * After a change to the paint. A change of source, pattern or mix can change whether fences, panes and walls attach
+     * to full blocks, which the shape is solved with, so that is worked out again; the picture and the main screen solve
+     * again when it changes. A chosen pattern does the same through {@link PatternLibraryScreen#use}.
      */
     private void paintChanged(boolean rebuild) {
         S.fullConnects = BlockChoices.fullConnects(S);
@@ -178,11 +157,8 @@ public class PaintScreen extends ControlScreen {
         String offTip = tr("curvegen.paint.off_tip");
 
         // Which pattern, with its colours beside it. It can be chosen while paint is off: choosing one turns it on.
-        chooser(PatternChooserScreen.name(p.pattern), tr("curvegen.paint.choose_tip"), () -> new PatternChooserScreen(this, chosen -> {
-            S.paint.pattern = chosen;
-            if (!S.paint.on()) S.paint.source = Source.PATTERN;
-            paintChanged(false);
-        }));
+        chooser(PatternStore.shownName(p.pattern), tr("curvegen.paint.choose_tip"), () -> new PatternLibraryScreen(this,
+                chosen -> PatternLibraryScreen.use(S, chosen), () -> new PaintScreen(new CurveScreen())));
 
         if (S.is3d()) {
             // How the pattern goes onto a 3D shape. A 3D equation can't be wrapped, so it only offers the three projections.
@@ -318,65 +294,18 @@ public class PaintScreen extends ControlScreen {
     }
 
     // ---------- the picture ----------
-    /** Whether the shape on show is a line or an outline, which takes Repeat along as its fit unless one is chosen. */
-    private boolean line() { return result != null && result.target().error == null && result.target().centre != null; }
-
-    /** Whether the settings are those {@code s} was solved with, paint aside. */
-    private static boolean sameShape(ShapeSettings s) {
-        ShapeSettings now = S.copy();
-        now.paint.set(s.paint);
-        return now.same(s);
-    }
-
     private void poll() {
-        if (S.is3d()) { picture3.poll(S); return; }
-        if (solveJob != null && solveJob.isDone()) {
-            try { result = solveJob.get(); } catch (Exception _) { result = null; }
-            solvedFor = solving;
-            solveJob = null;
-            // The default fit depends on whether the shape is a line, which the Fit button shows.
-            if (S.paint.fit == null && line() != lineShown) rebuildWidgets();
-        }
-        if (solveJob == null && (solvedFor == null || !sameShape(solvedFor))) {
-            // The solve settles values in its own copy, such as a locked equation's height, so the one compared against stays as it was.
-            ShapeSettings s = S.copy();
-            solving = S.copy();
-            solveJob = CurveScreen.EXEC.submit(() -> Solver.run(s));
-        }
-        if (paintJob != null && paintJob.isDone()) {
-            try { painted = paintJob.get(); } catch (Exception _) { painted = null; }
-            paintedFor = paintingFor; paintedResult = paintingResult;
-            paintJob = null;
-            pictureDirty = true;
-        }
-        if (paintJob == null && solveJob == null && result != null && (paintedResult != result || !paintedFor.same(S.paint))) {
-            Paint paint = S.paint.copy();
-            Solver.Result r = result;
-            int depth = solvedFor.depth;
-            boolean connects = solvedFor.fullConnects;
-            Catalog catalog = paint.on() ? PaintBlocks.catalog(S) : null;
-            paintingFor = paint; paintingResult = r;
-            paintJob = CurveScreen.EXEC.submit(() -> Painter2D.paint(r, depth, paint, connects, catalog));
-        }
-        if (paintedResult != null && texture.id() == null) pictureDirty = true;   // released while the chooser was open
-        if (pictureDirty && paintedResult != null && paintedResult.target().error == null) {
-            pictureDirty = false;
-            texture.update(paintedResult, PreviewTexture.Colors.BLOCKS, false, true, BlockChoices.CHOICE, painted);
-        }
+        picture.poll(S);
+        // The default fit depends on whether the shape is a line, which the Fit button shows.
+        if (S.paint.fit == null && picture.line() != lineShown) rebuildWidgets();
     }
 
     /** The status line and its tooltip: how many blocks fell to the closest colour, and which and why. */
     private String[] status() {
         if (!S.paint.on()) return new String[]{tr("curvegen.paint.status_off"), tr("curvegen.paint.source_tip")};
-        Painted painted = this.painted;
-        if (S.is3d()) {
-            if (picture3.error() != null) return new String[]{"", null};
-            painted = picture3.painted(S);
-            if (painted == null) return new String[]{tr("curvegen.screen.working"), null};
-        } else {
-            if (paintedResult != null && paintedResult.target().error != null) return new String[]{"", null};
-            if (painted == null || !paintedFor.on()) return new String[]{tr("curvegen.screen.working"), null};
-        }
+        if (picture.error() != null) return new String[]{"", null};
+        Painted painted = picture.painted();
+        if (painted == null || !picture.paintedFor().on()) return new String[]{tr("curvegen.screen.working"), null};
         StringBuilder tip = new StringBuilder();
         for (Why w : new Why[]{Why.CLOSEST, Why.BLOCKS_TAB, Why.GAP}) {
             StringBuilder lines = new StringBuilder();
@@ -399,7 +328,7 @@ public class PaintScreen extends ControlScreen {
         ctx.text(font, title, M, 10, 0xFFFFFFFF);
         for (Label l : labels) ctx.text(font, l.text, l.x, l.y, S.paint.on() ? 0xFFC8CED6 : 0xFF808A96);
         if (swatchY >= 0 && S.paint.source == Source.MIX) MixChooserScreen.drawSwatch(ctx, S.paint.mix, M + 1, swatchY, 16);
-        else if (swatchY >= 0) PatternChooserScreen.drawSwatch(ctx, S.paint.pattern, M + 1, swatchY, 16);
+        else if (swatchY >= 0) PatternLibraryScreen.drawSwatch(ctx, S.paint.pattern, M + 1, swatchY, 16);
 
         String[] status = status();
         int sy = y(ROWS) + 3;
@@ -410,40 +339,7 @@ public class PaintScreen extends ControlScreen {
         if (status[1] != null && mx >= M && mx < M + pw && my >= sy - 2 && my < sy + 10 * shown)
             ctx.setTooltipForNextFrame(font.split(Component.literal(status[1]), 240), mx, my);
 
-        int px0 = pvX0(), py0 = TOP, px1 = width - M, py1 = pvY1();
-        ctx.fill(px0, py0, px1, py1, 0xFF15181D);
-        ctx.outline(px0 - 1, py0 - 1, px1 - px0 + 2, py1 - py0 + 2, 0xFF3A424D);
-        if (S.is3d()) {
-            if (picture3.error() != null) note(ctx, Lang.text(picture3.error()), px0, py0, px1, py1, 0xFFFF8098);
-            else if (!picture3.ready()) note(ctx, tr("curvegen.screen.working"), px0, py0, px1, py1, 0xFF9AA5B3);
-            else picture3.draw(ctx, px0, py0, px1, py1);
-        } else if (paintedResult != null && paintedResult.target().error != null) {
-            note(ctx, Lang.text(paintedResult.target().error), px0, py0, px1, py1, 0xFFFF8098);
-        } else if (paintedResult == null || texture.id() == null) {
-            note(ctx, tr("curvegen.screen.working"), px0, py0, px1, py1, 0xFF9AA5B3);
-        } else {
-            Solver.Result r = paintedResult;
-            float aw = px1 - px0 - 12, ah = py1 - py0 - 12;
-            float z = Math.min(aw / r.nx(), ah / r.ny());
-            float ox = px0 + (px1 - px0 - r.nx() * z) / 2f, oy = py0 + (py1 - py0 - r.ny() * z) / 2f;
-            ctx.enableScissor(px0, py0, px1, py1);
-            var m = ctx.pose();
-            m.pushMatrix();
-            m.translate(ox, oy);
-            float s = z / texture.sub;
-            m.scale(s, s);
-            ctx.blit(RenderPipelines.GUI_TEXTURED, texture.id(), 0, 0, 0f, 0f, texture.width, texture.height, texture.width, texture.height);
-            m.popMatrix();
-            ctx.disableScissor();
-        }
-    }
-
-    /** A short message in the middle of the picture. */
-    private void note(GuiGraphicsExtractor ctx, String text, int x0, int y0, int x1, int y1, int colour) {
-        int w = x1 - x0 - 16;
-        var lines = font.split(Component.literal(text), w);
-        int y = (y0 + y1) / 2 - lines.size() * 9 / 2;
-        for (var l : lines) { ctx.centeredText(font, l, (x0 + x1) / 2, y, colour); y += 9; }
+        picture.draw(ctx, font, S.is3d(), pvX0(), TOP, width - M, pvY1());
     }
 
     /** Dragging the 3D picture turns it. */
@@ -456,7 +352,7 @@ public class PaintScreen extends ControlScreen {
 
     @Override
     public boolean mouseDragged(MouseButtonEvent event, double dx, double dy) {
-        if (turning) { picture3.orbit(dx, dy); return true; }
+        if (turning) { picture.orbit(dx, dy); return true; }
         return super.mouseDragged(event, dx, dy);
     }
 
@@ -468,8 +364,7 @@ public class PaintScreen extends ControlScreen {
 
     @Override
     public void removed() {
-        picture3.close();
-        texture.close();
+        picture.close();
         super.removed();
     }
 

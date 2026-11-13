@@ -12,7 +12,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.network.chat.Component;
 
-/** A small dialog on top of the previous screen: a name field, an optional on/off option, and confirm or cancel. */
+/** A small dialog on top of the previous screen, or of the world when there is none: a name field, an optional on/off option, and confirm or cancel. */
 public class NameDialogScreen extends Screen {
     /** What the dialog says about a name: whether it can be used, what the confirm button says, and an optional note. */
     public record Check(boolean allowed, String confirmLabel, String note) {}
@@ -92,9 +92,12 @@ public class NameDialogScreen extends Screen {
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor ctx, int mx, int my, float delta) {
-        parent.extractBackground(ctx, -1, -1, delta);   // the screen underneath, not interactive
-        parent.extractRenderState(ctx, -1, -1, delta);
-        ctx.nextStratum();   // above everything the parent drew, items included
+        // The screen underneath, not interactive. Without one, as after capturing a pattern, the world shows through.
+        if (parent != null) {
+            parent.extractBackground(ctx, -1, -1, delta);
+            parent.extractRenderState(ctx, -1, -1, delta);
+            ctx.nextStratum();   // above everything the parent drew, items included
+        }
         ctx.fill(0, 0, width, height, 0xA0000000);
         int x = x0(), y = y0();
         ctx.fill(x - 1, y - 1, x + W + 1, y + h() + 1, 0xFF5A6472);

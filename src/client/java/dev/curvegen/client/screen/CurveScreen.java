@@ -206,7 +206,9 @@ public class CurveScreen extends ControlScreen {
         addRenderableWidget(toggle(showCurve, cogX - gap - curveW, 6, curveW, tr("curvegen.screen.curve"), v -> { showCurve = v; textureDirty = true; }));
         addRenderableWidget(new CogButton(cogX, 6, cogW, 20, () -> minecraft.gui.setScreen(new SettingsScreen(this))));
         if (mode3d) {
-            int faceText = Math.max(tw(tr("curvegen.screen.match_colours_to_side")), tw(tr("curvegen.screen.match_colours_to_top"))), room = cx1() - cx0(), p = 12;
+            Component faceName = Component.translatable("curvegen.screen.match_colours_to");
+            int faceText = Math.max(tw(CommonComponents.optionNameValue(faceName, Component.translatable("curvegen.screen.side")).getString()),
+                    tw(CommonComponents.optionNameValue(faceName, Component.translatable("curvegen.screen.top")).getString())), room = cx1() - cx0(), p = 12;
             while (p > 4 && colourText + faceText + 2 * p + 4 > room) p -= 2;
             addRenderableWidget(cycler(List.of(PreviewTexture.Colors.values()), colors, colourName, cx0(), cy1() - 20, colourText + p, tr("curvegen.screen.colour"), v -> colors = v));
             CycleButton<Boolean> face = cycler(List.of(false, true), S.topColours, v -> Component.translatable(v ? "curvegen.screen.top" : "curvegen.screen.side"),
@@ -233,13 +235,20 @@ public class CurveScreen extends ControlScreen {
         String on = CommonComponents.optionStatus(true).getString(), off = CommonComponents.optionStatus(false).getString();
         int orientText = Math.max(tw(tr("curvegen.screen.upright")), tw(tr("curvegen.screen.flat"))), labelW = Math.max(tw(tr("curvegen.screen.depth")), tw(tr("curvegen.screen.height"))) + 2, fieldW = 30;
         int replaceText = Math.max(tw(CommonComponents.optionNameValue(Component.translatable("curvegen.screen.replace"), Component.literal(on)).getString()), tw(CommonComponents.optionNameValue(Component.translatable("curvegen.screen.replace"), Component.literal(off)).getString())), carveText = Math.max(tw(CommonComponents.optionNameValue(Component.translatable("curvegen.screen.carve"), Component.literal(on)).getString()), tw(CommonComponents.optionNameValue(Component.translatable("curvegen.screen.carve"), Component.literal(off)).getString()));
-        int actionText = Math.max(tw(tr("curvegen.screen.place")), Math.max(tw(tr("curvegen.screen.export")), tw(tr("curvegen.screen.done"))));
+        int[] actionTexts = {tw(tr("curvegen.screen.place")), tw(tr("curvegen.screen.export")), tw(tr("curvegen.screen.done"))};
+        int actionText = Math.max(actionTexts[0], Math.max(actionTexts[1], actionTexts[2]));
+        // The action buttons share one width, wider than their words, until that no longer fits. Then each takes its own.
         int bpad = 12, bgap = 4;
-        for (;; bpad -= 2) {
+        boolean ownWidths = false;
+        for (;;) {
             int left = M + orientText + bpad + bgap + labelW + fieldW + bgap + replaceText + bpad + bgap + carveText + bpad;
-            int right = 3 * (actionText + bpad + 8) + 2 * bgap;
-            if (left + bgap + right + M <= width || bpad <= 4) break;
-            if (bgap > 2) bgap--;
+            int right = ownWidths ? actionTexts[0] + actionTexts[1] + actionTexts[2] + 3 * bpad + 2 * bgap : 3 * (actionText + bpad + 8) + 2 * bgap;
+            if (left + bgap + right + M <= width) break;
+            if (bpad > 4) {
+                bpad -= 2;
+                if (bgap > 2) bgap--;
+            } else if (!ownWidths) ownWidths = true;
+            else break;
         }
         int x = M;
         CycleButton<Boolean> orient = CycleButton.builder((Boolean v) -> Component.translatable(v ? "curvegen.screen.flat" : "curvegen.screen.upright"), S.floor)
@@ -272,18 +281,20 @@ public class CurveScreen extends ControlScreen {
                 S.is3d() ? tr("curvegen.screen.carve_3d_tooltip")
                 : tr("curvegen.screen.carve_2d_tooltip"))));
         addRenderableWidget(carve);
-        int aw = actionText + bpad + 8, bx = width - M - 3 * aw - 2 * bgap;
-        Button place = Button.builder(Component.translatable("curvegen.screen.place"), _ -> place()).bounds(bx, by, aw, 20).build();
+        int[] aw = new int[3];
+        for (int k = 0; k < 3; k++) aw[k] = ownWidths ? actionTexts[k] + bpad : actionText + bpad + 8;
+        int bx = width - M - aw[0] - aw[1] - aw[2] - 2 * bgap;
+        Button place = Button.builder(Component.translatable("curvegen.screen.place"), _ -> place()).bounds(bx, by, aw[0], 20).build();
         boolean placeable = Editor.isActive() || !mode3d || RadialScreen.offers(S.gen);
         place.active = placeable;
         place.setTooltip(Tooltip.create(Component.literal(!placeable ? tr("curvegen.screen.this_shape_can_t_be_put_in_the_world")
                 : Editor.isActive() ? tr("curvegen.screen.back_to_the_shape_in_the_world_with_the")
                 : tr("curvegen.screen.puts_the_shape_in_the_world_as_a_hologram"))));
         addRenderableWidget(place);
-        Button export = Button.builder(Component.translatable("curvegen.screen.export"), _ -> export()).bounds(bx + aw + bgap, by, aw, 20).build();
+        Button export = Button.builder(Component.translatable("curvegen.screen.export"), _ -> export()).bounds(bx + aw[0] + bgap, by, aw[1], 20).build();
         export.setTooltip(Tooltip.create(Component.translatable("curvegen.screen.export_litematica")));
         addRenderableWidget(export);
-        addRenderableWidget(Button.builder(Component.translatable("curvegen.screen.done"), _ -> onClose()).bounds(bx + 2 * (aw + bgap), by, aw, 20).build());
+        addRenderableWidget(Button.builder(Component.translatable("curvegen.screen.done"), _ -> onClose()).bounds(bx + aw[0] + aw[1] + 2 * bgap, by, aw[2], 20).build());
     }
 
     // ---------- presets ----------
@@ -532,6 +543,8 @@ public class CurveScreen extends ControlScreen {
     private void initBlocks() {
         // On short screens the rows close up, so the last one stays clear of the buttons along the bottom.
         int rows = BlockChoices.FAMILIES.length + 1, pitch = Math.min(ROW, (height - 30 - top()) / rows), h = Math.min(20, pitch - 1);
+        // The Use buttons are as wide as their words need, and the block buttons take what's left.
+        int useW = Math.max(26, Math.max(tw(tr("curvegen.screen.use")), tw(tr("curvegen.screen.off"))) + 6), pickX = M + useW + 22, pickW = PANEL_W - useW - 22;
         for (int k = 0; k < BlockChoices.FAMILIES.length; k++) {
             Family f = BlockChoices.FAMILIES[k];
             int y = top() + k * pitch;
@@ -540,7 +553,7 @@ public class CurveScreen extends ControlScreen {
             } else {
                 boolean on = S.allows(f);
                 Button use = Button.builder(Component.translatable(on ? "curvegen.screen.use" : "curvegen.screen.off"), _ -> { S.allow(f, !S.allows(f)); dirty = true; rebuildWidgets(); })
-                        .bounds(M, y, 26, h).build();
+                        .bounds(M, y, useW, h).build();
                 if (S.floor && !S.is3d() && (f == Family.SLAB || f == Family.STAIRS)) {
                     use.active = false;
                     use.setTooltip(Tooltip.create(Component.translatable("curvegen.screen.from_above_s_look_like_full_blocks_so_flat", BlockChoices.familyName(f))));
@@ -548,16 +561,16 @@ public class CurveScreen extends ControlScreen {
                 addRenderableWidget(use);
             }
             Block block = BlockChoices.CHOICE.get(f);
-            String name = font.plainSubstrByWidth(block.getName().getString(), PANEL_W - 54 - 8);
+            String name = font.plainSubstrByWidth(block.getName().getString(), pickW - 14);
             Button pick = Button.builder(Component.literal(name), _ -> minecraft.gui.setScreen(new BlockPickerScreen(this, f, chosen -> {
                 BlockChoices.CHOICE.put(f, chosen);
                 S.fullConnects = BlockChoices.fullConnects(S);
                 dirty = true; textureDirty = true;
                 rebuildWidgets();
-            }))).bounds(M + 48, y, PANEL_W - 48, h).build();
+            }))).bounds(pickX, y, pickW, h).build();
             pick.setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.literal(BlockChoices.familyName(f) + ": " + block.getName().getString())));
             addRenderableWidget(pick);
-            icons.add(new Icon(M + 29, y + (h - 16) / 2, new ItemStack(block)));
+            icons.add(new Icon(M + useW + 3, y + (h - 16) / 2, new ItemStack(block)));
         }
         // The last row: "Match a colour…" and the paint button, which names the paint source. The paint button gets
         // room for its widest source, so it doesn't jump as the source changes, and the match button takes the rest,
