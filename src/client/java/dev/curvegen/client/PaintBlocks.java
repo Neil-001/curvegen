@@ -49,6 +49,18 @@ public final class PaintBlocks {
         return key == null || !BuiltInRegistries.BLOCK.containsKey(key) ? null : BuiltInRegistries.BLOCK.getValue(key);
     }
 
+    /** A material's block for each piece type, by the game's families or by name. For tests. */
+    public static Map<Family, String> pieces(String base) {
+        materials();
+        return variants.getOrDefault(base, Map.of());
+    }
+
+    /** The base block of the material a block belongs to, or null. For tests. */
+    public static String materialOf(String id) {
+        materials();
+        return material.get(id);
+    }
+
     private static synchronized void materials() {
         if (variants != null) return;
         Map<String, Map<Family, String>> v = new HashMap<>();
@@ -179,7 +191,7 @@ public final class PaintBlocks {
      * level axis only a block's axis can follow: a quarter turn swaps the vertical and the other level axis.
      */
     @SuppressWarnings("deprecation")   // the game marks rotation for its own use, but it's the one way to turn a state
-    static BlockState turn(BlockState s, int quarters, Direction.Axis normal) {
+    public static BlockState turn(BlockState s, int quarters, Direction.Axis normal) {
         if (quarters == 0) return s;
         if (normal == Direction.Axis.Y)
             return s.rotate(quarters == 1 ? Rotation.COUNTERCLOCKWISE_90 : quarters == 2 ? Rotation.CLOCKWISE_180 : Rotation.CLOCKWISE_90);
