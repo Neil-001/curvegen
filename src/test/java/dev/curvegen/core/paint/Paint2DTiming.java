@@ -65,4 +65,27 @@ class Paint2DTiming {
         s.pts.add(new double[]{5, 5}); s.pts.add(new double[]{100, 195}); s.pts.add(new double[]{200, 5}); s.pts.add(new double[]{295, 195});
         time("Bézier line 9 wide, 300 x 200", s);
     }
+
+    /**
+     * A repaint with "Empty spots: Open" and the bundled lattice, so holes come out and the blocks beside them
+     * settle ({@code Settle2D}). The lattice opens four blocks in nine, too many to settle only near the holes, so
+     * every block is settled as before: on 13 November 2026, on a busy machine, within a few milliseconds of the
+     * repaint without holes up to 200 across, and 205 ms against 143 for the filled ellipse 400 across on its edge
+     * 8 deep. A pattern with fewer holes settles only the blocks near them.
+     */
+    @Test
+    @Disabled("prints timings; asserts nothing")
+    void holeTimings() {
+        for (int size : new int[]{64, 200, 400}) {
+            ShapeSettings s = painted(new ShapeSettings());
+            s.paint.pattern = Patterns.LATTICE;
+            s.paint.empty = Paint.Empty.OPEN;
+            s.eW = s.eH = size;
+            time("ellipse outline, " + size + " across, holes", s);
+            s.eMode = ShapeSettings.EllipseMode.FILLED;
+            time("filled ellipse, " + size + " across, holes", s);
+            s.paint.on = Paint.On.EDGE; s.depth = 8;
+            time("filled ellipse, " + size + " across, edge, 8 deep, holes", s);
+        }
+    }
 }
