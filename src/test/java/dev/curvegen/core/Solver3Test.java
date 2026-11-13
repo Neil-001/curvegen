@@ -358,4 +358,38 @@ class Solver3Test {
         assertEquals(7, c.tTube); assertTrue(c.tHollow);
         assertFalse(new ShapeSettings().is3d());
     }
+
+    @Test
+    void settlingWithNothingGoneChangesNothing() {
+        for (ShapeSettings set : Shapes3Cases.pieceSets())
+            for (Shape3 sh : List.of(Shapes3Cases.sheets(0.18), Shapes3Cases.posts(), Shapes3Cases.pyramid(true))) {
+                Solver3.Result r = Solver3.solve(sh, set, () -> false), same = Solver3.settle(r, new BitSet(), set.fullConnects, () -> false);
+                assertArrayEquals(r.grid(), same.grid());
+                assertArrayEquals(r.counts(), same.counts());
+                assertEquals(r.err(), same.err());
+            }
+    }
+
+    @Test
+    void settlingEmptiesOnlyWhatItsTold() {
+        ShapeSettings s = Shapes3Cases.pieceSets().get(2);   // connectors only
+        Solver3.Result r = Solver3.solve(Shapes3Cases.sheets(0.18), s, () -> false);
+        BitSet gone = new BitSet();
+        int fences = 0;
+        for (int p = 0; p < r.grid().length; p++) if (isConnector(r.grid()[p]) && fences++ % 3 == 0) gone.set(p);
+        assertTrue(fences > 20, fences + " connectors");
+        Solver3.Result h = Solver3.settle(r, gone, s.fullConnects, () -> false);
+        int changed = 0;
+        for (int p = 0; p < r.grid().length; p++) {
+            if (gone.get(p)) assertEquals(AIR, h.grid()[p]);
+            else {
+                assertEquals(Solver3.token(r.grid()[p]), Solver3.token(h.grid()[p]), "the piece stays at " + p);
+                if (r.grid()[p] != h.grid()[p]) changed++;
+            }
+        }
+        // The connectors beside a gap lose their arm towards it.
+        assertTrue(changed > 5, changed + " changed");
+        assertEquals(r.counts()[AIR] + gone.cardinality(), h.counts()[AIR]);
+        assertNull(Solver3.settle(r, gone, s.fullConnects, () -> true));
+    }
 }

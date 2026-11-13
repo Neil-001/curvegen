@@ -391,6 +391,10 @@ public final class Edit3D {
             }
             case BEZIER3 -> {
                 out.add(new Option.Number("curvegen.option.thickness", null, () -> s.b3T, v -> s.b3T = v, MIN_THICK, MAX_THICK, THICK_STEP, false));
+                boolean room = s.b3T >= ShapeSettings.HOLLOW_MIN;
+                out.add(Option.toggle("curvegen.option.hollow", room ? null : "curvegen.option.off.hollow_thin", () -> s.b3Hollow, v -> s.b3Hollow = v));
+                out.add(Option.toggle("curvegen.option.open_ends", !room ? "curvegen.option.off.hollow_thin" : s.b3Hollow ? null : "curvegen.option.off.open_ends",
+                        () -> s.b3Open, v -> s.b3Open = v));
                 out.add(Option.toggle("curvegen.option.snap", null, () -> s.snap, v -> s.snap = v));
             }
             case SURFACE -> {
