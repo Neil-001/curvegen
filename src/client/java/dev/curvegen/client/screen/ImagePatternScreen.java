@@ -79,6 +79,8 @@ class ImagePatternScreen extends ControlScreen {
                 : taken ? tr("curvegen.capture.name_taken") : null;
         noteOk = taken && widthOk();
         save.active = !n.isEmpty() && widthOk();
+        // Greyed, it says why, as the note under the fields does.
+        save.setTooltip(save.active ? null : Tooltip.create(Component.literal(note)));
         save.setMessage(Component.translatable(taken ? "curvegen.capture.replace" : "curvegen.screen.save"));
     }
 

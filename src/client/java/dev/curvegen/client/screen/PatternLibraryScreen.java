@@ -255,11 +255,24 @@ public class PatternLibraryScreen extends Screen {
         if (hx1 - hx0 > 20) {
             boolean can = Chroma.available();
             String hint = dropProblem != null ? dropProblem : tr("curvegen.patterns.drop_hint");
-            String shown = font.width(hint) <= hx1 - hx0 ? hint : font.plainSubstrByWidth(hint, hx1 - hx0 - font.width("…")) + "…";
-            int colour = dropProblem != null ? 0xFFFF8098 : can ? 0xFF9AA5B3 : 0xFF5C6470;
-            ctx.text(font, shown, hx0, hy + 6, colour, false);
-            if (mx >= hx0 && mx < hx0 + font.width(shown) && my >= hy && my < hy + 20) {
+            // One line, or two in the buttons' height when it's longer, the second cut with "…" if it still doesn't fit.
+            int room = hx1 - hx0;
+            List<String> lines = new java.util.ArrayList<>();
+            font.getSplitter().splitLines(hint, room, net.minecraft.network.chat.Style.EMPTY).forEach(l -> lines.add(l.getString()));
+            boolean cut = lines.size() > 2;
+            if (cut) {
+                String rest = hint.substring(Math.min(hint.length(), lines.getFirst().length())).stripLeading();
+                lines.subList(1, lines.size()).clear();
+                lines.add(font.plainSubstrByWidth(rest, room - font.width("…")) + "…");
+            }
+            int colour = dropProblem != null ? 0xFFFF8098 : can ? 0xFF9AA5B3 : 0xFF5C6470, wide = 0;
+            for (int k = 0; k < lines.size(); k++) {
+                ctx.text(font, lines.get(k), hx0, lines.size() == 1 ? hy + 6 : hy + 1 + 10 * k, colour, false);
+                wide = Math.max(wide, font.width(lines.get(k)));
+            }
+            if (mx >= hx0 && mx < hx0 + wide && my >= hy && my < hy + 20) {
                 tip = dropProblem != null ? dropProblem : tr(can ? "curvegen.patterns.drop_hint_tip" : "curvegen.patterns.drop_needs");
+                if (cut && dropProblem == null) tip = hint + '\n' + '\n' + tip;
             }
         }
         if (tip != null) ctx.setTooltipForNextFrame(font.split(Component.literal(tip), 200), mx, my);
