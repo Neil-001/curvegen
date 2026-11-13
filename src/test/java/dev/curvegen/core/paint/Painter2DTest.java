@@ -165,4 +165,13 @@ class Painter2DTest {
         Paint2DTiming.millis(r, s, TestWorld.catalog());   // warm up
         assertTrue(Paint2DTiming.millis(r, s, TestWorld.catalog()) < 100);
     }
+
+    @Test
+    void blocksTurnWithTheNudgedAngle() {
+        ShapeSettings s = new ShapeSettings();
+        s.eW = s.eH = 31; s.eMode = ShapeSettings.EllipseMode.MIDDLE; s.eT = 3;
+        Paint p = paint(Pattern.of("two", new Cell[][]{{Cell.block(m("oak_log[axis=x]")), Cell.block(m("stone_bricks"))}}));
+        p.fit = Paint.Fit.REPEAT; p.size = 3; p.turn = 44;
+        assertEquals(1, Painter2D.paint(Solver.run(s), 1, p, true, TestWorld.catalog()).quarters());
+    }
 }

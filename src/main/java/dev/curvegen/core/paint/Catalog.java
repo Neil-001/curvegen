@@ -59,11 +59,12 @@ public record Catalog(Map<Family, List<String>> allowed, Map<String, Integer> co
         return allows(f, v) ? v : null;
     }
 
-    /** Fences the shape may use: the ones that join the Blocks tab's fence. */
+    /** Fences the shape may use: the ones that join the Blocks tab's fence. Any wooden fence joins any other; any other fence only its own kind. */
     public List<String> fences() {
-        boolean wooden = woodenFences.contains(choice.get(Family.FENCE));
+        String tab = choice.get(Family.FENCE);
+        if (!woodenFences.contains(tab)) return tab == null ? List.of() : List.of(tab);
         List<String> out = new ArrayList<>();
-        for (String id : allowed.getOrDefault(Family.FENCE, List.of())) if (woodenFences.contains(id) == wooden) out.add(id);
+        for (String id : allowed.getOrDefault(Family.FENCE, List.of())) if (woodenFences.contains(id)) out.add(id);
         return out;
     }
 }

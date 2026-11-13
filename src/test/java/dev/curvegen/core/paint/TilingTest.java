@@ -69,8 +69,9 @@ class TilingTest {
 
     /** Round a closed strip, the end matches the start everywhere across it. */
     private static void seamless(Tiling t, double length) {
-        for (double v = 0.25; v < 10; v += 0.5)
-            for (double u = 0.25; u < 3; u += 0.5)
+        // Uneven steps, so no point lands exactly on a cell's edge, where rounding could go either way.
+        for (double v = 0.2371; v < 10; v += 0.4791)
+            for (double u = 0.3119; u < 3; u += 0.5137)
                 assertEquals(at(t, u, v), at(t, u + length, v), "at " + u + ", " + v);
     }
 
@@ -107,5 +108,18 @@ class TilingTest {
         assertEquals(5, at(t, 0.5, 1.5));
         assertEquals(0, at(t, 1.5, 0.5));
         assertEquals(1, t.quarters());
+    }
+
+    @Test
+    void aNudgeNeverCollapsesTheCells() {
+        Paint p = paint();
+        for (int turn = 0; turn < 360; turn += 5) {
+            p.turn = turn;
+            Tiling t = new Tiling(P, p, Fit.REPEAT, new Strip(40, 10, true));
+            seamless(t, 40);
+            java.util.Set<Integer> seen = new java.util.HashSet<>();
+            for (double u = 0.5; u < 40; u += 1) for (double v = 0.5; v < 10; v += 1) seen.add(at(t, u, v));
+            assertEquals(8, seen.size(), "every cell still shows at " + turn + "°");
+        }
     }
 }

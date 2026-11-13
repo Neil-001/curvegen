@@ -61,7 +61,11 @@ public final class Painter2D {
                 if (piece == Pieces.EMPTY) continue;
                 for (int k = 0; k < layers; k++) counts[Pieces.FAMILY[piece].ordinal()][slots[(k * ny + j) * nx + i] + 1] += per;
             }
+        // Blocks turn with the pattern as it was laid, nudge included. Pieces of an equation each nudge on their own; the longest decides.
         int quarters = Math.floorMod(Math.round(paint.turn / 90f), 4);
+        double longest = -1;
+        for (int k = 0; k < tilings.size(); k++)
+            if (w.strips.get(k).length() > longest) { longest = w.strips.get(k).length(); quarters = tilings.get(k).quarters(); }
         return new Painted(slots, layers, List.copyOf(ladder.blocks()), quarters, why, counts);
     }
 

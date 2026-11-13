@@ -45,13 +45,13 @@ public final class Tiling {
             double cx = L * Math.cos(theta) / (u * w), cy = -L * Math.sin(theta) / (v * h);
             long p = Math.round(cx), q = wrapAcross ? Math.round(cy) : 0;
             if (p == 0 && q == 0) p = cx < 0 ? -1 : 1;
-            double sinT = -q * h * v / L;
-            if (p != 0 && Math.abs(sinT) <= 1) {
-                // Keep the size across and nudge the angle and the size along.
-                double cosT = Math.copySign(Math.sqrt(1 - sinT * sinT), p);
+            double sinT = -q * h * v / L, cosT = Math.copySign(Math.sqrt(Math.max(0, 1 - sinT * sinT)), p), along = L * cosT / (p * w);
+            if (p != 0 && Math.abs(sinT) <= 1 && along > u / 2 && along < u * 2) {
+                // Keep the size across and nudge the angle and the size along, as long as that's only a nudge.
                 theta = Math.atan2(sinT, cosT);
-                u = L * cosT / (p * w);
+                u = along;
             } else {
+                // Otherwise the same size both ways, turned so the loop is exactly p repeats one way and q the other.
                 theta = -Math.atan2((double) q * h, (double) p * w);
                 double scale = L / Math.hypot((double) p * w, (double) q * h);
                 u = scale; v = scale;

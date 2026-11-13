@@ -120,4 +120,17 @@ class LadderTest {
         assertEquals(Boolean.FALSE, Paint.connects(p, id -> !id.equals(m("oak_leaves"))));
         assertNull(Paint.connects(one(Cell.colour(0x123456)), _ -> true));
     }
+
+    @Test
+    void anEmptyCellNeverJoinsFencesDifferently() {
+        // Solved for leaves, which fences don't take; the Blocks tab's stone bricks would, so an empty cell can't use them.
+        Ladder l = new Ladder(TestWorld.catalog(), one(Cell.EMPTY), false, false, ALL);
+        assertEquals(m("oak_leaves"), pick(l, Family.FULL));
+    }
+
+    @Test
+    void aFenceOutsideTheWoodenGroupJoinsOnlyItsOwnKind() {
+        Catalog c = TestWorld.catalog(java.util.Map.of(Family.FENCE, m("nether_brick_fence")));
+        assertEquals(java.util.List.of(m("nether_brick_fence")), c.fences());
+    }
 }

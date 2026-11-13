@@ -91,8 +91,9 @@ public final class Ladder {
         Cell x = p.cell(cell);
         String chosen = null;
         Why reason = x.empty() ? Why.EMPTY : Why.BLOCKS_TAB;
+        int rgb = -1;
         if (!x.empty()) {
-            int rgb = colour(x);
+            rgb = colour(x);
             String mat = material(cell, rgb);
             boolean swapped = mat != null && x.block() != null && !mat.equals(c.material().getOrDefault(x.block(), x.block()));
             if (f == Family.FULL) {
@@ -104,11 +105,15 @@ public final class Ladder {
             }
             if (chosen != null) reason = Why.OWN;
             else if (rgb >= 0 && (chosen = c.matcher().closest(rgb, candidates.get(f))) != null) reason = Why.CLOSEST;
-            if (chosen != null && f == Family.FULL && connectors && attaches(chosen) != shapeConnects) {
-                // Fences, panes and walls beside it would join it differently from what the solve assumed.
-                reason = Why.GAP;
-                String fallback = c.choice().get(Family.FULL);
-                chosen = attaches(fallback) == shapeConnects ? null : rgb < 0 ? null : c.matcher().closest(rgb, agreeing());
+        }
+        if (f == Family.FULL && connectors) {
+            // Fences, panes and walls beside a full block must join it the way the solve assumed.
+            if (chosen != null && attaches(chosen) != shapeConnects) { chosen = null; reason = Why.GAP; }
+            String tab = c.choice().get(Family.FULL);
+            if (chosen == null && tab != null && attaches(tab) != shapeConnects) {
+                // The Blocks tab's block would join wrongly too: the closest one that joins the right way.
+                int near = rgb >= 0 ? rgb : c.colours().getOrDefault(tab, -1);
+                if (near >= 0) chosen = c.matcher().closest(near, agreeing());
             }
         }
         pick[cell][f.ordinal()] = chosen == null ? -1 : index.computeIfAbsent(chosen, b -> { blocks.add(b); return blocks.size() - 1; });
