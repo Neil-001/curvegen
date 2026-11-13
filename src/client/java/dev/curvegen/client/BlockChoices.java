@@ -124,6 +124,9 @@ public final class BlockChoices {
     /** Fences, panes and walls refuse to attach to some full blocks (leaves, pumpkins, melons, shulker boxes…). */
     public static boolean fullBlockConnects() { return connects(CHOICE.get(Family.FULL)); }
 
+    /** {@link ShapeSettings#fullConnects} for these settings, which follows the paint while a shape is painted. */
+    public static boolean fullConnects(ShapeSettings s) { return PaintBlocks.fullConnects(s); }
+
     public static boolean connects(Block full) { return !Block.isExceptionForConnection(full.defaultBlockState()); }
 
     /** The current block choices as preset text. */
@@ -157,8 +160,14 @@ public final class BlockChoices {
      * @param floor whether the shape lies flat, drawn from above
      */
     public static BlockState stateFor(int piece, int above, Direction right, Direction forward, int k, int depth, boolean floor) {
-        if (floor) return floorState(piece, right, forward, k, depth);
-        BlockState s = blockFor(piece).defaultBlockState();
+        return stateFor(piece, above, right, forward, k, depth, floor, null);
+    }
+
+    /** The same with {@code block} in place of the Blocks tab's choice for the piece type, when it isn't null. */
+    public static BlockState stateFor(int piece, int above, Direction right, Direction forward, int k, int depth, boolean floor, Block block) {
+        if (block == null) block = blockFor(piece);
+        if (floor) return floorState(block, piece, right, forward, k, depth);
+        BlockState s = block.defaultBlockState();
         Direction left = right.getOpposite();
         switch (piece) {
             case Pieces.CHAIN_H, Pieces.CHAIN_V, Pieces.ROD_U, Pieces.ROD_D, Pieces.ROD_L, Pieces.ROD_R -> s = lineState(s, piece, right, Direction.UP);
@@ -194,8 +203,8 @@ public final class BlockChoices {
     }
 
     /** A flat shape: the drawing is the view from above and layers stack upwards. */
-    private static BlockState floorState(int piece, Direction right, Direction forward, int k, int depth) {
-        BlockState s = blockFor(piece).defaultBlockState();
+    private static BlockState floorState(Block block, int piece, Direction right, Direction forward, int k, int depth) {
+        BlockState s = block.defaultBlockState();
         Direction left = right.getOpposite(), back = forward.getOpposite();
         switch (piece) {
             case Pieces.CHAIN_H, Pieces.CHAIN_V, Pieces.ROD_U, Pieces.ROD_D, Pieces.ROD_L, Pieces.ROD_R -> s = lineState(s, piece, right, forward);
@@ -289,6 +298,12 @@ public final class BlockChoices {
         BlockState[] out = new BlockState[Pieces3.COUNT];
         for (int p = 0; p < Pieces3.COUNT; p++) out[p] = stateFor3(p);
         return out;
+    }
+
+    /** Every placed state: never waterlogged, and leaves that don't decay. */
+    public static BlockState finish(BlockState s) {
+        s = with(s, BlockStateProperties.WATERLOGGED, false);
+        return s.hasProperty(BlockStateProperties.PERSISTENT) ? s.setValue(BlockStateProperties.PERSISTENT, true) : s;
     }
 
     private static <T extends Comparable<T>> BlockState withNamed(BlockState s, Property<T> p, String value) {

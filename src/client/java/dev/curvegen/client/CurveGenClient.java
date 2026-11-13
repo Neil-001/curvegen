@@ -55,6 +55,7 @@ public final class CurveGenClient {
     public static List<KeyMapping> init(ClientPlatform loader) {
         platform = loader;
         ModSettings.load();
+        PaintStore.load();
         OPEN = key("open", InputConstants.KEY_G);
         RADIAL = key("radial", InputConstants.KEY_V);
         CONFIRM = key("confirm", InputConstants.KEY_RETURN);
@@ -90,6 +91,7 @@ public final class CurveGenClient {
         }
         Placement.tick(mc);
         Editor.tick(mc);
+        PaintStore.tick();
     }
 
     private static void press(KeyMapping k) {
