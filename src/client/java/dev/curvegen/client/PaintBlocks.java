@@ -7,6 +7,8 @@ import dev.curvegen.core.paint.MaterialNames;
 import dev.curvegen.core.paint.Paint;
 import dev.curvegen.core.paint.Painted;
 import dev.curvegen.core.paint.Pattern;
+import dev.curvegen.core.paint.Solve3Painter;
+import dev.curvegen.core.Pieces3;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashMap;
@@ -134,8 +136,7 @@ public final class PaintBlocks {
 
     /** The same, with {@code choice} for the Blocks tab's choices. */
     public static boolean fullConnects(ShapeSettings s, Map<Family, Block> choice) {
-        // Only 2D shapes are painted so far. The 3D painting drops the is3d test.
-        if (s.paint.on() && !s.is3d()) {
+        if (s.paint.on()) {
             Boolean most = Paint.connects(s.paint.pattern, id -> {
                 Block b = block(id);
                 return b == null || BlockChoices.connects(b);
@@ -168,6 +169,54 @@ public final class PaintBlocks {
             full[k] = BlockChoices.finish(turn(state(block, b < 0 ? "" : s.substring(b + 1, s.length() - 1)), p.quarters()[k], viewer));
         }
         return new Resolved(blocks, full);
+    }
+
+    /** A painted 3D shape's states, by piece and entry, each worked out the first time it's asked for. */
+    public static final class States3 {
+        private final Resolved paint;
+        private final BlockState[] plain;
+        private final BlockState[][] states;
+
+        /** {@code paint} may be null, for an unpainted shape. */
+        public States3(Resolved paint) {
+            this.paint = paint;
+            plain = BlockChoices.statesFor3();
+            states = new BlockState[paint == null ? 0 : paint.blocks().length][];
+        }
+
+        /** The state for a piece of the volumetric solver's whose slot holds {@code entry}: -1 for the Blocks tab's choice. */
+        public BlockState get(int piece, int entry) {
+            if (entry < 0 || paint == null || paint.blocks()[entry] == null) return plain[piece];
+            BlockState[] row = states[entry];
+            if (row == null) row = states[entry] = new BlockState[Pieces3.COUNT];
+            BlockState s = row[piece];
+            if (s == null)
+                s = row[piece] = piece == Pieces3.FULL && paint.full()[entry] != null ? paint.full()[entry] : BlockChoices.stateFor3(piece, paint.blocks()[entry]);
+            return s;
+        }
+    }
+
+    /** The side a painted 3D shape's pattern is seen from, from {@link Solve3Painter.Done}: up for Wrap, which turns nothing. */
+    public static Direction viewer3(Solve3Painter.Done done) {
+        return done.right() < 0 ? Direction.UP : viewer(Direction.from3DDataValue(done.right()), Direction.from3DDataValue(done.up()));
+    }
+
+    /**
+     * Colours for a 3D picture of a painted shape: one per piece type, as {@code byFamily} has them, then one per
+     * painted entry, from the catalog's colours. An entry with no known colour takes its piece type's.
+     */
+    public static int[] palette3(Painted p, int[] byFamily, Catalog catalog) {
+        int families = byFamily.length;
+        int[] out = java.util.Arrays.copyOf(byFamily, families + p.blocks().size());
+        for (int e = 0; e < p.blocks().size(); e++) {
+            String id = p.blocks().get(e);
+            int b = id.indexOf('[');
+            Integer rgb = catalog.colours().get(b < 0 ? id : id.substring(0, b));
+            int fam = 0;
+            for (long[] c : p.counts()) { if (c[e + 1] > 0) break; fam++; }
+            out[families + e] = rgb != null && rgb >= 0 ? rgb : byFamily[Math.min(fam, families - 1)];
+        }
+        return out;
     }
 
     private static BlockState state(Block block, String props) {

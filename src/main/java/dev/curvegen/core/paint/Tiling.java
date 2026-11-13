@@ -10,17 +10,25 @@ import dev.curvegen.core.paint.Paint.Fit;
  * blocks. A closed strip's end meets its start. Round a closed strip with a repeating fit, the size, and with a turn
  * also the angle, are nudged so a whole number of repeats meets itself without a seam: a tilted stripe round a loop
  * becomes a spiral. With Stretch the seam stays where the strip starts.
+ *
+ * <p>Round a strip closed both ways, both loops must be whole numbers of repeats, which a turn and a size alone can't
+ * always give. There the pattern is also sheared a little: each loop is rounded to the nearest whole number of repeats
+ * along and across the pattern as it would lie, and the pattern is fitted to those exactly.
  */
 public final class Tiling {
-    /** The space a pattern is laid on. */
-    public record Strip(double length, double width, boolean closed) {}
+    /** The space a pattern is laid on. {@code closed} is along it; a torus's tube is closed across it as well. */
+    public record Strip(double length, double width, boolean closed, boolean closedAcross) {
+        public Strip(double length, double width, boolean closed) { this(length, width, closed, false); }
+    }
 
     private final Pattern pattern;
     private final Fit fit;
-    private final boolean mirror, wrapAcross;
+    private final boolean mirror, wrapAcross, sheared;
     private final int w, h;
     /** Blocks per cell along and across, the turn's cosine and sine, where it turns about, and the slide. */
     private final double su, sv, cos, sin, ou, ov, slideU, slideV;
+    /** Round a strip closed both ways: from (u, v) to pattern cells, as a matrix. */
+    private final double m00, m01, m10, m11;
     /** The angle in degrees after any nudge, for turning blocks with the pattern. */
     public final double angle;
 
@@ -38,9 +46,23 @@ public final class Tiling {
             case REPEAT_ALONG -> { v = A / h; ou = 0; ov = A / 2; }
             default -> { u = L / w; v = A / h; ou = L / 2; ov = A / 2; }
         }
-        // Across a "Repeat along" strip the pattern is stretched once, unless it's turned: then it repeats that way too.
-        wrapAcross = fit == Fit.REPEAT || turned;
-        if (strip.closed() && fit != Fit.STRETCH) {
+        // Across a "Repeat along" strip the pattern is stretched once, unless it's turned or the strip is closed across:
+        // then it repeats that way too.
+        wrapAcross = fit == Fit.REPEAT || turned || strip.closedAcross() && fit != Fit.STRETCH;
+        sheared = strip.closed() && strip.closedAcross() && fit != Fit.STRETCH;
+        double a00 = 0, a01 = 0, a10 = 0, a11 = 0;
+        if (sheared) {
+            // As the pattern would lie, the loop along is (p w, q h) in pattern cells and the loop across (r w, t h), rounded.
+            double c = Math.cos(theta), sn = Math.sin(theta);
+            long p = Math.round(L * c / (u * w)), q = Math.round(-L * sn / (v * h));
+            long r = Math.round(A * sn / (u * w)), t = Math.round(A * c / (v * h));
+            if (p == 0 && q == 0) p = c < 0 ? -1 : 1;
+            if (r == 0 && t == 0) t = 1;
+            // Both loops running the same way round the pattern would squash it flat. Then the loop across goes square to the other.
+            if (p * t - q * r == 0) { r = -q; t = p; }
+            a00 = (double) p * w / L; a01 = (double) r * w / A; a10 = (double) q * h / L; a11 = (double) t * h / A;
+            theta = Math.atan2(a01 / w, a00 / w);
+        } else if (strip.closed() && fit != Fit.STRETCH) {
             // The loop, (L, 0), seen in pattern cells must be a whole number of repeats each way: (p w, q h).
             double cx = L * Math.cos(theta) / (u * w), cy = -L * Math.sin(theta) / (v * h);
             long p = Math.round(cx), q = wrapAcross ? Math.round(cy) : 0;
@@ -57,6 +79,7 @@ public final class Tiling {
                 u = scale; v = scale;
             }
         }
+        m00 = a00; m01 = a01; m10 = a10; m11 = a11;
         su = u; sv = v;
         cos = Math.cos(theta); sin = Math.sin(theta);
         angle = Math.toDegrees(theta);
@@ -66,8 +89,13 @@ public final class Tiling {
     /** The pattern's palette index at {@code u} along and {@code v} across the strip. */
     public int sample(double u, double v) {
         double a = u - slideU - ou, b = v - slideV - ov;
-        double x = ou + a * cos + b * sin, y = ov - a * sin + b * cos;
-        double px = x / su, py = y / sv;
+        double px, py;
+        if (sheared) {
+            px = m00 * a + m01 * b; py = m10 * a + m11 * b;
+        } else {
+            double x = ou + a * cos + b * sin, y = ov - a * sin + b * cos;
+            px = x / su; py = y / sv;
+        }
         int ix, iy;
         if (fit == Fit.STRETCH) {
             ix = clamp((int) Math.floor(px), w);

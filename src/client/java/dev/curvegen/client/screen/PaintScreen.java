@@ -15,6 +15,7 @@ import dev.curvegen.core.paint.Ladder.Why;
 import dev.curvegen.core.paint.Paint;
 import dev.curvegen.core.paint.Paint.Empty;
 import dev.curvegen.core.paint.Paint.Fit;
+import dev.curvegen.core.paint.Paint.Mapping;
 import dev.curvegen.core.paint.Paint.On;
 import dev.curvegen.core.paint.Paint.Source;
 import dev.curvegen.core.paint.Painted;
@@ -31,6 +32,7 @@ import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Tooltip;
+import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.CommonComponents;
@@ -44,7 +46,8 @@ import net.minecraft.network.chat.Component;
  *
  * <p>The picture solves the shape once and solves again only when something other than its paint changes, such as
  * whether fences attach to full blocks, which follows the pattern. A paint change repaints that solve on the worker
- * thread, and the old picture stays until the new one is ready.
+ * thread, and the old picture stays until the new one is ready. A 3D shape's picture is {@link Picture3}, which works
+ * the same way and turns when dragged.
  */
 public class PaintScreen extends ControlScreen {
     private static final ShapeSettings S = CurveGenClient.SETTINGS;
@@ -73,6 +76,9 @@ public class PaintScreen extends ControlScreen {
     private Solver.Result paintingResult, paintedResult;
     private Painted painted;
     private boolean pictureDirty;
+    /** A 3D shape's picture, and whether it's being turned by a drag. */
+    private final Picture3 picture3 = new Picture3();
+    private boolean turning;
 
     public PaintScreen(Screen parent) {
         super(Component.translatable("curvegen.paint.title"));
@@ -80,6 +86,7 @@ public class PaintScreen extends ControlScreen {
     }
 
     static Component sourceName(Source s) { return Component.translatable("curvegen.paint.source." + s.name().toLowerCase(Locale.ROOT)); }
+    private static Component mappingName(Mapping m) { return Component.translatable("curvegen.paint.mapping." + m.name().toLowerCase(Locale.ROOT)); }
     private static Component onName(On o) { return Component.translatable("curvegen.paint.on." + o.name().toLowerCase(Locale.ROOT)); }
     private static Component fitName(Fit f) { return Component.translatable("curvegen.paint.fit." + f.name().toLowerCase(Locale.ROOT)); }
     private static Component emptyName(Empty e) { return Component.translatable("curvegen.paint.empty." + e.name().toLowerCase(Locale.ROOT)); }
@@ -99,6 +106,7 @@ public class PaintScreen extends ControlScreen {
         int need = 170;
         for (Source s : Source.values()) need = Math.max(need, opt(tr("curvegen.paint.source"), sourceName(s)) + PAD);
         for (On o : On.values()) need = Math.max(need, opt(tr("curvegen.paint.pattern_on"), onName(o)) + PAD);
+        for (Mapping m : Mapping.values()) need = Math.max(need, opt(tr("curvegen.paint.mapping"), mappingName(m)) + PAD);
         int fit = 0;
         for (Fit f : Fit.values()) fit = Math.max(fit, opt(tr("curvegen.paint.fit"), fitName(f)));
         need = Math.max(need, fit + PAD + GAP + tw(tr("curvegen.paint.size")) + 3 + DIGIT);
@@ -171,12 +179,20 @@ public class PaintScreen extends ControlScreen {
             paintChanged(false);
         }))).bounds(M + 20, y(1), bw, h).build(), cut ? name + '\n' + tr("curvegen.paint.choose_tip") : tr("curvegen.paint.choose_tip"));
 
-        // Face or edge, for a 2D shape more than one block deep. 3D shapes will have their mapping here.
-        boolean deep = S.depth > 1;
-        add(cycler(List.of(On.values()), p.onFor(S.depth), PaintScreen::onName, M, y(2), pw, tr("curvegen.paint.pattern_on"), v -> {
-            S.paint.on = v;
-        }), on && !S.is3d() && deep, tr("curvegen.paint.on_tip"),
-                S.is3d() ? tr("curvegen.paint.not_3d") : !on ? offTip : tr("curvegen.paint.on_depth_tip"));
+        if (S.is3d()) {
+            // How the pattern goes onto a 3D shape. A 3D equation can't be wrapped, so it only offers the three projections.
+            boolean wraps = S.gen != ShapeSettings.Gen.EQUATION3;
+            List<Mapping> choices = wraps ? List.of(Mapping.values()) : List.of(Mapping.ABOVE, Mapping.FRONT, Mapping.SIDE);
+            add(cycler(choices, p.mappingFor(wraps), PaintScreen::mappingName, M, y(2), pw, tr("curvegen.paint.mapping"), v -> {
+                S.paint.mapping = v;
+            }), on, wraps ? tr("curvegen.paint.mapping_tip") : tr("curvegen.paint.mapping_tip") + '\n' + '\n' + tr("curvegen.paint.mapping_no_wrap_tip"), offTip);
+        } else {
+            // Face or edge, for a 2D shape more than one block deep.
+            boolean deep = S.depth > 1;
+            add(cycler(List.of(On.values()), p.onFor(S.depth), PaintScreen::onName, M, y(2), pw, tr("curvegen.paint.pattern_on"), v -> {
+                S.paint.on = v;
+            }), on && deep, tr("curvegen.paint.on_tip"), !on ? offTip : tr("curvegen.paint.on_depth_tip"));
+        }
 
         // Fit and Size.
         int sizeW = tw(tr("curvegen.paint.size")) + 3 + DIGIT, fitW = pw - GAP - sizeW;
@@ -267,7 +283,7 @@ public class PaintScreen extends ControlScreen {
     }
 
     private void poll() {
-        if (S.is3d()) return;
+        if (S.is3d()) { picture3.poll(S); return; }
         if (solveJob != null && solveJob.isDone()) {
             try { result = solveJob.get(); } catch (Exception _) { result = null; }
             solvedFor = solving;
@@ -305,10 +321,16 @@ public class PaintScreen extends ControlScreen {
 
     /** The status line and its tooltip: how many blocks fell to the closest colour, and which and why. */
     private String[] status() {
-        if (S.is3d()) return new String[]{tr("curvegen.paint.not_3d"), null};
         if (!S.paint.on()) return new String[]{tr("curvegen.paint.status_off"), tr("curvegen.paint.source_tip")};
-        if (paintedResult != null && paintedResult.target().error != null) return new String[]{"", null};
-        if (painted == null || !paintedFor.on()) return new String[]{tr("curvegen.screen.working"), null};
+        Painted painted = this.painted;
+        if (S.is3d()) {
+            if (picture3.error() != null) return new String[]{"", null};
+            painted = picture3.painted(S);
+            if (painted == null) return new String[]{tr("curvegen.screen.working"), null};
+        } else {
+            if (paintedResult != null && paintedResult.target().error != null) return new String[]{"", null};
+            if (painted == null || !paintedFor.on()) return new String[]{tr("curvegen.screen.working"), null};
+        }
         StringBuilder tip = new StringBuilder();
         for (Why w : new Why[]{Why.CLOSEST, Why.BLOCKS_TAB, Why.GAP}) {
             StringBuilder lines = new StringBuilder();
@@ -345,7 +367,9 @@ public class PaintScreen extends ControlScreen {
         ctx.fill(px0, py0, px1, py1, 0xFF15181D);
         ctx.outline(px0 - 1, py0 - 1, px1 - px0 + 2, py1 - py0 + 2, 0xFF3A424D);
         if (S.is3d()) {
-            note(ctx, tr("curvegen.paint.picture_3d"), px0, py0, px1, py1, 0xFF9AA5B3);
+            if (picture3.error() != null) note(ctx, Lang.text(picture3.error()), px0, py0, px1, py1, 0xFFFF8098);
+            else if (!picture3.ready()) note(ctx, tr("curvegen.screen.working"), px0, py0, px1, py1, 0xFF9AA5B3);
+            else picture3.draw(ctx, px0, py0, px1, py1);
         } else if (paintedResult != null && paintedResult.target().error != null) {
             note(ctx, Lang.text(paintedResult.target().error), px0, py0, px1, py1, 0xFFFF8098);
         } else if (paintedResult == null || texture.id() == null) {
@@ -375,8 +399,29 @@ public class PaintScreen extends ControlScreen {
         for (var l : lines) { ctx.centeredText(font, l, (x0 + x1) / 2, y, colour); y += 9; }
     }
 
+    /** Dragging the 3D picture turns it. */
+    @Override
+    public boolean mouseClicked(MouseButtonEvent event, boolean doubled) {
+        if (super.mouseClicked(event, doubled)) return true;
+        turning = S.is3d() && event.x() >= pvX0() && event.x() < width - M && event.y() >= TOP && event.y() < pvY1();
+        return turning;
+    }
+
+    @Override
+    public boolean mouseDragged(MouseButtonEvent event, double dx, double dy) {
+        if (turning) { picture3.orbit(dx, dy); return true; }
+        return super.mouseDragged(event, dx, dy);
+    }
+
+    @Override
+    public boolean mouseReleased(MouseButtonEvent event) {
+        turning = false;
+        return super.mouseReleased(event);
+    }
+
     @Override
     public void removed() {
+        picture3.close();
         texture.close();
         super.removed();
     }
