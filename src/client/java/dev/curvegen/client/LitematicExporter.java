@@ -5,6 +5,8 @@ import static dev.curvegen.client.Lang.tr;
 import dev.curvegen.client.edit.EditShape;
 import dev.curvegen.core.Layout;
 import dev.curvegen.core.LitematicBits;
+import dev.curvegen.core.Pieces;
+import dev.curvegen.core.paint.Painted;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -36,15 +38,19 @@ public final class LitematicExporter {
     /** Litematica reads older schematic versions and upgrades them, so version 6 is the safe choice. */
     private static final int SCHEMATIC_VERSION = 6, SUB_VERSION = 1;
 
-    public static Path export(Layout layout, int depth, boolean floor, String baseName, String author) throws IOException {
+    /** Exports a solved 2D shape, with its paint, or with {@code painted} null in the Blocks tab's blocks. */
+    public static Path export(Layout layout, int depth, boolean floor, Painted painted, int cells, String baseName, String author) throws IOException {
         int d = Math.max(1, depth);
         // Upright: drawing x → east, y → up, depth → south. Flat: drawing x → east, y → north, layers → up.
         int sx = layout.width(), sy = floor ? d : layout.height(), sz = floor ? layout.height() : d;
         Region region = new Region(sx, sy, sz);
+        Direction forward = floor ? Direction.NORTH : Direction.SOUTH;
+        PaintBlocks.Resolved paint = painted == null ? null : PaintBlocks.resolve(painted, floor ? Direction.Axis.Y : forward.getAxis());
         for (Layout.Cell c : layout.cells())
             for (int k = 0; k < d; k++) {
-                BlockState st = floor ? BlockChoices.stateFor(c.piece(), c.above(), Direction.EAST, Direction.NORTH, k, d, true)
-                                      : BlockChoices.stateFor(c.piece(), c.above(), Direction.EAST, Direction.SOUTH, k, d, false);
+                int entry = paint == null ? -1 : painted.at((painted.layers() == 1 ? 0 : k) * cells + c.cell());
+                BlockState st = entry >= 0 && c.piece() == Pieces.FULL && paint.full()[entry] != null ? paint.full()[entry]
+                        : BlockChoices.stateFor(c.piece(), c.above(), Direction.EAST, forward, k, d, floor, paint == null ? null : paint.block(entry));
                 region.set(c.x(), floor ? k : c.y(), floor ? layout.height() - 1 - c.y() : k, st);
             }
         return region.write(baseName, author);

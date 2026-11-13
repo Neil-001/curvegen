@@ -9,6 +9,7 @@ import dev.curvegen.client.Lang;
 import dev.curvegen.client.LitematicExporter;
 import dev.curvegen.client.Placement;
 import dev.curvegen.client.PresetStore;
+import dev.curvegen.client.PaintBlocks;
 import dev.curvegen.client.edit.EditShape;
 import dev.curvegen.client.edit.Editor;
 import dev.curvegen.core.Bezier3;
@@ -33,6 +34,10 @@ import dev.curvegen.core.Solver3;
 import dev.curvegen.core.edit.Edit3D;
 import dev.curvegen.core.edit.HandleMath;
 import dev.curvegen.core.edit.Stepper;
+import dev.curvegen.core.paint.Catalog;
+import dev.curvegen.core.paint.Paint;
+import dev.curvegen.core.paint.Painted;
+import dev.curvegen.core.paint.Painter2D;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -108,6 +113,15 @@ public class CurveScreen extends ControlScreen {
 
     private Solver.Result result;
     private Future<Solver.Result> job;
+    /**
+     * The 2D shape's paint: the last finished, the result and paint settings it was for, a repaint under way and what
+     * it's for, and whether fences attached to full blocks in the solve that's running.
+     */
+    private Painted painted;
+    private Solver.Result paintedResult, paintingResult;
+    private Paint paintedFor, paintingFor;
+    private Future<Painted> paintJob;
+    private boolean jobConnects, resultConnects;
     private boolean dirty = true, textureDirty, autoFit = true;
     private final PreviewTexture preview = new PreviewTexture();
     private float zoom = 8, panX, panY;
@@ -132,7 +146,7 @@ public class CurveScreen extends ControlScreen {
         mode3d = S.is3d();
         remember();
         if (tab != Tab.BLOCKS && tab != Tab.COUNT) tab = tabFor(S.gen);
-        S.fullConnects = BlockChoices.fullBlockConnects();
+        S.fullConnects = BlockChoices.fullConnects(S);
     }
 
     // ---------- layout ----------
@@ -301,7 +315,7 @@ public class CurveScreen extends ControlScreen {
         ShapeSettings.Gen g = p.gen();
         if (g == null) return;
         PresetData.apply(p.data, g, S);
-        if (withBlocks && p.blocks != null) { BlockChoices.apply(p.blocks, S, BlockChoices.CHOICE); textureDirty = true; }
+        if (withBlocks && p.blocks != null) { p.applyBlocks(S, BlockChoices.CHOICE); textureDirty = true; }
         tab = tabFor(g);
         mode3d = S.is3d();
         remember();
@@ -536,7 +550,7 @@ public class CurveScreen extends ControlScreen {
             String name = font.plainSubstrByWidth(block.getName().getString(), PANEL_W - 54 - 8);
             Button pick = Button.builder(Component.literal(name), _ -> minecraft.gui.setScreen(new BlockPickerScreen(this, f, chosen -> {
                 BlockChoices.CHOICE.put(f, chosen);
-                S.fullConnects = BlockChoices.fullBlockConnects();
+                S.fullConnects = BlockChoices.fullConnects(S);
                 dirty = true; textureDirty = true;
                 rebuildWidgets();
             }))).bounds(M + 48, y, PANEL_W - 48, h).build();
@@ -547,7 +561,7 @@ public class CurveScreen extends ControlScreen {
         addRenderableWidget(Button.builder(Component.translatable("curvegen.screen.match_a_colour"), _ -> minecraft.gui.setScreen(
                 new ColorPickerScreen(this, BlockChoices.pickedColor >= 0 ? BlockChoices.pickedColor : 0x8E6B4A, rgb -> {
                     BlockChoices.autoSelect(rgb);
-                    S.fullConnects = BlockChoices.fullBlockConnects();
+                    S.fullConnects = BlockChoices.fullConnects(S);
                     dirty = true; textureDirty = true;
                     rebuildWidgets();
                 }))).bounds(M, top() + (rows - 1) * pitch, PANEL_W, h).build());
@@ -1236,6 +1250,7 @@ public class CurveScreen extends ControlScreen {
         if (job != null && job.isDone()) {
             try { result = job.get(); } catch (Exception e) { flash(tr("curvegen.screen.couldn_t_build_this_shape_s", e.getMessage())); }
             job = null;
+            resultConnects = jobConnects;
             if (result != null) {
                 if (S.gen == Gen.EQUATION && S.qLock && result.target().error == null) {
                     S.qH = result.ny();
@@ -1247,16 +1262,43 @@ public class CurveScreen extends ControlScreen {
         if (dirty && job == null) {
             dirty = false;
             ShapeSettings copy = S.copy();
+            jobConnects = copy.fullConnects;
             job = EXEC.submit(() -> Solver.run(copy));
         }
+        repaint();
         if (result != null && preview.id() == null) textureDirty = true;   // released while a picker was open
         if (textureDirty && result != null) {
             textureDirty = false;
-            preview.update(result, colors, showCurve, true);
+            preview.update(result, colors, showCurve, true, BlockChoices.CHOICE, painted());
             if (autoFit || result.nx() != lastNx || result.ny() != lastNy) fitView();
             lastNx = result.nx(); lastNy = result.ny();
         }
     }
+
+    /** Paints the 2D shape again after a new solve or a paint change, without solving it again. */
+    private void repaint() {
+        if (paintJob != null && paintJob.isDone()) {
+            try { painted = paintJob.get(); } catch (Exception e) { painted = null; flash(tr("curvegen.screen.couldn_t_build_this_shape_s", e.getMessage())); }
+            paintedResult = paintingResult; paintedFor = paintingFor;
+            paintJob = null;
+            textureDirty = true; countRows = null;
+        }
+        if (paintJob != null || job != null || result == null || mode3d) return;
+        if (paintedResult == result && paintedFor != null && paintedFor.same(S.paint)) return;
+        Paint paint = S.paint.copy();
+        Solver.Result r = result;
+        int depth = S.depth;
+        boolean connects = resultConnects;
+        Catalog catalog = paint.on() ? PaintBlocks.catalog(S) : null;
+        paintingResult = r; paintingFor = paint;
+        paintJob = EXEC.submit(() -> Painter2D.paint(r, depth, paint, connects, catalog));
+    }
+
+    /** The paint for the result on show, or null when it's unpainted or its paint isn't ready. */
+    Painted painted() { return paintedResult == result && paintedFor != null && paintedFor.same(S.paint) ? painted : null; }
+
+    /** Whether the result on show still waits for its paint. */
+    private boolean paintPending() { return S.paint.on() && !mode3d && painted() == null; }
 
     private void fitView() {
         if (result == null) return;
@@ -1477,7 +1519,7 @@ public class CurveScreen extends ControlScreen {
 
     // ---------- actions ----------
     private boolean ready() {
-        if (result == null || job != null || dirty) { flash(tr("curvegen.screen.still_working_on_the_shape_try_again_in_a")); return false; }
+        if (result == null || job != null || dirty || paintPending()) { flash(tr("curvegen.screen.still_working_on_the_shape_try_again_in_a")); return false; }
         if (result.target().error != null) { flash(tr("curvegen.screen.fix_the_equation_first")); return false; }
         return true;
     }
@@ -1521,7 +1563,7 @@ public class CurveScreen extends ControlScreen {
         String kind = switch (S.gen) { case ELLIPSE -> "ellipse"; case EQUATION -> "equation"; case BEZIER -> "bezier"; default -> "shape"; };
         try {
             String author = minecraft.player != null ? minecraft.player.getName().getString() : tr("key.category.curvegen.main");
-            Path file = LitematicExporter.export(layout, S.depth, S.floor, LitematicExporter.defaultName(kind) + (S.floor ? "_floor" : ""), author);
+            Path file = LitematicExporter.export(layout, S.depth, S.floor, painted(), result.nx() * result.ny(), LitematicExporter.defaultName(kind) + (S.floor ? "_floor" : ""), author);
             flash(tr("curvegen.screen.exported_to_schematics_s", file.getFileName().toString()));
             Placement.say(Component.translatable("curvegen.screen.exported_to_schematics_s", file.getFileName().toString()));
         } catch (Exception e) {

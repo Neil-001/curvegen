@@ -8,6 +8,7 @@ import dev.curvegen.client.BlockChoices;
 import dev.curvegen.client.CurveGenClient;
 import dev.curvegen.client.LitematicExporter;
 import dev.curvegen.client.ModSettings;
+import dev.curvegen.client.PaintBlocks;
 import dev.curvegen.client.Placement;
 import dev.curvegen.client.screen.RadialScreen;
 import dev.curvegen.core.Pieces;
@@ -16,6 +17,8 @@ import dev.curvegen.core.edit.Box;
 import dev.curvegen.core.edit.HandleMath;
 import dev.curvegen.core.edit.Option;
 import dev.curvegen.core.edit.Orient;
+import dev.curvegen.core.paint.Catalog;
+import dev.curvegen.core.paint.Paint;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -105,6 +108,12 @@ public final class Editor {
     private static Orient jobOrient;
     private static int[] jobOrigin;
     private static Object solved;
+    /**
+     * The paint the blocks on show have, and a repaint under way. A paint change repaints the last solve without
+     * solving it again, and the hologram keeps its old blocks until the new ones are ready.
+     */
+    private static Paint shownPaint;
+    private static Future<Object> paintJob;
     private static Hologram hologram;
     /** The block limit the hologram was built with, so a change in the settings screen rebuilds it. */
     private static int blockLimit;
@@ -191,7 +200,7 @@ public final class Editor {
         EditShape next = EditShape.of(S);
         if (shape == null || next.getClass() != shape.getClass()) {
             dropJob();
-            solved = null; hologram = null; hologramOrigin = null; shown = null;
+            solved = null; hologram = null; hologramOrigin = null; shown = null; shownPaint = null; paintJob = null;
         }
         shape = next;
     }
@@ -219,14 +228,14 @@ public final class Editor {
 
     private static void reset() {
         dropJob();
-        solved = null; hologram = null; hologramOrigin = null; viewOrigin = null;
+        solved = null; hologram = null; hologramOrigin = null; viewOrigin = null; shownPaint = null; paintJob = null;
         undo.clear(); redo.clear(); editGroup = null; editStep = null;
         drag = null; hover = null; follow = new int[3]; pivot = null;
         screenOpen = Minecraft.getInstance().gui.screen() != null; beforeScreen = null;
     }
 
     private static void begin() {
-        S.fullConnects = BlockChoices.fullBlockConnects();
+        S.fullConnects = BlockChoices.fullConnects(S);
         locked = true; active = true; dirty = true;
     }
 
@@ -251,7 +260,7 @@ public final class Editor {
             return;
         }
         if (drag != null) endDrag();
-        if (hologram == null || dirty || job != null) { Placement.say(Lang.component("curvegen.editor.still_working")); return; }
+        if (hologram == null || dirty || job != null || painting()) { Placement.say(Lang.component("curvegen.editor.still_working")); return; }
         if (hologram.error != null) { Placement.say(Lang.component("curvegen.editor.fix_shape", Lang.component(hologram.error)).withStyle(ChatFormatting.RED)); return; }
         if (hologram.size() == 0) { Placement.say(Lang.component("curvegen.editor.empty_place")); return; }
         List<BlockPos> pos = new ArrayList<>(hologram.size());
@@ -289,8 +298,11 @@ public final class Editor {
     public static boolean catchingUp() {
         if (!active) return false;
         if (hologram != null && !dirty && job == null && stale()) adopt();
-        return hologram == null || dirty || job != null;
+        return hologram == null || dirty || job != null || painting();
     }
+
+    /** Whether the blocks on show have other paint than the settings, or a repaint is under way. */
+    private static boolean painting() { return paintJob != null || shownPaint != null && !S.paint.same(shownPaint); }
 
     /** Whether the hologram was built from other shape settings or block choices than the ones set now. */
     private static boolean stale() { return !solvedFor(true); }
@@ -306,6 +318,7 @@ public final class Editor {
         if (ref == null || !running && !BlockChoices.CHOICE.equals(shownChoices)) return false;
         ShapeSettings now = S.copy();
         now.overwrite = ref.overwrite;   // Replace doesn't change which blocks the shape has
+        now.paint.set(ref.paint);        // and paint is put on without solving again
         // Nor does Carve, but a shape that only works out what to clear while it's on needs a solve when it comes on.
         if (shownOnly || !shape.solveUsesCarve() || !S.carve) now.carve = ref.carve;
         return now.same(ref);
@@ -331,11 +344,20 @@ public final class Editor {
         rebase = true;
         S.set(s.settings);
         // Block choices aren't part of a snapshot, so this flag has to follow the blocks chosen now.
-        S.fullConnects = BlockChoices.fullBlockConnects();
+        S.fullConnects = BlockChoices.fullConnects(S);
         reshape();
+        boolean moved = !s.box.equals(box) || !s.orient.equals(orient);
         box = s.box; orient = s.orient; follow = s.follow.clone();
         pivot = s.pivot == null ? null : s.pivot.clone();
+        if (moved) dirty = true;
+        else resolveUnlessPaintOnly();
+    }
+
+    /** Marks the shape for a new solve, unless only its paint changed since the last one, which repaints it instead. */
+    private static void resolveUnlessPaintOnly() {
+        boolean wasDirty = dirty;
         dirty = true;
+        if (!wasDirty && solvedFor(false)) dirty = false;
     }
 
     /** Takes back the last edit to the hologram. */
@@ -378,6 +400,7 @@ public final class Editor {
         if (drag != null) endDrag();
         Snapshot before = snapshot();
         change.run();
+        S.fullConnects = BlockChoices.fullConnects(S);   // it follows the paint
         if (S.same(before.settings)) return;
         boolean merges = group != null && group.equals(editGroup) && undo.peek() == editStep;
         if (!merges) {
@@ -387,7 +410,9 @@ public final class Editor {
         rebase = true;
         reshape();
         settle();
+        boolean wasDirty = dirty;
         adopt();
+        if (!wasDirty && solvedFor(false)) dirty = false;
     }
 
     /** After an edit that can leave control points outside the box: grows it to hold them, where they are in the world. */
@@ -584,7 +609,7 @@ public final class Editor {
     /** Null when the hologram's blocks are ready to place or export. Otherwise why they aren't. */
     public static String notReady() {
         if (!active) return Lang.tr("curvegen.editor.no_shape");
-        if (hologram == null || dirty || job != null) return Lang.tr("curvegen.editor.still_working");
+        if (hologram == null || dirty || job != null || painting()) return Lang.tr("curvegen.editor.still_working");
         if (hologram.error != null) return Lang.tr("curvegen.editor.fix_shape", Lang.text(hologram.error));
         if (hologram.size() == 0) return Lang.tr("curvegen.editor.empty");
         return null;
@@ -778,7 +803,7 @@ public final class Editor {
         if (!open && screenOpen && beforeScreen != null) {
             Snapshot before = beforeScreen;
             beforeScreen = null;
-            S.fullConnects = BlockChoices.fullBlockConnects();
+            S.fullConnects = BlockChoices.fullConnects(S);
             before.settings.fullConnects = S.fullConnects;   // it follows the blocks, which undo doesn't put back
             boolean wasDirty = dirty;
             adopt();
@@ -810,6 +835,7 @@ public final class Editor {
                 solved = result;
                 lastSolveMillis = System.currentTimeMillis() - jobStarted;
                 shown = jobSettings;
+                shownPaint = jobSettings.paint.copy();
                 droppingSince = 0;
                 // The solve may have settled a size the settings left open, such as an equation's locked height.
                 Box fitted = box.refit(worldSize());
@@ -827,6 +853,7 @@ public final class Editor {
         }
         if (dirty && job == null) {
             dirty = false;
+            paintJob = null;   // the solve paints its own blocks
             ShapeSettings copy = S.copy();
             jobSettings = S.copy();   // its own copy: a solve may settle values in the one it's given
             EditShape solver = shape;
@@ -834,8 +861,14 @@ public final class Editor {
             jobOrigin = new int[]{box.x(), box.y(), box.z()};
             AtomicBoolean cancelled = jobCancelled = new AtomicBoolean();
             jobStarted = System.currentTimeMillis();
-            job = EXEC.submit(() -> solver.solve(copy, o, cancelled::get));
+            Paint paint = jobSettings.paint.copy();
+            Catalog catalog = paint.on() ? PaintBlocks.catalog(S) : null;
+            job = EXEC.submit(() -> {
+                Object r = solver.solve(copy, o, cancelled::get);
+                return r == null || cancelled.get() ? r : solver.paint(r, paint, catalog);
+            });
         }
+        repaint();
 
         if (hologram != null && blockLimit != ModSettings.hologramBlockLimit && solved != null) rebuild(hologramOrigin);
         if (hologram != null) {
@@ -844,6 +877,28 @@ public final class Editor {
                 hologram.refresh(mc, at, S.overwrite, S.carve);
                 viewOrigin = at; viewOverwrite = S.overwrite; viewCarve = S.carve; viewAge = 0;
             }
+        }
+    }
+
+    /** Repaints the last solve when only the paint changed, and puts the new blocks on show when they're ready. */
+    private static void repaint() {
+        if (paintJob != null && paintJob.isDone()) {
+            Object result = null;
+            try { result = paintJob.get(); }
+            catch (Exception e) { Placement.say(Lang.component("curvegen.editor.build_failed", e.getMessage()).withStyle(ChatFormatting.RED)); }
+            paintJob = null;
+            if (result != null && job == null && !dirty) {
+                solved = result;
+                rebuild(new int[]{box.x(), box.y(), box.z()});
+            }
+        }
+        if (paintJob == null && job == null && !dirty && solved != null && shownPaint != null && !S.paint.same(shownPaint)) {
+            Paint paint = S.paint.copy();
+            Catalog catalog = paint.on() ? PaintBlocks.catalog(S) : null;
+            EditShape painter = shape;
+            Object from = solved;
+            shownPaint = paint;
+            paintJob = EXEC.submit(() -> painter.paint(from, paint, catalog));
         }
     }
 

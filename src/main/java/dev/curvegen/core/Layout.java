@@ -8,8 +8,11 @@ import java.util.List;
  * Carve cells use the same origin and may lie outside that box (they're cleared to air, not built).
  */
 public record Layout(List<Cell> cells, List<Cell> carve, int width, int height) {
-    /** above is the piece in the cell above, which an upright wall takes its height from. */
-    public record Cell(int x, int y, int piece, int above) {}
+    /**
+     * above is the piece in the cell above, which an upright wall takes its height from, and cell where it was in the
+     * solve's grid, {@code j * nx + i}, which is how painting names it.
+     */
+    public record Cell(int x, int y, int piece, int above, int cell) {}
 
     public static Layout of(Solver.Result r) {
         int i0 = Integer.MAX_VALUE, j0 = Integer.MAX_VALUE, i1 = -1, j1 = -1;
@@ -25,8 +28,8 @@ public record Layout(List<Cell> cells, List<Cell> carve, int width, int height) 
         for (int j = 0; j < r.ny(); j++)
             for (int i = 0; i < r.nx(); i++) {
                 int p = r.at(i, j);
-                if (p != Pieces.EMPTY) cells.add(new Cell(i - i0, j - j0, p, j + 1 < r.ny() ? r.at(i, j + 1) : Pieces.EMPTY));
-                else if (cv != null && cv[j * r.nx() + i]) carve.add(new Cell(i - i0, j - j0, Pieces.EMPTY, Pieces.EMPTY));
+                if (p != Pieces.EMPTY) cells.add(new Cell(i - i0, j - j0, p, j + 1 < r.ny() ? r.at(i, j + 1) : Pieces.EMPTY, j * r.nx() + i));
+                else if (cv != null && cv[j * r.nx() + i]) carve.add(new Cell(i - i0, j - j0, Pieces.EMPTY, Pieces.EMPTY, j * r.nx() + i));
             }
         return new Layout(cells, carve, i1 - i0 + 1, j1 - j0 + 1);
     }

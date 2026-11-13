@@ -38,7 +38,21 @@ public final class PresetStore {
         public long saved;          // last saved or renamed, in milliseconds
         public Map<String, String> data = new LinkedHashMap<>();
         public Map<String, String> blocks; // block choices, or null if saved without them
+        /** Paint settings with a copy of the pattern, saved along with the blocks; null without them, and in older presets. */
+        public Map<String, String> paint;
         private transient Path file; // where it's saved, or null before the first save
+
+        /**
+         * Puts the preset's blocks and paint into {@code s} and {@code choice}, when it has blocks. A preset saved
+         * with blocks before painting existed loads unpainted, as it looked then.
+         */
+        public void applyBlocks(ShapeSettings s, Map<dev.curvegen.core.Pieces.Family, net.minecraft.world.level.block.Block> choice) {
+            if (blocks == null) return;
+            BlockChoices.apply(blocks, s, choice);
+            if (paint != null) s.paint.apply(paint);
+            else s.paint.source = dev.curvegen.core.paint.Paint.Source.OFF;
+            s.fullConnects = PaintBlocks.fullConnects(s, choice);
+        }
 
         public ShapeSettings.Gen gen() {
             try { return ShapeSettings.Gen.valueOf(gen); } catch (Exception _) { return null; }
@@ -127,6 +141,7 @@ public final class PresetStore {
         p.name = name.trim();
         p.data = new LinkedHashMap<>(PresetData.capture(s, gen));
         p.blocks = withBlocks ? BlockChoices.capture(s) : null;
+        p.paint = withBlocks ? s.paint.capture() : null;
         p.saved = System.currentTimeMillis();
         write(p);
         return p;
