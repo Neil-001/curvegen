@@ -558,13 +558,31 @@ public class CurveScreen extends ControlScreen {
             addRenderableWidget(pick);
             icons.add(new Icon(M + 29, y + (h - 16) / 2, new ItemStack(block)));
         }
-        addRenderableWidget(Button.builder(Component.translatable("curvegen.screen.match_a_colour"), _ -> minecraft.gui.setScreen(
+        // The last row: "Match a colour…" and the paint button, which names the paint source. The paint button gets
+        // room for its widest source, so it doesn't jump as the source changes, and the match button takes the rest,
+        // with a shorter name when the full one doesn't fit.
+        int ry = top() + (rows - 1) * pitch, room = PANEL_W - 4, paintText = 0;
+        for (Paint.Source s : Paint.Source.values()) paintText = Math.max(paintText, tw(tr("curvegen.screen.paint_button", PaintScreen.sourceName(s))));
+        String match = tr("curvegen.screen.match_a_colour");
+        if (tw(match) + paintText + 16 > room) match = tr("curvegen.screen.match_a_colour_short");
+        int matchW = tw(match) + Math.max(0, room - tw(match) - paintText) / 2;
+        if (room - matchW < paintText + 6) {
+            matchW = room - paintText - 6;
+            match = font.plainSubstrByWidth(match, matchW - 6 - tw("…")) + "…";
+        }
+        Button matchButton = Button.builder(Component.literal(match), _ -> minecraft.gui.setScreen(
                 new ColorPickerScreen(this, BlockChoices.pickedColor >= 0 ? BlockChoices.pickedColor : 0x8E6B4A, rgb -> {
                     BlockChoices.autoSelect(rgb);
                     S.fullConnects = BlockChoices.fullConnects(S);
                     dirty = true; textureDirty = true;
                     rebuildWidgets();
-                }))).bounds(M, top() + (rows - 1) * pitch, PANEL_W, h).build());
+                }))).bounds(M, ry, matchW, h).build();
+        matchButton.setTooltip(Tooltip.create(Component.translatable("curvegen.screen.match_a_colour_tip")));
+        addRenderableWidget(matchButton);
+        Button paintButton = Button.builder(Component.translatable("curvegen.screen.paint_button", PaintScreen.sourceName(S.paint.source)),
+                _ -> minecraft.gui.setScreen(new PaintScreen(this))).bounds(M + matchW + 4, ry, PANEL_W - matchW - 4, h).build();
+        paintButton.setTooltip(Tooltip.create(Component.translatable("curvegen.screen.paint_button_tip")));
+        addRenderableWidget(paintButton);
         hint = tr("curvegen.screen.choose_a_block_per_piece_type_or_match_them");
         hintY = top() + rows * pitch + 2;
     }
@@ -573,7 +591,11 @@ public class CurveScreen extends ControlScreen {
     private int countScroll, countContentH;
 
     /** One line of the list, with its texts already cut to fit. */
-    private record CountRow(boolean header, String text, String count, int countW, int state, boolean dim, String tip, boolean solid) {}
+    private record CountRow(boolean header, String text, String count, int countW, int state, boolean dim, String tip, boolean solid, ItemStack item) {
+        CountRow(boolean header, String text, String count, int countW, int state, boolean dim, String tip, boolean solid) {
+            this(header, text, count, countW, state, dim, tip, solid, null);
+        }
+    }
     /** The rows last built, and the result and depth they were built for. Every other input rebuilds the widgets, which clears them. */
     private List<CountRow> countRows;
     private Object countResult;
@@ -620,6 +642,8 @@ public class CurveScreen extends ControlScreen {
         if (result == null || result.target().error != null) return rows;
         boolean floor = result.floor();
         int mult = Math.max(1, S.depth);
+        Painted painted = painted();
+        PaintBlocks.Resolved resolved = painted == null ? null : PaintBlocks.resolve(painted, net.minecraft.core.Direction.Axis.Y);
         for (Family f : BlockChoices.FAMILIES) {
             java.util.LinkedHashMap<String, int[]> merged = new java.util.LinkedHashMap<>();
             for (int st : statesFor(f, floor)) merged.computeIfAbsent(Pieces.SHORT_NAME[st], _ -> new int[]{st, 0})[1] += result.counts()[st] * mult;
@@ -631,6 +655,7 @@ public class CurveScreen extends ControlScreen {
             int nw = tw(n);
             String title = unused ? tr("curvegen.screen.family_unused_flat", BlockChoices.familyName(f)) : S.allows(f) ? BlockChoices.familyName(f) : tr("curvegen.screen.family_off", BlockChoices.familyName(f));
             rows.add(new CountRow(true, font.plainSubstrByWidth(title, PANEL_W - nw - 6), n, nw, -1, unused || !S.allows(f), blockName, false));
+            if (painted != null) { paintedRows(rows, f, painted, resolved); continue; }
             for (var e : merged.entrySet()) {
                 int st = e.getValue()[0], count = e.getValue()[1];
                 n = String.valueOf(count);
@@ -642,6 +667,26 @@ public class CurveScreen extends ControlScreen {
             }
         }
         return rows;
+    }
+
+    /** A painted shape's rows for one piece type: one per block, with its item, the most used first. */
+    private void paintedRows(List<CountRow> rows, Family f, Painted painted, PaintBlocks.Resolved resolved) {
+        long[] counts = painted.counts()[f.ordinal()];
+        java.util.Map<Block, Long> byBlock = new java.util.LinkedHashMap<>();
+        for (int e = 0; e < counts.length; e++) {
+            if (counts[e] == 0) continue;
+            Block b = resolved.block(e - 1);   // entry 0 is the Blocks tab's choice
+            byBlock.merge(b != null ? b : BlockChoices.CHOICE.get(f), counts[e], Long::sum);
+        }
+        List<java.util.Map.Entry<Block, Long>> sorted = new ArrayList<>(byBlock.entrySet());
+        sorted.sort(java.util.Map.Entry.<Block, Long>comparingByValue().reversed());
+        for (var e : sorted) {
+            String full = e.getKey().getName().getString(), n = String.valueOf(e.getValue()), name = full;
+            int nw = tw(n), room = PANEL_W - 20 - nw - 6;
+            if (tw(name) > room) name = font.plainSubstrByWidth(name, room - tw("…")) + "…";
+            rows.add(new CountRow(false, name, n, nw, -1, false, tr("curvegen.screen.piece_count", BlockChoices.familyName(f), full, e.getValue()),
+                    false, new ItemStack(e.getKey())));
+        }
     }
 
     /** A 3D shape's rows: by piece type, then one row for each way a builder would tell its states apart. */
@@ -699,7 +744,8 @@ public class CurveScreen extends ControlScreen {
                 ctx.fill(x0, y + 10, x1, y + 11, 0x40FFFFFF);
                 if (my >= y && my < y + 11 && mx >= x0 && mx < x1 && my >= top && my < bottom) tip = r.tip;
             } else {
-                if (r.solid) drawIcon3(ctx, r.state, x0 + 1, y + 1, r.dim);
+                if (r.item != null) ctx.item(r.item, x0, y);
+                else if (r.solid) drawIcon3(ctx, r.state, x0 + 1, y + 1, r.dim);
                 else drawIcon(ctx, r.state, x0 + 1, y + 1, r.dim);
                 int c = r.dim ? 0xFF5C6470 : 0xFFC8CED6;
                 ctx.text(font, r.text, x0 + 20, y + 4, c, false);
@@ -1259,6 +1305,8 @@ public class CurveScreen extends ControlScreen {
                 textureDirty = true;
             }
         }
+        // The paint screen can change whether fences attach to full blocks, which the shape is solved with.
+        if (result != null && job == null && S.fullConnects != resultConnects) dirty = true;
         if (dirty && job == null) {
             dirty = false;
             ShapeSettings copy = S.copy();
