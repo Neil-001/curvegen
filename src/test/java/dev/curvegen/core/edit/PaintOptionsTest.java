@@ -55,9 +55,22 @@ class PaintOptionsTest {
     }
 
     @Test
+    void aShapeThatCantWrapOffersOnlyUpAndOutwards() {
+        Paint p = new Paint();
+        p.source = Source.GRADIENT;
+        p.gradient = dev.curvegen.core.paint.GradientTest.GREYS;
+        p.flow = Paint.Flow.ALONG;
+        Option.Cycler flow = (Option.Cycler) find(PaintOptions.of(p, true, false), "curvegen.paint.flow");
+        assertEquals(List.of("curvegen.radial.paint.flow.up", "curvegen.radial.paint.flow.out"), flow.names());
+        assertEquals(0, flow.get().getAsInt(), "along paints bottom to top there, and shows so");
+        flow.set().accept(1);
+        assertEquals(Paint.Flow.OUT, p.flow);
+    }
+
+    @Test
     void withoutChromaStudioSourceLeavesGradientOut() {
         Paint p = new Paint();
-        Option.Cycler source = (Option.Cycler) PaintOptions.of(p, false).getFirst();
+        Option.Cycler source = (Option.Cycler) PaintOptions.of(p, false, true).getFirst();
         assertFalse(source.names().contains("curvegen.paint.source.gradient"));
         source.set().accept(source.names().size() - 1);
         assertEquals(Source.MIX, p.source);

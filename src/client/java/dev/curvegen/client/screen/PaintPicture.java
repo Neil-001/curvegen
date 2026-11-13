@@ -2,6 +2,7 @@ package dev.curvegen.client.screen;
 
 import static dev.curvegen.client.Lang.tr;
 
+import dev.curvegen.client.chroma.Chroma;
 import dev.curvegen.client.BlockChoices;
 import dev.curvegen.client.Lang;
 import dev.curvegen.client.PaintBlocks;
@@ -60,6 +61,9 @@ public final class PaintPicture {
         return now.same(s);
     }
 
+    /** {@link Chroma#matcherVersion} for the paint on show and the paint under way: when it moves on, the shape is painted again. */
+    private int paintedMatcher, paintingMatcher;
+
     /** Starts or collects the work for showing {@code want}, which the picture keeps no hold on. */
     public void poll(ShapeSettings want) {
         is3d = want.is3d();
@@ -77,17 +81,18 @@ public final class PaintPicture {
         }
         if (paintJob != null && paintJob.isDone()) {
             try { painted = paintJob.get(); } catch (Exception _) { painted = null; }
-            paintedFor = paintingFor; paintedResult = paintingResult;
+            paintedFor = paintingFor; paintedResult = paintingResult; paintedMatcher = paintingMatcher;
             paintJob = null;
             dirty = true;
         }
-        if (paintJob == null && solveJob == null && result != null && (paintedResult != result || !paintedFor.same(want.paint))) {
+        if (paintJob == null && solveJob == null && result != null && (paintedResult != result || !paintedFor.same(want.paint)
+                || want.paint.on() && paintedMatcher != Chroma.matcherVersion())) {
             Paint paint = want.paint.copy();
             Solver.Result r = result;
             int depth = solvedFor.depth;
             boolean connects = solvedFor.fullConnects;
             Catalog catalog = paint.on() ? PaintBlocks.catalog(want) : null;
-            paintingFor = paint; paintingResult = r;
+            paintingFor = paint; paintingResult = r; paintingMatcher = Chroma.matcherVersion();
             paintJob = CurveScreen.EXEC.submit(() -> Painter2D.paint(r, depth, paint, connects, catalog));
         }
         if (paintedResult != null && texture.id() == null) dirty = true;   // released while another screen was open

@@ -94,7 +94,7 @@ public class RadialScreen extends Screen {
             case OPTIONS -> { for (Option o : Editor.options()) out.add(option(o)); }
             case BLOCKS -> { for (Family f : BlockChoices.FAMILIES) out.add(blocks(f)); }
             case PAINT -> {
-                for (Option o : PaintOptions.of(S.paint, Chroma.available())) out.add(option(o));
+                for (Option o : PaintOptions.of(S.paint, Chroma.available(), S.gen != Gen.EQUATION3)) out.add(option(o));
                 // Without Chroma Studio, Source leaves Gradient out: its tooltip says why.
                 Wedge src = out.getFirst();
                 if (!Chroma.available()) out.set(0, new Wedge(src.label(), src.value(), src.off(), tr("curvegen.paint.source_gradient_needs"),

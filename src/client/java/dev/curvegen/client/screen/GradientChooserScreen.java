@@ -89,8 +89,10 @@ public class GradientChooserScreen extends Screen {
         ctx.text(font, title, listX(), 10, 0xFFFFFFFF);
         int x0 = listX(), x1 = x0 + listW(), hover = rowAt(mx, my);
         ctx.fill(x0 - 1, TOP - 1, x1 + 1, listBottom() + 1, 0x80000000);
-        if (empty != null)
-            for (var line : font.split(Component.literal(empty), listW() - 8)) ctx.text(font, line, x0 + 4, TOP + 7, 0xFF9AA5B3, false);
+        if (empty != null) {
+            int ly = TOP + 7;
+            for (var line : font.split(Component.literal(empty), listW() - 8)) { ctx.text(font, line, x0 + 4, ly, 0xFF9AA5B3, false); ly += 10; }
+        }
         Gradient current = CurveGenClient.SETTINGS.paint.gradient;
         for (int i = scroll; i < rows.size() && i < scroll + visible(); i++) {
             Gradient g = rows.get(i);
