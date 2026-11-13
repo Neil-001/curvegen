@@ -296,9 +296,12 @@ public final class BlockChoices {
      * property {@link Pieces3#props} names. The solver has already settled connections, corner shapes and wall
      * heights by the game's rules, so nothing here depends on the neighbours.
      */
-    public static BlockState stateFor3(int piece) {
+    public static BlockState stateFor3(int piece) { return stateFor3(piece, null); }
+
+    /** The same, in {@code block} instead of the block chosen for its piece type, unless that is null. */
+    public static BlockState stateFor3(int piece, Block block) {
         if (piece == Pieces3.AIR) return Blocks.AIR.defaultBlockState();
-        Block b = CHOICE.get(Pieces3.FAMILY[piece]);
+        Block b = block != null ? block : CHOICE.get(Pieces3.FAMILY[piece]);
         BlockState s = b.defaultBlockState();
         String props = Pieces3.props(piece);
         if (!props.isEmpty())

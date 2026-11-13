@@ -22,7 +22,11 @@ public final class Shapes3 {
      * point is e²y/(t + e²) on each axis, for the largest root t of Σ(e·y/(t + e²))² = 1. Newton's method reaches
      * it from the left without overshooting, because the sum is convex and falling there.
      */
-    public static double sdEllipsoid(double px, double py, double pz, double a, double b, double c) {
+    public static double sdEllipsoid(double px, double py, double pz, double a, double b, double c) { return sdEllipsoid(px, py, pz, a, b, c, null); }
+
+    /** The same, also writing the nearest surface point into {@code near} unless it's null. At the very middle that is the middle. */
+    static double sdEllipsoid(double px, double py, double pz, double a, double b, double c, double[] near) {
+        if (near != null) { near[0] = near[1] = near[2] = 0; }
         double x = Math.abs(px), y = Math.abs(py), z = Math.abs(pz);
         // Too close to a plane of symmetry to tell from being on it, and the sums below would divide by nearly nothing.
         if (x < 1e-9 * a) x = 0;
@@ -61,6 +65,7 @@ public final class Shapes3 {
             else qz = c * rest;
         }
         double d = Math.sqrt((qx - x) * (qx - x) + (qy - y) * (qy - y) + (qz - z) * (qz - z));
+        if (near != null) { near[0] = Math.copySign(qx, px); near[1] = Math.copySign(qy, py); near[2] = Math.copySign(qz, pz); }
         return inside ? -d : d;
     }
 
@@ -120,6 +125,23 @@ public final class Shapes3 {
                 put(yz, k, ox, oy + b * cos, oz + c * sin);
             }
             return List.of(xy, xz, yz);
+        }
+
+        /**
+         * Round the equator from the back, and from the bottom pole to the top, by the angles of a point on the
+         * surface once the ellipsoid is squashed into a ball, so the same number of repeats goes round at every
+         * height and they squeeze together towards the poles. A point off the surface takes its nearest point on it.
+         */
+        @Override public Wrapping wrapping() {
+            double around = perimeter(a, c), up = (perimeter(a, b) + perimeter(c, b)) / 4;
+            double ox = pad + a, oy = pad + b, oz = pad + c;
+            return new Wrap(around, up, true, false, (x, y, z, out) -> {
+                double[] q = new double[3];
+                sdEllipsoid(x - ox, y - oy, z - oz, a, b, c, q);
+                double px = q[0] / a, py = q[1] / b, pz = q[2] / c;
+                out[0] = turn(Math.atan2(-px, pz)) * around;
+                out[1] = (Math.atan2(py, Math.hypot(px, pz)) / Math.PI + 0.5) * up;
+            });
         }
     }
 
@@ -182,6 +204,20 @@ public final class Shapes3 {
                 out.add(line);
             }
             return out;
+        }
+
+        /**
+         * Round the ring from the back, and round the tube from underneath, up the outside and back down through the
+         * hole. A point takes the place on the tube's surface straight out from its core, before stretching.
+         */
+        @Override public Wrapping wrapping() {
+            double around = perimeter(major * sx, major * sz), tube = perimeter(minor * (sx + sz) / 2, minor * sy);
+            double ox = nx / 2.0, oy = ny / 2.0, oz = nz / 2.0;
+            return new Wrap(around, tube, true, true, (x, y, z, out) -> {
+                double px = (x - ox) / sx, py = (y - oy) / sy, pz = (z - oz) / sz;
+                out[0] = turn(Math.atan2(-px, pz)) * around;
+                out[1] = turn(Math.atan2(py, Math.hypot(px, pz) - major) + Math.PI / 2) * tube;
+            });
         }
     }
 
@@ -781,6 +817,89 @@ public final class Shapes3 {
             for (int c = 0; c < 3; c++) line[(last - first + 1) * 3 + c] = g[last * 7 + c] + g[last * 7 + 3 + c];
             return List.of(line, polygon);
         }
+
+        /**
+         * Along the curve from its first point, and round the tube from its seam. The seam turns with the curve as
+         * little as it can, never twisting about it, and is set as near underneath as that allows over the whole
+         * curve. A point takes the place on the tube straight out from the nearest point of the curve; past a capped
+         * end, that is the end.
+         */
+        @Override public Wrapping wrapping() {
+            if (error != null) return null;
+            double[] g = segs();
+            int first = open ? 1 : 0, last = g.length / 7 - 1 - first, n = last - first + 1;
+            // Per piece: its start along the curve, then its direction T, seam N and third axis B = T × N, in own axes.
+            double[] at = new double[n + 1], frame = new double[n * 9];
+            double[] nn = null;
+            for (int k = 0; k < n; k++) {
+                int o = (first + k) * 7;
+                double l = Math.sqrt(g[o + 3] * g[o + 3] + g[o + 4] * g[o + 4] + g[o + 5] * g[o + 5]);
+                at[k + 1] = at[k] + l;
+                double[] t = l > 0 ? new double[]{g[o + 3] / l, g[o + 4] / l, g[o + 5] / l} : k > 0 ? new double[]{frame[(k - 1) * 9], frame[(k - 1) * 9 + 1], frame[(k - 1) * 9 + 2]} : new double[]{1, 0, 0};
+                // The last seam with the new direction taken out of it: the turn that doesn't twist, for short pieces.
+                double[] m = nn == null ? new double[]{0, -1, 0} : nn;
+                double d = m[0] * t[0] + m[1] * t[1] + m[2] * t[2];
+                double[] q = {m[0] - d * t[0], m[1] - d * t[1], m[2] - d * t[2]};
+                double ql = Math.sqrt(q[0] * q[0] + q[1] * q[1] + q[2] * q[2]);
+                if (ql < 1e-6) {
+                    // Straight down the seam: any square direction will do.
+                    q = Math.abs(t[0]) < 0.9 ? new double[]{1 - t[0] * t[0], -t[0] * t[1], -t[0] * t[2]} : new double[]{-t[1] * t[0], 1 - t[1] * t[1], -t[1] * t[2]};
+                    ql = Math.sqrt(q[0] * q[0] + q[1] * q[1] + q[2] * q[2]);
+                }
+                nn = new double[]{q[0] / ql, q[1] / ql, q[2] / ql};
+                setFrame(frame, k, t, nn);
+            }
+            // Turn every seam by the one angle that puts them nearest underneath, weighed by the pieces' lengths.
+            double sc = 0, ss = 0;
+            for (int k = 0; k < n; k++) {
+                double w = at[k + 1] - at[k];
+                sc -= w * frame[k * 9 + 4];   // down · N
+                ss -= w * frame[k * 9 + 7];   // down · B
+            }
+            if (sc * sc + ss * ss > 1e-12 * at[n] * at[n]) {
+                double len = Math.hypot(sc, ss), cos = sc / len, sin = ss / len;
+                for (int k = 0; k < n; k++) {
+                    int o = k * 9;
+                    double[] t = {frame[o], frame[o + 1], frame[o + 2]};
+                    double[] m = {cos * frame[o + 3] + sin * frame[o + 6], cos * frame[o + 4] + sin * frame[o + 7], cos * frame[o + 5] + sin * frame[o + 8]};
+                    setFrame(frame, k, t, m);
+                }
+            }
+            double length = at[n], around = 2 * Math.PI * hi;
+            Near3 near = near();
+            return new Wrap(length, around, false, true, (x, y, z, out) -> {
+                int b = near.bucket(x, y, z), count = near.count(b);
+                int[] items = near.items(b);
+                int best = -1;
+                double bestD = Double.POSITIVE_INFINITY;
+                for (int q = 0; q < count; q++) {
+                    int k = items[q] - first;
+                    if (k < 0 || k >= n) continue;
+                    double d = off(g, items[q], x, y, z);
+                    if (d < bestD) { bestD = d; best = k; }
+                }
+                if (best < 0)
+                    for (int k = 0; k < n; k++) {
+                        double d = off(g, k + first, x, y, z);
+                        if (d < bestD) { bestD = d; best = k; }
+                    }
+                int o = (best + first) * 7, f = best * 9;
+                double px = x - g[o], py = y - g[o + 1], pz = z - g[o + 2];
+                double t = Math.max(0, Math.min(1, (px * g[o + 3] + py * g[o + 4] + pz * g[o + 5]) * g[o + 6]));
+                double rx = px - g[o + 3] * t, ry = py - g[o + 4] * t, rz = pz - g[o + 5] * t;
+                out[0] = at[best] + t * (at[best + 1] - at[best]);
+                double cn = rx * frame[f + 3] + ry * frame[f + 4] + rz * frame[f + 5], cb = rx * frame[f + 6] + ry * frame[f + 7] + rz * frame[f + 8];
+                out[1] = turn(Math.atan2(cb, cn)) * around;
+            });
+        }
+
+        /** Stores piece k's frame: T, then N, then B = T × N worked out in own axes, which keeps the pattern unmirrored. */
+        private static void setFrame(double[] frame, int k, double[] t, double[] m) {
+            int o = k * 9;
+            frame[o] = t[0]; frame[o + 1] = t[1]; frame[o + 2] = t[2];
+            frame[o + 3] = m[0]; frame[o + 4] = m[1]; frame[o + 5] = m[2];
+            frame[o + 6] = t[1] * m[2] - t[2] * m[1]; frame[o + 7] = t[2] * m[0] - t[0] * m[2]; frame[o + 8] = t[0] * m[1] - t[1] * m[0];
+        }
     }
 
     /**
@@ -1123,6 +1242,41 @@ public final class Shapes3 {
             return in > R_CELL ? 1 + (int) Math.floor(in - R_CELL) : 0;
         }
 
+        /**
+         * Along the columns (from the first row to the last) and along the rows (from the first column to the last),
+         * each as long as the patch's average that way. A point takes the place of its closest point on the patch.
+         * A surface has two sides, and the pattern reads unmirrored from the one that faces the player or, on a
+         * patch that lies flatter than it stands, from above; from the other side it's mirrored.
+         */
+        @Override public Wrapping wrapping() {
+            if (error != null) return null;
+            Built b = built();
+            double[] at = b.at;
+            int w = b.nu + 1;
+            double along = 0, across = 0, nx = 0, ny = 0, nz = 0;
+            for (int a = 0; a <= b.nu; a++)
+                for (int v = 0; v < b.nv; v++) along += Math.sqrt(d2(at, (v * w + a) * 18, ((v + 1) * w + a) * 18));
+            for (int v = 0; v <= b.nv; v++)
+                for (int a = 0; a < b.nu; a++) across += Math.sqrt(d2(at, (v * w + a) * 18, (v * w + a + 1) * 18));
+            along /= b.nu + 1; across /= b.nv + 1;
+            for (int k = 0; k < w * (b.nv + 1); k++) {
+                int o = k * 18;
+                // Along the columns is the patch's v, and along the rows its u. The side that sees them unmirrored is -(dv × du).
+                nx -= at[o + 7] * at[o + 5] - at[o + 8] * at[o + 4];
+                ny -= at[o + 8] * at[o + 3] - at[o + 6] * at[o + 5];
+                nz -= at[o + 6] * at[o + 4] - at[o + 7] * at[o + 3];
+            }
+            boolean flip = Math.abs(ny) > Math.abs(nz) ? ny < 0 : nz > 0;
+            double length = along, width = across;
+            return new Wrap(length, width, false, false, (x, y, z, out) -> {
+                double[] r = new double[7];
+                if (foot(b, x, y, z, r) == 0) { out[0] = 0; out[1] = 0; return; }
+                double u = Math.max(0, Math.min(1, r[6] / b.nv)), v = Math.max(0, Math.min(1, r[5] / b.nu));
+                out[0] = (flip ? 1 - u : u) * length;
+                out[1] = v * width;
+            });
+        }
+
         /** Nine lines across the patch each way, then the control net's rows and columns. */
         @Override public List<double[]> wireframe() {
             List<double[]> w = wires;
@@ -1152,6 +1306,27 @@ public final class Shapes3 {
             }
             return wires = w;
         }
+    }
+
+    /** A {@link Shape3.Wrapping} from its sizes and a function that places a point. */
+    private record Wrap(double length, double width, boolean closedAlong, boolean closedAcross, Placer placer) implements Shape3.Wrapping {
+        @Override public void place(double x, double y, double z, double[] out) { placer.place(x, y, z, out); }
+    }
+
+    private interface Placer { void place(double x, double y, double z, double[] out); }
+
+    /** An angle in radians as a fraction of a turn, from 0 up to 1. */
+    private static double turn(double angle) {
+        double t = angle / (2 * Math.PI);
+        t -= Math.floor(t);
+        return t >= 1 ? 0 : t;
+    }
+
+    /** The perimeter of an ellipse with these semi-axes, by Ramanujan's second formula, within a few parts in a million. */
+    static double perimeter(double a, double b) {
+        if (a + b <= 0) return 0;
+        double h = (a - b) * (a - b) / ((a + b) * (a + b));
+        return Math.PI * (a + b) * (1 + 3 * h / (10 + Math.sqrt(4 - 3 * h)));
     }
 
     private static double thickness(double t) { return Math.max(0.0625, Math.min(50, t)); }

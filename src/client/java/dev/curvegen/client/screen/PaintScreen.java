@@ -14,6 +14,7 @@ import dev.curvegen.core.paint.Paint;
 import dev.curvegen.core.paint.Paint.Arrange;
 import dev.curvegen.core.paint.Paint.Empty;
 import dev.curvegen.core.paint.Paint.Fit;
+import dev.curvegen.core.paint.Paint.Mapping;
 import dev.curvegen.core.paint.Paint.On;
 import dev.curvegen.core.paint.Paint.Source;
 import dev.curvegen.core.paint.Painted;
@@ -29,6 +30,7 @@ import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Tooltip;
+import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
@@ -38,7 +40,8 @@ import net.minecraft.network.chat.Component;
  * painted as the settings stand ({@link PaintPicture}). Every control changes {@code ShapeSettings.paint} at once, and
  * the editor and the main screen repaint from it. The rows under Source belong to the source, built by one method per
  * source, so a new source brings its own rows without reshaping the screen. With Source: Off the pattern's rows stay,
- * greyed out. A mix has fewer rows, so it leaves two empty above "One material per colour".
+ * greyed out. A mix has fewer rows, so it leaves two empty above "One material per colour". Dragging a 3D shape's
+ * picture turns it.
  */
 public class PaintScreen extends ControlScreen {
     private static final ShapeSettings S = CurveGenClient.SETTINGS;
@@ -58,6 +61,8 @@ public class PaintScreen extends ControlScreen {
     private boolean lineShown;
 
     private final PaintPicture picture = new PaintPicture();
+    /** Whether a 3D shape's picture is being turned by a drag. */
+    private boolean turning;
 
     public PaintScreen(Screen parent) {
         super(Component.translatable("curvegen.paint.title"));
@@ -65,6 +70,7 @@ public class PaintScreen extends ControlScreen {
     }
 
     static Component sourceName(Source s) { return Component.translatable("curvegen.paint.source." + s.name().toLowerCase(Locale.ROOT)); }
+    private static Component mappingName(Mapping m) { return Component.translatable("curvegen.paint.mapping." + m.name().toLowerCase(Locale.ROOT)); }
     private static Component onName(On o) { return Component.translatable("curvegen.paint.on." + o.name().toLowerCase(Locale.ROOT)); }
     private static Component fitName(Fit f) { return Component.translatable("curvegen.paint.fit." + f.name().toLowerCase(Locale.ROOT)); }
     private static Component emptyName(Empty e) { return Component.translatable("curvegen.paint.empty." + e.name().toLowerCase(Locale.ROOT)); }
@@ -85,6 +91,7 @@ public class PaintScreen extends ControlScreen {
         int need = 170;
         for (Source s : Source.values()) need = Math.max(need, opt(tr("curvegen.paint.source"), sourceName(s)) + PAD);
         for (On o : On.values()) need = Math.max(need, opt(tr("curvegen.paint.pattern_on"), onName(o)) + PAD);
+        for (Mapping m : Mapping.values()) need = Math.max(need, opt(tr("curvegen.paint.mapping"), mappingName(m)) + PAD);
         int fit = 0;
         for (Fit f : Fit.values()) fit = Math.max(fit, opt(tr("curvegen.paint.fit"), fitName(f)));
         need = Math.max(need, fit + PAD + GAP + tw(tr("curvegen.paint.size")) + 3 + DIGIT);
@@ -153,12 +160,20 @@ public class PaintScreen extends ControlScreen {
         chooser(PatternStore.shownName(p.pattern), tr("curvegen.paint.choose_tip"), () -> new PatternLibraryScreen(this,
                 chosen -> PatternLibraryScreen.use(S, chosen), () -> new PaintScreen(new CurveScreen())));
 
-        // Face or edge, for a 2D shape more than one block deep. 3D shapes will have their mapping here.
-        boolean deep = S.depth > 1;
-        add(cycler(List.of(On.values()), p.onFor(S.depth), PaintScreen::onName, M, y(2), pw, tr("curvegen.paint.pattern_on"), v -> {
-            S.paint.on = v;
-        }), on && !S.is3d() && deep, tr("curvegen.paint.on_tip"),
-                S.is3d() ? tr("curvegen.paint.not_3d") : !on ? offTip : tr("curvegen.paint.on_depth_tip"));
+        if (S.is3d()) {
+            // How the pattern goes onto a 3D shape. A 3D equation can't be wrapped, so it only offers the three projections.
+            boolean wraps = S.gen != ShapeSettings.Gen.EQUATION3;
+            List<Mapping> choices = wraps ? List.of(Mapping.values()) : List.of(Mapping.ABOVE, Mapping.FRONT, Mapping.SIDE);
+            add(cycler(choices, p.mappingFor(wraps), PaintScreen::mappingName, M, y(2), pw, tr("curvegen.paint.mapping"), v -> {
+                S.paint.mapping = v;
+            }), on, wraps ? tr("curvegen.paint.mapping_tip") : tr("curvegen.paint.mapping_tip") + '\n' + '\n' + tr("curvegen.paint.mapping_no_wrap_tip"), offTip);
+        } else {
+            // Face or edge, for a 2D shape more than one block deep.
+            boolean deep = S.depth > 1;
+            add(cycler(List.of(On.values()), p.onFor(S.depth), PaintScreen::onName, M, y(2), pw, tr("curvegen.paint.pattern_on"), v -> {
+                S.paint.on = v;
+            }), on && deep, tr("curvegen.paint.on_tip"), !on ? offTip : tr("curvegen.paint.on_depth_tip"));
+        }
 
         // Fit and Size.
         int sizeW = tw(tr("curvegen.paint.size")) + 3 + DIGIT, fitW = pw - GAP - sizeW;
@@ -220,6 +235,13 @@ public class PaintScreen extends ControlScreen {
             do seed = java.util.concurrent.ThreadLocalRandom.current().nextInt(); while (seed == S.paint.seed);
             S.paint.seed = seed;
         }).bounds(M, y(4), pw, h).build(), tr("curvegen.paint.shuffle_tip"));
+
+        // A 3D shape's mapping, greyed: a mix places blocks by where they are, not by laying a pattern on the shape.
+        if (S.is3d()) {
+            boolean wraps = S.gen != ShapeSettings.Gen.EQUATION3;
+            add(cycler(List.of(p.mappingFor(wraps)), p.mappingFor(wraps), PaintScreen::mappingName, M, y(5), pw, tr("curvegen.paint.mapping"), _ -> { }),
+                    false, null, tr("curvegen.paint.mapping_mix_tip"));
+        }
     }
 
     /** "One material per colour", which every source has, each with its own setting. */
@@ -280,7 +302,6 @@ public class PaintScreen extends ControlScreen {
 
     /** The status line and its tooltip: how many blocks fell to the closest colour, and which and why. */
     private String[] status() {
-        if (S.is3d()) return new String[]{tr("curvegen.paint.not_3d"), null};
         if (!S.paint.on()) return new String[]{tr("curvegen.paint.status_off"), tr("curvegen.paint.source_tip")};
         if (picture.error() != null) return new String[]{"", null};
         Painted painted = picture.painted();
@@ -319,6 +340,26 @@ public class PaintScreen extends ControlScreen {
             ctx.setTooltipForNextFrame(font.split(Component.literal(status[1]), 240), mx, my);
 
         picture.draw(ctx, font, S.is3d(), pvX0(), TOP, width - M, pvY1());
+    }
+
+    /** Dragging the 3D picture turns it. */
+    @Override
+    public boolean mouseClicked(MouseButtonEvent event, boolean doubled) {
+        if (super.mouseClicked(event, doubled)) return true;
+        turning = S.is3d() && event.x() >= pvX0() && event.x() < width - M && event.y() >= TOP && event.y() < pvY1();
+        return turning;
+    }
+
+    @Override
+    public boolean mouseDragged(MouseButtonEvent event, double dx, double dy) {
+        if (turning) { picture.orbit(dx, dy); return true; }
+        return super.mouseDragged(event, dx, dy);
+    }
+
+    @Override
+    public boolean mouseReleased(MouseButtonEvent event) {
+        turning = false;
+        return super.mouseReleased(event);
     }
 
     @Override

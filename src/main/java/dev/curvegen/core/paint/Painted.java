@@ -9,7 +9,8 @@ import java.util.List;
  *
  * <p>{@code slots} holds, per block, an index into {@code blocks}, or -1 for the Blocks tab's choice for its piece
  * type. A shape says what a slot is: a 2D shape's is {@code (k * ny + j) * nx + i} over {@code layers} layers, where
- * a single layer stands for every layer. A full block's entry is a block state with its properties; turn it by
+ * a single layer stands for every layer. A 3D shape's is the block's place among the solve's blocks in grid order,
+ * air left out, over one layer ({@link Painter3}). A full block's entry is a block state with its properties; turn it by
  * {@code quarters[entry]} quarter turns anticlockwise as the pattern is seen, which is how the pattern was turned
  * where that entry lies. Every other entry is a block id. The same block can be two entries, turned differently.
  *

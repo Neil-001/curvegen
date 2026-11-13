@@ -122,4 +122,63 @@ class TilingTest {
             assertEquals(8, seen.size(), "every cell still shows at " + turn + "°");
         }
     }
+
+    /** Round a strip closed both ways, as a torus is, the pattern meets itself round both loops at any turn. */
+    @Test
+    void aStripClosedBothWaysMeetsItselfBothWays() {
+        Paint p = paint();
+        for (Fit fit : new Fit[]{Fit.REPEAT, Fit.REPEAT_ALONG})
+            for (int turn = 0; turn < 360; turn += 5) {
+                p.turn = turn; p.size = 2;
+                double L = 61.3, A = 17.9;
+                Tiling t = new Tiling(P, p, fit, new Strip(L, A, true, true));
+                java.util.Set<Integer> seen = new java.util.HashSet<>();
+                for (double v = 0.2371; v < A; v += 0.4791)
+                    for (double u = 0.3119; u < L; u += 0.5137) {
+                        assertEquals(at(t, u, v), at(t, u + L, v), "along at " + u + ", " + v + ", " + turn + "°");
+                        assertEquals(at(t, u, v), at(t, u, v + A), "across at " + u + ", " + v + ", " + turn + "°");
+                        seen.add(at(t, u, v));
+                    }
+                assertEquals(8, seen.size(), "every cell still shows at " + turn + "°, " + fit);
+                if (fit == Fit.REPEAT) assertEquals(0, Math.floorMod(Math.round(t.angle) - turn + 180, 360) - 180, 15, "nudged only slightly at " + turn + "°");
+            }
+    }
+
+    /** Round a strip closed only across, as a tube is, the pattern meets itself round the tube at any turn. */
+    @Test
+    void aStripClosedOnlyAcrossMeetsItselfAcross() {
+        Paint p = paint();
+        for (Fit fit : new Fit[]{Fit.REPEAT, Fit.REPEAT_ALONG})
+            for (int turn = 0; turn < 360; turn += 5) {
+                p.turn = turn; p.size = 1;
+                double L = 40, A = 2 * Math.PI * 3;
+                Tiling t = new Tiling(P, p, fit, new Strip(L, A, false, true));
+                java.util.Set<Integer> seen = new java.util.HashSet<>();
+                for (double v = 0.2371; v < A; v += 0.4791)
+                    for (double u = 0.3119; u < L; u += 0.5137) {
+                        assertEquals(at(t, u, v), at(t, u, v + A), "across at " + u + ", " + v + ", " + turn + "°, " + fit);
+                        seen.add(at(t, u, v));
+                    }
+                assertEquals(8, seen.size(), "every cell still shows at " + turn + "°, " + fit);
+            }
+    }
+
+    /** Round a tube thinner than one repeat, a turned pattern still shows every cell and meets itself round the tube. */
+    @Test
+    void aThinTubeKeepsATurnedPatternWhole() {
+        Paint p = paint();
+        p.size = 8;
+        for (int turn = 0; turn < 360; turn += 5) {
+            p.turn = turn;
+            double L = 40, A = 2 * Math.PI;
+            Tiling t = new Tiling(P, p, Fit.REPEAT, new Strip(L, A, false, true));
+            java.util.Set<Integer> seen = new java.util.HashSet<>();
+            for (double v = 0.0371; v < A; v += 0.0791)
+                for (double u = 0.3119; u < L; u += 0.5137) {
+                    assertEquals(at(t, u, v), at(t, u, v + A), "across at " + u + ", " + v + ", " + turn + "°");
+                    seen.add(at(t, u, v));
+                }
+            assertTrue(seen.size() >= 4, seen.size() + " cells at " + turn + "°");
+        }
+    }
 }
