@@ -28,7 +28,7 @@ public final class MixLayout {
         rough = Math.min(1, this.patch / 4) * .5;
         upTo = new long[mix.paletteSize()];
         long t = 0;
-        for (int k = 0; k < upTo.length; k++) upTo[k] = t += Math.max(0, mix.count(k));
+        for (int k = 0; k < upTo.length; k++) upTo[k] = t += mix.count(k);
         if (t <= 0) throw new IllegalArgumentException();
     }
 

@@ -13,7 +13,8 @@ import java.util.Set;
 /**
  * Paints a solved 2D shape. It reads the solve and never changes it: every piece stays where the solver put it.
  * Lines and outlines wrap the pattern, filled shapes project it, from {@link Wrap2D}, and {@link Ladder} picks each
- * block. A mix needs no wrap: {@link MixLayout} places its blocks by position, through the depth too. Fast enough to run again on every change of a paint setting without solving again.
+ * block. A mix needs no wrap: {@link MixLayout} places its blocks by position, through the depth too. Fast enough
+ * to run again on every change of a paint setting without solving again.
  */
 public final class Painter2D {
     private Painter2D() {}

@@ -28,6 +28,7 @@ import java.util.concurrent.Future;
 import java.util.function.BooleanSupplier;
 import java.util.function.IntConsumer;
 import java.util.function.IntSupplier;
+import java.util.function.Supplier;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
@@ -169,16 +170,11 @@ public class PaintScreen extends ControlScreen {
         String offTip = tr("curvegen.paint.off_tip");
 
         // Which pattern, with its colours beside it. It can be chosen while paint is off: choosing one turns it on.
-        swatchY = y(1) + (h - 16) / 2;
-        String name = PatternChooserScreen.name(p.pattern), text = name + "…";
-        int bw = pw - 20;
-        boolean cut = tw(text) > bw - 8;
-        if (cut) text = font.plainSubstrByWidth(name, bw - 8 - tw("…")) + "…";
-        add(Button.builder(Component.literal(text), _ -> minecraft.gui.setScreen(new PatternChooserScreen(this, chosen -> {
+        chooser(PatternChooserScreen.name(p.pattern), tr("curvegen.paint.choose_tip"), () -> new PatternChooserScreen(this, chosen -> {
             S.paint.pattern = chosen;
             if (!S.paint.on()) S.paint.source = Source.PATTERN;
             paintChanged(false);
-        }))).bounds(M + 20, y(1), bw, h).build(), cut ? name + '\n' + tr("curvegen.paint.choose_tip") : tr("curvegen.paint.choose_tip"));
+        }));
 
         // Face or edge, for a 2D shape more than one block deep. 3D shapes will have their mapping here.
         boolean deep = S.depth > 1;
@@ -215,18 +211,24 @@ public class PaintScreen extends ControlScreen {
                 false, null, on ? tr("curvegen.paint.empty_tip") : offTip);
     }
 
-    /** A mix's rows: which blocks, Scatter or Patches, the patches' size and Shuffle. */
-    private void mixRows() {
-        Paint p = S.paint;
+    /** The second row's button that opens {@code open}, named {@code name} and cut to fit, with the swatch beside it. */
+    private void chooser(String name, String tip, Supplier<Screen> open) {
         swatchY = y(1) + (h - 16) / 2;
-        String name = MixChooserScreen.name(p.mix), text = name + "…";
+        String text = name + "…";
         int bw = pw - 20;
         boolean cut = tw(text) > bw - 8;
         if (cut) text = font.plainSubstrByWidth(name, bw - 8 - tw("…")) + "…";
-        add(Button.builder(Component.literal(text), _ -> minecraft.gui.setScreen(new MixChooserScreen(this, chosen -> {
+        add(Button.builder(Component.literal(text), _ -> minecraft.gui.setScreen(open.get())).bounds(M + 20, y(1), bw, h).build(),
+                cut ? name + '\n' + tip : tip);
+    }
+
+    /** A mix's rows: which blocks, Scatter or Patches, the patches' size and Shuffle. */
+    private void mixRows() {
+        Paint p = S.paint;
+        chooser(MixChooserScreen.name(p.mix), tr("curvegen.paint.mix_choose_tip"), () -> new MixChooserScreen(this, chosen -> {
             S.paint.mix = chosen;
             paintChanged(false);
-        }))).bounds(M + 20, y(1), bw, h).build(), cut ? name + '\n' + tr("curvegen.paint.mix_choose_tip") : tr("curvegen.paint.mix_choose_tip"));
+        }));
 
         add(cycler(List.of(Arrange.values()), p.arrange, PaintScreen::arrangeName, M, y(2), pw, tr("curvegen.paint.arrange"), v -> {
             S.paint.arrange = v;
