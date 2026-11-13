@@ -336,7 +336,7 @@
   "curvegen.paint.open_chroma": "Otwórz Chroma Studio…",
   "curvegen.paint.open_chroma_tip": "Otwiera kartę Gradient w Chroma Studio z tym gradientem, aby go zmienić lub zapisać nowy. Po zamknięciu wracasz do gry.",
   "curvegen.paint.status_no_gradient": "Wybierz gradient do malowania.",
-  "curvegen.paint.preset_no_gradient": "Wczytano %s bez malowania: jego gradient wymaga Chroma Studio 1.2 lub nowszego.",
+  "curvegen.paint.preset_no_gradient": "Wczytano bez malowania: wymaga Chroma Studio 1.2",
   "curvegen.shape.torus.stretched_filled": "Torus %1$s×%2$s×%3$s, rurka %4$s, wypełniony, rozciągnięty z pierścienia %5$s",
   "curvegen.shape.torus.stretched_hollow": "Torus %1$s×%2$s×%3$s, rurka %4$s, pusty, rozciągnięty z pierścienia %5$s",
   "curvegen.count3.full": "Pełny blok",

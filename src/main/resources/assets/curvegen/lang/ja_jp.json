@@ -336,7 +336,7 @@
   "curvegen.paint.open_chroma": "Chroma Studioを開く…",
   "curvegen.paint.open_chroma_tip": "このグラデーションでChroma Studioのグラデーションタブを開き、変更したり新しく保存したりできます。閉じるとゲームに戻ります。",
   "curvegen.paint.status_no_gradient": "塗るグラデーションを選んでください。",
-  "curvegen.paint.preset_no_gradient": "%sを塗装なしで読み込みました。このグラデーションにはChroma Studio 1.2以降が必要です。",
+  "curvegen.paint.preset_no_gradient": "塗装なしで読み込み：Chroma Studio 1.2 が必要",
   "curvegen.shape.torus.stretched_filled": "トーラス %1$s×%2$s×%3$s、チューブ%4$s、塗りつぶし、%5$sのリングから伸縮",
   "curvegen.shape.torus.stretched_hollow": "トーラス %1$s×%2$s×%3$s、チューブ%4$s、中空、%5$sのリングから伸縮",
   "curvegen.count3.full": "フルブロック",

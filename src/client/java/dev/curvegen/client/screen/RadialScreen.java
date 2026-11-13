@@ -142,7 +142,7 @@ public class RadialScreen extends Screen {
         Gen g = p.gen();
         if (g == null) return;
         PresetData.apply(p.data, g, S);
-        if (withBlocks && p.applyBlocks(S, BlockChoices.CHOICE)) Placement.say(Component.literal(tr("curvegen.paint.preset_no_gradient", p.name)));
+        if (withBlocks && p.applyBlocks(S, BlockChoices.CHOICE)) Placement.say(Component.literal(tr("curvegen.paint.preset_no_gradient")));
         // A hologram that's out takes the change when the presets screen closes.
         if (!Editor.isActive() && EditShape.supports(S.gen)) Editor.start();
     }

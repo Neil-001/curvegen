@@ -336,7 +336,7 @@
   "curvegen.paint.open_chroma": "Open Chroma Studio…",
   "curvegen.paint.open_chroma_tip": "Opens Chroma Studio's Gradient tab with this gradient, to change it or save a new one. Closing it returns to the game.",
   "curvegen.paint.status_no_gradient": "Choose a gradient to paint with.",
-  "curvegen.paint.preset_no_gradient": "Loaded %s without its paint: its gradient needs Chroma Studio 1.2 or newer.",
+  "curvegen.paint.preset_no_gradient": "Loaded unpainted: needs Chroma Studio 1.2",
   "curvegen.shape.torus.stretched_filled": "Torus %1$s×%2$s×%3$s, tube %4$s, filled, stretched from a %5$s ring",
   "curvegen.shape.torus.stretched_hollow": "Torus %1$s×%2$s×%3$s, tube %4$s, hollow, stretched from a %5$s ring",
   "curvegen.count3.full": "Full block",

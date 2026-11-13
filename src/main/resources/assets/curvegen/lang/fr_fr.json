@@ -336,7 +336,7 @@
   "curvegen.paint.open_chroma": "Ouvrir Chroma Studio…",
   "curvegen.paint.open_chroma_tip": "Ouvre l'onglet Dégradé de Chroma Studio avec ce dégradé, pour le modifier ou en enregistrer un nouveau. En le fermant, vous revenez au jeu.",
   "curvegen.paint.status_no_gradient": "Choisissez un dégradé pour peindre.",
-  "curvegen.paint.preset_no_gradient": "%s chargé sans sa peinture : son dégradé nécessite Chroma Studio 1.2 ou plus récent.",
+  "curvegen.paint.preset_no_gradient": "Chargé sans peinture : requiert Chroma Studio 1.2",
   "curvegen.shape.torus.stretched_filled": "Tore %1$s×%2$s×%3$s, tube %4$s, rempli, étiré depuis un anneau de %5$s",
   "curvegen.shape.torus.stretched_hollow": "Tore %1$s×%2$s×%3$s, tube %4$s, creux, étiré depuis un anneau de %5$s",
   "curvegen.count3.full": "Bloc plein",

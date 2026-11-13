@@ -335,7 +335,7 @@ public class CurveScreen extends ControlScreen {
         pointScroll = 0;
         dirty = true; autoFit = true; fit3 = true;
         rebuildWidgets();
-        flash(noGradient ? tr("curvegen.paint.preset_no_gradient", p.name) : tr("curvegen.screen.loaded_preset_s", p.name));
+        flash(noGradient ? tr("curvegen.paint.preset_no_gradient") : tr("curvegen.screen.loaded_preset_s", p.name));
     }
 
     private void switchTab(Tab t) {

@@ -336,7 +336,7 @@
   "curvegen.paint.open_chroma": "Chroma Studio öffnen…",
   "curvegen.paint.open_chroma_tip": "Öffnet den Tab Verlauf von Chroma Studio mit diesem Verlauf, um ihn zu ändern oder einen neuen zu speichern. Beim Schließen geht es zurück ins Spiel.",
   "curvegen.paint.status_no_gradient": "Wähle einen Verlauf zum Bemalen.",
-  "curvegen.paint.preset_no_gradient": "%s ohne Bemalung geladen: Der Verlauf braucht Chroma Studio 1.2 oder neuer.",
+  "curvegen.paint.preset_no_gradient": "Ohne Bemalung geladen: braucht Chroma Studio 1.2",
   "curvegen.shape.torus.stretched_filled": "Torus %1$s×%2$s×%3$s, Rohr %4$s, gefüllt, aus einem Ring von %5$s gestreckt",
   "curvegen.shape.torus.stretched_hollow": "Torus %1$s×%2$s×%3$s, Rohr %4$s, hohl, aus einem Ring von %5$s gestreckt",
   "curvegen.count3.full": "Vollblock",

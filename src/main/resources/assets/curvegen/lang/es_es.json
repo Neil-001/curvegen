@@ -336,7 +336,7 @@
   "curvegen.paint.open_chroma": "Abrir Chroma Studio…",
   "curvegen.paint.open_chroma_tip": "Abre la pestaña Degradado de Chroma Studio con este degradado, para cambiarlo o guardar uno nuevo. Al cerrarla vuelves al juego.",
   "curvegen.paint.status_no_gradient": "Elige un degradado con el que pintar.",
-  "curvegen.paint.preset_no_gradient": "Se cargó %s sin su pintura: su degradado requiere Chroma Studio 1.2 o posterior.",
+  "curvegen.paint.preset_no_gradient": "Cargado sin pintar: requiere Chroma Studio 1.2",
   "curvegen.shape.torus.stretched_filled": "Toro %1$s×%2$s×%3$s, tubo %4$s, relleno, estirado desde un anillo de %5$s",
   "curvegen.shape.torus.stretched_hollow": "Toro %1$s×%2$s×%3$s, tubo %4$s, hueco, estirado desde un anillo de %5$s",
   "curvegen.count3.full": "Bloque completo",

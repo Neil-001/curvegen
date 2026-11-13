@@ -336,7 +336,7 @@
   "curvegen.paint.open_chroma": "Chroma Studio 열기…",
   "curvegen.paint.open_chroma_tip": "이 그라데이션으로 Chroma Studio의 그라데이션 탭을 열어 바꾸거나 새로 저장합니다. 닫으면 게임으로 돌아옵니다.",
   "curvegen.paint.status_no_gradient": "칠할 그라데이션을 고르세요.",
-  "curvegen.paint.preset_no_gradient": "%s을(를) 칠 없이 불러왔습니다. 이 그라데이션은 Chroma Studio 1.2 이상이 필요합니다.",
+  "curvegen.paint.preset_no_gradient": "칠 없이 불러옴: Chroma Studio 1.2 필요",
   "curvegen.shape.torus.stretched_filled": "원환체 %1$s×%2$s×%3$s, 관 %4$s, 채움, 고리 %5$s에서 늘림",
   "curvegen.shape.torus.stretched_hollow": "원환체 %1$s×%2$s×%3$s, 관 %4$s, 속 비움, 고리 %5$s에서 늘림",
   "curvegen.count3.full": "꽉 찬 블록",

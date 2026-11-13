@@ -336,7 +336,7 @@
   "curvegen.paint.open_chroma": "打开 Chroma Studio…",
   "curvegen.paint.open_chroma_tip": "带着这个渐变打开 Chroma Studio 的渐变页，以便修改或另存一个新的。关闭后回到游戏。",
   "curvegen.paint.status_no_gradient": "请选择要涂装的渐变。",
-  "curvegen.paint.preset_no_gradient": "已载入 %s，但没有涂装：它的渐变需要 Chroma Studio 1.2 或更新版本。",
+  "curvegen.paint.preset_no_gradient": "已载入但没有涂装：需要 Chroma Studio 1.2",
   "curvegen.shape.torus.stretched_filled": "圆环体 %1$s×%2$s×%3$s，管径 %4$s，实心，由 %5$s 的圆环拉伸",
   "curvegen.shape.torus.stretched_hollow": "圆环体 %1$s×%2$s×%3$s，管径 %4$s，空心，由 %5$s 的圆环拉伸",
   "curvegen.count3.full": "完整方块",
