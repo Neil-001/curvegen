@@ -137,4 +137,36 @@ class MixTest {
             }
         }
     }
+
+    @Test
+    void anEllipsesMarginDoesNotMoveTheMix() {
+        Paint paint = new Paint();
+        paint.source = Paint.Source.MIX;
+        paint.mix = new Mix("m", List.of(Cell.block(m("stone_bricks")), Cell.block(m("oak_planks"))), new int[]{1, 1});
+        for (Arrange a : Arrange.values()) {
+            paint.arrange = a;
+            Map<Long, String> first = null;
+            for (double t : new double[]{1, 1.125, 3}) {
+                ShapeSettings s = new ShapeSettings();
+                s.eW = 32; s.eH = 32; s.eT = t; s.eMode = ShapeSettings.EllipseMode.OUTWARDS;
+                Solver.Result r = Solver.run(s);
+                Painted out = Painter2D.paint(r, 1, paint, s.fullConnects, TestWorld.catalog());
+                int mg = r.target().margin;
+                Map<Long, String> blocks = new HashMap<>();
+                for (int j = 0; j < r.ny(); j++)
+                    for (int i = 0; i < r.nx(); i++)
+                        if (r.at(i, j) == Pieces.FULL && out.at(j * r.nx() + i) >= 0)
+                            blocks.put((long) (i - mg) << 32 | (j - mg) & 0xFFFFFFFFL, out.blocks().get(out.at(j * r.nx() + i)));
+                if (first == null) { first = blocks; continue; }
+                int same = 0;
+                for (var e : blocks.entrySet()) {
+                    String was = first.get(e.getKey());
+                    if (was == null) continue;
+                    assertEquals(was, e.getValue(), a + ": thickness " + t + " moved the mix");
+                    same++;
+                }
+                assertTrue(same > 20, "too few blocks in common to tell: " + same);
+            }
+        }
+    }
 }

@@ -41,7 +41,11 @@ public class MixChooserScreen extends Screen {
         super(Component.translatable("curvegen.paint.mix_title"));
         this.parent = parent; this.onPick = onPick;
         List<Mix> fromPatterns = new ArrayList<>();
-        for (Pattern p : MixSources.patterns.get()) {
+        List<Pattern> patterns = new ArrayList<>(MixSources.patterns.get());
+        // The pattern being painted with may be one of the player's own, loaded from a preset or the paint file.
+        Pattern own = CurveGenClient.SETTINGS.paint.pattern;
+        if (!patterns.contains(own)) patterns.addFirst(own);
+        for (Pattern p : patterns) {
             Mix m = Mix.of(p);
             if (m != null && !fromPatterns.contains(m)) fromPatterns.add(m);
         }
