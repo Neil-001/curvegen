@@ -113,9 +113,7 @@ public final class Solver3 {
     public static Result settle(Result r, BitSet gone, boolean fullConnects, BooleanSupplier cancelled) {
         int nx = r.nx(), ny = r.ny(), nz = r.nz();
         States s = new States(nx, ny, nz, fullConnects);
-        int walls = 0;
-        for (int v = WALL; v < COUNT; v++) walls += r.counts()[v];
-        if (walls > 0) { s.wallSeen = new int[s.tok.length]; s.wallAt = new short[s.tok.length]; }
+        for (int v = WALL; v < COUNT; v++) if (r.counts()[v] > 0) { s.cacheWalls(); break; }
         for (int j = 0; j < ny; j++)
             for (int k = 0; k < nz; k++)
                 for (int i = 0; i < nx; i++) s.tok[s.at(i, j, k)] = (short) token(r.at(i, j, k));
@@ -156,8 +154,8 @@ public final class Solver3 {
         /**
          * The states of walls already worked out since a token last changed: {@link #wallAt} holds the state of a
          * cell whose {@link #wallSeen} equals {@link #stamp}. A wall takes its heights and post from the state above
-         * it, so without this each wall in a tall column would work out every wall above it again. Needed only
-         * once there are walls.
+         * it, so without this each wall in a tall column would work out every wall above it again. Null until
+         * {@link #cacheWalls}, which must come before resolving a wall.
          */
         int[] wallSeen;
         short[] wallAt;
@@ -172,6 +170,8 @@ public final class Solver3 {
         }
 
         int at(int i, int j, int k) { return ((j + 1) * pz + k + 1) * px + i + 1; }
+
+        void cacheWalls() { wallSeen = new int[tok.length]; wallAt = new short[tok.length]; }
 
         /** Call after changing a token: any wall's state may have changed with it. */
         void changed() { if (++stamp == 0 && wallSeen != null) { Arrays.fill(wallSeen, 0); stamp = 1; } }
@@ -351,7 +351,6 @@ public final class Solver3 {
             return unseen;
         }
 
-
         // ---------- sampling ----------
 
         /**
@@ -528,7 +527,6 @@ public final class Solver3 {
             return e;
         }
 
-
         // ---------- solving ----------
 
         /** Gives every mixed cell its lowest-error token and returns the cells to refine, as {x, y, z, candidate list}, or null if cancelled. */
@@ -578,7 +576,6 @@ public final class Solver3 {
 
         int[][] candidates;
 
-
         /** Puts a token in a cell and its mirror image in every cell the shape's symmetry pairs it with. */
         void place(int i, int j, int k, int t) {
             int im = nx - 1 - i, jm = ny - 1 - j, km = nz - 1 - k;
@@ -599,7 +596,7 @@ public final class Solver3 {
             if (!(s.stair || s.fence || s.pane || s.wall)) return 0;
             // Only now, so a solve dropped while sampling never asks for them.
             inAff = new boolean[tok.length];
-            if (s.wall) { wallSeen = new int[tok.length]; wallAt = new short[tok.length]; }
+            if (s.wall) cacheWalls();
             for (int sweep = 0; sweep < MAX_SWEEPS; sweep++) {
                 boolean changed = false;
                 for (int[] o : orbits) {

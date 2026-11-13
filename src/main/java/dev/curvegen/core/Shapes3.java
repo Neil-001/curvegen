@@ -620,9 +620,8 @@ public final class Shapes3 {
         private final boolean hollow, open;
         private final List<double[]> pts = new ArrayList<>();
         private final Message error;
-        /** The pieces, each as {x, y, z, dx, dy, dz, 1/length²}. With {@link #past}, the first and last are the stretches past the ends. */
+        /** The pieces, each as {x, y, z, dx, dy, dz, 1/length²}. With open ends, the first and last are the stretches past them. */
         private volatile double[] segs;
-        private volatile boolean past;
         private volatile Near3 near;
 
         public Curve(ShapeSettings s) {
@@ -649,7 +648,6 @@ public final class Shapes3 {
 
         @Override public boolean cut(double x, double y, double z) {
             Near3 n = near();
-            if (!past) return false;
             int b = n.bucket(x, y, z), count = n.count(b);
             int[] items = n.items(b);
             double[] g = segs;
@@ -676,7 +674,11 @@ public final class Shapes3 {
                 flatten(line, (double) k / spans, a, (k + 1.0) / spans, b, 0);
                 a = b;
             }
-            boolean further = open && extend(line);
+            if (open) {
+                double[] before = beyond(line, 0, 1), after = beyond(line, line.size() - 1, -1);
+                line.add(0, before);
+                line.add(after);
+            }
             g = new double[(line.size() - 1) * 7];
             for (int k = 0; k + 1 < line.size(); k++) {
                 double[] p = line.get(k), q = line.get(k + 1);
@@ -684,23 +686,14 @@ public final class Shapes3 {
                 System.arraycopy(p, 0, g, k * 7, 3);
                 g[k * 7 + 3] = dx; g[k * 7 + 4] = dy; g[k * 7 + 5] = dz; g[k * 7 + 6] = l2 > 0 ? 1 / l2 : 0;
             }
-            past = further;
             return segs = g;
         }
 
         /**
-         * Adds a point {@link #PAST} blocks beyond each end of the line, straight on the way the line was heading
-         * there. Returns false, adding nothing, for a curve with no length, which heads nowhere.
+         * The point {@link #PAST} blocks out from the line's end at index {@code at}, straight on the way the line was
+         * heading there, where {@code step} leads back along the line. A curve with no length heads nowhere, so its
+         * stretch is the end itself and cuts nothing.
          */
-        private static boolean extend(List<double[]> line) {
-            double[] before = beyond(line, 0, 1), after = beyond(line, line.size() - 1, -1);
-            if (before == null || after == null) return false;
-            line.add(0, before);
-            line.add(after);
-            return true;
-        }
-
-        /** The point {@link #PAST} blocks out from the line's end at index {@code at}, where {@code step} leads back along the line. */
         private static double[] beyond(List<double[]> line, int at, int step) {
             double[] end = line.get(at);
             for (int k = at + step; k >= 0 && k < line.size(); k += step) {
@@ -708,7 +701,7 @@ public final class Shapes3 {
                 double dx = end[0] - p[0], dy = end[1] - p[1], dz = end[2] - p[2], l = Math.sqrt(dx * dx + dy * dy + dz * dz);
                 if (l > 1e-9) return new double[]{end[0] + dx / l * PAST, end[1] + dy / l * PAST, end[2] + dz / l * PAST};
             }
-            return null;
+            return end;
         }
 
         /** Adds the curve from a (at u0, already added) to b (at u1), cutting it wherever a straight piece would stray. */
@@ -780,7 +773,7 @@ public final class Shapes3 {
             if (error != null) return List.of(polygon);
             double[] g = segs();
             // Without the stretches past the ends, which aren't part of the curve.
-            int first = past ? 1 : 0, last = g.length / 7 - 1 - first;
+            int first = open ? 1 : 0, last = g.length / 7 - 1 - first;
             double[] line = new double[(last - first + 2) * 3];
             for (int k = first; k <= last; k++) System.arraycopy(g, k * 7, line, (k - first) * 3, 3);
             for (int c = 0; c < 3; c++) line[(last - first + 1) * 3 + c] = g[last * 7 + c] + g[last * 7 + 3 + c];
