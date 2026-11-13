@@ -168,12 +168,12 @@ public class PatternLibraryScreen extends Screen {
     }
 
     /**
-     * Paints {@code s} with {@code p}, turning paint on if it's off, and works out again whether fences, panes and walls
-     * attach to full blocks, which follows the pattern.
+     * Paints {@code s} with {@code p}, making Pattern the source whatever it was, and works out again whether fences,
+     * panes and walls attach to full blocks, which follows the pattern.
      */
     static void use(ShapeSettings s, Pattern p) {
         s.paint.pattern = p;
-        if (!s.paint.on()) s.paint.source = Paint.Source.PATTERN;
+        s.paint.source = Paint.Source.PATTERN;
         s.fullConnects = BlockChoices.fullConnects(s);
     }
 
