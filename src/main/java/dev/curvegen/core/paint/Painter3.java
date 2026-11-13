@@ -6,6 +6,7 @@ import dev.curvegen.core.Solver3;
 import dev.curvegen.core.paint.Ladder.Why;
 import dev.curvegen.core.paint.Paint.Mapping;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -36,7 +37,7 @@ public final class Painter3 {
         List<String> names = new ArrayList<>();
         long[][] why = new long[Family.values().length][Why.values().length];
         List<long[]> perEntry = new ArrayList<>();
-        long[][] base = new long[Family.values().length][1];
+        long[] base = new long[Family.values().length];
         for (int c = 0, k = 0; c < grid.length; c++) {
             int piece = grid[c];
             if (piece == Pieces3.AIR) continue;
@@ -53,15 +54,15 @@ public final class Painter3 {
                 }
                 e = known;
                 perEntry.get(e)[f.ordinal()]++;
-            } else base[f.ordinal()][0]++;
+            } else base[f.ordinal()]++;
             slots[k++] = e;
             why[f.ordinal()][ladder.why(cell, f).ordinal()]++;
         }
         long[][] counts = new long[Family.values().length][names.size() + 1];
         int[] quarters = new int[names.size()];
-        java.util.Arrays.fill(quarters, quarter);
+        Arrays.fill(quarters, quarter);
         for (Family f : Family.values()) {
-            counts[f.ordinal()][0] = base[f.ordinal()][0];
+            counts[f.ordinal()][0] = base[f.ordinal()];
             for (int e = 0; e < names.size(); e++) counts[f.ordinal()][e + 1] = perEntry.get(e)[f.ordinal()];
         }
         return new Painted(slots, 1, List.copyOf(names), quarters, why, counts);

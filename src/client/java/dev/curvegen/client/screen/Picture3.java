@@ -1,8 +1,10 @@
 package dev.curvegen.client.screen;
 
+import dev.curvegen.client.BlockChoices;
 import dev.curvegen.core.Message;
 import dev.curvegen.core.ShapeSettings;
 import dev.curvegen.core.paint.Painted;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -45,7 +47,7 @@ final class Picture3 implements AutoCloseable {
         repaint.poll(solved == null ? null : solved.painter(), solved != null && solved.fullConnects(), s);
         Repaint3.View v = view(s);
         if (v != null) preview.palette(v.palette(), v.perBlock());
-        else preview.palette(Preview3.palette(PreviewTexture.Colors.BLOCKS, dev.curvegen.client.BlockChoices.CHOICE, s.topColours));
+        else preview.palette(Preview3.palette(PreviewTexture.Colors.BLOCKS, BlockChoices.CHOICE, s.topColours));
     }
 
     /** Whether the settings are those {@code solved} was solved with, paint aside. */
@@ -73,7 +75,7 @@ final class Picture3 implements AutoCloseable {
     void draw(GuiGraphicsExtractor ctx, int x0, int y0, int x1, int y1) {
         if (solved == null || solved.result() == null) return;
         int[] in = {x0, y0, x1, y1};
-        if (!java.util.Arrays.equals(in, fittedIn)) {
+        if (!Arrays.equals(in, fittedIn)) {
             fittedIn = in;
             var shape = solved.result().shape();
             preview.wires(List.of(), 0);

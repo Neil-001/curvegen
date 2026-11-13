@@ -66,20 +66,8 @@ public final class Wrap3 {
 
         if (mapping == Mapping.WRAP) {
             Wrap3 out = new Wrap3(start[ny], new Strip(w.length(), w.width(), w.closedAlong(), w.closedAcross()), mapping, -1, -1);
-            double len = w.length();
-            IntStream.range(0, ny).parallel().forEach(y -> {
-                double[] world = new double[3], at = new double[2];
-                int k = start[y];
-                for (int z = 0, c = y * nz * nx; z < nz; z++)
-                    for (int x = 0; x < nx; x++, c++) {
-                        if (grid[c] == Pieces3.AIR) continue;
-                        world[0] = x + .5; world[1] = y + .5; world[2] = z + .5;
-                        w.place(own(world, 0, axis, back, size), own(world, 1, axis, back, size), own(world, 2, axis, back, size), at);
-                        out.u[k] = (float) (flip ? len - at[0] : at[0]);
-                        out.v[k] = (float) at[1];
-                        k++;
-                    }
-            });
+            out.fill(r, start, flip, (p, at) ->
+                    w.place(own(p, 0, axis, back, size), own(p, 1, axis, back, size), own(p, 2, axis, back, size), at));
             return out;
         }
 
@@ -101,20 +89,37 @@ public final class Wrap3 {
         double len = hi[0] - lo[0];
         int right = flip ? Orient.opposite(o.dir(ua)) : o.dir(ua), up = o.dir(va);
         Wrap3 out = new Wrap3(start[ny], new Strip(len, hi[1] - lo[1], false), mapping, right, up);
-        IntStream.range(0, ny).parallel().forEach(y -> {
-            double[] p = new double[3];
+        out.fill(r, start, flip, (p, at) -> {
+            at[0] = own(p, ua, axis, back, size) - lo[0];
+            at[1] = own(p, va, axis, back, size) - lo[1];
+        });
+        return out;
+    }
+
+    /** Writes the place of a block's centre, in the world box, into {@code at[0]} and {@code at[1]}. */
+    private interface Placer { void place(double[] world, double[] at); }
+
+    /**
+     * Places each block, a level at a time in parallel. {@code start} holds the blocks before each level, and
+     * {@code flip} reverses {@code u}.
+     */
+    private void fill(Solver3.Result r, int[] start, boolean flip, Placer placer) {
+        int nx = r.nx(), nz = r.nz();
+        short[] grid = r.grid();
+        double len = strip.length();
+        IntStream.range(0, r.ny()).parallel().forEach(y -> {
+            double[] p = new double[3], at = new double[2];
             int k = start[y];
             for (int z = 0, c = y * nz * nx; z < nz; z++)
                 for (int x = 0; x < nx; x++, c++) {
                     if (grid[c] == Pieces3.AIR) continue;
                     p[0] = x + .5; p[1] = y + .5; p[2] = z + .5;
-                    double pu = own(p, ua, axis, back, size) - lo[0];
-                    out.u[k] = (float) (flip ? len - pu : pu);
-                    out.v[k] = (float) (own(p, va, axis, back, size) - lo[1]);
+                    placer.place(p, at);
+                    u[k] = (float) (flip ? len - at[0] : at[0]);
+                    v[k] = (float) at[1];
                     k++;
                 }
         });
-        return out;
     }
 
     /** A point's coordinate along own axis {@code a}, from where it is in the world box. As {@link Orient#toOwn}. */

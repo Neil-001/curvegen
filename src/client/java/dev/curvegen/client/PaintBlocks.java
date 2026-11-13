@@ -1,6 +1,7 @@
 package dev.curvegen.client;
 
 import dev.curvegen.core.Pieces.Family;
+import dev.curvegen.core.Pieces3;
 import dev.curvegen.core.ShapeSettings;
 import dev.curvegen.core.paint.Catalog;
 import dev.curvegen.core.paint.MaterialNames;
@@ -8,8 +9,8 @@ import dev.curvegen.core.paint.Paint;
 import dev.curvegen.core.paint.Painted;
 import dev.curvegen.core.paint.Pattern;
 import dev.curvegen.core.paint.Solve3Painter;
-import dev.curvegen.core.Pieces3;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -207,7 +208,7 @@ public final class PaintBlocks {
      */
     public static int[] palette3(Painted p, int[] byFamily, Catalog catalog) {
         int families = byFamily.length;
-        int[] out = java.util.Arrays.copyOf(byFamily, families + p.blocks().size());
+        int[] out = Arrays.copyOf(byFamily, families + p.blocks().size());
         for (int e = 0; e < p.blocks().size(); e++) {
             String id = p.blocks().get(e);
             int b = id.indexOf('[');

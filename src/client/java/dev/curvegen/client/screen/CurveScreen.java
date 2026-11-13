@@ -33,13 +33,13 @@ import dev.curvegen.core.Solver;
 import dev.curvegen.core.Solver3;
 import dev.curvegen.core.edit.Edit3D;
 import dev.curvegen.core.edit.HandleMath;
+import dev.curvegen.core.edit.Orient;
 import dev.curvegen.core.edit.Stepper;
 import dev.curvegen.core.paint.Catalog;
 import dev.curvegen.core.paint.Paint;
 import dev.curvegen.core.paint.Painted;
 import dev.curvegen.core.paint.Painter2D;
 import dev.curvegen.core.paint.Solve3Painter;
-import dev.curvegen.core.edit.Orient;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -635,7 +635,8 @@ public class CurveScreen extends ControlScreen {
 
     /** Grouped by piece type, then one row per state. States that look the same (and are named the same) share a row. */
     private List<CountRow> countRows() {
-        Object from = mode3d ? painted3() != null ? painted3() : solved3 : result;
+        Repaint3.View view = mode3d ? painted3() : null;
+        Object from = mode3d ? view != null ? view : solved3 : result;
         if (countRows != null && countResult == from && countDepth == S.depth) return countRows;
         List<CountRow> rows = new ArrayList<>();
         countRows = rows; countResult = from; countDepth = S.depth;

@@ -34,8 +34,8 @@ final class Shape3D implements EditShape {
     /**
      * A solve, with the cells Carve clears (null while Carve was off) and whether colours match the top texture.
      * {@code own} is the shape before it was turned, for its wireframe, with the kind and box it was solved for.
-     * {@code painter} repaints it, as fences attached to full blocks in the solve, and {@code painted} is its paint,
-     * or null while it's unpainted.
+     * {@code fullConnects} is whether fences attached to full blocks in the solve, {@code painter} repaints it, and
+     * {@code painted} is its paint, or null while it's unpainted.
      */
     private record Solved(Solver3.Result result, BitSet carve, boolean topColours, Shape3 own, Gen gen, int[] size,
                           boolean fullConnects, Solve3Painter painter, Solve3Painter.Done painted) {}
