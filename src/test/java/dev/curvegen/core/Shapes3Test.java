@@ -485,6 +485,111 @@ class Shapes3Test {
         assertEquals(Math.PI * 0.25 * 6, r.volume(), 0.3);
     }
 
+    static ShapeSettings hollow(ShapeSettings s, boolean open) {
+        s.b3Hollow = true; s.b3Open = open;
+        return s;
+    }
+
+    @Test
+    void aHollowCurveWithOpenEndsIsAPipe() {
+        // Straight along x, 7 thick: with the 4 blocks of room around the box, the ends are at x = 7 and 21.
+        ShapeSettings s = hollow(curve(20, 9, 9, 7, 3, 4.5, 4.5, 17, 4.5, 4.5), true);
+        Solver3.Result r = Solver3.run(s), capped = Solver3.run(hollow(s.copy(), false));
+        s.b3Hollow = false;
+        Solver3.Result solid = Solver3.run(s);
+        assertEquals(4, r.shape().pad());
+        // You can see right through it, and nothing is left past its ends.
+        for (int i = 0; i < r.nx(); i++) assertEquals(AIR, r.at(i, 8, 8), "axis at " + i);
+        for (int y = 0; y < r.ny(); y++)
+            for (int z = 0; z < r.nz(); z++)
+                for (int x = 0; x < r.nx(); x++)
+                    if (x < 7 || x > 20) assertEquals(AIR, r.at(x, y, z), x + "," + y + "," + z);
+        // The wall runs the whole way, and away from the ends it's the solid tube's outside.
+        for (int x = 7; x <= 20; x++)
+            for (int[] d : new int[][]{{0, 3}, {3, 0}, {0, -3}, {-3, 0}}) {
+                String where = "wall at " + x + " " + d[0] + "," + d[1];
+                assertNotEquals(AIR, r.at(x, 8 + d[0], 8 + d[1]), where);
+                if (x >= 9 && x <= 18) assertEquals(solid.at(x, 8 + d[0], 8 + d[1]), r.at(x, 8 + d[0], 8 + d[1]), where);
+            }
+        // Capped, its rounded ends close it.
+        boolean front = false, back = false;
+        for (int x = 0; x < 7; x++) front |= capped.at(x, 8, 8) != AIR;
+        for (int x = 21; x < r.nx(); x++) back |= capped.at(x, 8, 8) != AIR;
+        assertTrue(front && back);
+        assertEquals(AIR, capped.at(10, 8, 8));
+        assertTrue(blocks(r) < blocks(capped) && blocks(capped) < blocks(solid), blocks(r) + ", " + blocks(capped) + ", " + blocks(solid));
+    }
+
+    @Test
+    void aSlantedOpenEndIsCutLevelWithTheCurvesEnd() {
+        ShapeSettings s = hollow(curve(18, 14, 18, 5.5, 2, 2, 3, 9, 10, 4, 6, 12, 12, 14, 4, 13), true);
+        for (ShapeSettings pieces : Shapes3Cases.pieceSets()) {
+            ShapeSettings own = s.copy();
+            for (Pieces.Family f : Pieces.Family.values()) own.allow(f, pieces.allows(f));
+            Solver3.Result r = Solver3.run(own);
+            int pad = r.shape().pad();
+            double[] p0 = s.pts3.get(0), p1 = s.pts3.get(1), q0 = s.pts3.get(3), q1 = s.pts3.get(2);
+            int beyond = 0;
+            for (int y = 0; y < r.ny(); y++)
+                for (int z = 0; z < r.nz(); z++)
+                    for (int x = 0; x < r.nx(); x++) {
+                        double[] c = {x + .5 - pad, y + .5 - pad, z + .5 - pad};
+                        double a = out(c, p0, p1), b = out(c, q0, q1);
+                        if (r.at(x, y, z) != AIR) assertTrue(a <= 0.1 && b <= 0.1, x + "," + y + "," + z + ": " + a + ", " + b);
+                        else if (r.shape().field(x + .5, y + .5, z + .5) < 2 && (a > 0.5 || b > 0.5)) beyond++;
+                    }
+            assertTrue(beyond > 20, "only " + beyond + " blocks cut");
+            // Just inside each end, you look into the tube.
+            for (double t : new double[]{0.25, 1, 1.75}) {
+                for (double[][] e : new double[][][]{{p0, p1}, {q0, q1}}) {
+                    double[] in = along(e[0], e[1], t);
+                    assertEquals(AIR, r.at((int) (in[0] + pad), (int) (in[1] + pad), (int) (in[2] + pad)), t + " inside " + java.util.Arrays.toString(e[0]));
+                }
+            }
+        }
+    }
+
+    /** How far c is past the curve's end at a, which heads away from b. */
+    private static double out(double[] c, double[] a, double[] b) {
+        double dx = a[0] - b[0], dy = a[1] - b[1], dz = a[2] - b[2], l = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        return ((c[0] - a[0]) * dx + (c[1] - a[1]) * dy + (c[2] - a[2]) * dz) / l;
+    }
+
+    /** The point t blocks from a towards b. */
+    private static double[] along(double[] a, double[] b, double t) {
+        double dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2], l = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        return new double[]{a[0] + dx / l * t, a[1] + dy / l * t, a[2] + dz / l * t};
+    }
+
+    @Test
+    void aTubeTooThinToHollowIsSolid() {
+        ShapeSettings s = curve(14, 10, 14, 2.5, 1, 1, 2, 4, 12, 13, 13, 9, 1, 12, 2, 12);
+        Solver3.Result solid = Solver3.run(s);
+        for (boolean open : new boolean[]{true, false}) {
+            ShapeSettings h = hollow(s.copy(), open);
+            assertFalse(Shape3.of(h).hollow());
+            assertFalse(Shape3.of(h).cuts());
+            assertNull(Shape3.of(h).carve());
+            assertArrayEquals(solid.grid(), Solver3.run(h).grid());
+        }
+        assertTrue(Shape3.of(hollow(curve(14, 10, 14, ShapeSettings.HOLLOW_MIN), true)).cuts());
+    }
+
+    @Test
+    void aHollowCurveCarvesItsInsideButNotPastAnOpenEnd() {
+        ShapeSettings s = hollow(curve(20, 9, 9, 7, 3, 4.5, 4.5, 17, 4.5, 4.5), true);
+        Shape3 sh = Shape3.of(s);
+        Solver3.Result r = Solver3.run(s);
+        BitSet carve = Solver3.carve(sh);
+        java.util.function.IntBinaryOperator at = (x, y) -> (y * r.nz() + 8) * r.nx() + x;
+        for (int x = 7; x <= 20; x++) assertTrue(carve.get(at.applyAsInt(x, 8)), "inside at " + x);
+        for (int x = 0; x < r.nx(); x++) if (x < 7 || x > 20) assertFalse(carve.get(at.applyAsInt(x, 8)), "past the end at " + x);
+        // Capped, the ends are rounded and carve like the rest.
+        assertTrue(Solver3.carve(Shape3.of(hollow(s.copy(), false))).get(at.applyAsInt(5, 8)));
+        s.b3Hollow = false;
+        assertNull(Solver3.carve(Shape3.of(s)));
+    }
+
     // ---------- surfaces ----------
 
     @Test
@@ -743,7 +848,7 @@ class Shapes3Test {
     void settingsCopyAndPresetsCarryTheNewShapes() {
         ShapeSettings s = equation("x^2 + y^2 = z + 2pi", BELOW, 2.25, 77, "-3", "3", "-2pi", "2pi", "0", "e");
         s.q3D = 40; s.q3H = 12; s.q3Lock = false;
-        s.b3W = 50; s.b3H = 20; s.b3D = 30; s.b3T = 0.75;
+        s.b3W = 50; s.b3H = 20; s.b3D = 30; s.b3T = 0.75; s.b3Hollow = true; s.b3Open = false;
         s.pts3.clear();
         for (int k = 0; k < 7; k++) s.pts3.add(new double[]{k * 7.5, 20 - k * 2.25, k % 3 * 10.125});
         s.sW = 44; s.sH = 9; s.sD = 31; s.sT = 1.75; s.sRows = 3; s.sCols = 5;
@@ -774,6 +879,14 @@ class Shapes3Test {
         assertEquals("surface-roof", PresetData.fileStem(ShapeSettings.Gen.SURFACE, "Roof"));
         // Three numbers to a point, as text.
         assertEquals("0,20,0;7.5,17.75,10.125", PresetData.capture(s, ShapeSettings.Gen.BEZIER3).get("points").substring(0, 23));
+        assertEquals("true", PresetData.capture(s, ShapeSettings.Gen.BEZIER3).get("hollow"));
+        assertEquals("false", PresetData.capture(s, ShapeSettings.Gen.BEZIER3).get("openEnds"));
+        // A preset from before curves could be hollow is a solid curve.
+        Map<String, String> old = new java.util.HashMap<>(PresetData.capture(s, ShapeSettings.Gen.BEZIER3));
+        old.remove("hollow"); old.remove("openEnds");
+        ShapeSettings loaded = s.copy();
+        PresetData.apply(old, ShapeSettings.Gen.BEZIER3, loaded);
+        assertFalse(loaded.b3Hollow);
         assertEquals("3", PresetData.capture(s, ShapeSettings.Gen.SURFACE).get("rows"));
         assertEquals("5", PresetData.capture(s, ShapeSettings.Gen.SURFACE).get("columns"));
     }

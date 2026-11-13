@@ -607,20 +607,28 @@ public final class Shapes3 {
     /**
      * A round tube around one Bézier curve through all its control points. The curve is cut into straight pieces
      * that stay within a hundredth of a block of it, and the field is the distance to the nearest piece.
+     *
+     * A hollow tube is a shell with rounded ends. With open ends it stops square at the curve's two ends instead:
+     * the tube carries straight on past each end for {@link #PAST} blocks, and {@link #cut} takes away every block
+     * that is nearer that stretch than the curve. So the end is cut between blocks, not through them.
      */
     public static final class Curve implements Shape3 {
-        private static final double FLAT = 0.01, LONGEST = 2;
+        private static final double FLAT = 0.01, LONGEST = 2, PAST = 3;
 
         private final int nx, ny, nz, pad;
         private final double hi, cap;
+        private final boolean hollow, open;
         private final List<double[]> pts = new ArrayList<>();
         private final Message error;
-        /** The pieces, each as {x, y, z, dx, dy, dz, 1/length²}. */
+        /** The pieces, each as {x, y, z, dx, dy, dz, 1/length²}. With {@link #past}, the first and last are the stretches past the ends. */
         private volatile double[] segs;
+        private volatile boolean past;
         private volatile Near3 near;
 
         public Curve(ShapeSettings s) {
             hi = thickness(s.b3T) / 2; cap = hi + FAR;
+            hollow = s.b3Hollow && 2 * hi >= ShapeSettings.HOLLOW_MIN;
+            open = hollow && s.b3Open;
             pad = (int) Math.ceil(hi);
             nx = size(s.b3W) + 2 * pad; ny = size(s.b3H) + 2 * pad; nz = size(s.b3D) + 2 * pad;
             for (double[] p : s.pts3) pts.add(new double[]{p[0] + pad, p[1] + pad, p[2] + pad});
@@ -635,6 +643,26 @@ public final class Shapes3 {
         @Override public Message error() { return error; }
         // The field creases on the curve itself, and interpolating across that makes a tube under a block thick visibly thinner.
         @Override public boolean smooth() { return hi >= 0.5; }
+        @Override public boolean hollow() { return hollow; }
+        @Override public double[] carve() { return hollow ? new double[]{Double.NEGATIVE_INFINITY, hi} : null; }
+        @Override public boolean cuts() { return open && error == null; }
+
+        @Override public boolean cut(double x, double y, double z) {
+            Near3 n = near();
+            if (!past) return false;
+            int b = n.bucket(x, y, z), count = n.count(b);
+            int[] items = n.items(b);
+            double[] g = segs;
+            int last = g.length / 7 - 1;
+            double beyond = Double.POSITIVE_INFINITY, curve = Double.POSITIVE_INFINITY;
+            for (int q = 0; q < count; q++) {
+                double d = off(g, items[q], x, y, z);
+                if (items[q] == 0 || items[q] == last) beyond = Math.min(beyond, d);
+                else curve = Math.min(curve, d);
+            }
+            // A block whose centre is level with the end is as near the curve's last point either way, and stays.
+            return beyond < curve - 1e-9 * (1 + curve);
+        }
 
         private double[] segs() {
             double[] g = segs;
@@ -648,6 +676,7 @@ public final class Shapes3 {
                 flatten(line, (double) k / spans, a, (k + 1.0) / spans, b, 0);
                 a = b;
             }
+            boolean further = open && extend(line);
             g = new double[(line.size() - 1) * 7];
             for (int k = 0; k + 1 < line.size(); k++) {
                 double[] p = line.get(k), q = line.get(k + 1);
@@ -655,7 +684,31 @@ public final class Shapes3 {
                 System.arraycopy(p, 0, g, k * 7, 3);
                 g[k * 7 + 3] = dx; g[k * 7 + 4] = dy; g[k * 7 + 5] = dz; g[k * 7 + 6] = l2 > 0 ? 1 / l2 : 0;
             }
+            past = further;
             return segs = g;
+        }
+
+        /**
+         * Adds a point {@link #PAST} blocks beyond each end of the line, straight on the way the line was heading
+         * there. Returns false, adding nothing, for a curve with no length, which heads nowhere.
+         */
+        private static boolean extend(List<double[]> line) {
+            double[] before = beyond(line, 0, 1), after = beyond(line, line.size() - 1, -1);
+            if (before == null || after == null) return false;
+            line.add(0, before);
+            line.add(after);
+            return true;
+        }
+
+        /** The point {@link #PAST} blocks out from the line's end at index {@code at}, where {@code step} leads back along the line. */
+        private static double[] beyond(List<double[]> line, int at, int step) {
+            double[] end = line.get(at);
+            for (int k = at + step; k >= 0 && k < line.size(); k += step) {
+                double[] p = line.get(k);
+                double dx = end[0] - p[0], dy = end[1] - p[1], dz = end[2] - p[2], l = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                if (l > 1e-9) return new double[]{end[0] + dx / l * PAST, end[1] + dy / l * PAST, end[2] + dz / l * PAST};
+            }
+            return null;
         }
 
         /** Adds the curve from a (at u0, already added) to b (at u1), cutting it wherever a straight piece would stray. */
@@ -725,10 +778,12 @@ public final class Shapes3 {
             double[] polygon = new double[pts.size() * 3];
             for (int k = 0; k < pts.size(); k++) System.arraycopy(pts.get(k), 0, polygon, k * 3, 3);
             if (error != null) return List.of(polygon);
-            double[] g = segs(), line = new double[(g.length / 7 + 1) * 3];
-            for (int k = 0; k < g.length / 7; k++) System.arraycopy(g, k * 7, line, k * 3, 3);
-            int last = g.length / 7 - 1;
-            for (int c = 0; c < 3; c++) line[(last + 1) * 3 + c] = g[last * 7 + c] + g[last * 7 + 3 + c];
+            double[] g = segs();
+            // Without the stretches past the ends, which aren't part of the curve.
+            int first = past ? 1 : 0, last = g.length / 7 - 1 - first;
+            double[] line = new double[(last - first + 2) * 3];
+            for (int k = first; k <= last; k++) System.arraycopy(g, k * 7, line, (k - first) * 3, 3);
+            for (int c = 0; c < 3; c++) line[(last - first + 1) * 3 + c] = g[last * 7 + c] + g[last * 7 + 3 + c];
             return List.of(line, polygon);
         }
     }

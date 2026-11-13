@@ -50,11 +50,17 @@ public final class ShapeSettings {
     public Eq3Mode q3Mode = Eq3Mode.SURFACE;
     public double q3T = 1;
 
-    /** 3D Bézier curve: one curve through control points {x, y, z} in blocks from the box's lowest corner, as a tube b3T thick. */
+    /**
+     * 3D Bézier curve: one curve through control points {x, y, z} in blocks from the box's lowest corner, as a tube
+     * b3T thick. With b3Hollow the tube is a shell, and with b3Open as well its two ends are left open. A tube under
+     * {@link #HOLLOW_MIN} thick has no room inside and is built solid whatever these say.
+     */
     public int b3W = 32, b3H = 16, b3D = 32;
     public final List<double[]> pts3 = new ArrayList<>(List.of(
             new double[]{2, 2, 2}, new double[]{10, 14, 4}, new double[]{22, 14, 28}, new double[]{30, 2, 30}));
     public double b3T = 1;
+    public boolean b3Hollow = false, b3Open = true;
+    public static final double HOLLOW_MIN = 3;
 
     /**
      * Bézier surface: one patch sT thick with sRows × sCols control points, row by row, so the point in row r and
@@ -120,7 +126,7 @@ public final class ShapeSettings {
         tRing = o.tRing; tTube = o.tTube; tW = o.tW; tH = o.tH; tD = o.tD; tHollow = o.tHollow;
         src3 = o.src3; x3min = o.x3min; x3max = o.x3max; y3min = o.y3min; y3max = o.y3max; z3min = o.z3min; z3max = o.z3max;
         q3W = o.q3W; q3D = o.q3D; q3H = o.q3H; q3Lock = o.q3Lock; q3Mode = o.q3Mode; q3T = o.q3T;
-        b3W = o.b3W; b3H = o.b3H; b3D = o.b3D; b3T = o.b3T;
+        b3W = o.b3W; b3H = o.b3H; b3D = o.b3D; b3T = o.b3T; b3Hollow = o.b3Hollow; b3Open = o.b3Open;
         sW = o.sW; sH = o.sH; sD = o.sD; sRows = o.sRows; sCols = o.sCols; sT = o.sT;
         copy(o.pts, pts); copy(o.pts3, pts3); copy(o.sPts, sPts);
         slab = o.slab; stair = o.stair; trap = o.trap; shelf = o.shelf; fence = o.fence; pane = o.pane; wall = o.wall; chain = o.chain; rod = o.rod;
@@ -150,7 +156,7 @@ public final class ShapeSettings {
                 && src3.equals(o.src3) && x3min.equals(o.x3min) && x3max.equals(o.x3max) && y3min.equals(o.y3min) && y3max.equals(o.y3max)
                 && z3min.equals(o.z3min) && z3max.equals(o.z3max)
                 && q3W == o.q3W && q3D == o.q3D && q3H == o.q3H && q3Lock == o.q3Lock && q3Mode == o.q3Mode && q3T == o.q3T
-                && b3W == o.b3W && b3H == o.b3H && b3D == o.b3D && b3T == o.b3T
+                && b3W == o.b3W && b3H == o.b3H && b3D == o.b3D && b3T == o.b3T && b3Hollow == o.b3Hollow && b3Open == o.b3Open
                 && sW == o.sW && sH == o.sH && sD == o.sD && sRows == o.sRows && sCols == o.sCols && sT == o.sT
                 && slab == o.slab && stair == o.stair && trap == o.trap && shelf == o.shelf && fence == o.fence && pane == o.pane
                 && wall == o.wall && chain == o.chain && rod == o.rod

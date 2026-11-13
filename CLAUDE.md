@@ -39,6 +39,7 @@ In both, a refinement pick must be judged on every cell whose state it can chang
 3D:
 
 - Run `GameRules3Test` after touching `Pieces3` or `Solver3`'s rules.
+- To empty blocks after a solve and let the pieces beside them settle, a shape cuts them with `Shape3.cuts` and `cut`, and anything else calls `Solver3.settle` on the result. Neither solves again.
 - A stair becomes an outer corner when the stair in front of it, on the same half, faces sideways, and an inner corner when the one behind does, unless the cell beside it holds a stair facing the same way.
 - A wall side is tall when the bottom of the collision shape above covers that side's strip, 2 pixels wide from the edge to 1 past the centre.
 - A wall has a post if the wall above has one, if it has no sides, or if a side lacks its opposite. Otherwise it has none when two opposite sides are both tall, and else has one only if the block above covers its centre.

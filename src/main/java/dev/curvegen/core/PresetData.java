@@ -79,6 +79,8 @@ public final class PresetData {
                 d.put("depth", String.valueOf(s.b3D));
                 d.put("points", points(s.pts3));
                 d.put("thickness", num(s.b3T));
+                d.put("hollow", String.valueOf(s.b3Hollow));
+                d.put("openEnds", String.valueOf(s.b3Open));
             }
             case SURFACE -> {
                 d.put("width", String.valueOf(s.sW));
@@ -155,6 +157,9 @@ public final class PresetData {
                 List<double[]> pts = points(d.get("points"), 3);
                 if (pts.size() >= 2 && pts.size() <= Bezier3.MAX_POINTS) { s.pts3.clear(); s.pts3.addAll(pts); }
                 s.b3T = decimal(d, "thickness", 0.0625, 50, s.b3T);
+                // A preset from before curves could be hollow is a solid one.
+                s.b3Hollow = Boolean.parseBoolean(d.get("hollow"));
+                if (d.containsKey("openEnds")) s.b3Open = Boolean.parseBoolean(d.get("openEnds"));
             }
             case SURFACE -> {
                 s.sW = integer(d, "width", 1, Shape3.MAX_SIZE, s.sW);
