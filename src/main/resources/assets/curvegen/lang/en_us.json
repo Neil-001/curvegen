@@ -694,8 +694,6 @@
   "curvegen.screen.shapes": "Shapes",
   "curvegen.screen.colour": "Colour",
   "curvegen.screen.curve": "Curve",
-  "curvegen.screen.match_colours_to_side": "Match colours to: Side",
-  "curvegen.screen.match_colours_to_top": "Match colours to: Top",
   "curvegen.screen.top": "Top",
   "curvegen.screen.side": "Side",
   "curvegen.screen.match_colours_to": "Match colours to",

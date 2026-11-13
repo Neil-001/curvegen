@@ -98,7 +98,10 @@ public final class PaintBlocks {
      * Everything a repaint needs, taken now, on the client thread: block colours on the face the shape is matched by,
      * for every block the Blocks tab could offer and every block the source paints with.
      */
-    public static Catalog catalog(ShapeSettings s) {
+    public static Catalog catalog(ShapeSettings s) { return catalog(s, BlockChoices.CHOICE); }
+
+    /** The same, with {@code base} for the Blocks tab's choices, which the paint falls back to. */
+    public static Catalog catalog(ShapeSettings s, Map<Family, Block> base) {
         materials();
         boolean top = s.is3d() ? s.topColours : s.floor;
         Map<Family, List<String>> allowed = new EnumMap<>(Family.class);
@@ -122,7 +125,7 @@ public final class PaintBlocks {
             if (b != null) colours.putIfAbsent(id, ColorIndex.of(b, top));
         }
         Map<Family, String> choice = new EnumMap<>(Family.class);
-        for (var e : BlockChoices.CHOICE.entrySet()) choice.put(e.getKey(), id(e.getValue()));
+        for (var e : base.entrySet()) choice.put(e.getKey(), id(e.getValue()));
         return new Catalog(allowed, colours, material, variants, noConnect, wooden, choice, Catalog.lab(colours));
     }
 

@@ -694,8 +694,6 @@
   "curvegen.screen.shapes": "形状",
   "curvegen.screen.colour": "颜色",
   "curvegen.screen.curve": "曲线",
-  "curvegen.screen.match_colours_to_side": "取色面：侧面",
-  "curvegen.screen.match_colours_to_top": "取色面：顶面",
   "curvegen.screen.top": "顶面",
   "curvegen.screen.side": "侧面",
   "curvegen.screen.match_colours_to": "取色面",
