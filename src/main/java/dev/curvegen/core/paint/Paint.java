@@ -61,6 +61,9 @@ public final class Paint {
     /** The fit a shape uses: the chosen one, or Repeat along for a line and Repeat for anything else. */
     public Fit fitFor(boolean line) { return fit != null ? fit : line ? Fit.REPEAT_ALONG : Fit.REPEAT; }
 
+    /** The mapping a 3D shape uses: the chosen one, or From above for a shape a pattern can't wrap round, a 3D equation. */
+    public Mapping mappingFor(boolean wraps) { return mapping == Mapping.WRAP && !wraps ? Mapping.ABOVE : mapping; }
+
     /** Edge only applies to a shape more than one block deep. */
     public On onFor(int depth) { return depth > 1 ? on : On.FACE; }
 

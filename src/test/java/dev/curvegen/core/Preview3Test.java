@@ -90,6 +90,40 @@ class Preview3Test {
         assertEquals(m.count[Pieces3.E], m.count[Pieces3.W]);
     }
 
+    /** Each face knows its block, numbered as a painted 3D shape's slots are: in grid order, air left out. */
+    @Test
+    void facesKnowTheirBlock() {
+        Mesh3 m = new Mesh3(grid(3, 1, 1, 0, 0, 0, Pieces3.FULL, 2, 0, 0, Pieces3.SLAB_B), 3, 1, 1);
+        for (int d = 0; d < 6; d++)
+            for (int q = 0; q < m.count[d]; q++) {
+                int block = m.block[d][q];
+                assertEquals(block == 0 ? Family.FULL.ordinal() : Family.SLAB.ordinal(), m.family[d][q]);
+            }
+    }
+
+    /** Colouring each block by its piece type's colour draws exactly the picture colouring by piece type does. */
+    @Test
+    void perBlockColoursChangeNothingElse() {
+        ShapeSettings s = new ShapeSettings();
+        s.gen = ShapeSettings.Gen.TORUS;
+        Solver3.Result r = Solver3.run(s);
+        Mesh3 m = new Mesh3(r);
+        int[] p = new int[Family.values().length];
+        for (int k = 0; k < p.length; k++) p[k] = 0x103050 * (k + 1) & 0xFFFFFF;
+        int[] perBlock = new int[r.grid().length];
+        int n = 0;
+        for (short c : r.grid()) if (c != Pieces3.AIR) perBlock[n++] = Pieces3.FAMILY[c].ordinal();
+        for (double yaw : new double[]{20, 135, 250}) {
+            Orbit o = lookingAt(yaw, 35, 4, 120);
+            o.tx = r.nx() / 2.0; o.ty = r.ny() / 2.0; o.tz = r.nz() / 2.0;
+            Raster3 a = new Raster3(120, 120), b = new Raster3(120, 120);
+            a.clear(BG); b.clear(BG);
+            a.draw(m, o, p);
+            b.draw(m, o, p, perBlock);
+            assertArrayEquals(a.argb, b.argb);
+        }
+    }
+
     // ---------- drawing ----------
 
     private static Orbit lookingAt(double yaw, double pitch, double scale, int size) {
