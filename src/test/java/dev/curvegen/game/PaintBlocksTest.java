@@ -2,11 +2,16 @@ package dev.curvegen.game;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import dev.curvegen.client.BlockChoices;
 import dev.curvegen.client.PaintBlocks;
 import dev.curvegen.core.Pieces.Family;
+import dev.curvegen.core.paint.Pattern;
+import java.util.HashSet;
+import java.util.Set;
 import net.minecraft.SharedConstants;
 import net.minecraft.core.Direction;
 import net.minecraft.server.Bootstrap;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
@@ -63,5 +68,23 @@ class PaintBlocksTest {
         // Turned a quarter with the pattern, an observer facing the drawing's right faces its up.
         BlockState observer = Blocks.OBSERVER.defaultBlockState().setValue(BlockStateProperties.FACING, Direction.EAST);
         assertEquals(Direction.UP, PaintBlocks.turn(observer, 1, PaintBlocks.viewer(Direction.EAST, Direction.UP)).getValue(BlockStateProperties.FACING));
+    }
+
+    @Test
+    void capturedBlocksCountAsTheirMaterial() {
+        Set<Block> full = new HashSet<>(BlockChoices.candidates(Family.FULL));
+        assertEquals(Pattern.Cell.EMPTY, PaintBlocks.cell(Blocks.AIR.defaultBlockState(), full));
+        assertEquals(Pattern.Cell.block("minecraft:stone_bricks"), PaintBlocks.cell(Blocks.STONE_BRICKS.defaultBlockState(), full));
+        // Shaped blocks give their material's full block, whichever way they face.
+        assertEquals(Pattern.Cell.block("minecraft:stone_bricks"), PaintBlocks.cell(Blocks.STONE_BRICK_STAIRS.defaultBlockState()
+                .setValue(BlockStateProperties.HORIZONTAL_FACING, Direction.WEST), full));
+        assertEquals(Pattern.Cell.block("minecraft:oak_planks"), PaintBlocks.cell(Blocks.OAK_SLAB.defaultBlockState(), full));
+        // A full block keeps what differs from its default, and nothing else.
+        assertEquals(Pattern.Cell.block("minecraft:oak_log[axis=x]"),
+                PaintBlocks.cell(Blocks.OAK_LOG.defaultBlockState().setValue(BlockStateProperties.AXIS, Direction.Axis.X), full));
+        assertEquals(Pattern.Cell.block("minecraft:oak_log"), PaintBlocks.cell(Blocks.OAK_LOG.defaultBlockState(), full));
+        // Torches, chests and falling blocks fill rather than leave holes.
+        for (Block b : new Block[]{Blocks.TORCH, Blocks.CHEST, Blocks.SAND, Blocks.POPPY, Blocks.WATER})
+            assertEquals(Pattern.Cell.UNUSABLE, PaintBlocks.cell(b.defaultBlockState(), full), b.toString());
     }
 }

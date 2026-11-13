@@ -56,13 +56,19 @@ class PaintTest {
     void patternsRoundTripAsText() {
         Pattern p = Pattern.of("Mine", new Cell[][]{
                 {Cell.block("minecraft:oak_log[axis=x]"), Cell.EMPTY, Cell.colour(0x12ab34)},
-                {Cell.block("minecraft:stone"), Cell.block("minecraft:stone"), Cell.EMPTY}});
+                {Cell.block("minecraft:stone"), Cell.block("minecraft:stone"), Cell.EMPTY},
+                {Cell.UNUSABLE, Cell.EMPTY, Cell.UNUSABLE}});
         assertEquals(p, Pattern.decode(p.encode()));
+        assertSame(Cell.UNUSABLE, Pattern.decode(p.encode()).cell(p.at(0, 0)));
+        assertTrue(Cell.UNUSABLE.empty());
+        assertNotEquals(Cell.EMPTY, Cell.UNUSABLE);
+        assertTrue(p.sameCells(p.renamed("Other")));
+        assertFalse(p.sameCells(Patterns.CHECKER));
         for (Pattern b : Patterns.BUNDLED) assertEquals(b, Pattern.decode(b.encode()));
-        assertEquals(2, p.height);
-        assertEquals("minecraft:oak_log[axis=x]", p.cell(p.at(0, 1)).state());
-        assertEquals("minecraft:oak_log", p.cell(p.at(0, 1)).block());
-        assertEquals(2, p.count(p.at(0, 0)));
+        assertEquals(3, p.height);
+        assertEquals("minecraft:oak_log[axis=x]", p.cell(p.at(0, 2)).state());
+        assertEquals("minecraft:oak_log", p.cell(p.at(0, 2)).block());
+        assertEquals(2, p.count(p.at(0, 1)));
     }
 
     @Test

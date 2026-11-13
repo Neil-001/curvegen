@@ -14,8 +14,9 @@ import java.util.Map;
  * pattern and y across it, y = 0 being the bottom row.
  *
  * <p>As text ({@link #encode}), for its own file and inside a preset: "name", "width", "height", "palette" (the
- * cells, space separated: a block state such as {@code minecraft:oak_log[axis=x]}, a colour {@code #rrggbb}, or
- * {@code -} for an empty cell) and "rows" (palette indices, comma separated, rows separated by "/", top row first).
+ * cells, space separated: a block state such as {@code minecraft:oak_log[axis=x]}, a colour {@code #rrggbb},
+ * {@code -} for an empty cell or {@code ?} for a captured block painting can't use) and "rows" (palette indices,
+ * comma separated, rows separated by "/", top row first).
  * A bundled pattern's name is a translation key starting {@link #BUNDLED}.
  */
 public final class Pattern implements Palette {
@@ -25,10 +26,13 @@ public final class Pattern implements Palette {
 
     /**
      * One cell: a block state with its properties, as the game writes it, or only a colour 0xRRGGBB (from an image),
-     * or neither: an empty cell.
+     * or neither: an empty cell. An empty cell is either {@link #EMPTY}, air in a capture or a clear pixel in an image,
+     * or {@link #UNUSABLE}, a captured block painting can't use, such as a torch or a chest. Both take the Blocks tab's
+     * choice, but only {@link #EMPTY} may become a hole.
      */
     public record Cell(String state, int rgb) {
         public static final Cell EMPTY = new Cell(null, -1);
+        public static final Cell UNUSABLE = new Cell(null, -2);
 
         public static Cell block(String state) { return new Cell(state, -1); }
         public static Cell colour(int rgb) { return new Cell(null, rgb & 0xFFFFFF); }
@@ -44,11 +48,13 @@ public final class Pattern implements Palette {
 
         String text() {
             if (state != null) return state;
+            if (rgb == UNUSABLE.rgb) return "?";
             return rgb < 0 ? "-" : String.format(Locale.ROOT, "#%06x", rgb);
         }
 
         static Cell parse(String t) {
             if (t.equals("-")) return EMPTY;
+            if (t.equals("?")) return UNUSABLE;
             if (t.startsWith("#") && t.length() == 7) {
                 try { return colour(Integer.parseInt(t.substring(1), 16)); } catch (NumberFormatException _) { return null; }
             }
@@ -98,6 +104,13 @@ public final class Pattern implements Palette {
     @Override public int paletteSize() { return palette.length; }
     /** How many cells hold this palette entry. */
     @Override public int count(int index) { return counts[index]; }
+
+    /** Whether the two hold the same cells in the same places, whatever their names. */
+    public boolean sameCells(Pattern o) {
+        if (o.width != width || o.height != height) return false;
+        for (int k = 0; k < cells.length; k++) if (!palette[cells[k]].equals(o.palette[o.cells[k]])) return false;
+        return true;
+    }
 
     public Pattern renamed(String newName) {
         int[] grid = new int[cells.length];

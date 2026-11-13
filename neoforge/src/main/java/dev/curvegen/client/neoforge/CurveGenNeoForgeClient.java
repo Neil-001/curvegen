@@ -5,6 +5,7 @@ import dev.curvegen.client.ClientPlatform;
 import dev.curvegen.client.ColorIndex;
 import dev.curvegen.client.CurveGenClient;
 import dev.curvegen.client.Placement;
+import dev.curvegen.client.edit.Capture;
 import dev.curvegen.client.edit.Editor;
 import dev.curvegen.client.edit.StepHold;
 import dev.curvegen.client.screen.SettingsScreen;
@@ -56,14 +57,17 @@ public final class CurveGenNeoForgeClient implements ClientPlatform {
         // NeoForge draws modded layers even with the HUD hidden (F1). Fabric doesn't, so this checks for it.
         modBus.addListener(RegisterGuiLayersEvent.class, event -> event.registerAboveAll(
                 Identifier.fromNamespaceAndPath("curvegen", "placement"), (graphics, _) -> {
-                    if (!Minecraft.getInstance().gui.hud.isHidden()) Editor.renderHud(graphics);
+                    if (Minecraft.getInstance().gui.hud.isHidden()) return;
+                    Editor.renderHud(graphics);
+                    Capture.renderHud(graphics);
                 }));
         NeoForge.EVENT_BUS.addListener(ClientTickEvent.Post.class, _ -> CurveGenClient.tick(Minecraft.getInstance()));
-        // The editor takes a click or a scroll only when it uses it. Both events fire for screens too, which it leaves alone.
+        // Capture, then the editor, takes a click or a scroll only when it uses it. Both events fire for screens too, which it leaves alone.
         NeoForge.EVENT_BUS.addListener(InputEvent.MouseButton.Pre.class, event -> {
             Minecraft mc = Minecraft.getInstance();
             if (mc.gui.screen() == null && mc.gui.overlay() == null
-                    && Editor.mouseButton(event.getButton(), event.getAction() == 1)) event.setCanceled(true);
+                    && (Capture.mouseButton(event.getButton(), event.getAction() == 1)
+                        || Editor.mouseButton(event.getButton(), event.getAction() == 1))) event.setCanceled(true);
         });
         NeoForge.EVENT_BUS.addListener(InputEvent.MouseScrollingEvent.class, event -> {
             Minecraft mc = Minecraft.getInstance();
@@ -75,8 +79,10 @@ public final class CurveGenNeoForgeClient implements ClientPlatform {
         NeoForge.EVENT_BUS.addListener(ClientChatReceivedEvent.System.class, event -> {
             if (Placement.hidesFeedback(event.getMessage(), event.isOverlay())) event.setCanceled(true);
         });
-        NeoForge.EVENT_BUS.addListener(SubmitCustomGeometryEvent.class,
-                event -> Editor.render(event.getSubmitNodeCollector(), event.getPoseStack(), event.getLevelRenderState().cameraRenderState.pos));
+        NeoForge.EVENT_BUS.addListener(SubmitCustomGeometryEvent.class, event -> {
+            Editor.render(event.getSubmitNodeCollector(), event.getPoseStack(), event.getLevelRenderState().cameraRenderState.pos);
+            Capture.render(event.getSubmitNodeCollector(), event.getPoseStack(), event.getLevelRenderState().cameraRenderState.pos);
+        });
     }
 
     @Override public boolean canSendToServer() {

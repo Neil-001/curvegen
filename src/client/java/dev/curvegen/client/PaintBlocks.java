@@ -7,6 +7,7 @@ import dev.curvegen.core.paint.MaterialNames;
 import dev.curvegen.core.paint.Paint;
 import dev.curvegen.core.paint.Painted;
 import dev.curvegen.core.paint.Palette;
+import dev.curvegen.core.paint.Pattern;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashMap;
@@ -93,6 +94,34 @@ public final class PaintBlocks {
         }
         material = m; variants = v;
     }
+
+    /**
+     * What a block in the world becomes in a captured pattern: air an empty cell, a slab, stairs or another shaped
+     * block its material's full block, and a block painting can't use, such as a torch, a chest or a falling block, an
+     * unusable cell. A full block keeps the properties that differ from its default, such as a log's axis.
+     * {@code full} is {@code BlockChoices.candidates(FULL)}, which the caller looks up once.
+     */
+    public static Pattern.Cell cell(BlockState s, Set<Block> full) {
+        if (s.isAir()) return Pattern.Cell.EMPTY;
+        String id = id(s.getBlock());
+        if (full.contains(s.getBlock())) return Pattern.Cell.block(id + properties(s));
+        String base = materialOf(id);
+        Block b = base == null ? null : block(base);
+        return b != null && full.contains(b) ? Pattern.Cell.block(base) : Pattern.Cell.UNUSABLE;
+    }
+
+    /** "[axis=x]" for the properties that differ from the block's default state, or "". */
+    private static String properties(BlockState s) {
+        BlockState d = s.getBlock().defaultBlockState();
+        StringBuilder out = new StringBuilder();
+        for (Property<?> p : s.getProperties()) {
+            if (s.getValue(p).equals(d.getValue(p))) continue;
+            out.append(out.isEmpty() ? "[" : ",").append(p.getName()).append('=').append(valueName(s, p));
+        }
+        return out.isEmpty() ? "" : out.append(']').toString();
+    }
+
+    private static <T extends Comparable<T>> String valueName(BlockState s, Property<T> p) { return p.getName(s.getValue(p)); }
 
     /**
      * Everything a repaint needs, taken now, on the client thread: block colours on the face the shape is matched by,
