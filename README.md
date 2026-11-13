@@ -18,7 +18,8 @@ Building requires JDK 25.
 On Windows, use `gradlew.bat`. The jars end up in `fabric/build/libs/` and `neoforge/build/libs/`. The Minecraft, Fabric and NeoForge versions are in `gradle.properties`.
 
 - The shared code is in `src/`. `fabric/` and `neoforge/` each hold only that loader's entrypoints and metadata.
-- `dev.curvegen.core` holds the shape maths, the 2D and 3D solvers and the editor's maths. It has no Minecraft imports, so nearly all the tests run without the game. Keep it that way.
+- `dev.curvegen.core` holds the shape maths, the 2D and 3D solvers, painting and the editor's maths. It has no Minecraft imports, so nearly all the tests run without the game. Keep it that way.
+- [Chroma Studio](https://github.com/Neil-001/chroma-studio) 1.2 or newer is an optional dependency that adds gradients, palettes and its colour matching. The build compiles against the version in `gradle.properties` without bundling it. Add `-PwithChroma` to `runClient` to start a dev client with it.
 - Run `./gradlew build` before pushing.
 
 Development PRs target `main`. When a version is ready, one release PR promotes a tested commit to `26.3/stable`, using a merge commit, and backport PRs port it to the older lines' stable branches. Publishing runs from each stable branch's source. See [the branch and release workflow](AGENTS.md#branch-workflow) for the steps.

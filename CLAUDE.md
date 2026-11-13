@@ -1,6 +1,6 @@
 # Curve Generator
 
-A Fabric and NeoForge mod for Minecraft Java 26.3. It turns 2D shapes (ellipses, equations and Bézier curves) and 3D shapes (ellipsoids, toruses, 3D equations, 3D Bézier curves and Bézier surfaces) into blocks, with a preview, a hologram the player edits in the world, operator-only placement and Litematica export.
+A Fabric and NeoForge mod for Minecraft Java 26.3. It turns 2D shapes (ellipses, equations and Bézier curves) and 3D shapes (ellipsoids, toruses, 3D equations, 3D Bézier curves and Bézier surfaces) into blocks, optionally painted from patterns, mixes or gradients, with a preview, a hologram the player edits in the world, operator-only placement and Litematica export.
 
 ## Commands
 
@@ -18,11 +18,12 @@ Both loaders compile the shared `src/main` and `src/client` code with their own 
 
 Most classes say what they do in a comment at the top, and their fields and methods say the rest. Read those before changing a class, and keep them true. This file has only what no one class says.
 
-- `dev/curvegen/core/`, with `core/edit/`, must have no Minecraft imports. `Pieces`, `Target` and `Solver` are the 2D solver. `Pieces3`, `Shape3`, `Shapes3`, `Bezier3` and `Solver3` are the 3D one. `core/edit/` has the editor's and menus' maths.
+- `dev/curvegen/core/`, with `core/edit/` and `core/paint/`, must have no Minecraft imports. `Pieces`, `Target` and `Solver` are the 2D solver. `Pieces3`, `Shape3`, `Shapes3`, `Bezier3` and `Solver3` are the 3D one. `core/edit/` has the editor's and menus' maths, and `core/paint/` painting's.
 - Only `fabric/src/` and `neoforge/src/` may import their loader's classes. Shared client code goes through `ClientPlatform`. Each loader hooks the shared code into its own events, `Editor.render` among them, so a change to `ClientPlatform` or a new hook goes into both. NeoForge lists its one mixin in `curvegen.neoforge.mixins.json`.
 - `client/edit/` is the in-world editor. `client/screen/` has the screens: `CurveScreen` is the main UI on G and `RadialScreen` the radial menu on V. `SettingsScreen` opens from the main UI's cogwheel, from Mod Menu on Fabric and from the mod list's Config button on NeoForge.
 - Mod Menu is optional. Only `ModMenuIntegration`, which Mod Menu itself loads, may refer to it.
-- Read `listing/README.md` before changing anything in `listing/`. After editing `listing/description.md`, run `listing/art/curseforge.py`, or the build fails. Run `listing/art/render.py` after a change to either solver or to the 3D preview's drawing, and expect only the pictures you meant to change to differ.
+- Chroma Studio is optional too. Only `client/chroma/ChromaBridge` may refer to it, and `Chroma.init` loads that class only once the loader reports the mod and its API says version 2 (Chroma Studio 1.2) or later. Both loaders compile against `chromastudio_version` from its GitHub releases without bundling it, and `-PwithChroma` adds it to a dev client.
+- Read `listing/README.md` before changing anything in `listing/`. After editing `listing/description.md`, run `listing/art/curseforge.py`, or the build fails. Run `listing/art/render.py` after a change to either solver, to painting or to the 3D preview's drawing, and expect only the pictures you meant to change to differ.
 
 ## Solvers
 
@@ -94,6 +95,16 @@ Known limits the comments don't give:
 ### Radial menu
 
 `RadialScreen` is a screen, so the game frees the cursor and both loaders get it without hooks of their own. Add a top-level wedge by adding its id and name to `Radial` and its action to `RadialScreen.top`.
+
+## Painting
+
+Painting chooses each block of a solved shape from the paint's source: a pattern, a mix or a gradient. The maths is in `core/paint/`, with `Paint` holding the settings and `Ladder` choosing each block. `PaintBlocks` gives it the game's blocks as a `Catalog` and turns its answers back into block states, and `PaintScreen` and the choosers beside it in `client/screen/` set it up.
+
+- Paint never changes a solve. It runs after it, through `EditShape.paint`, and a paint change repaints the last solve on the worker thread without solving again. Each painter's `paintingNeverChangesThePieces` test holds every shape to that.
+- Holes are the one exception. They take whole blocks out after the solve and settle the blocks beside them with `Solver3.settle` or `Settle2D`, and they place and clear nothing.
+- `fullConnects` is a solver input, so it follows what most of the source's full blocks do (`PaintBlocks.fullConnects`). A paint change that flips it solves again. A full block they would join the other way gives way to the Blocks tab's, or to the closest one that joins as the solve assumed.
+- The catalog is taken on the client thread and read on worker threads, so its matcher must be safe off the client thread. With Chroma Studio it is Chroma Studio's snapshot matcher, and otherwise `Catalog.lab`.
+- `Paint2DTiming` and `Paint3Timing` set how fast a repaint must be to follow the mouse wheel.
 
 ## Conventions
 

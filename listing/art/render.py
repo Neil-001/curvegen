@@ -8,6 +8,11 @@ results the way PreviewTexture does. 3D shapes go through Solver3, and Dump draw
 the menu's 3D preview does. The banner's title goes through the solver too, as a stencil of the Righteous
 typeface. The stone brick texture comes from the Minecraft client jar in the Gradle cache (run ./gradlew build once
 first), and the font is downloaded on first use.
+
+Painted shapes are painted by the mod's own painters, in Dump.java. What they need to know about the game's blocks
+comes from Blocks.java, run against Minecraft with the class path Fabric's tests use, and each block's colour from its
+textures in the client jar, averaged as ColorIndex averages them. Tints aren't applied, so the pictures stay clear of
+grass and leaves. Colours are matched as "Match a colour…" matches them without Chroma Studio.
 """
 import glob
 import io
@@ -48,7 +53,7 @@ def start_solver():
     classes = os.path.join(CACHE, "classes")
     os.makedirs(classes, exist_ok=True)
     core = glob.glob(os.path.join(ROOT, "src/main/java/dev/curvegen/core/**/*.java"), recursive=True)
-    tools = [os.path.join(ART, "Dump.java"), os.path.join(ART, "dev/curvegen/core/Stencil.java")]
+    tools = [os.path.join(ART, "Dump.java"), *glob.glob(os.path.join(ART, "dev/**/*.java"), recursive=True)]
     subprocess.run(["javac", "-nowarn", "-d", classes, *core, *tools], check=True,
                    stderr=subprocess.DEVNULL)
     proc = subprocess.Popen(["java", "-cp", classes, "Dump"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
@@ -89,6 +94,104 @@ def status(scene):
     return f"{total} pieces on {scene['nx']}×{scene['ny']}, mismatch {scene['err']:.2f} blocks² ({pct:.1f}%)"
 
 
+# ---------- painting ----------
+
+def catalog():
+    """The file Dump.java reads painting's blocks from: Blocks.java's lines, then each block's side and top colour."""
+    jar = client_jar()
+    path = os.path.join(CACHE, "catalog-" + os.path.basename(jar)[:-4] + ".txt")
+    if os.path.exists(path):
+        return path
+    init = os.path.join(ART, "classpath.gradle")
+    out = subprocess.run([os.path.join(ROOT, "gradlew"), "-q", "-I", init, ":fabric:artClasspath"], cwd=ROOT, check=True,
+                         capture_output=True, text=True).stdout
+    cp = next(l[3:] for l in out.splitlines() if l.startswith("CP="))
+    classes = os.path.join(CACHE, "blocks")
+    os.makedirs(classes, exist_ok=True)
+    subprocess.run(["javac", "-nowarn", "-cp", cp, "-d", classes, os.path.join(ART, "Blocks.java")], check=True)
+    lines = subprocess.run(["java", "-cp", classes + os.pathsep + cp, "Blocks"], cwd=classes, check=True,  # the game writes logs/ here
+                           capture_output=True, text=True).stdout.splitlines()
+    ids = {i for l in lines if l.startswith("allowed ") for i in l.split()[2:]}
+    with zipfile.ZipFile(jar) as z:
+        textures = Textures(z)
+        colours = [f"{face} {i} {textures.colour(i, face):06x}" for i in sorted(ids) for face in ("side", "top")]
+    with open(path, "w") as f:
+        f.write("\n".join(lines + colours) + "\n")
+    return path
+
+
+class Textures:
+    """Block colours from the client jar's models and textures, as ColorIndex works them out in the game: the default
+    state's quads on the north face (side) or the top, each texture's opaque pixels averaged and weighed by how much of
+    it is opaque, or the particle texture when the face has none."""
+
+    def __init__(self, z):
+        self.z, self.models, self.averages = z, {}, {}
+
+    def json(self, kind, ref):
+        ns, _, path = ref.partition(":") if ":" in ref else ("minecraft", "", ref)
+        name = f"assets/{ns}/{kind}/{path}.json"
+        return json.loads(self.z.read(name)) if name in self.z.namelist() else None
+
+    def model(self, ref):
+        """A model with its parents' textures merged in and the nearest elements."""
+        if ref not in self.models:
+            m = self.json("models", ref) or {}
+            parent = self.model(m["parent"]) if "parent" in m else {"textures": {}, "elements": []}
+            self.models[ref] = {"textures": {**parent["textures"], **m.get("textures", {})},
+                                "elements": m.get("elements", parent["elements"])}
+        return self.models[ref]
+
+    def state_model(self, block):
+        state = self.json("blockstates", block) or {}
+        if "variants" in state:
+            v = state["variants"]
+            key = next((k for k in v if k == "" or "axis=y" in k), next(iter(v)))
+            pick = v[key]
+        else:
+            pick = state.get("multipart", [{}])[0].get("apply", {})
+        pick = pick[0] if isinstance(pick, list) else pick
+        return pick.get("model")
+
+    def average(self, ref, textures):
+        while isinstance(ref, dict) or ref and ref.startswith("#"):
+            ref = ref.get("sprite") if isinstance(ref, dict) else textures.get(ref[1:])   # newer models give {"sprite": ...}
+        if not ref:
+            return None
+        if ref not in self.averages:
+            ns, _, path = ref.partition(":") if ":" in ref else ("minecraft", "", ref)
+            name = f"assets/{ns}/textures/{path}.png"
+            avg = None
+            if name in self.z.namelist():
+                img = Image.open(io.BytesIO(self.z.read(name))).convert("RGBA")
+                r = g = b = w = 0
+                for pr, pg, pb, a in img.getdata():
+                    if a < 16:
+                        continue
+                    r, g, b, w = r + pr * a, g + pg * a, b + pb * a, w + a
+                avg = (r // w, g // w, b // w, max(1, w // 255)) if w else None
+            self.averages[ref] = avg
+        return self.averages[ref]
+
+    def colour(self, block, face):
+        ref = self.state_model(block)
+        if not ref:
+            return 0x808080
+        m = self.model(ref)
+        want = "up" if face == "top" else "north"
+        faces = [f for e in m["elements"] for d, f in e.get("faces", {}).items() if d == want]
+        culled = [f for f in faces if f.get("cullface") == want]
+        r = g = b = w = 0
+        for f in culled or faces:
+            avg = self.average(f.get("texture"), m["textures"])
+            if avg:
+                r, g, b, w = r + avg[0] * avg[3], g + avg[1] * avg[3], b + avg[2] * avg[3], w + avg[3]
+        if w:
+            return int(r / w) << 16 | int(g / w) << 8 | int(b / w)
+        avg = self.average("#particle", m["textures"])
+        return avg[0] << 16 | avg[1] << 8 | avg[2] if avg else 0x808080
+
+
 # ---------- drawing ----------
 
 def font(size):
@@ -112,14 +215,18 @@ def write(d, xy, text, size, fill, anchor="l"):
         x += (small if up else f).getlength(c)
 
 
-def stone_bricks():
+def client_jar():
     jars = sorted(glob.glob(os.path.expanduser("~/.gradle/caches/**/minecraft*client*.jar"), recursive=True))
     for jar in reversed(jars):
         with zipfile.ZipFile(jar) as z:
-            name = "assets/minecraft/textures/block/stone_bricks.png"
-            if name in z.namelist():
-                return Image.open(io.BytesIO(z.read(name))).convert("RGB")
+            if "assets/minecraft/textures/block/stone_bricks.png" in z.namelist():
+                return jar
     sys.exit("No Minecraft client jar in ~/.gradle/caches. Run ./gradlew build first.")
+
+
+def stone_bricks():
+    with zipfile.ZipFile(client_jar()) as z:
+        return Image.open(io.BytesIO(z.read("assets/minecraft/textures/block/stone_bricks.png"))).convert("RGB")
 
 
 def mask(piece):
@@ -441,6 +548,95 @@ def shapes3d():
     save(stacked([side_by_side(r, 16) for r in rows], 16), "shapes3d.png")
 
 
+def lab(rgb):
+    """CIELAB, as the mod's Lab class works it out."""
+    def lin(c):
+        return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+    r, g, b = (lin((rgb >> s & 255) / 255) for s in (16, 8, 0))
+    x = (0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047
+    y = 0.2126 * r + 0.7152 * g + 0.0722 * b
+    z = (0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883
+    def f(t):
+        return t ** (1 / 3) if t > 216 / 24389 else (24389 / 27 * t + 16) / 116
+    return 116 * f(y) - 16, 500 * (f(x) - f(y)), 200 * (f(y) - f(z))
+
+
+def gradient(name, stops, steps):
+    """Paint settings for a gradient like one saved in Chroma Studio, which the pictures can't run: the colours run
+    evenly between the stops, and each step takes the unused concrete, wool or terracotta closest in colour."""
+    colours = {}
+    with open(catalog()) as f:
+        for line in f:
+            w = line.split()
+            if w[0] == "side" and any(w[1].endswith(e) for e in ("_concrete", "_wool", "_terracotta")) and "glazed" not in w[1]:
+                colours[w[1]] = lab(int(w[2], 16))
+
+    def at(t):
+        k = min(int(t * (len(stops) - 1)), len(stops) - 2)
+        u = t * (len(stops) - 1) - k
+        return sum(round((stops[k] >> s & 255) * (1 - u) + (stops[k + 1] >> s & 255) * u) << s for s in (16, 8, 0))
+
+    used, out = set(), []
+    for n in range(steps):
+        ideal = at(n / (steps - 1))
+        want = lab(ideal)
+        block = min((b for b in sorted(colours) if b not in used), key=lambda b: math.dist(colours[b], want))
+        used.add(block)
+        out.append(f"#{ideal:06x}@{block}")
+    return {"paint.source": "GRADIENT", "paint.gradient.name": name,
+            "paint.gradient.stops": " ".join(f"#{c:06x}" for c in stops), "paint.gradient.steps": " ".join(out)}
+
+
+def painted(**paint):
+    """Paint settings as a preset's text has them."""
+    return {"paint." + k: str(v) for k, v in paint.items()}
+
+
+# The painted shapes, each with its label on the listing's picture. Thin pieces come from the shape's own materials
+# where they can, so trapdoors and shelves are off where they'd take the closest colour from another material.
+DOME = dict(gen="ELLIPSOID", e3W=33, e3H=33, e3D=33, e3Mode="INWARDS", viewTop="true", viewPitch=22)
+COPPER = {"paint.source": "MIX", "paint.mix.name": "Copper", "paint.mix.blocks": "minecraft:oxidized_cut_copper*5 "
+          "minecraft:weathered_cut_copper*4 minecraft:exposed_cut_copper*2 minecraft:cut_copper*1"}
+NO_THIN = dict(trap="false", shelf="false")
+PAINTED = [
+    ("dome", "Stripes on a dome",
+     dict(**DOME, **NO_THIN, **painted(source="PATTERN", size=3), paintPattern="STRIPES")),
+    ("road", "Two-lane road on a curve",
+     dict(gen="BEZIER", bW=72, bH=44, bLW=9, floor="true", pts="5,7 22,46 50,-2 67,34", **painted(source="PATTERN"),
+          paintPattern="TWO_LANE_ROAD", viewPitch=50, viewYaw=-20)),
+    ("torus", "Gradient, bottom to top",
+     dict(gen="TORUS", tRing=33, tTube=11, tW=33, tH=11, tD=33, **NO_THIN, viewPitch=12,
+          **gradient("Sunset", [0xFFD34E, 0xF2762E, 0xC0392B, 0x7B2FA0, 0x3C44AA], 10))),
+    ("lattice", "Holes: a lattice dome",
+     dict(**DOME, **painted(source="PATTERN", size=2, empty="OPEN"), paintPattern="LATTICE")),
+    ("spiral", "A stripe turned into a spiral",
+     dict(gen="BEZIER3", b3T=9, b3Hollow="true", **NO_THIN, **painted(source="PATTERN", size=2, turn=35), paintPattern="STRIPES")),
+    ("mix", "A mix of copper in patches",
+     dict(gen="SURFACE", **NO_THIN, **painted(patch=5), **COPPER)),
+]
+
+
+def paint():
+    """The painted shapes, as the menu's "Block colours" picture shows them."""
+    cards = []
+    for _, label, settings in PAINTED:
+        img, scene = solve3(512, 384, catalog=catalog(), viewWires="false", viewMargin=24, **settings)
+        write(ImageDraw.Draw(img), (16, 364), label, 20, TEXT)
+        print(f"  {label}: {status3(scene)}, {scene['painted']['open']} open")
+        cards.append(img)
+    save(stacked([side_by_side(cards[:3], 16), side_by_side(cards[3:], 16)], 16), "paint.png")
+
+
+def gallery():
+    """The same painted shapes, one to a picture, for the galleries."""
+    folder = os.path.join(ROOT, "listing", "gallery")
+    for n, (name, _, settings) in enumerate(PAINTED, 8):
+        img, _ = solve3(1920, 1080, catalog=catalog(), viewWires="false", viewMargin=90, **settings)
+        path = os.path.join(folder, f"{n:02d}-{name}.png")
+        img.save(path, optimize=True)
+        print(os.path.basename(path), img.size, os.path.getsize(path) // 1024, "KiB")
+
+
 def editor():
     """The in-world editor's box round an ellipsoid, with its 26 handles in the editor's colours."""
     w, h = 1000, 520
@@ -510,6 +706,8 @@ if __name__ == "__main__":
     compare()
     shapes()
     shapes3d()
+    paint()
+    gallery()
     editor()
     families()
     divider()
