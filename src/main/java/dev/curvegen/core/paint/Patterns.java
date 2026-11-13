@@ -58,5 +58,15 @@ public final class Patterns {
             "GGGGGGGG",
             "WWWWWWWW");
 
-    public static final List<Pattern> BUNDLED = List.of(STRIPES, CHECKER, BRICK_ROAD, MOSSY_MIX, TWO_LANE_ROAD);
+    /**
+     * Spruce bars one block wide round openings two blocks across. The openings are empty cells, so with "Empty spots"
+     * set to Open they're holes: a screen, a trellis or a dome you can see through.
+     */
+    public static final Pattern LATTICE = grid("curvegen.pattern.lattice", "S-",
+            new Cell[]{b("spruce_planks"), Cell.EMPTY},
+            "SSS",
+            "S--",
+            "S--");
+
+    public static final List<Pattern> BUNDLED = List.of(STRIPES, CHECKER, BRICK_ROAD, MOSSY_MIX, TWO_LANE_ROAD, LATTICE);
 }

@@ -37,9 +37,10 @@ public final class PreviewTexture implements AutoCloseable {
     /**
      * Paints with the given block choices, for the Blocks colouring, and with the shape's paint, or null when it
      * isn't painted. Block colours is the only colouring that shows the paint, and a shape painted on its edge shows
-     * its front layer.
+     * its front layer. A pattern's holes change the blocks, so they show in every colouring, as the front layer has them.
      */
     public void update(Solver.Result r, Colors colors, boolean curve, boolean grid, Map<Pieces.Family, Block> choice, Painted painted) {
+        if (painted != null && painted.settled() != null) r = painted.settled().layer(0);
         int[] paintColour = null;
         if (painted != null && colors == Colors.BLOCKS) {
             PaintBlocks.Resolved blocks = PaintBlocks.resolve(painted, net.minecraft.core.Direction.UP);

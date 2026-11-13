@@ -65,9 +65,13 @@ public class PresetsScreen extends Screen {
     private record Shown(Solver.Result result, Painted painted) {}
     private final Map<Key, Shown> results = new HashMap<>();
     private final Map<Key, Future<Shown>> jobs = new HashMap<>();
-    /** A 3D preset's picture is solved the same way, and a solve is dropped when the mouse has moved on to another preset. */
-    private record Job3(Future<CurveScreen.Solved3> future, AtomicBoolean cancelled) {}
-    private final Map<Key, CurveScreen.Solved3> solved3 = new HashMap<>();
+    /**
+     * A 3D preset's solve, and its paint when it was loaded with its blocks and paints, or null. A 3D preset's picture
+     * is solved the same way, and a solve is dropped when the mouse has moved on to another preset.
+     */
+    private record Shown3(CurveScreen.Solved3 solved, Repaint3.View painted) {}
+    private record Job3(Future<Shown3> future, AtomicBoolean cancelled) {}
+    private final Map<Key, Shown3> solved3 = new HashMap<>();
     private final Map<Key, Job3> jobs3 = new HashMap<>();
     private final Preview3 picture = new Preview3();
     private Key pictureFor;
@@ -176,41 +180,54 @@ public class PresetsScreen extends Screen {
         return r;
     }
 
-    private CurveScreen.Solved3 solved3For(Preset p) {
+    private Shown3 solved3For(Preset p) {
         Key k = new Key(p, withBlocks(p));
         jobs3.entrySet().removeIf(e -> {
             if (e.getKey().equals(k)) return false;
             e.getValue().cancelled.set(true);
             return true;
         });
-        CurveScreen.Solved3 r = solved3.get(k);
+        Shown3 r = solved3.get(k);
         if (r != null) return r;
         Job3 job = jobs3.get(k);
         if (job == null) {
             ShapeSettings s = settingsFor(p);
             AtomicBoolean cancelled = new AtomicBoolean();
-            jobs3.put(k, new Job3(CurveScreen.EXEC.submit(() -> CurveScreen.solve3(s, cancelled::get)), cancelled));
+            // As in 2D, only a preset loaded with its blocks brings its paint. The catalog and colours are read on this thread.
+            Paint paint = withBlocks(p) && s.paint.on() ? s.paint.copy() : null;
+            Map<Family, Block> choice = choiceFor(p);
+            Catalog catalog = paint == null ? null : PaintBlocks.catalog(s, choice);
+            int[] byFamily = Preview3.palette(PreviewTexture.Colors.BLOCKS, choice, s.topColours);
+            jobs3.put(k, new Job3(CurveScreen.EXEC.submit(() -> {
+                CurveScreen.Solved3 solved = CurveScreen.solve3(s, cancelled::get);
+                if (solved == null || solved.error() != null || paint == null || cancelled.get()) return new Shown3(solved, null);
+                return new Shown3(solved, Repaint3.paint(solved.painter(), paint, solved.fullConnects(), catalog, byFamily));
+            }), cancelled));
             return null;
         }
         if (!job.future.isDone()) return null;
         jobs3.remove(k);
         try { r = job.future.get(); } catch (Exception _) { return null; }
-        if (r != null) solved3.put(k, r);
+        if (r.solved() == null) return null;
+        solved3.put(k, r);
         return r;
     }
 
     /** Draws a solved 3D preset, seen from the same side each time until the player turns it. */
-    private void draw3(GuiGraphicsExtractor ctx, Preset target, CurveScreen.Solved3 r, int x0, int y0, int x1, int y1) {
+    private void draw3(GuiGraphicsExtractor ctx, Preset target, Shown3 shown, int x0, int y0, int x1, int y1) {
         Key k = new Key(target, withBlocks(target));
         int[] in = {x0, y0, x1, y1};
         // A resized window moves the picture's place, and the view goes with it.
         if (!k.equals(pictureFor) || !java.util.Arrays.equals(in, pictureIn)) {
             pictureFor = k; pictureIn = in;
+            CurveScreen.Solved3 r = shown.solved();
             var shape = r.result().shape();
-            picture.mesh(r.mesh(), shape.pad());
+            Repaint3.View painted = shown.painted();
+            // A pattern's holes change the blocks, so they show in every colouring. Only Block colours shows the paint.
+            picture.mesh(painted != null && painted.mesh() != null ? painted.mesh() : r.mesh(), shape.pad());
             picture.wires(List.of(), 0);
-            // 3D shapes aren't painted yet. A painted picture plugs in here, painting r's mesh with the preset's paint.
-            picture.palette(Preview3.palette(CurveScreen.colors, choiceFor(target), CurveGenClient.SETTINGS.topColours));
+            if (painted != null && CurveScreen.colors == PreviewTexture.Colors.BLOCKS) picture.palette(painted.palette(), painted.perBlock());
+            else picture.palette(Preview3.palette(CurveScreen.colors, choiceFor(target), CurveGenClient.SETTINGS.topColours));
             picture.fit(shape.nx(), shape.ny(), shape.nz(), shape.pad(), x0, y0, x1, y1);
         }
         ctx.enableScissor(x0, y0, x1, y1);
@@ -308,12 +325,13 @@ public class PresetsScreen extends Screen {
         } else {
             Shown shown = is3d() ? null : resultFor(target);
             Solver.Result r = shown == null ? null : shown.result();
-            CurveScreen.Solved3 r3 = is3d() ? solved3For(target) : null;
+            Shown3 s3 = is3d() ? solved3For(target) : null;
+            CurveScreen.Solved3 r3 = s3 == null ? null : s3.solved();
             int infoH = 24;
             if (is3d()) {
                 if (r3 == null) ctx.text(font, tr("curvegen.screen.working"), px0 + 8, py0 + 8, 0xFF9AA5B3, false);
                 else if (r3.error() != null) ctx.textWithWordWrap(font, Component.literal(Lang.text(r3.error())), px0 + 8, py0 + 8, px1 - px0 - 16, 0xFFFF8098, false);
-                else draw3(ctx, target, r3, px0, py0, px1, py1 - infoH);
+                else draw3(ctx, target, s3, px0, py0, px1, py1 - infoH);
             }
             else if (r == null) ctx.text(font, tr("curvegen.screen.working"), px0 + 8, py0 + 8, 0xFF9AA5B3, false);
             else if (r.target().error != null)
