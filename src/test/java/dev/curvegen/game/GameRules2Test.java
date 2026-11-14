@@ -52,7 +52,7 @@ class GameRules2Test {
     static void loadBlocks() throws ReflectiveOperationException {
         SharedConstants.tryDetectVersion();
         Bootstrap.bootStrap();
-        tag(Blocks.COBBLESTONE_WALL, List.of(BlockTags.WALLS));
+        for (Block wall : new Block[]{Blocks.COBBLESTONE_WALL, Blocks.ANDESITE_WALL, Blocks.BRICK_WALL}) tag(wall, List.of(BlockTags.WALLS));
         tag(Blocks.OAK_FENCE, List.of(BlockTags.FENCES, BlockTags.WOODEN_FENCES));
         tag(Blocks.OAK_LEAVES, List.of(BlockTags.LEAVES));
         BlockChoices.CHOICE.putAll(Map.of(Pieces.Family.SLAB, Blocks.STONE_SLAB, Pieces.Family.STAIRS, Blocks.STONE_STAIRS,
@@ -71,18 +71,22 @@ class GameRules2Test {
     /** Piece sets: everything, fences beside full blocks, panes and walls, walls with slabs and stairs. */
     private static final String[] SETS = {"all", "fence", "pane wall", "wall slab stair"};
 
-    static List<ShapeSettings> shapes() {
+    static List<ShapeSettings> shapes() { return shapes(SETS, new int[]{1, 3}, false); }
+
+    /** Every set at every depth, upright and flat, beside full blocks that connect and ones that don't. */
+    static List<ShapeSettings> shapes(String[] sets, int[] depths, boolean chains) {
         List<ShapeSettings> out = new ArrayList<>();
-        for (String set : SETS)
-            for (int k = 0; k < 8; k++) {
+        for (String set : sets)
+            for (int k = 0; k < 2 * depths.length * 2; k++) {   // flat or not fastest, then depth, then fullConnects
                 ShapeSettings base = new ShapeSettings();
                 if (!set.equals("all")) {
                     base.slab = set.contains("slab"); base.stair = set.contains("stair"); base.trap = base.shelf = false;
                     base.fence = set.contains("fence"); base.pane = set.contains("pane"); base.wall = set.contains("wall");
                 }
+                base.chain = base.rod = chains && set.equals("all");
                 base.floor = (k & 1) != 0;
-                base.depth = (k & 2) != 0 ? 3 : 1;
-                base.fullConnects = (k & 4) == 0;
+                base.depth = depths[k / 2 % depths.length];
+                base.fullConnects = k < 2 * depths.length;
                 for (ShapeSettings.EllipseMode m : ShapeSettings.EllipseMode.values())
                     for (int w : new int[]{7, 19, 31})
                         for (int h : new int[]{5, 13}) {
@@ -130,14 +134,17 @@ class GameRules2Test {
     }
 
     /** The blocks as the client places them, with the drawing's x east: upright, layers run south; flat, its y runs north. */
-    static Map<BlockPos, BlockState> world(Solver.Result r, int depth, Painted painted) {
+    static Map<BlockPos, BlockState> world(Solver.Result r, int depth, Painted painted) { return world(r, depth, painted, null); }
+
+    /** The same painted with {@code paint}'s blocks, which may be null for the Blocks tab's. */
+    static Map<BlockPos, BlockState> world(Solver.Result r, int depth, Painted painted, PaintBlocks.Resolved paint) {
         Map<BlockPos, BlockState> w = new HashMap<>();
         boolean floor = r.floor();
         Direction forward = floor ? Direction.NORTH : Direction.SOUTH;
         for (int j = 0; j < r.ny(); j++)
             for (int i = 0; i < r.nx(); i++)
                 for (int k = 0; k < depth; k++) {
-                    BlockState st = PaintBlocks.state2D(r, i, j, k, depth, Direction.EAST, forward, painted, null);
+                    BlockState st = PaintBlocks.state2D(r, i, j, k, depth, Direction.EAST, forward, painted, paint);
                     if (st != null) w.put(floor ? new BlockPos(i, k, -j) : new BlockPos(i, j, k), st);
                 }
         return w;
@@ -184,7 +191,7 @@ class GameRules2Test {
         return beside;
     }
 
-    private static void choose(ShapeSettings c) {
+    static void choose(ShapeSettings c) {
         BlockChoices.CHOICE.put(Pieces.Family.FULL, c.fullConnects ? Blocks.STONE : Blocks.OAK_LEAVES);   // nothing attaches to leaves
     }
 
@@ -202,25 +209,118 @@ class GameRules2Test {
         assertTrue(beside > 20000, beside + " blocks beside holes");
     }
 
+    /** Piece sets for shapes without holes: those above, walls alone, and walls with fences and panes. */
+    private static final String[] PLAIN_SETS = {"all", "fence", "pane wall", "wall slab stair", "wall", "wall pane fence"};
+
     /**
-     * Settling with nothing taken out gives what the shape gives unsettled, except where that is a state the game
-     * would change: walls in the middle of a deep shape below a wall with a post, which the game gives a post too.
+     * Shapes without holes, unpainted, one, two, three and five deep, upright and flat: the game keeps every state. A
+     * wall takes a post from the wall above it, so in a shape three or more deep a wall in the middle layers below a
+     * wall with a post has one too.
      */
     @Test
-    void settlingWithoutHolesChangesOnlyWhatTheGameWould() {
+    void theGameKeepsEveryStateOfAShapeWithoutHoles() {
+        int checked = 0;
+        for (ShapeSettings c : shapes(PLAIN_SETS, new int[]{1, 2, 3, 5}, true)) {
+            choose(c);
+            Map<BlockPos, BlockState> w = world(Solver.run(c), c.depth, null);
+            check(c, w, "no holes");
+            checked += w.size();
+        }
+        assertTrue(checked > 900000, checked + " blocks");
+    }
+
+    /**
+     * One layer deep, a wall below a wall with a post has one too: in this narrow ellipse of walls beside leaves, a
+     * wall with both sides tall sits below one with a post, and the drawing and the placed blocks both show its post.
+     */
+    @Test
+    void aWallBelowAWallWithAPostHasOneAtDepthOne() {
+        ShapeSettings c = new ShapeSettings();
+        c.slab = c.stair = c.trap = c.shelf = c.fence = c.pane = false;
+        c.fullConnects = false; c.eMode = ShapeSettings.EllipseMode.MIDDLE; c.eW = 3; c.eH = 19; c.eT = 1;
+        choose(c);
+        Solver.Result r = Solver.run(c);
+        int found = 0;
+        for (int j = 0; j + 1 < r.ny(); j++)
+            for (int i = 0; i < r.nx(); i++) {
+                int st = r.at(i, j), above = r.at(i, j + 1);
+                if (Pieces.FAMILY[st] != Pieces.Family.WALL || Pieces.FAMILY[above] != Pieces.Family.WALL || !Pieces.wallPost(above)) continue;
+                assertTrue(Pieces.wallPost(st), "drawing at " + i + "," + j);
+                if (Pieces.wallLeft(st) == 2 && Pieces.wallRight(st) == 2) found++;
+            }
+        assertTrue(found > 0, "no wall with both sides tall below a wall with a post");
+        check(c, world(r, 1, null), "depth 1");
+    }
+
+    /** Flat walls joined every way, one to four layers deep: a crossing has no post, as a straight wall has none. */
+    @Test
+    void flatWallsJoinedEveryWay() {
+        for (int bits = 0; bits < 16; bits++) {
+            // The wall in the middle of a 3×3 drawing, with a wall on each side it joins.
+            byte[] grid = new byte[9];
+            int[][] at = {{0, 1}, {2, 1}, {1, 2}, {1, 0}};
+            grid[4] = (byte) (Pieces.F_WALL + bits);
+            for (int d = 0; d < 4; d++) if ((bits & 1 << d) != 0) grid[at[d][1] * 3 + at[d][0]] = (byte) (Pieces.F_WALL + (1 << (d ^ 1)));
+            Solver.Result r = new Solver.Result(grid, 3, 3, 0, 0, new int[Pieces.COUNT], null, true);
+            ShapeSettings c = new ShapeSettings();
+            c.floor = true;
+            choose(c);
+            for (int depth = 1; depth <= 4; depth++) {
+                c.depth = depth;
+                check(c, world(r, depth, null), "joined " + bits);
+            }
+        }
+    }
+
+    /** The blocks a painted shape may use besides the Blocks tab's, by piece type: ones that join as those do. */
+    private static Map<Pieces.Family, Block[]> paints() {
+        return Map.of(
+                Pieces.Family.FULL, new Block[]{Blocks.STONE_BRICKS, Blocks.GRANITE}, Pieces.Family.SLAB, new Block[]{Blocks.OAK_SLAB},
+                Pieces.Family.STAIRS, new Block[]{Blocks.BRICK_STAIRS}, Pieces.Family.PANE, new Block[]{Blocks.IRON_BARS},
+                Pieces.Family.WALL, new Block[]{Blocks.ANDESITE_WALL, Blocks.BRICK_WALL});
+    }
+
+    /**
+     * The same painted, block by block, with blocks of each piece type that join as the Blocks tab's do. Paint never
+     * changes a state but the block, so the game keeps every one.
+     */
+    @Test
+    void theGameKeepsEveryStateOfAPaintedShape() {
+        Map<Pieces.Family, Block[]> paints = paints();
+        List<Block> blocks = new ArrayList<>();
+        for (Block[] bs : paints.values()) blocks.addAll(List.of(bs));
+        PaintBlocks.Resolved paint = new PaintBlocks.Resolved(blocks.toArray(new Block[0]), new BlockState[blocks.size()]);
+        int checked = 0, seed = 0;
+        for (ShapeSettings c : shapes(new String[]{"all", "pane wall", "wall"}, new int[]{1, 3, 5}, false)) {
+            if (!c.fullConnects) continue;   // granite and stone bricks join walls as stone does
+            choose(c);
+            Solver.Result r = Solver.run(c);
+            int n = r.nx() * r.ny();
+            int[] slots = new int[c.depth * n];
+            Random rnd = new Random(seed++);
+            for (int b = 0; b < slots.length; b++) {
+                Block[] bs = paints.get(Pieces.FAMILY[r.at(b % n % r.nx(), b % n / r.nx())]);
+                slots[b] = bs == null || rnd.nextInt(3) == 0 ? -1 : blocks.indexOf(bs[rnd.nextInt(bs.length)]);
+            }
+            int f = Pieces.Family.values().length, w = Ladder.Why.values().length;
+            Painted p = new Painted(slots, c.depth, List.of(), new int[0], new long[f][w], new long[f][1]);
+            Map<BlockPos, BlockState> world = world(r, c.depth, p, paint);
+            check(c, world, "painted");
+            checked += world.size();
+        }
+        assertTrue(checked > 100000, checked + " blocks");
+    }
+
+    /** Settling with nothing taken out gives exactly what the shape gives unsettled. */
+    @Test
+    void settlingWithoutHolesChangesNothing() {
         int same = 0;
         for (ShapeSettings c : shapes()) {
             choose(c);
             Solver.Result r = Solver.run(c);
             Map<BlockPos, BlockState> plain = world(r, c.depth, null), settled = world(r, c.depth, open(r, c.depth, new BitSet(), c.fullConnects));
-            assertEquals(plain.keySet(), settled.keySet());
-            check(c, settled, "no holes");
-            LevelReader level = level(plain);
-            for (var e : plain.entrySet()) {
-                BlockState was = e.getValue(), now = settled.get(e.getKey());
-                if (was.equals(now)) { same++; continue; }
-                assertEquals(now, updated(level, e.getKey()), "unsettled " + was + " at " + e.getKey());
-            }
+            assertEquals(plain, settled, c.gen + " " + (c.floor ? "flat" : "upright") + " depth " + c.depth);
+            same += plain.size();
         }
         assertTrue(same > 50000, same + " blocks");
     }

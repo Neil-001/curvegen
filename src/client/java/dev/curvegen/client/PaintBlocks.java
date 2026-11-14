@@ -235,7 +235,8 @@ public final class PaintBlocks {
         Settle2D settled = painted == null ? null : painted.settled();
         if (settled != null && Pieces.isConnector(p)) return BlockChoices.connector(p, settled.joints(i, j, k), right, forward, block);
         int above = j + 1 < r.ny() ? r.at(i, j + 1) : Pieces.EMPTY;
-        return BlockChoices.stateFor(p, above, right, forward, k, depth, r.floor(), block);
+        boolean post = !r.floor() && Pieces.FAMILY[p] == Pieces.Family.WALL && r.placedWallPost(i, j, k, depth);
+        return BlockChoices.stateFor(p, above, post, right, forward, k, depth, r.floor(), block);
     }
 
     /** A painted 3D shape's states, by piece and entry, each worked out the first time it's asked for. */

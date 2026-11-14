@@ -102,8 +102,10 @@ class ConnectionRulesTest {
                         int l = L ? ((cov & 0x01FF) == 0x01FF ? 2 : 1) : 0;
                         int rr = R ? ((cov & 0xFF80) == 0xFF80 ? 2 : 1) : 0;
                         boolean covered = (cov & 0x0180) == 0x0180;
-                        // Depth 1: the game's post rule. Depth > 1: the front wall connects backwards only, so it has a post.
-                        boolean post = c.depth > 1 || !(L && R) || (!(l == 2 && rr == 2) && covered);
+                        // Depth 1: the game's post rule, with the wall above's post. Depth > 1: the front wall
+                        // connects backwards only, so it has a post.
+                        boolean aboveWallPost = Pieces.FAMILY[U0] == Pieces.Family.WALL && Pieces.wallPost(U0);
+                        boolean post = c.depth > 1 || !(L && R) || (!(l == 2 && rr == 2) && covered) || aboveWallPost;
                         assertEquals(l, Pieces.wallLeft(st), where + " left side");
                         assertEquals(rr, Pieces.wallRight(st), where + " right side");
                         assertEquals(post, Pieces.wallPost(st), where + " post");
@@ -131,6 +133,16 @@ class ConnectionRulesTest {
                 walls++;
             }
             assertEquals(10, walls);
+        }
+    }
+
+    @Test
+    void flatWallsHaveAPostUnlessEverySideHasItsOpposite() {
+        for (int bits = 0; bits < 16; bits++) {
+            boolean lr = (bits & Pieces.LEFT) != 0 && (bits & Pieces.RIGHT) != 0, l0 = (bits & (Pieces.LEFT | Pieces.RIGHT)) == 0;
+            boolean tb = (bits & Pieces.TOP) != 0 && (bits & Pieces.BOTTOM_SIDE) != 0, t0 = (bits & (Pieces.TOP | Pieces.BOTTOM_SIDE)) == 0;
+            boolean balanced = (lr || l0) && (tb || t0) && bits != 0;
+            assertEquals(!balanced, Pieces.floorWallPost(bits), "bits " + bits);
         }
     }
 
