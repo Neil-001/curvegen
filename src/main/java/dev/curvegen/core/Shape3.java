@@ -84,6 +84,18 @@ public interface Shape3 {
      */
     default double[] carve() { return null; }
 
+    /** Does the shape cut any blocks away with {@link #cut}? */
+    default boolean cuts() { return false; }
+
+    /**
+     * Is the block with its centre here cut away once the shape is solved? The solver works the shape out as if it
+     * carried on through the block and then empties it, so a cut leaves an opening rather than a cap: a hollow
+     * shape is open there, and its out-of-sight blocks are judged before the cut. The blocks beside a cut take the
+     * states the game gives them with it gone, as {@link Solver3#settle} does, and carving leaves it alone. Only
+     * asked when {@link #cuts}.
+     */
+    default boolean cut(double x, double y, double z) { return false; }
+
     /** Is the field unchanged when mirrored through the middle of the box along this axis? The solver then works on half. */
     default boolean symX() { return false; }
     default boolean symY() { return false; }
@@ -97,6 +109,31 @@ public interface Shape3 {
 
     /** A message for the player when the shape can't be built, or null. */
     default Message error() { return null; }
+
+    /**
+     * How a pattern wraps round the shape, or null for a shape it can't wrap round, which is only ever projected.
+     * Building it may take a moment, so a painter asks once per solve. The solver never asks.
+     */
+    default Wrapping wrapping() { return null; }
+
+    /**
+     * Where a point lies on a shape's surface, as a pattern wrapped round it sees it: {@code u} along the shape, from 0
+     * to {@link #length}, and {@code v} across it, from 0 to {@link #width}, in blocks measured on the surface. Each
+     * direction is closed when its end meets its start, as round a ring.
+     *
+     * <p>Points are in the shape's own coordinates, as {@link #field} takes them, and in an editor's own axes: x to the
+     * right, y up and z away from the player. Seen from outside, u runs to the right where v runs up, so a pattern
+     * isn't mirrored. A point off the surface takes the place of the nearest point on it, so the pattern runs straight
+     * through a thick wall. {@link #place} may be called from several threads at once.
+     */
+    interface Wrapping {
+        double length();
+        double width();
+        boolean closedAlong();
+        boolean closedAcross();
+        /** Writes u and v for the point into {@code out[0]} and {@code out[1]}. */
+        void place(double x, double y, double z, double[] out);
+    }
 
     /** The shape the settings describe. Building it is cheap: the work happens in {@link Solver3#solve}. */
     static Shape3 of(ShapeSettings s) {

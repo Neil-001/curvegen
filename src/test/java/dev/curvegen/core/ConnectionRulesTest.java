@@ -44,44 +44,75 @@ class ConnectionRulesTest {
     @Test
     void everyConnectorFollowsTheGameRules() {
         int checked = 0;
-        for (ShapeSettings c : shapes()) {
-            Solver.Result r = Solver.run(c);
-            int nx = r.nx(), ny = r.ny();
-            for (int j = 0; j < ny; j++)
-                for (int i = 0; i < nx; i++) {
-                    int st = r.at(i, j);
-                    // Flat builds only use pieces that look different from above; upright builds never use flat states.
-                    boolean uprightShelf = st == Pieces.SH_L || st == Pieces.SH_R;
-                    boolean flatState = st >= Pieces.F_TD_U && st < Pieces.CHAIN_H && !uprightShelf;
-                    boolean uprightOnly = (st >= Pieces.SLAB_B && st <= Pieces.TD_T) || (st >= Pieces.FENCE && st < Pieces.F_TD_U) || uprightShelf;
-                    assertFalse(c.floor ? uprightOnly : flatState, "wrong orientation: " + Pieces.NAME[st]);
-                    if (!Pieces.isConnector(st)) continue;
-                    checked++;
-                    int L0 = i > 0 ? r.at(i - 1, j) : 0, R0 = i < nx - 1 ? r.at(i + 1, j) : 0;
-                    int U0 = j < ny - 1 ? r.at(i, j + 1) : 0, D0 = j > 0 ? r.at(i, j - 1) : 0;
-                    boolean L = conn(st, L0, 3), R = conn(st, R0, 2);
-                    String where = Pieces.NAME[st] + " at " + i + "," + j + (c.floor ? " (flat)" : "") + " depth " + c.depth;
-                    if (c.floor) {
-                        int bits = (L ? 1 : 0) | (R ? 2 : 0) | (conn(st, U0, 0) ? 4 : 0) | (conn(st, D0, 1) ? 8 : 0);
-                        assertEquals(bits, Pieces.floorBits(st), where);
-                    } else {
-                        assertEquals(L, Pieces.connectsLeft(st), where);
-                        assertEquals(R, Pieces.connectsRight(st), where);
-                        if (Pieces.FAMILY[st] == Pieces.Family.WALL) {
-                            int cov = Pieces.BOTTOM[U0];
-                            int l = L ? ((cov & 0x01FF) == 0x01FF ? 2 : 1) : 0;
-                            int rr = R ? ((cov & 0xFF80) == 0xFF80 ? 2 : 1) : 0;
-                            boolean covered = (cov & 0x0180) == 0x0180;
-                            // Depth 1: the game's post rule. Depth > 1: the front wall connects backwards only, so it has a post.
-                            boolean post = c.depth > 1 || !(L && R) || (!(l == 2 && rr == 2) && covered);
-                            assertEquals(l, Pieces.wallLeft(st), where + " left side");
-                            assertEquals(rr, Pieces.wallRight(st), where + " right side");
-                            assertEquals(post, Pieces.wallPost(st), where + " post");
-                        }
+        for (ShapeSettings c : shapes()) checked += check(c, Solver.run(c));
+        assertTrue(checked > 5000, "only " + checked + " connectors checked");
+    }
+
+    /**
+     * Holes cut through a solved shape, through every layer as a pattern on its face cuts them: the connectors left
+     * follow the same rules, judged on the drawing with the holes in it. With more than one piece type switched off too.
+     */
+    @Test
+    void connectorsBesideHolesFollowTheGameRules() {
+        int checked = 0;
+        for (String set : new String[]{"all", "fence", "pane wall", "wall slab stair"})
+            for (ShapeSettings c : shapes()) {
+                if (c.gen == ShapeSettings.Gen.ELLIPSE && c.eW > 31) continue;   // the widest take most of the time and add nothing new
+                if (!set.equals("all")) {
+                    if (c.chain) continue;   // chains and end rods only need checking once
+                    c.slab = set.contains("slab"); c.stair = set.contains("stair"); c.trap = c.shelf = false;
+                    c.fence = set.contains("fence"); c.pane = set.contains("pane"); c.wall = set.contains("wall");
+                }
+                Solver.Result r = Solver.run(c);
+                int n = r.nx() * r.ny(), d = Math.max(1, c.depth);
+                java.util.BitSet gone = new java.util.BitSet();
+                for (int q = 0; q < n; q++)
+                    if ((q * 7 + q / r.nx() * 3) % 5 == 0) for (int k = 0; k < d; k++) gone.set(k * n + q);
+                checked += check(c, Settle2D.of(r, d, gone, c.fullConnects, () -> false).layer(0));
+            }
+        assertTrue(checked > 10000, "only " + checked + " connectors checked");
+    }
+
+    /** Checks every connector of a drawing. Returns how many there are. */
+    private static int check(ShapeSettings c, Solver.Result r) {
+        int checked = 0;
+        int nx = r.nx(), ny = r.ny();
+        for (int j = 0; j < ny; j++)
+            for (int i = 0; i < nx; i++) {
+                int st = r.at(i, j);
+                // Flat builds only use pieces that look different from above; upright builds never use flat states.
+                boolean uprightShelf = st == Pieces.SH_L || st == Pieces.SH_R;
+                boolean flatState = st >= Pieces.F_TD_U && st < Pieces.CHAIN_H && !uprightShelf;
+                boolean uprightOnly = (st >= Pieces.SLAB_B && st <= Pieces.TD_T) || (st >= Pieces.FENCE && st < Pieces.F_TD_U) || uprightShelf;
+                assertFalse(c.floor ? uprightOnly : flatState, "wrong orientation: " + Pieces.NAME[st]);
+                if (!Pieces.isConnector(st)) continue;
+                checked++;
+                int L0 = i > 0 ? r.at(i - 1, j) : 0, R0 = i < nx - 1 ? r.at(i + 1, j) : 0;
+                int U0 = j < ny - 1 ? r.at(i, j + 1) : 0, D0 = j > 0 ? r.at(i, j - 1) : 0;
+                boolean L = conn(st, L0, 3), R = conn(st, R0, 2);
+                String where = Pieces.NAME[st] + " at " + i + "," + j + (c.floor ? " (flat)" : "") + " depth " + c.depth;
+                if (c.floor) {
+                    int bits = (L ? 1 : 0) | (R ? 2 : 0) | (conn(st, U0, 0) ? 4 : 0) | (conn(st, D0, 1) ? 8 : 0);
+                    assertEquals(bits, Pieces.floorBits(st), where);
+                } else {
+                    assertEquals(L, Pieces.connectsLeft(st), where);
+                    assertEquals(R, Pieces.connectsRight(st), where);
+                    if (Pieces.FAMILY[st] == Pieces.Family.WALL) {
+                        int cov = Pieces.BOTTOM[U0];
+                        int l = L ? ((cov & 0x01FF) == 0x01FF ? 2 : 1) : 0;
+                        int rr = R ? ((cov & 0xFF80) == 0xFF80 ? 2 : 1) : 0;
+                        boolean covered = (cov & 0x0180) == 0x0180;
+                        // Depth 1: the game's post rule, with the wall above's post. Depth > 1: the front wall
+                        // connects backwards only, so it has a post.
+                        boolean aboveWallPost = Pieces.FAMILY[U0] == Pieces.Family.WALL && Pieces.wallPost(U0);
+                        boolean post = c.depth > 1 || !(L && R) || (!(l == 2 && rr == 2) && covered) || aboveWallPost;
+                        assertEquals(l, Pieces.wallLeft(st), where + " left side");
+                        assertEquals(rr, Pieces.wallRight(st), where + " right side");
+                        assertEquals(post, Pieces.wallPost(st), where + " post");
                     }
                 }
-        }
-        assertTrue(checked > 5000, "only " + checked + " connectors checked");
+            }
+        return checked;
     }
 
     @Test
@@ -102,6 +133,16 @@ class ConnectionRulesTest {
                 walls++;
             }
             assertEquals(10, walls);
+        }
+    }
+
+    @Test
+    void flatWallsHaveAPostUnlessEverySideHasItsOpposite() {
+        for (int bits = 0; bits < 16; bits++) {
+            boolean lr = (bits & Pieces.LEFT) != 0 && (bits & Pieces.RIGHT) != 0, l0 = (bits & (Pieces.LEFT | Pieces.RIGHT)) == 0;
+            boolean tb = (bits & Pieces.TOP) != 0 && (bits & Pieces.BOTTOM_SIDE) != 0, t0 = (bits & (Pieces.TOP | Pieces.BOTTOM_SIDE)) == 0;
+            boolean balanced = (lr || l0) && (tb || t0) && bits != 0;
+            assertEquals(!balanced, Pieces.floorWallPost(bits), "bits " + bits);
         }
     }
 

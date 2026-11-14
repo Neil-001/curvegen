@@ -4,6 +4,7 @@ import dev.curvegen.client.ClientPlatform;
 import dev.curvegen.client.ColorIndex;
 import dev.curvegen.client.CurveGenClient;
 import dev.curvegen.client.Placement;
+import dev.curvegen.client.edit.Capture;
 import dev.curvegen.client.edit.Editor;
 import dev.curvegen.client.edit.Hologram;
 import dev.curvegen.net.PlaceBlocksPayload;
@@ -36,12 +37,16 @@ public class CurveGenFabricClient implements ClientModInitializer, ClientPlatfor
         CurveGenClient.init(this).forEach(KeyBindingHelper::registerKeyBinding);
         ClientTickEvents.END_CLIENT_TICK.register(CurveGenClient::tick);
         // The editor draws after entities, before water, and keeps what goes over the water for the end of the main pass.
+        // Capture's outline goes with it.
         WorldRenderEvents.AFTER_ENTITIES.register(ctx -> Editor.render(ctx.matrices(), ctx.worldState().cameraRenderState.pos));
         WorldRenderEvents.END_MAIN.register(ctx -> Hologram.drawAfterWater());
         // Block colours come from the active resource packs, so recompute them whenever packs change.
         ResourceLoader.get(PackType.CLIENT_RESOURCES).registerReloader(Identifier.fromNamespaceAndPath("curvegen", "block_colours"),
                 (ResourceManagerReloadListener) manager -> ColorIndex.clear());
-        HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("curvegen", "placement"), (dc, tick) -> Editor.renderHud(dc));
+        HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("curvegen", "placement"), (dc, tick) -> {
+            Editor.renderHud(dc);
+            Capture.renderHud(dc);
+        });
         // Keeps the replies to the mod's own /setblock commands out of chat, on a server without the mod.
         ClientReceiveMessageEvents.ALLOW_GAME.register((message, overlay) -> !Placement.hidesFeedback(message, overlay));
     }
@@ -50,6 +55,7 @@ public class CurveGenFabricClient implements ClientModInitializer, ClientPlatfor
     @Override public void sendToServer(PlaceBlocksPayload payload) { ClientPlayNetworking.send(payload); }
     @Override public Path configDir() { return FabricLoader.getInstance().getConfigDir(); }
     @Override public Path gameDir() { return FabricLoader.getInstance().getGameDir(); }
+    @Override public boolean isModLoaded(String id) { return FabricLoader.getInstance().isModLoaded(id); }
     @Override public void modelParts(BlockStateModel model, BlockState state, RandomSource random, List<BlockModelPart> out) {
         model.collectParts(random, out);
     }

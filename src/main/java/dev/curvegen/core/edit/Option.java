@@ -28,13 +28,26 @@ public sealed interface Option {
 
     /**
      * A number. Scrolling changes it by {@code step}, and selecting it opens the number box. The menu keeps what it
-     * passes to {@code set} within the limits, and whole when {@code whole} is set.
+     * passes to {@code set} within the limits, and whole when {@code whole} is set. With {@code round}, as for an
+     * angle, scrolling moves onto the next multiple of {@code step} and goes round from the top limit to the bottom one.
      */
-    record Number(String label, String off, DoubleSupplier get, DoubleConsumer set, double min, double max, double step, boolean whole) implements Option {
+    record Number(String label, String off, DoubleSupplier get, DoubleConsumer set, double min, double max, double step, boolean whole, boolean round) implements Option {
+        public Number(String label, String off, DoubleSupplier get, DoubleConsumer set, double min, double max, double step, boolean whole) {
+            this(label, off, get, set, min, max, step, whole, false);
+        }
+
         /** The value nearest to {@code v} that the option accepts. */
         public double fit(double v) {
             double c = Math.max(min, Math.min(max, v));
             return whole ? Math.rint(c) : c;
+        }
+
+        /** The value one scroll from {@code v}: up for a {@code dir} of 1, down for -1. */
+        public double stepped(double v, int dir) {
+            if (!round) return fit(v + dir * step);
+            // Whole numbers from 0 to 359 go round 360 values; other numbers go round from max back to min.
+            double span = max - min + (whole ? 1 : 0), to = Stepper.next(v - min, step, dir, -step, span);
+            return fit(min + (to % span + span) % span);
         }
     }
 

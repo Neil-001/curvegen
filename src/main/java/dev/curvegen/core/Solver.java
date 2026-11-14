@@ -14,6 +14,20 @@ public final class Solver {
 
     public record Result(byte[] grid, int nx, int ny, double err, double area, int[] counts, Target target, boolean floor) {
         public int at(int i, int j) { return grid[j * nx + i]; }
+
+        /**
+         * Whether the upright wall at column i and row j has its post where it's placed in layer k of {@code depth}.
+         * The game gives a wall a post when the wall above it has one, so a post reaches down a column of walls.
+         * One layer deep, the drawing's piece has it too. Deeper, the drawing shows the front layer's post.
+         */
+        public boolean placedWallPost(int i, int j, int k, int depth) {
+            for (int y = j; y < ny; y++) {
+                int p = at(i, y);
+                if (Pieces.FAMILY[p] != Pieces.Family.WALL) return false;
+                if (Pieces.ownWallPost(p, y + 1 < ny ? at(i, y + 1) : Pieces.EMPTY, k, depth)) return true;
+            }
+            return false;
+        }
     }
 
     public static Result solve(Target t, ShapeSettings s) {
@@ -82,8 +96,9 @@ public final class Solver {
                 boolean covered = (cov & 0x0180) == 0x0180;
                 return Pieces.wall(l, r, covered, deep || Pieces.wallPostRule(l, r, covered));
             }
-            int cellErr(int idx) {
-                int st = resolve(idx), k = t.kind[idx];
+            int cellErr(int idx) { return err(idx, resolve(idx)); }
+            int err(int idx, int st) {
+                int k = t.kind[idx];
                 return k == 0 ? Pieces.PIXELS[st] : k == 1 ? 256 - Pieces.PIXELS[st] : t.errTab[idx][st];
             }
             /**
@@ -169,11 +184,19 @@ public final class Solver {
                 if (!changed) break;
             }
         }
-        double err = 0;
-        for (int q = 0; q < N; q++) err += c.cellErr(q);
-        err /= 256;
         byte[] out = new byte[N];
         for (int q = 0; q < N; q++) out[q] = (byte) c.resolve(q);
+        // One layer deep, a wall below a wall with a post has one too, which the pieces above leave out. Refinement
+        // judges pieces without it, so that a pick changes no cell more than a row below, and this comes after.
+        if (!floor && !deep)
+            for (int q = N - 1 - nx; q >= 0; q--) {
+                int v = out[q], above = out[q + nx];
+                if (Pieces.FAMILY[v] == Pieces.Family.WALL && !Pieces.wallPost(v) && Pieces.FAMILY[above] == Pieces.Family.WALL && Pieces.wallPost(above))
+                    out[q] = (byte) Pieces.wall(Pieces.wallLeft(v), Pieces.wallRight(v), Pieces.wallCovered(v), true);
+            }
+        double err = 0;
+        for (int q = 0; q < N; q++) err += c.err(q, out[q]);
+        err /= 256;
 
         if (t.hollow) {
             byte[] solid = out.clone();

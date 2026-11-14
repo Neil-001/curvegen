@@ -3,11 +3,13 @@ package dev.curvegen.client.edit;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
+import dev.curvegen.client.chroma.Chroma;
 import dev.curvegen.client.Lang;
 import dev.curvegen.client.BlockChoices;
 import dev.curvegen.client.CurveGenClient;
 import dev.curvegen.client.LitematicExporter;
 import dev.curvegen.client.ModSettings;
+import dev.curvegen.client.PaintBlocks;
 import dev.curvegen.client.Placement;
 import dev.curvegen.client.screen.RadialScreen;
 import dev.curvegen.core.Pieces;
@@ -16,6 +18,8 @@ import dev.curvegen.core.edit.Box;
 import dev.curvegen.core.edit.HandleMath;
 import dev.curvegen.core.edit.Option;
 import dev.curvegen.core.edit.Orient;
+import dev.curvegen.core.paint.Catalog;
+import dev.curvegen.core.paint.Paint;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -101,10 +105,24 @@ public final class Editor {
     /** The settings of the running solve, and the settings and block choices the hologram was last built from. */
     private static ShapeSettings jobSettings, shown;
     private static Map<Pieces.Family, Block> shownChoices;
+    /**
+     * The block choices the paint in {@link #solved} was worked out with, or null when it's unpainted; those of the
+     * running solve's paint; and those of the running repaint's. Paint reads the choices when it starts, so a change
+     * since then means painting again.
+     */
+    private static Map<Pieces.Family, Block> paintChoices, jobPaintChoices, repaintChoices;
     /** The orientation the running solve was started with, and the box's corner then (moved along with later nudges). */
     private static Orient jobOrient;
     private static int[] jobOrigin;
     private static Object solved;
+    /**
+     * The paint the blocks on show have, and a repaint under way. A paint change repaints the last solve without
+     * solving it again, and the hologram keeps its old blocks until the new ones are ready.
+     */
+    private static Paint shownPaint;
+    /** {@link Chroma#matcherVersion} when the blocks on show and the solve under way were painted: when it moves on, they're painted again. */
+    private static int shownMatcher, jobMatcher;
+    private static Future<Object> paintJob;
     private static Hologram hologram;
     /** The block limit the hologram was built with, so a change in the settings screen rebuilds it. */
     private static int blockLimit;
@@ -191,7 +209,7 @@ public final class Editor {
         EditShape next = EditShape.of(S);
         if (shape == null || next.getClass() != shape.getClass()) {
             dropJob();
-            solved = null; hologram = null; hologramOrigin = null; shown = null;
+            solved = null; hologram = null; hologramOrigin = null; shown = null; shownPaint = null; paintJob = null; paintChoices = null;
         }
         shape = next;
     }
@@ -219,14 +237,14 @@ public final class Editor {
 
     private static void reset() {
         dropJob();
-        solved = null; hologram = null; hologramOrigin = null; viewOrigin = null;
+        solved = null; hologram = null; hologramOrigin = null; viewOrigin = null; shownPaint = null; paintJob = null; paintChoices = null;
         undo.clear(); redo.clear(); editGroup = null; editStep = null;
         drag = null; hover = null; follow = new int[3]; pivot = null;
         screenOpen = Minecraft.getInstance().screen != null; beforeScreen = null;
     }
 
     private static void begin() {
-        S.fullConnects = BlockChoices.fullBlockConnects();
+        S.fullConnects = BlockChoices.fullConnects(S);
         locked = true; active = true; dirty = true;
     }
 
@@ -251,7 +269,7 @@ public final class Editor {
             return;
         }
         if (drag != null) endDrag();
-        if (hologram == null || dirty || job != null) { Placement.say(Lang.component("curvegen.editor.still_working")); return; }
+        if (hologram == null || dirty || job != null || painting()) { Placement.say(Lang.component("curvegen.editor.still_working")); return; }
         if (hologram.error != null) { Placement.say(Lang.component("curvegen.editor.fix_shape", Lang.component(hologram.error)).withStyle(ChatFormatting.RED)); return; }
         if (hologram.size() == 0) { Placement.say(Lang.component("curvegen.editor.empty_place")); return; }
         List<BlockPos> pos = new ArrayList<>(hologram.size());
@@ -289,8 +307,11 @@ public final class Editor {
     public static boolean catchingUp() {
         if (!active) return false;
         if (hologram != null && !dirty && job == null && stale()) adopt();
-        return hologram == null || dirty || job != null;
+        return hologram == null || dirty || job != null || painting();
     }
+
+    /** Whether the blocks on show have other paint than the settings, or a repaint is under way. */
+    private static boolean painting() { return paintJob != null || shownPaint != null && !S.paint.same(shownPaint); }
 
     /** Whether the hologram was built from other shape settings or block choices than the ones set now. */
     private static boolean stale() { return !solvedFor(true); }
@@ -304,8 +325,10 @@ public final class Editor {
         ShapeSettings ref = running ? jobSettings : shown;
         // A running solve's blocks get the choices as they are when it finishes, so only the ones on show can be out of date.
         if (ref == null || !running && !BlockChoices.CHOICE.equals(shownChoices)) return false;
+        if (running && jobPaintChoices != null && !BlockChoices.CHOICE.equals(jobPaintChoices)) return false;
         ShapeSettings now = S.copy();
         now.overwrite = ref.overwrite;   // Replace doesn't change which blocks the shape has
+        now.paint.set(ref.paint);        // and paint is put on without solving again
         // Nor does Carve, but a shape that only works out what to clear while it's on needs a solve when it comes on.
         if (shownOnly || !shape.solveUsesCarve() || !S.carve) now.carve = ref.carve;
         return now.same(ref);
@@ -331,11 +354,20 @@ public final class Editor {
         rebase = true;
         S.set(s.settings);
         // Block choices aren't part of a snapshot, so this flag has to follow the blocks chosen now.
-        S.fullConnects = BlockChoices.fullBlockConnects();
+        S.fullConnects = BlockChoices.fullConnects(S);
         reshape();
+        boolean moved = !s.box.equals(box) || !s.orient.equals(orient);
         box = s.box; orient = s.orient; follow = s.follow.clone();
         pivot = s.pivot == null ? null : s.pivot.clone();
+        if (moved) dirty = true;
+        else resolveUnlessPaintOnly();
+    }
+
+    /** Marks the shape for a new solve, unless only its paint changed since the last one, which repaints it instead. */
+    private static void resolveUnlessPaintOnly() {
+        boolean wasDirty = dirty;
         dirty = true;
+        if (!wasDirty && solvedFor(false)) dirty = false;
     }
 
     /** Takes back the last edit to the hologram. */
@@ -378,6 +410,7 @@ public final class Editor {
         if (drag != null) endDrag();
         Snapshot before = snapshot();
         change.run();
+        S.fullConnects = BlockChoices.fullConnects(S);   // it follows the paint
         if (S.same(before.settings)) return;
         boolean merges = group != null && group.equals(editGroup) && undo.peek() == editStep;
         if (!merges) {
@@ -387,7 +420,9 @@ public final class Editor {
         rebase = true;
         reshape();
         settle();
+        boolean wasDirty = dirty;
         adopt();
+        if (!wasDirty && solvedFor(false)) dirty = false;
     }
 
     /** After an edit that can leave control points outside the box: grows it to hold them, where they are in the world. */
@@ -418,7 +453,7 @@ public final class Editor {
     private static void rebuild(int[] at) {
         blockLimit = ModSettings.hologramBlockLimit;
         hologram = new Hologram(shape.build(solved, orient), blockLimit);
-        shownChoices = new EnumMap<>(BlockChoices.CHOICE);
+        shownChoices = paintChoices != null ? paintChoices : new EnumMap<>(BlockChoices.CHOICE);
         hologramOrigin = at;
         viewOrigin = null;
     }
@@ -584,7 +619,7 @@ public final class Editor {
     /** Null when the hologram's blocks are ready to place or export. Otherwise why they aren't. */
     public static String notReady() {
         if (!active) return Lang.tr("curvegen.editor.no_shape");
-        if (hologram == null || dirty || job != null) return Lang.tr("curvegen.editor.still_working");
+        if (hologram == null || dirty || job != null || painting()) return Lang.tr("curvegen.editor.still_working");
         if (hologram.error != null) return Lang.tr("curvegen.editor.fix_shape", Lang.text(hologram.error));
         if (hologram.size() == 0) return Lang.tr("curvegen.editor.empty");
         return null;
@@ -778,7 +813,7 @@ public final class Editor {
         if (!open && screenOpen && beforeScreen != null) {
             Snapshot before = beforeScreen;
             beforeScreen = null;
-            S.fullConnects = BlockChoices.fullBlockConnects();
+            S.fullConnects = BlockChoices.fullConnects(S);
             before.settings.fullConnects = S.fullConnects;   // it follows the blocks, which undo doesn't put back
             boolean wasDirty = dirty;
             adopt();
@@ -808,8 +843,11 @@ public final class Editor {
             job = null; jobOrigin = null;
             if (result != null) {
                 solved = result;
+                paintChoices = jobPaintChoices;
                 lastSolveMillis = System.currentTimeMillis() - jobStarted;
                 shown = jobSettings;
+                shownPaint = jobSettings.paint.copy();
+                shownMatcher = jobMatcher;
                 droppingSince = 0;
                 // The solve may have settled a size the settings left open, such as an equation's locked height.
                 Box fitted = box.refit(worldSize());
@@ -827,6 +865,7 @@ public final class Editor {
         }
         if (dirty && job == null) {
             dirty = false;
+            paintJob = null;   // the solve paints its own blocks
             ShapeSettings copy = S.copy();
             jobSettings = S.copy();   // its own copy: a solve may settle values in the one it's given
             EditShape solver = shape;
@@ -834,8 +873,16 @@ public final class Editor {
             jobOrigin = new int[]{box.x(), box.y(), box.z()};
             AtomicBoolean cancelled = jobCancelled = new AtomicBoolean();
             jobStarted = System.currentTimeMillis();
-            job = EXEC.submit(() -> solver.solve(copy, o, cancelled::get));
+            Paint paint = jobSettings.paint.copy();
+            Catalog catalog = paint.on() ? PaintBlocks.catalog(S) : null;
+            jobMatcher = Chroma.matcherVersion();
+            jobPaintChoices = paint.on() ? new EnumMap<>(BlockChoices.CHOICE) : null;
+            job = EXEC.submit(() -> {
+                Object r = solver.solve(copy, o, cancelled::get);
+                return r == null || cancelled.get() ? r : solver.paint(r, paint, catalog);
+            });
         }
+        repaint();
 
         if (hologram != null && blockLimit != ModSettings.hologramBlockLimit && solved != null) rebuild(hologramOrigin);
         if (hologram != null) {
@@ -847,10 +894,36 @@ public final class Editor {
         }
     }
 
+    /** Repaints the last solve when only the paint changed, and puts the new blocks on show when they're ready. */
+    private static void repaint() {
+        if (paintJob != null && paintJob.isDone()) {
+            Object result = null;
+            try { result = paintJob.get(); }
+            catch (Exception e) { Placement.say(Lang.component("curvegen.editor.build_failed", e.getMessage()).withStyle(ChatFormatting.RED)); }
+            paintJob = null;
+            if (result != null && job == null && !dirty) {
+                solved = result;
+                paintChoices = repaintChoices;
+                rebuild(new int[]{box.x(), box.y(), box.z()});
+            }
+        }
+        if (paintJob == null && job == null && !dirty && solved != null && shownPaint != null
+                && (!S.paint.same(shownPaint) || S.paint.on() && Chroma.matcherVersion() != shownMatcher)) {
+            Paint paint = S.paint.copy();
+            Catalog catalog = paint.on() ? PaintBlocks.catalog(S) : null;
+            repaintChoices = paint.on() ? new EnumMap<>(BlockChoices.CHOICE) : null;
+            EditShape painter = shape;
+            Object from = solved;
+            shownPaint = paint;
+            shownMatcher = Chroma.matcherVersion();
+            paintJob = EXEC.submit(() -> painter.paint(from, paint, catalog));
+        }
+    }
+
     // ---------- rendering ----------
 
-    /** Line segments for one frame: six coordinates and a colour each. */
-    private static final class Lines {
+    /** Line segments for one frame: six coordinates and a colour each. {@link Capture} draws its box with them too. */
+    static final class Lines {
         float[] xyz = new float[1024];
         int[] color = new int[170];
         int n;
@@ -915,7 +988,7 @@ public final class Editor {
      * The tangent of half the vertical field of view, which is half the view's height one block in front of the camera.
      * 1.21.11 keeps the field of view to itself, so this projects a point one block ahead and one up.
      */
-    private static double halfViewHeight(Minecraft mc) {
+    static double halfViewHeight(Minecraft mc) {
         Camera camera = mc.gameRenderer.getMainCamera();
         Vector3fc f = camera.forwardVector(), u = camera.upVector();
         double y = mc.gameRenderer.projectPointToScreen(camera.position().add(f.x() + u.x(), f.y() + u.y(), f.z() + u.z())).y;
@@ -925,11 +998,13 @@ public final class Editor {
     /**
      * Draws the hologram, its wireframe and its handles for this frame. {@code ms} is the world's pose stack and
      * {@code cam} the camera position. Each loader calls this after entities and before translucent terrain. It draws
-     * what belongs under the water at once and leaves the rest to {@link Hologram#drawAfterWater}.
+     * what belongs under the water at once and leaves the rest to {@link Hologram#drawAfterWater}. Capture's outline goes
+     * in the same queues.
      */
     public static void render(PoseStack ms, Vec3 cam) {
         Hologram.clearQueued();
         queue(ms, cam);
+        Capture.render(ms, cam);
         Hologram.drawBeforeWater();
     }
 
@@ -1055,12 +1130,12 @@ public final class Editor {
 
     // ---------- HUD ----------
 
-    private static String key(KeyMapping k) { return k.getTranslatedKeyMessage().getString(); }
+    static String key(KeyMapping k) { return k.getTranslatedKeyMessage().getString(); }
 
     public static void renderHud(GuiGraphics dc) {
         Minecraft mc = Minecraft.getInstance();
-        // A screen covers the hints or draws its own, and the menu's labels need the room.
-        if (!active || mc.player == null || mc.screen != null) return;
+        // A screen covers the hints or draws its own, and the menu's labels need the room. Capture has the lines while it runs.
+        if (!active || Capture.isActive() || mc.player == null || mc.screen != null) return;
         StepHold.renderBar(dc);
         var font = mc.font;
         int room = dc.guiWidth() - 12;

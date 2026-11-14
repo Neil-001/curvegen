@@ -29,5 +29,8 @@
     "minecraft": "1.21.11",
     "java": ">=21",
     "fabric-api": ">=0.139.5"
+  },
+  "suggests": {
+    "chromastudio": ">=1.2.0-"
   }
 }
