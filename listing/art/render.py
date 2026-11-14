@@ -760,15 +760,18 @@ def divider():
 
 
 def icon():
-    """The mod's icon: a Bézier curve shaped like a bass clef, on a plain square with no rounded corners."""
+    """The mod's icon: a Bézier curve shaped like a bass clef, on a plain square with no rounded corners. The same file
+    goes in the mod's resources, which both loaders show, and in listing/media, which the Listing workflow sets as
+    Modrinth's project icon."""
     pts = [(7, 10), (3, 9.5), (3.5, 18.5), (15.5, 17.5), (15.5, 6.5), (9.5, 3.5), (4, 2)]
     scene = solve(gen="BEZIER", bW=16, bH=16, bLW=1.4, shelf="false", pts=" ".join(f"{x},{y}" for x, y in pts))
     img = Image.new("RGB", (16 * CELL, 16 * CELL), BG)
     pieces(img, scene, 0, 0)
     grid(img)
     curve(img, scene, 0, 0, 3)
-    img.save(os.path.join(ROOT, "src/main/resources/assets/curvegen/icon.png"), optimize=True)
-    print("icon.png", img.size)
+    for path in (os.path.join(ROOT, "src/main/resources/assets/curvegen/icon.png"), os.path.join(OUT, "icon.png")):
+        img.save(path, optimize=True)
+        print(os.path.relpath(path, ROOT), img.size, os.path.getsize(path) // 1024, "KiB")
 
 
 if __name__ == "__main__":
