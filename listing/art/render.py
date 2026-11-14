@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""Draws the listing artwork in listing/media, the painted shapes in listing/gallery, and the mod's icon, from the
-mod's own solvers.
+"""Draws the listing artwork in listing/media and the mod's icon from the mod's own solvers.
 
     python3 listing/art/render.py
 
@@ -10,7 +9,8 @@ the menu's 3D preview does. The banner's title goes through the solver too, as a
 typeface. The stone brick texture comes from the Minecraft client jar in the Gradle cache (run ./gradlew build once
 first), and the font is downloaded on first use.
 
-Painted shapes are painted by the mod's own painters, in Dump.java. What they need to know about the game's blocks
+The gallery in listing/gallery is screenshots from the game only, so nothing here paints a shape any more. The unused
+painted shapes were painted by the mod's own painters, in Dump.java. What they need to know about the game's blocks
 comes from Blocks.java, run against Minecraft with the class path Fabric's tests use, and each block's colour from its
 textures in the client jar, averaged as ColorIndex averages them. Tints aren't applied, so the pictures stay clear of
 grass and leaves. Colours are matched as "Match a colour…" matches them without Chroma Studio.
@@ -102,6 +102,8 @@ def status(scene):
 
 # ---------- painting ----------
 
+# Unused: only paint(), gallery() and gradient() use this section, down to Textures, and the listing no longer shows
+# their pictures. Blocks.java and classpath.gradle are there only for catalog().
 def catalog():
     """The file Dump.java reads painting's blocks from: Blocks.java's lines, then each block's side and top colour."""
     jar = client_jar()
@@ -254,6 +256,7 @@ def write(d, xy, text, size, fill, anchor="l"):
         x += (small if up else f).getlength(c)
 
 
+# Unused: only catalog() and stone_bricks() use it, and the listing no longer shows their pictures.
 def client_jar():
     jars = sorted(glob.glob(os.path.expanduser("~/.gradle/caches/**/minecraft*client*.jar"), recursive=True))
     for jar in reversed(jars):
@@ -600,6 +603,8 @@ def shapes3d():
     save(stacked([side_by_side(r, 16) for r in rows], 16), "shapes3d.png")
 
 
+# Unused: everything from here to the end of PAINTED serves only paint() and gallery(), and the listing no longer shows
+# their pictures.
 def lab(rgb):
     """CIELAB, as the mod's Lab class works it out."""
     def lin(c):
@@ -668,9 +673,8 @@ PAINTED = [
 ]
 
 
-# Unused: the listing no longer shows paint.png, so this file doesn't draw it. The galleries show the same shapes one to
-# a picture, from gallery(). To bring it back, call it at the end of this file and show the picture in
-# listing/description.md.
+# Unused: the listing no longer shows paint.png, so this file doesn't draw it. To bring it back, call it at the end of
+# this file and show the picture in listing/description.md.
 def paint():
     """The painted shapes, as the menu's "Block colours" picture shows them."""
     cards = []
@@ -682,6 +686,9 @@ def paint():
     save(stacked([side_by_side(cards[:3], 16), side_by_side(cards[3:], 16)], 16), "paint.png")
 
 
+# Unused: the gallery is screenshots from the game only, so this file doesn't draw these pictures. To bring one back,
+# call gallery() at the end of this file, keep the picture you want and list it in listing/gallery/README.md, whose
+# numbering it must fit.
 def gallery():
     """The same painted shapes, one to a picture, for the galleries."""
     folder = os.path.join(ROOT, "listing", "gallery")
@@ -762,7 +769,6 @@ def icon():
 if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
     banner()
-    gallery()
     divider()
     icon()
     SOLVER.stdin.close()

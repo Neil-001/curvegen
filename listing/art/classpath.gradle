@@ -1,5 +1,6 @@
 // An init script for render.py: prints the class path Fabric's tests run with, which holds Minecraft and the mod's
 // classes, so Blocks.java can run against the game's own blocks. Run with -I; it changes nothing in the build.
+// Unused, as Blocks.java is: only render.py's catalog() runs it, for pictures the listing no longer shows.
 allprojects {
     afterEvaluate { p ->
         if (p.path == ':fabric') p.tasks.register('artClasspath') {

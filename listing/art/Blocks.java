@@ -13,6 +13,9 @@ import net.minecraft.world.level.block.state.properties.Property;
  * PaintBlocks against the game's registries, so it needs Minecraft on the class path but no world or client.
  * Colours aren't here: render.py reads them from the textures, as ColorIndex does in the game.
  *
+ * <p>Unused: only render.py's catalog() runs this, for the painted pictures, and the listing no longer shows them. It
+ * stays so they can come back, as render.py says.
+ *
  * <p>One line each: "allowed FAMILY id…", "piece base FAMILY id", "noconnect id", "wooden id", "choice FAMILY id", and
  * "default id name=value…" with each allowed block's default state, which picks its model.
  */
