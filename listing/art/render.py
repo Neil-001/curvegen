@@ -407,6 +407,7 @@ def scaled(img, k):
     return img.resize((img.width * k, img.height * k), Image.NEAREST)
 
 
+# Unused: only side_by_side(), editor() and families() use it, and the listing no longer shows their pictures.
 def rounded(img, r=20):
     m = Image.new("L", img.size, 0)
     ImageDraw.Draw(m).rounded_rectangle([0, 0, img.width - 1, img.height - 1], r, fill=255)
@@ -603,8 +604,8 @@ def shapes3d():
     save(stacked([side_by_side(r, 16) for r in rows], 16), "shapes3d.png")
 
 
-# Unused: everything from here to the end of PAINTED serves only paint() and gallery(), and the listing no longer shows
-# their pictures.
+# Unused: everything from here to the end of painted_shapes() serves only paint() and gallery(), and the listing no
+# longer shows their pictures.
 def lab(rgb):
     """CIELAB, as the mod's Lab class works it out."""
     def lin(c):
@@ -655,22 +656,26 @@ DOME = dict(gen="ELLIPSOID", e3W=33, e3H=33, e3D=33, e3Mode="INWARDS", viewTop="
 COPPER = {"paint.source": "MIX", "paint.mix.name": "Copper", "paint.mix.blocks": "minecraft:oxidized_cut_copper*5 "
           "minecraft:weathered_cut_copper*4 minecraft:exposed_cut_copper*2 minecraft:cut_copper*1"}
 NO_THIN = dict(trap="false", shelf="false")
-PAINTED = [
-    ("dome", "Stripes on a dome",
-     dict(**DOME, **NO_THIN, **painted(source="PATTERN", size=3), paintPattern="STRIPES")),
-    ("road", "Two-lane road on a curve",
-     dict(gen="BEZIER", bW=72, bH=44, bLW=9, floor="true", pts="5,7 22,46 50,-2 67,34", **painted(source="PATTERN"),
-          paintPattern="TWO_LANE_ROAD", viewPitch=50, viewYaw=-20)),
-    ("torus", "Gradient, bottom to top",
-     dict(gen="TORUS", tRing=33, tTube=11, tW=33, tH=11, tD=33, **NO_THIN, viewPitch=12,
-          **gradient("Sunset", [0xFFD34E, 0xF2762E, 0xC0392B, 0x7B2FA0, 0x3C44AA], 10))),
-    ("lattice", "Holes: a lattice dome",
-     dict(**DOME, **painted(source="PATTERN", size=2, empty="OPEN"), paintPattern="LATTICE")),
-    ("spiral", "A stripe turned into a spiral",
-     dict(gen="BEZIER3", b3T=9, b3Hollow="true", **NO_THIN, **painted(source="PATTERN", size=2, turn=35), paintPattern="STRIPES")),
-    ("mix", "A mix of copper in patches",
-     dict(gen="SURFACE", **NO_THIN, **painted(patch=5), **COPPER)),
-]
+
+
+def painted_shapes():
+    """The painted shapes, made when asked for, so drawing anything else never reaches catalog(), which gradient() calls."""
+    return [
+        ("dome", "Stripes on a dome",
+         dict(**DOME, **NO_THIN, **painted(source="PATTERN", size=3), paintPattern="STRIPES")),
+        ("road", "Two-lane road on a curve",
+         dict(gen="BEZIER", bW=72, bH=44, bLW=9, floor="true", pts="5,7 22,46 50,-2 67,34", **painted(source="PATTERN"),
+              paintPattern="TWO_LANE_ROAD", viewPitch=50, viewYaw=-20)),
+        ("torus", "Gradient, bottom to top",
+         dict(gen="TORUS", tRing=33, tTube=11, tW=33, tH=11, tD=33, **NO_THIN, viewPitch=12,
+              **gradient("Sunset", [0xFFD34E, 0xF2762E, 0xC0392B, 0x7B2FA0, 0x3C44AA], 10))),
+        ("lattice", "Holes: a lattice dome",
+         dict(**DOME, **painted(source="PATTERN", size=2, empty="OPEN"), paintPattern="LATTICE")),
+        ("spiral", "A stripe turned into a spiral",
+         dict(gen="BEZIER3", b3T=9, b3Hollow="true", **NO_THIN, **painted(source="PATTERN", size=2, turn=35), paintPattern="STRIPES")),
+        ("mix", "A mix of copper in patches",
+         dict(gen="SURFACE", **NO_THIN, **painted(patch=5), **COPPER)),
+    ]
 
 
 # Unused: the listing no longer shows paint.png, so this file doesn't draw it. To bring it back, call it at the end of
@@ -678,7 +683,7 @@ PAINTED = [
 def paint():
     """The painted shapes, as the menu's "Block colours" picture shows them."""
     cards = []
-    for _, label, settings in PAINTED:
+    for _, label, settings in painted_shapes():
         img, scene = solve3(512, 384, catalog=catalog(), viewWires="false", viewMargin=24, **settings)
         write(ImageDraw.Draw(img), (16, 364), label, 20, TEXT)
         print(f"  {label}: {status3(scene)}, {scene['painted']['open']} open")
@@ -692,7 +697,7 @@ def paint():
 def gallery():
     """The same painted shapes, one to a picture, for the galleries."""
     folder = os.path.join(ROOT, "listing", "gallery")
-    for n, (name, _, settings) in enumerate(PAINTED, 8):
+    for n, (name, _, settings) in enumerate(painted_shapes(), 8):
         img, _ = solve3(1920, 1080, catalog=catalog(), viewWires="false", viewMargin=90, **settings)
         path = os.path.join(folder, f"{n:02d}-{name}.png")
         img.save(path, optimize=True)
@@ -755,14 +760,14 @@ def divider():
 
 
 def icon():
-    """The mod's icon: a Bézier curve shaped like a bass clef."""
+    """The mod's icon: a Bézier curve shaped like a bass clef, on a plain square with no rounded corners."""
     pts = [(7, 10), (3, 9.5), (3.5, 18.5), (15.5, 17.5), (15.5, 6.5), (9.5, 3.5), (4, 2)]
     scene = solve(gen="BEZIER", bW=16, bH=16, bLW=1.4, shelf="false", pts=" ".join(f"{x},{y}" for x, y in pts))
     img = Image.new("RGB", (16 * CELL, 16 * CELL), BG)
     pieces(img, scene, 0, 0)
     grid(img)
     curve(img, scene, 0, 0, 3)
-    rounded(img, 44).save(os.path.join(ROOT, "src/main/resources/assets/curvegen/icon.png"), optimize=True)
+    img.save(os.path.join(ROOT, "src/main/resources/assets/curvegen/icon.png"), optimize=True)
     print("icon.png", img.size)
 
 

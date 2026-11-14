@@ -1,6 +1,6 @@
 # Gallery
 
-Screenshots for the galleries on Modrinth and CurseForge, with the title and description for each. The `Listing` workflow uploads them to Modrinth in this order, reading the titles and descriptions from this file. On CurseForge, upload them by hand. Titles fit Modrinth's limit of 64 characters and descriptions its 255.
+Screenshots for the galleries on Modrinth and CurseForge, with the title and description for each. The `Listing` workflow uploads them to Modrinth in this order, reading the titles and descriptions from this file, except that a picture whose title Modrinth already shows keeps its old place unless the workflow runs with `replace=true`. On CurseForge, upload them by hand. Titles fit Modrinth's limit of 64 characters and descriptions its 255.
 
 All nine are 1920 by 1080, taken in Minecraft 26.3 with the default textures, of shapes built and painted with the mod. Keep it to nine at most, and screenshots only.
 
@@ -8,7 +8,7 @@ All nine are 1920 by 1080, taken in Minecraft 26.3 with the default textures, of
 
 `01-painted-planet.jpg`
 
-An ellipsoid painted with a pattern of bands, and a flattened torus for its ring, painted with a gradient from dark wood to quartz. The mod picks slabs and stairs where a full block would stick out.
+A sphere painted with a pattern of bands, and a flat ring round it painted with a gradient from dark wood to quartz. The mod picks slabs and stairs where a full block would stick out.
 
 ## 2. A road that follows the curve
 
@@ -26,31 +26,31 @@ The Two-lane road pattern on a flat Bézier line 140 blocks long, leading to a l
 
 `04-gradient-tower.jpg`
 
-The surface x² + y² − z²/2 = 1, built 56 blocks across and painted bottom to top with a gradient saved in Chroma Studio 1.2 or newer, with ragged edges between the colours.
+An hourglass tower 56 blocks across, built from the equation x² + y² − z²/2 = 1 and painted bottom to top with a gradient saved in Chroma Studio 1.2 or newer. Ragged edges blend each colour into the next.
 
 ## 5. Weathered copper wave
 
 `05-copper-wave.jpg`
 
-A Bézier surface shaped into a breaking wave, painted with a mix of cut copper in four stages of weathering, laid out in patches. Shuffle gives a new arrangement, and the hologram and the placed blocks keep the same one.
+A Bézier surface shaped into a breaking wave, painted with a mix of cut copper in four stages of weathering, laid out in patches. The slabs and stairs in each patch are the same copper as its full blocks.
 
 ## 6. Painting from the radial menu
 
 `06-radial-paint.jpg`
 
-Hold V and open Paint to change the paint without leaving the world. Scroll over Turn, Size or Slide and the hologram repaints at once, without solving the shape again.
+Hold V and open Paint to change the paint without leaving the world. Scroll over Turn, Size or Slide and the hologram repaints at once.
 
 ## 7. The Paint screen
 
 `07-paint-screen.jpg`
 
-Paint with a pattern, a mix of blocks or a gradient, and see the result block by block before you place it. Patterns can be captured from blocks in the world or made from an image.
+Here a gradient runs from the bottom of the tower to the top, with ragged edges between its colours. Paint with a pattern, a mix of blocks or a gradient, and see every block before you place it.
 
 ## 8. Gyroid from an equation
 
 `08-gyroid.jpg`
 
-A 3D equation in x, y and z: a gyroid cut to a ball, 65 blocks across. Anything you can write as an equation or inequality can be built.
+A ball of twisting tunnels 65 blocks across, from one equation in x, y and z. Type your own equation or inequality and the mod builds it.
 
 ## 9. Full menu
 
