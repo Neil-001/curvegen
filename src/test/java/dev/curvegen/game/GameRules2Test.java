@@ -272,12 +272,15 @@ class GameRules2Test {
         }
     }
 
-    /** The blocks a painted shape may use besides the Blocks tab's, by piece type: ones that join as those do. */
-    private static Map<Pieces.Family, Block[]> paints() {
+    /**
+     * The blocks a painted shape may use besides the Blocks tab's, by piece type: ones that join as those do. Full
+     * blocks that fences, panes and walls join, or, without {@code fullConnects}, ones they don't.
+     */
+    private static Map<Pieces.Family, Block[]> paints(boolean fullConnects) {
         return Map.of(
-                Pieces.Family.FULL, new Block[]{Blocks.STONE_BRICKS, Blocks.GRANITE}, Pieces.Family.SLAB, new Block[]{Blocks.OAK_SLAB},
-                Pieces.Family.STAIRS, new Block[]{Blocks.BRICK_STAIRS}, Pieces.Family.PANE, new Block[]{Blocks.IRON_BARS},
-                Pieces.Family.WALL, new Block[]{Blocks.ANDESITE_WALL, Blocks.BRICK_WALL});
+                Pieces.Family.FULL, fullConnects ? new Block[]{Blocks.STONE_BRICKS, Blocks.GRANITE} : new Block[]{Blocks.OAK_LEAVES, Blocks.MELON},
+                Pieces.Family.SLAB, new Block[]{Blocks.OAK_SLAB}, Pieces.Family.STAIRS, new Block[]{Blocks.BRICK_STAIRS},
+                Pieces.Family.PANE, new Block[]{Blocks.IRON_BARS}, Pieces.Family.WALL, new Block[]{Blocks.ANDESITE_WALL, Blocks.BRICK_WALL});
     }
 
     /**
@@ -286,13 +289,12 @@ class GameRules2Test {
      */
     @Test
     void theGameKeepsEveryStateOfAPaintedShape() {
-        Map<Pieces.Family, Block[]> paints = paints();
-        List<Block> blocks = new ArrayList<>();
-        for (Block[] bs : paints.values()) blocks.addAll(List.of(bs));
-        PaintBlocks.Resolved paint = new PaintBlocks.Resolved(blocks.toArray(new Block[0]), new BlockState[blocks.size()]);
         int checked = 0, seed = 0;
         for (ShapeSettings c : shapes(new String[]{"all", "pane wall", "wall"}, new int[]{1, 3, 5}, false)) {
-            if (!c.fullConnects) continue;   // granite and stone bricks join walls as stone does
+            Map<Pieces.Family, Block[]> paints = paints(c.fullConnects);
+            List<Block> blocks = new ArrayList<>();
+            for (Block[] bs : paints.values()) blocks.addAll(List.of(bs));
+            PaintBlocks.Resolved paint = new PaintBlocks.Resolved(blocks.toArray(new Block[0]), new BlockState[blocks.size()]);
             choose(c);
             Solver.Result r = Solver.run(c);
             int n = r.nx() * r.ny();
@@ -308,7 +310,7 @@ class GameRules2Test {
             check(c, world, "painted");
             checked += world.size();
         }
-        assertTrue(checked > 100000, checked + " blocks");
+        assertTrue(checked > 200000, checked + " blocks");
     }
 
     /** Settling with nothing taken out gives exactly what the shape gives unsettled. */
