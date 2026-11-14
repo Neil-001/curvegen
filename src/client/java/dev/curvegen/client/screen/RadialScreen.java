@@ -3,11 +3,14 @@ package dev.curvegen.client.screen;
 import static dev.curvegen.client.Lang.tr;
 
 import com.mojang.blaze3d.platform.InputConstants;
+import dev.curvegen.client.chroma.Chroma;
 import dev.curvegen.client.BlockChoices;
 import dev.curvegen.client.CurveGenClient;
 import dev.curvegen.client.ModSettings;
 import dev.curvegen.client.Placement;
+import dev.curvegen.client.PatternStore;
 import dev.curvegen.client.PresetStore;
+import dev.curvegen.client.edit.Capture;
 import dev.curvegen.client.edit.EditShape;
 import dev.curvegen.client.edit.Editor;
 import dev.curvegen.core.Pieces.Family;
@@ -15,6 +18,8 @@ import dev.curvegen.core.PresetData;
 import dev.curvegen.core.ShapeSettings;
 import dev.curvegen.core.ShapeSettings.Gen;
 import dev.curvegen.core.edit.Option;
+import dev.curvegen.core.edit.PaintOptions;
+import dev.curvegen.core.paint.Paint;
 import dev.curvegen.core.edit.Radial;
 import java.util.ArrayList;
 import java.util.List;
@@ -34,13 +39,13 @@ import net.minecraft.world.level.block.Block;
  * With "Press" chosen in the settings, a press opens the menu and it stays until a wedge is clicked or the key is
  * pressed again.
  *
- * <p>Without a hologram the menu starts one. With one, it changes the shape's options and blocks, and places,
+ * <p>Without a hologram the menu starts one. With one, it changes the shape's options, blocks and paint, and places,
  * exports or cancels it. Every change goes through {@link Editor#edit}, so Z takes it back.
  */
 public class RadialScreen extends Screen {
     private static final ShapeSettings S = CurveGenClient.SETTINGS;
 
-    private enum Page { ROOT, SHAPES_2D, SHAPES_3D, OPTIONS, BLOCKS }
+    private enum Page { ROOT, SHAPES_2D, SHAPES_3D, OPTIONS, BLOCKS, PAINT }
 
     /** What choosing a wedge leaves of the menu: it stays, it stays only after a click, or it closes. */
     private enum Stay { ALWAYS, CLICK, NEVER }
@@ -81,13 +86,21 @@ public class RadialScreen extends Screen {
     private List<Wedge> build() {
         List<Wedge> out = new ArrayList<>();
         // A hologram can end while a submenu is open, and its submenus go with it.
-        if (!Editor.isActive() && (page == Page.OPTIONS || page == Page.BLOCKS)) page = Page.ROOT;
+        if (!Editor.isActive() && (page == Page.OPTIONS || page == Page.BLOCKS || page == Page.PAINT)) page = Page.ROOT;
         switch (page) {
             case ROOT -> { for (String id : Radial.order(Editor.isActive() ? Radial.EDIT : Radial.START, ModSettings.radialOrder)) out.add(top(id)); }
             case SHAPES_2D -> { for (Kind k : KINDS_2D) out.add(kind(k)); }
             case SHAPES_3D -> { for (Kind k : KINDS_3D) out.add(kind(k)); }
             case OPTIONS -> { for (Option o : Editor.options()) out.add(option(o)); }
             case BLOCKS -> { for (Family f : BlockChoices.FAMILIES) out.add(blocks(f)); }
+            case PAINT -> {
+                for (Option o : PaintOptions.of(S.paint, Chroma.available(), S.gen != Gen.EQUATION3)) out.add(option(o));
+                // Without Chroma Studio, Source leaves Gradient out: its tooltip says why.
+                Wedge src = out.getFirst();
+                if (!Chroma.available()) out.set(0, new Wedge(src.label(), src.value(), src.off(), tr("curvegen.paint.source_gradient_needs"),
+                        src.icon(), src.scroll(), src.stay(), src.select()));
+                out.add(1, choose());
+            }
         }
         if (page != Page.ROOT) out.add(new Wedge(tr("curvegen.radial.back"), null, null, null, null, null, Stay.ALWAYS, () -> page = Page.ROOT));
         return out;
@@ -103,8 +116,12 @@ public class RadialScreen extends Screen {
             case "3d" -> nav(name, null, Page.SHAPES_3D);
             case "presets" -> leaf(name, null, () -> minecraft.gui.setScreen(new PresetsScreen(null, S.gen, RadialScreen::loadPreset)));
             case "last" -> leaf(name, Editor.hasLast() ? null : tr("curvegen.radial.no_last"), Editor::restoreLast);
+            // Saves the pattern to the library and chooses it, without opening anything. The label is short to fit, so the tip says what it does.
+            case "capture" -> new Wedge(name, null, null, tr("curvegen.patterns.capture_tip"), null, null, Stay.NEVER,
+                    () -> Capture.start(PatternLibraryScreen::choose));
             case "options" -> nav(name, Editor.options().isEmpty() ? tr("curvegen.radial.no_options") : null, Page.OPTIONS);
             case "blocks" -> nav(name, null, Page.BLOCKS);
+            case "paint" -> nav(name, null, Page.PAINT);
             case "export" -> leaf(name, Editor.notReady(), () -> Placement.say(Component.literal(Editor.export())));
             case "full" -> leaf(name, null, () -> minecraft.gui.setScreen(new CurveScreen()));
             case "place" -> leaf(name, !Placement.canPlace(minecraft) ? tr("curvegen.editor.permission") : Editor.notReady(), Editor::confirm);
@@ -125,7 +142,7 @@ public class RadialScreen extends Screen {
         Gen g = p.gen();
         if (g == null) return;
         PresetData.apply(p.data, g, S);
-        if (withBlocks && p.blocks != null) BlockChoices.apply(p.blocks, S, BlockChoices.CHOICE);
+        if (withBlocks && p.applyBlocks(S, BlockChoices.CHOICE)) Placement.say(Component.literal(tr("curvegen.paint.preset_no_gradient")));
         // A hologram that's out takes the change when the presets screen closes.
         if (!Editor.isActive() && EditShape.supports(S.gen)) Editor.start();
     }
@@ -134,7 +151,7 @@ public class RadialScreen extends Screen {
         Group group = new Group(this, o.label());
         return switch (o) {
             case Option.Number n -> new Wedge(tr(n.label()), InputScreen.fmt(n.get().getAsDouble()), n.off() == null ? null : tr(n.off()), null, null,
-                    d -> Editor.edit(group, () -> n.set().accept(n.fit(n.get().getAsDouble() + d * n.step()))), Stay.NEVER,
+                    d -> Editor.edit(group, () -> n.set().accept(n.stepped(n.get().getAsDouble(), d))), Stay.NEVER,
                     () -> minecraft.gui.setScreen(InputScreen.number(tr(n.label()), InputScreen.fmt(n.get().getAsDouble()), n.whole(), n.min(), n.max(),
                             v -> Editor.edit(null, () -> n.set().accept(v)))));
             case Option.Cycler c -> {
@@ -147,6 +164,31 @@ public class RadialScreen extends Screen {
         };
     }
 
+    /**
+     * Paint's Choose: the pattern library, the mix chooser for a mix, or the gradient chooser for a gradient. Choosing a
+     * pattern turns paint on. The choice is one undo step, and the hologram repaints without solving again.
+     */
+    private Wedge choose() {
+        if (S.paint.source == Paint.Source.GRADIENT) {
+            // Before a gradient is chosen the wedge shows no value: its tip says what choosing does.
+            String name = S.paint.gradient == null ? null : S.paint.gradient.name;
+            return new Wedge(tr("curvegen.radial.paint.choose"), name, Chroma.available() ? null : tr("curvegen.paint.needs_chroma"),
+                    named(name, tr("curvegen.paint.gradient_choose_tip")), null, null, Stay.NEVER,
+                    () -> minecraft.gui.setScreen(new GradientChooserScreen(null, g -> Editor.edit(null, () -> S.paint.gradient = g))));
+        }
+        boolean mix = S.paint.source == Paint.Source.MIX;
+        String name = mix ? MixChooserScreen.name(S.paint.mix) : PatternStore.shownName(S.paint.pattern);
+        return new Wedge(tr("curvegen.radial.paint.choose"), name, null, named(name, tr(mix ? "curvegen.paint.mix_choose_tip" : "curvegen.paint.choose_tip")), null, null, Stay.NEVER,
+                () -> minecraft.gui.setScreen(mix
+                        ? new MixChooserScreen(null, m -> Editor.edit(null, () -> S.paint.mix = m))
+                        : new PatternLibraryScreen(null, PatternLibraryScreen::choose, null)));
+    }
+
+    /** A wedge's tip, after the whole of the name it shows when that is cut to fit, as the Paint screen's chooser does. */
+    private String named(String name, String tip) {
+        return name != null && font.width(name) > Radial.LABEL_W - 8 ? name + '\n' + tip : tip;
+    }
+
     private Wedge blocks(Family f) {
         Block block = BlockChoices.CHOICE.get(f);
         String name = BlockChoices.familyName(f), off = null;
@@ -157,7 +199,7 @@ public class RadialScreen extends Screen {
                 new ItemStack(block), full ? null : _ -> Editor.edit(new Group(this, name), () -> S.allow(f, !S.allows(f))), Stay.NEVER,
                 () -> minecraft.gui.setScreen(new BlockPickerScreen(null, f, chosen -> {
                     BlockChoices.CHOICE.put(f, chosen);
-                    S.fullConnects = BlockChoices.fullBlockConnects();
+                    S.fullConnects = BlockChoices.fullConnects(S);
                 })));
     }
 
@@ -307,17 +349,21 @@ public class RadialScreen extends Screen {
         String title = switch (page) {
             case ROOT -> Editor.isActive() ? Editor.describe() : tr("curvegen.radial.start");
             case SHAPES_2D -> tr("curvegen.radial.2d"); case SHAPES_3D -> tr("curvegen.radial.3d"); case OPTIONS -> tr("curvegen.radial.options"); case BLOCKS -> tr("curvegen.radial.blocks");
+            case PAINT -> tr("curvegen.paint.title");
         };
         // Along the bottom: what the wedge pointed at is or why it's greyed out, or else how the menu works.
         String tip = hot < 0 ? null : wedges.get(hot).off != null ? wedges.get(hot).off : wedges.get(hot).tip;
         boolean scrolls = wedges.stream().anyMatch(w -> w.scroll != null);
         String hint = tr("curvegen.radial.hint." + (latched ? "click" : "release") + (scrolls ? ".scroll" : ""), title, key);
-        var lines = font.split(Component.literal(tip != null ? tip : hint), width - 12);
-        int shown = Math.min(2, lines.size()), top = height - 2 - shown * 10, w = 0;
-        for (int k = 0; k < shown; k++) w = Math.max(w, font.width(lines.get(k)));
+        // Two lines at most. Longer text, such as a long name before a tip, ends with "…" and shows whole beside the cursor.
+        String foot = tip != null ? tip : hint;
+        TwoLines two = TwoLines.of(font, foot, width - 12);
+        List<String> lines = two.lines();
+        int shown = lines.size(), top = height - 2 - shown * 10, w = two.width(font);
         ctx.fill((width - w) / 2 - 3, top - 2, (width + w) / 2 + 3, height, 0xE0101317);
         for (int k = 0; k < shown; k++)
             ctx.text(font, lines.get(k), (width - font.width(lines.get(k))) / 2, top + k * 10, tip != null && wedges.get(hot).off != null ? 0xFFFFE08A : 0xFFDDE3EA);
+        if (two.cut()) ctx.setTooltipForNextFrame(font.split(Component.literal(foot), 240), mx, my);
     }
 
     /** The game stays in view, so a change shows on the hologram at once. */

@@ -1,13 +1,15 @@
 name: Release
 
-# Publishes each selected */stable branch to Modrinth, CurseForge and GitHub releases.
+# Publishes each selected branch to Modrinth, CurseForge and GitHub releases. */stable branches release, and
+# so does main in a repository whose variable RELEASE_MAIN is true: one that publishes its newest Minecraft
+# line straight from main instead of promoting it to a stable branch first.
 # The version comes from the branch's source. A branch whose version is already tagged is skipped.
 on:
   workflow_dispatch:
     inputs:
       branches:
-        description: Branches to release, comma-separated, or "all" for every */stable branch
-        default: all
+        description: Branches to release, comma-separated, or "all" for every */stable branch. Left empty, it is main where main releases and "all" elsewhere
+        default: ''
       targets:
         description: Sites to publish to. Narrow this to retry a release that failed part-way
         default: modrinth,curseforge,github
@@ -48,6 +50,7 @@ jobs:
       - id: plan
         env:
           BRANCHES: ${{ inputs.branches }}
+          RELEASE_MAIN: ${{ vars.RELEASE_MAIN }}
         run: |
           plan=$(.github/scripts/release-plan.sh "$BRANCHES")
           echo "branches=$plan" >> "$GITHUB_OUTPUT"
@@ -67,6 +70,7 @@ jobs:
     name: ${{ matrix.tag }}
     permissions:
       contents: write   # creates the tag and the GitHub release
+      actions: read     # looks for an earlier run's CurseForge marker
     uses: ./.github/workflows/release-branch.yml
     with:
       line: ${{ matrix.line }}
