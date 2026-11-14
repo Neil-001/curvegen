@@ -118,6 +118,20 @@ public final class PaintBlocks {
         return b != null && full.contains(b) ? Pattern.Cell.block(base) : Pattern.Cell.UNUSABLE;
     }
 
+    /**
+     * Whether painting can place a source's block as itself or as its material's full block, as {@link #cell} decides
+     * for a capture. One it can't, such as a chain or concrete powder in a gradient, takes the closest colour.
+     */
+    public static boolean placeable(String id) {
+        Block b = block(id);
+        if (b == null) return false;
+        List<Block> full = BlockChoices.candidates(Family.FULL);
+        if (full.contains(b)) return true;
+        String base = materialOf(id);
+        Block m = base == null ? null : block(base);
+        return m != null && full.contains(m);
+    }
+
     /** "[axis=x]" for the properties that differ from the block's default state, or "". */
     private static String properties(BlockState s) {
         BlockState d = s.getBlock().defaultBlockState();

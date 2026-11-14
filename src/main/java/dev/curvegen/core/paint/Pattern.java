@@ -106,6 +106,17 @@ public final class Pattern implements Palette {
     /** How many cells hold this palette entry. */
     @Override public int count(int index) { return counts[index]; }
 
+    /** Whether every cell that isn't empty is only a colour, as in a pattern made from a picture, and there is one. */
+    public boolean colourOnly() {
+        boolean any = false;
+        for (int k = 0; k < palette.length; k++) {
+            if (counts[k] == 0 || palette[k].empty()) continue;
+            if (palette[k].state() != null) return false;
+            any = true;
+        }
+        return any;
+    }
+
     /** Whether the two hold the same cells in the same places, whatever their names. */
     public boolean sameCells(Pattern o) {
         if (o.width != width || o.height != height) return false;

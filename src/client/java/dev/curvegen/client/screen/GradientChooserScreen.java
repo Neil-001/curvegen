@@ -54,14 +54,21 @@ public class GradientChooserScreen extends Screen {
         for (int k = 0; k < n; k++) ctx.fill(x + k * w / n, y, x + (k + 1) * w / n, y + h, colour(g, k));
     }
 
-    /** The gradient's steps' blocks, for its tooltip. */
+    /**
+     * The gradient's steps' blocks, for its tooltip. A block painting can't place, which Chroma Studio's own filter may
+     * let a gradient hold, is marked, and a line after the list says those take the closest colour.
+     */
     private static String tip(Gradient g) {
         StringBuilder s = new StringBuilder(g.name).append('\n').append(tr("curvegen.paint.gradient_steps", g.paletteSize()));
+        boolean any = false;
         for (int k = 0; k < g.paletteSize(); k++) {
-            Block b = PaintBlocks.block(g.cell(k).block());
-            s.append('\n').append(b != null ? b.getName().getString() : g.cell(k).block());
+            String id = g.cell(k).block();
+            Block b = PaintBlocks.block(id);
+            s.append('\n').append(b != null ? b.getName().getString() : id);
             if (g.steps().get(k).byHand()) s.append(' ').append(tr("curvegen.paint.gradient_by_hand"));
+            if (!PaintBlocks.placeable(id)) { s.append(' ').append(tr("curvegen.paint.gradient_unplaceable")); any = true; }
         }
+        if (any) s.append('\n').append('\n').append(tr("curvegen.paint.gradient_unplaceable_tip"));
         return s.toString();
     }
 

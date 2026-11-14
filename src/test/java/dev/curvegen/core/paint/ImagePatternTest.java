@@ -96,4 +96,14 @@ class ImagePatternTest {
         assertEquals(255, ImagePattern.level(1));
         assertEquals(p, Pattern.decode(p.encode()));
     }
+
+    @Test
+    void onlyAPatternOfColoursAndEmptyCellsIsColourOnly() {
+        assertTrue(of(new int[][]{{WHITE, CLEAR_GREEN}, {RED, BLACK}}, 2).colourOnly(), "clear pixels don't count");
+        Cell stone = Cell.block("minecraft:stone"), red = Cell.colour(0xFF0000);
+        assertFalse(Pattern.of("mixed", new Cell[][]{{stone, red}}).colourOnly());
+        assertFalse(Pattern.of("blocks", new Cell[][]{{stone, Cell.UNUSABLE}}).colourOnly());
+        assertTrue(Pattern.of("colours", new Cell[][]{{red, Cell.UNUSABLE, Cell.EMPTY}}).colourOnly());
+        assertFalse(Pattern.of("empty", new Cell[][]{{Cell.EMPTY, Cell.EMPTY}}).colourOnly(), "nothing but empty cells");
+    }
 }

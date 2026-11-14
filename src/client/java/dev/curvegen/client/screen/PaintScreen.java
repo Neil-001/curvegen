@@ -362,29 +362,46 @@ public class PaintScreen extends ControlScreen {
         if (S.paint.fit == null && picture.line() != lineShown) rebuildWidgets();
     }
 
-    /** The status line and its tooltip: how many blocks fell to the closest colour, and which and why. */
+    /**
+     * The status line and its tooltip: how many blocks fell to the closest colour, and which and why. A pattern of
+     * nothing but colours, as from a picture, has no blocks of its own to fall back from, so it says how many took the
+     * closest block to its colours instead.
+     */
     private String[] status() {
         if (S.paint.source == Source.GRADIENT && !S.paint.on())
             return new String[]{tr(Chroma.available() ? "curvegen.paint.status_no_gradient" : "curvegen.paint.needs_chroma"), null};
         if (!S.paint.on()) return new String[]{tr("curvegen.paint.status_off"), tr("curvegen.paint.source_tip")};
         if (picture.error() != null) return new String[]{"", null};
         Painted painted = picture.painted();
-        if (painted == null || !picture.paintedFor().on()) return new String[]{tr("curvegen.screen.working"), null};
+        Paint paint = picture.paintedFor();
+        if (painted == null || !paint.on()) return new String[]{tr("curvegen.screen.working"), null};
+        boolean colours = paint.source == Source.PATTERN && paint.pattern.colourOnly();
         StringBuilder tip = new StringBuilder();
-        for (Why w : new Why[]{Why.CLOSEST, Why.BLOCKS_TAB, Why.GAP}) {
+        Why[] sections = colours ? new Why[]{Why.CLOSEST, Why.EMPTY, Why.BLOCKS_TAB, Why.GAP} : new Why[]{Why.CLOSEST, Why.BLOCKS_TAB, Why.GAP};
+        for (Why w : sections) {
             StringBuilder lines = new StringBuilder();
             for (Family f : BlockChoices.FAMILIES) {
-                long n = painted.count(f, w);
+                // With "One material per colour" a colour's blocks come from the closest material, counted as its own.
+                long n = painted.count(f, w) + (colours && w == Why.CLOSEST ? painted.count(f, Why.OWN) : 0);
                 if (n > 0) lines.append('\n').append(tr("curvegen.paint.why.entry", BlockChoices.familyName(f), n));
             }
             if (lines.isEmpty()) continue;
             if (!tip.isEmpty()) tip.append('\n').append('\n');
-            tip.append(tr("curvegen.paint.why." + w.name().toLowerCase(Locale.ROOT))).append(lines);
+            String head = colours && w == Why.CLOSEST ? "curvegen.paint.why.colours" : "curvegen.paint.why." + w.name().toLowerCase(Locale.ROOT);
+            tip.append(tr(head)).append(lines);
         }
         if (tip.isEmpty()) tip.append(tr("curvegen.paint.why.none"));
-        if (painted.open() == 0) return new String[]{tr("curvegen.paint.status", painted.closest(), painted.total()), tip.toString()};
-        tip.append('\n').append('\n').append(tr("curvegen.paint.why.open", painted.open()));
-        return new String[]{tr("curvegen.paint.status_open", painted.closest(), painted.total(), painted.open()), tip.toString()};
+        long open = painted.open(), total = painted.total();
+        if (open > 0) tip.append('\n').append('\n').append(tr("curvegen.paint.why.open", open));
+        if (colours) {
+            long matched = painted.closest() + painted.sum(Why.OWN);
+            String line = matched == total
+                    ? open > 0 ? tr("curvegen.paint.status_colours_open", total, open) : tr("curvegen.paint.status_colours", total)
+                    : open > 0 ? tr("curvegen.paint.status_colours_some_open", matched, total, open) : tr("curvegen.paint.status_colours_some", matched, total);
+            return new String[]{line, tip.toString()};
+        }
+        if (open == 0) return new String[]{tr("curvegen.paint.status", painted.closest(), total), tip.toString()};
+        return new String[]{tr("curvegen.paint.status_open", painted.closest(), total, open), tip.toString()};
     }
 
     /** Darkened as the main screen's is, so the labels beside the number fields read over a bright sky. */

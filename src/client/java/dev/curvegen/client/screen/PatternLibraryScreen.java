@@ -41,7 +41,7 @@ import net.minecraft.world.level.block.Block;
  * hold it, as after loading a preset that carries its own.
  *
  * <p>A picture file dropped onto the library becomes a pattern of colours ({@link ImagePatternScreen}), when Chroma
- * Studio is installed to match them well. A line beside "Capture new…" says so, greyed without it, and says why after
+ * Studio is installed to match them well. Once saved it is chosen, as a click on it would choose it. A line beside "Capture new…" says so, greyed without it, and says why after
  * a drop that made nothing.
  */
 public class PatternLibraryScreen extends Screen {
@@ -331,10 +331,11 @@ public class PatternLibraryScreen extends Screen {
         int dot = file.lastIndexOf('.');
         String stem = (dot > 0 ? file.substring(0, dot) : file).trim();
         String name = PatternStore.unique(stem.isEmpty() ? tr("curvegen.image.default_name") : stem);
+        // Saved, the new pattern is chosen as a captured one is, and the library goes back to where it was opened from.
         minecraft.gui.setScreen(new ImagePatternScreen(this, read.image(), name, p -> {
-            problem(p == null ? "curvegen.patterns.drop_clear" : null, file);
-            scroll = 0;
-            refilter();
+            if (p == null) { problem("curvegen.patterns.drop_clear", file); return; }
+            onPick.accept(p);
+            minecraft.gui.setScreen(parent);
         }));
     }
 
