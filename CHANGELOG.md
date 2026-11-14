@@ -16,13 +16,16 @@ Chroma Studio 1.2 or newer is optional. With it installed, you can paint with th
 - A Paint wedge in the radial menu changes the source, pattern, turn, slide, size and mirror while you look at the hologram. The Blocks tab's Use toggles are kept when you restart the game too (#92)
 - Leave a pattern's empty spots open as holes, for a lattice, a screen or a dome you can see through. Holes place and clear nothing, the blocks beside them settle as the game would settle them, and a lattice pattern comes with the mod (#93)
 - With Chroma Studio 1.2 or newer: paint with its saved gradients, bottom to top, along or across the shape, or outwards from the middle, with sharp or ragged edges. Mix blocks from its palettes, and match colours its way (#94)
-- With Chroma Studio 1.2 or newer, drop a picture onto the pattern library to make a pattern up to 128 blocks across. Clear pixels become empty spots (#95)
+- With Chroma Studio 1.2 or newer, drop a picture onto the pattern library to make a pattern up to 128 blocks across, chosen as soon as you save it. Clear pixels become empty spots (#95)
 - Shorter tooltips, and every greyed-out control says why (#84)
 
 ## Fixes
 
 - Repainting a large shape with holes is faster, and the line above the G menu's picture no longer counts holes as blocks (#96)
 - The Paint screen, the pattern library and the radial menu's top and Paint pages no longer cut or hide text at 1280×720 in any language (#97)
+- Screen readers name the pattern name fields after their dialog instead of reading "Preset name" (#100)
+- Walls in thick shapes now get a post wherever the wall above them has one, so the game no longer changes them after placing (#102)
+- A pattern made from a picture no longer reads like a warning on the Paint screen: its status line says how many blocks were matched to its colours. The gradient chooser marks blocks painting can't place, such as a spawner or concrete powder, and says they take the closest colour (#PR)
 
 # 2.1.0
 
