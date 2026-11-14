@@ -25,7 +25,7 @@ Chroma Studio 1.2 or newer is optional. With it installed, you can paint with th
 - The Paint screen, the pattern library and the radial menu's top and Paint pages no longer cut or hide text at 1280×720 in any language (#97)
 - Screen readers name the pattern name fields after their dialog instead of reading "Preset name" (#100)
 - Walls in thick shapes now get a post wherever the wall above them has one, so the game no longer changes them after placing (#102)
-- A pattern made from a picture no longer reads like a warning on the Paint screen: its status line says how many blocks were matched to its colours. The gradient chooser marks blocks painting can't place, such as a spawner or concrete powder, and says they take the closest colour (#104)
+- A pattern made from a picture no longer reads like a warning on the Paint screen: its status line says how many blocks were matched to its colours. The gradient chooser marks blocks painting can't place, such as a chain or concrete powder, and says they take the closest colour (#104)
 
 # 2.1.0
 

@@ -120,7 +120,7 @@ public final class PaintBlocks {
 
     /**
      * Whether painting can place a source's block as itself or as its material's full block, as {@link #cell} decides
-     * for a capture. One it can't, such as a spawner, a chain or concrete powder in a gradient, takes the closest colour.
+     * for a capture. One it can't, such as a chain or concrete powder in a gradient, takes the closest colour.
      */
     public static boolean placeable(String id) {
         Block b = block(id);
