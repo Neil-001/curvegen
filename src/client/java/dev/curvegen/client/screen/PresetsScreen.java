@@ -7,12 +7,17 @@ import dev.curvegen.client.Lang;
 import com.mojang.blaze3d.platform.InputConstants;
 import dev.curvegen.client.BlockChoices;
 import dev.curvegen.client.CurveGenClient;
+import dev.curvegen.client.PaintBlocks;
 import dev.curvegen.client.PresetStore.Preset;
 import dev.curvegen.client.PresetStore;
 import dev.curvegen.core.Pieces.Family;
 import dev.curvegen.core.PresetData;
 import dev.curvegen.core.ShapeSettings;
 import dev.curvegen.core.Solver;
+import dev.curvegen.core.paint.Catalog;
+import dev.curvegen.core.paint.Paint;
+import dev.curvegen.core.paint.Painted;
+import dev.curvegen.core.paint.Painter2D;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
@@ -53,11 +58,17 @@ public class PresetsScreen extends Screen {
     private Preset textureFor;
     /** A preview is solved per preset, with or without its blocks. */
     private record Key(Preset preset, boolean blocks) {}
-    private final Map<Key, Solver.Result> results = new HashMap<>();
-    private final Map<Key, Future<Solver.Result>> jobs = new HashMap<>();
-    /** A 3D preset's picture is solved the same way, and a solve is dropped when the mouse has moved on to another preset. */
-    private record Job3(Future<CurveScreen.Solved3> future, AtomicBoolean cancelled) {}
-    private final Map<Key, CurveScreen.Solved3> solved3 = new HashMap<>();
+    /** A 2D preview's solve, and its paint when the preset's blocks carry some, or null. */
+    private record Shown(Solver.Result result, Painted painted) {}
+    private final Map<Key, Shown> results = new HashMap<>();
+    private final Map<Key, Future<Shown>> jobs = new HashMap<>();
+    /**
+     * A 3D preset's solve, and its paint when it was loaded with its blocks and paints, or null. A 3D preset's picture
+     * is solved the same way, and a solve is dropped when the mouse has moved on to another preset.
+     */
+    private record Shown3(CurveScreen.Solved3 solved, Repaint3.View painted) {}
+    private record Job3(Future<Shown3> future, AtomicBoolean cancelled) {}
+    private final Map<Key, Shown3> solved3 = new HashMap<>();
     private final Map<Key, Job3> jobs3 = new HashMap<>();
     private final Preview3 picture = new Preview3();
     private Key pictureFor;
@@ -66,11 +77,11 @@ public class PresetsScreen extends Screen {
 
     private static final int ROW = 20, ICON = 12;
     // 9×9 pixel icons
-    private static final String[] PIN = {
+    static final String[] PIN = {
             "..#####..", "..#####..", "...###...", "...###...", ".#######.", "#########", "....#....", "....#....", "....#...."};
-    private static final String[] PENCIL = {
+    static final String[] PENCIL = {
             "......##.", ".....#..#", "....#..#.", "...#..#..", "..#..#...", ".#..#....", "#.##.....", "##.......", "#........"};
-    private static final String[] TRASH = {
+    static final String[] TRASH = {
             "...###...", "#########", ".#######.", ".#.#.#.#.", ".#.#.#.#.", ".#.#.#.#.", ".#.#.#.#.", ".#.#.#.#.", "..#####.."};
 
     public PresetsScreen(Screen parent, ShapeSettings.Gen gen, BiConsumer<Preset, Boolean> onLoad) {
@@ -130,25 +141,35 @@ public class PresetsScreen extends Screen {
     /** The block choices the preview of p uses. */
     private Map<Family, Block> choiceFor(Preset p) {
         Map<Family, Block> choice = new EnumMap<>(BlockChoices.CHOICE);
-        if (withBlocks(p)) BlockChoices.apply(p.blocks, CurveGenClient.SETTINGS.copy(), choice);
+        if (withBlocks(p)) p.applyBlocks(CurveGenClient.SETTINGS.copy(), choice);
         return choice;
     }
 
     private ShapeSettings settingsFor(Preset p) {
         ShapeSettings s = CurveGenClient.SETTINGS.copy();   // current orientation and depth, and pieces unless it has its own
         PresetData.apply(p.data, gen, s);
-        if (withBlocks(p)) BlockChoices.apply(p.blocks, s, new EnumMap<>(BlockChoices.CHOICE));
+        if (withBlocks(p)) p.applyBlocks(s, new EnumMap<>(BlockChoices.CHOICE));
         return s;
     }
 
     private boolean is3d() { return ShapeSettings.is3d(gen); }
 
-    private Solver.Result resultFor(Preset p) {
+    private Shown resultFor(Preset p) {
         Key k = new Key(p, withBlocks(p));
-        Solver.Result r = results.get(k);
+        Shown r = results.get(k);
         if (r != null) return r;
-        Future<Solver.Result> job = jobs.get(k);
-        if (job == null) { ShapeSettings s = settingsFor(p); jobs.put(k, CurveScreen.EXEC.submit(() -> Solver.run(s))); return null; }
+        Future<Shown> job = jobs.get(k);
+        if (job == null) {
+            ShapeSettings s = settingsFor(p);
+            // Only a preset loaded with its blocks brings its paint. Otherwise the picture is unpainted.
+            Paint paint = withBlocks(p) && s.paint.on() ? s.paint.copy() : null;
+            Catalog catalog = paint == null ? null : PaintBlocks.catalog(s, choiceFor(p));   // on this thread, as it reads the game
+            jobs.put(k, CurveScreen.EXEC.submit(() -> {
+                Solver.Result solved = Solver.run(s);
+                return new Shown(solved, paint == null ? null : Painter2D.paint(solved, s.depth, paint, s.fullConnects, catalog));
+            }));
+            return null;
+        }
         if (!job.isDone()) return null;
         jobs.remove(k);
         try { r = job.get(); } catch (Exception ignored) { return null; }
@@ -156,40 +177,54 @@ public class PresetsScreen extends Screen {
         return r;
     }
 
-    private CurveScreen.Solved3 solved3For(Preset p) {
+    private Shown3 solved3For(Preset p) {
         Key k = new Key(p, withBlocks(p));
         jobs3.entrySet().removeIf(e -> {
             if (e.getKey().equals(k)) return false;
             e.getValue().cancelled.set(true);
             return true;
         });
-        CurveScreen.Solved3 r = solved3.get(k);
+        Shown3 r = solved3.get(k);
         if (r != null) return r;
         Job3 job = jobs3.get(k);
         if (job == null) {
             ShapeSettings s = settingsFor(p);
             AtomicBoolean cancelled = new AtomicBoolean();
-            jobs3.put(k, new Job3(CurveScreen.EXEC.submit(() -> CurveScreen.solve3(s, cancelled::get)), cancelled));
+            // As in 2D, only a preset loaded with its blocks brings its paint. The catalog and colours are read on this thread.
+            Paint paint = withBlocks(p) && s.paint.on() ? s.paint.copy() : null;
+            Map<Family, Block> choice = choiceFor(p);
+            Catalog catalog = paint == null ? null : PaintBlocks.catalog(s, choice);
+            int[] byFamily = Preview3.palette(PreviewTexture.Colors.BLOCKS, choice, s.topColours);
+            jobs3.put(k, new Job3(CurveScreen.EXEC.submit(() -> {
+                CurveScreen.Solved3 solved = CurveScreen.solve3(s, cancelled::get);
+                if (solved == null || solved.error() != null || paint == null || cancelled.get()) return new Shown3(solved, null);
+                return new Shown3(solved, Repaint3.paint(solved.painter(), paint, solved.fullConnects(), catalog, byFamily));
+            }), cancelled));
             return null;
         }
         if (!job.future.isDone()) return null;
         jobs3.remove(k);
         try { r = job.future.get(); } catch (Exception ignored) { return null; }
-        if (r != null) solved3.put(k, r);
+        if (r.solved() == null) return null;
+        solved3.put(k, r);
         return r;
     }
 
     /** Draws a solved 3D preset, seen from the same side each time until the player turns it. */
-    private void draw3(GuiGraphics ctx, Preset target, CurveScreen.Solved3 r, int x0, int y0, int x1, int y1) {
+    private void draw3(GuiGraphics ctx, Preset target, Shown3 shown, int x0, int y0, int x1, int y1) {
         Key k = new Key(target, withBlocks(target));
         int[] in = {x0, y0, x1, y1};
         // A resized window moves the picture's place, and the view goes with it.
         if (!k.equals(pictureFor) || !java.util.Arrays.equals(in, pictureIn)) {
             pictureFor = k; pictureIn = in;
+            CurveScreen.Solved3 r = shown.solved();
             var shape = r.result().shape();
-            picture.mesh(r.mesh(), shape.pad());
+            Repaint3.View painted = shown.painted();
+            // A pattern's holes change the blocks, so they show in every colouring. Only Block colours shows the paint.
+            picture.mesh(painted != null && painted.mesh() != null ? painted.mesh() : r.mesh(), shape.pad());
             picture.wires(List.of(), 0);
-            picture.palette(Preview3.palette(CurveScreen.colors, choiceFor(target), CurveGenClient.SETTINGS.topColours));
+            if (painted != null && CurveScreen.colors == PreviewTexture.Colors.BLOCKS) picture.palette(painted.palette(), painted.perBlock());
+            else picture.palette(Preview3.palette(CurveScreen.colors, choiceFor(target), CurveGenClient.SETTINGS.topColours));
             picture.fit(shape.nx(), shape.ny(), shape.nz(), shape.pad(), x0, y0, x1, y1);
         }
         ctx.enableScissor(x0, y0, x1, y1);
@@ -225,6 +260,9 @@ public class PresetsScreen extends Screen {
         hovered = hr >= 0 ? shown.get(hr) : null;
         previewButton.active = selected != null;
         loadButton.active = selected != null;
+        Tooltip selectionTip = selected == null ? Tooltip.create(Component.translatable("curvegen.screen.select_a_preset_first")) : null;
+        previewButton.setTooltip(selectionTip);
+        loadButton.setTooltip(selectionTip);
         boolean hasBlocks = selected != null && selected.blocks != null;
         blocksButton.active = hasBlocks;
         blocksButton.setValue(loadBlocks && (selected == null || hasBlocks));
@@ -282,19 +320,21 @@ public class PresetsScreen extends Screen {
             ctx.drawWordWrap(font, Component.translatable("curvegen.screen.hover_a_preset_to_preview_it_or_select_one"),
                     px0 + 8, py0 + 8, px1 - px0 - 16, 0xFF9AA5B3);
         } else {
-            Solver.Result r = is3d() ? null : resultFor(target);
-            CurveScreen.Solved3 r3 = is3d() ? solved3For(target) : null;
+            Shown shown = is3d() ? null : resultFor(target);
+            Solver.Result r = shown == null ? null : shown.result();
+            Shown3 s3 = is3d() ? solved3For(target) : null;
+            CurveScreen.Solved3 r3 = s3 == null ? null : s3.solved();
             int infoH = 24;
             if (is3d()) {
                 if (r3 == null) ctx.drawString(font, tr("curvegen.screen.working"), px0 + 8, py0 + 8, 0xFF9AA5B3, false);
                 else if (r3.error() != null) ctx.drawWordWrap(font, Component.literal(Lang.text(r3.error())), px0 + 8, py0 + 8, px1 - px0 - 16, 0xFFFF8098);
-                else draw3(ctx, target, r3, px0, py0, px1, py1 - infoH);
+                else draw3(ctx, target, s3, px0, py0, px1, py1 - infoH);
             }
             else if (r == null) ctx.drawString(font, tr("curvegen.screen.working"), px0 + 8, py0 + 8, 0xFF9AA5B3, false);
             else if (r.target().error != null)
                 ctx.drawWordWrap(font, Component.literal(Lang.text(r.target().error)), px0 + 8, py0 + 8, px1 - px0 - 16, 0xFFFF8098);
             else {
-                if (textureFor != target || texture.id() == null) { texture.update(r, CurveScreen.colors, true, true, choiceFor(target)); textureFor = target; }
+                if (textureFor != target || texture.id() == null) { texture.update(r, CurveScreen.colors, true, true, choiceFor(target), shown.painted()); textureFor = target; }
                 float aw = px1 - px0 - 12, ah = py1 - py0 - 12 - infoH;
                 float z = Math.min(aw / r.nx(), ah / r.ny());
                 float ox = px0 + (px1 - px0 - r.nx() * z) / 2f, oy = py0 + 6 + (ah - r.ny() * z) / 2f;
@@ -316,7 +356,7 @@ public class PresetsScreen extends Screen {
         if (tip != null) setTooltipForNextRenderPass(Component.literal(tip));
     }
 
-    private static void drawArt(GuiGraphics ctx, String[] art, int x, int y, int color) {
+    static void drawArt(GuiGraphics ctx, String[] art, int x, int y, int color) {
         int ox = x + (ICON - 9) / 2, oy = y + (ICON - 9) / 2;
         for (int r = 0; r < art.length; r++)
             for (int c = 0; c < art[r].length(); c++)

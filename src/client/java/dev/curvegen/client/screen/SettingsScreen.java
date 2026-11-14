@@ -58,7 +58,6 @@ public class SettingsScreen extends ControlScreen {
         addRenderableWidget(ring);
         Button order = Button.builder(Component.translatable(ModSettings.radialOrder.isEmpty() ? "curvegen.screen.wedge_order_default" : "curvegen.screen.wedge_order_custom"),
                 b -> minecraft.setScreen(new WedgeOrderScreen(this))).bounds(left, row(4), colW, 20).build();
-        order.setTooltip(Tooltip.create(Component.translatable("curvegen.screen.choose_where_each_wedge_of_the_radial_menu_goes")));
         addRenderableWidget(order);
         CycleButton<Boolean> hints = toggle(ModSettings.showKeyHints, left, row(5), colW, tr("curvegen.screen.key_hints"), v -> ModSettings.showKeyHints = v);
         hints.setTooltip(Tooltip.create(Component.translatable("curvegen.screen.lists_a_shape_s_keys_on_screen_while_you")));
@@ -67,11 +66,11 @@ public class SettingsScreen extends ControlScreen {
         info.setTooltip(Tooltip.create(Component.translatable("curvegen.screen.shows_a_shape_s_kind_size_and_block_counts")));
         addRenderableWidget(info);
 
-        number(right, 0, tr("curvegen.screen.handle_size_blocks"), tr("curvegen.screen.how_big_the_handles_you_drag_are"),
+        number(right, 0, tr("curvegen.screen.handle_size_blocks"), null,
                 () -> ModSettings.handleSize, v -> ModSettings.handleSize = v, 0.05, ModSettings.HANDLE_MIN, ModSettings.HANDLE_MAX, 1, false);
         number(right, 1, tr("curvegen.screen.pick_radius_blocks"), tr("curvegen.screen.how_close_to_a_handle_you_must_look_to"),
                 () -> ModSettings.pickRadius, v -> ModSettings.pickRadius = v, 0.05, ModSettings.PICK_MIN, ModSettings.PICK_MAX, 1, false);
-        number(right, 2, tr("curvegen.screen.hologram_opacity"), tr("curvegen.screen.how_solid_the_hologram_s_blocks_look"),
+        number(right, 2, tr("curvegen.screen.hologram_opacity"), null,
                 () -> ModSettings.hologramOpacity, v -> ModSettings.hologramOpacity = v, 5, 10, 100, 100, true);
         number(right, 3, tr("curvegen.screen.hologram_block_limit"), tr("curvegen.screen.shapes_with_more_blocks_than_this_show_only_their"),
                 () -> ModSettings.hologramBlockLimit, v -> ModSettings.hologramBlockLimit = (int) v, 5000, 0, ModSettings.BLOCK_LIMIT_MAX, 1, true);
@@ -83,7 +82,6 @@ public class SettingsScreen extends ControlScreen {
         int by = height - 26, pad = 16;
         int keysW = tw(tr("curvegen.screen.key_bindings")) + pad, resetW = tw(tr("curvegen.screen.reset_to_defaults")) + pad, doneW = tw(tr("curvegen.screen.done")) + pad + 8;
         Button keys = Button.builder(Component.translatable("curvegen.screen.key_bindings"), b -> openKeys()).bounds(left, by, keysW, 20).build();
-        keys.setTooltip(Tooltip.create(Component.translatable("curvegen.screen.change_the_mod_s_keys_in_the_game_s")));
         addRenderableWidget(keys);
         int end = right + colW;
         addRenderableWidget(Button.builder(Component.translatable("curvegen.screen.reset_to_defaults"), b -> {
@@ -107,7 +105,7 @@ public class SettingsScreen extends ControlScreen {
                 double d = Double.parseDouble(v.trim());
                 if (Double.isFinite(d)) set.accept(Math.max(min, Math.min(max, integer ? Math.rint(d) : d)) / scale);
             } catch (NumberFormatException ignored) { }
-        }, shown, step, min, max, () -> true, integer).setTooltip(Tooltip.create(Component.literal(tip)));
+        }, shown, step, min, max, () -> true, integer).setTooltip(tip == null ? null : Tooltip.create(Component.literal(tip)));
     }
 
     /**

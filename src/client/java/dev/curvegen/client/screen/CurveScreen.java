@@ -3,12 +3,14 @@ package dev.curvegen.client.screen;
 import static dev.curvegen.client.Lang.tr;
 
 import com.mojang.blaze3d.platform.InputConstants;
+import dev.curvegen.client.chroma.Chroma;
 import dev.curvegen.client.BlockChoices;
 import dev.curvegen.client.CurveGenClient;
 import dev.curvegen.client.Lang;
 import dev.curvegen.client.LitematicExporter;
 import dev.curvegen.client.Placement;
 import dev.curvegen.client.PresetStore;
+import dev.curvegen.client.PaintBlocks;
 import dev.curvegen.client.edit.EditShape;
 import dev.curvegen.client.edit.Editor;
 import dev.curvegen.core.Bezier3;
@@ -32,7 +34,13 @@ import dev.curvegen.core.Solver;
 import dev.curvegen.core.Solver3;
 import dev.curvegen.core.edit.Edit3D;
 import dev.curvegen.core.edit.HandleMath;
+import dev.curvegen.core.edit.Orient;
 import dev.curvegen.core.edit.Stepper;
+import dev.curvegen.core.paint.Catalog;
+import dev.curvegen.core.paint.Paint;
+import dev.curvegen.core.paint.Painted;
+import dev.curvegen.core.paint.Painter2D;
+import dev.curvegen.core.paint.Solve3Painter;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -64,7 +72,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.state.BlockState;
 
 public class CurveScreen extends ControlScreen {
     private enum Tab { ELLIPSE, EQUATION, BEZIER, ELLIPSOID, TORUS, EQUATION3, BEZIER3, SURFACE, BLOCKS, COUNT }
@@ -108,6 +115,15 @@ public class CurveScreen extends ControlScreen {
 
     private Solver.Result result;
     private Future<Solver.Result> job;
+    /**
+     * The 2D shape's paint: the last finished, the result and paint settings it was for, a repaint under way and what
+     * it's for, and whether fences attached to full blocks in the solve that's running.
+     */
+    private Painted painted;
+    private Solver.Result paintedResult, paintingResult;
+    private Paint paintedFor, paintingFor;
+    private Future<Painted> paintJob;
+    private boolean jobConnects, resultConnects;
     private boolean dirty = true, textureDirty, autoFit = true;
     private final PreviewTexture preview = new PreviewTexture();
     private float zoom = 8, panX, panY;
@@ -132,7 +148,7 @@ public class CurveScreen extends ControlScreen {
         mode3d = S.is3d();
         remember();
         if (tab != Tab.BLOCKS && tab != Tab.COUNT) tab = tabFor(S.gen);
-        S.fullConnects = BlockChoices.fullBlockConnects();
+        S.fullConnects = BlockChoices.fullConnects(S);
     }
 
     // ---------- layout ----------
@@ -173,7 +189,7 @@ public class CurveScreen extends ControlScreen {
         CycleButton<Boolean> mode = CycleButton.builder((Boolean v) -> Component.translatable(v ? "curvegen.screen.3d" : "curvegen.screen.2d")).withInitialValue(mode3d)
                 .withValues(List.of(false, true)).displayOnlyValue()
                 .create(tx, 6, modeText + pad, 20, Component.translatable("curvegen.screen.shapes"), (button, v) -> setMode(v));
-        mode.setTooltip(Tooltip.create(Component.translatable("curvegen.screen.switches_the_tabs_between_flat_shapes_and_3d_shapes")));
+        mode.setTooltip(Tooltip.create(Component.translatable("curvegen.screen.switch_between_2d_and_3d_shapes")));
         reverse.put(mode, () -> setMode(!mode3d));
         addRenderableWidget(mode);
         tx += modeText + pad + 2;
@@ -182,7 +198,6 @@ public class CurveScreen extends ControlScreen {
             int w = tw(names[k]) + pad;
             Button b = Button.builder(Component.literal(names[k]), button -> switchTab(t)).bounds(tx, 6, w, 20).build();
             b.active = tab != t;
-            if (t == Tab.COUNT) b.setTooltip(Tooltip.create(Component.translatable("curvegen.screen.how_many_of_each_block_and_orientation_the_shape")));
             addRenderableWidget(b);
             tx += w + 2;
         }
@@ -192,7 +207,9 @@ public class CurveScreen extends ControlScreen {
         addRenderableWidget(toggle(showCurve, cogX - gap - curveW, 6, curveW, tr("curvegen.screen.curve"), v -> { showCurve = v; textureDirty = true; }));
         addRenderableWidget(new CogButton(cogX, 6, cogW, 20, () -> minecraft.setScreen(new SettingsScreen(this))));
         if (mode3d) {
-            int faceText = Math.max(tw(tr("curvegen.screen.match_colours_to_side")), tw(tr("curvegen.screen.match_colours_to_top"))), room = cx1() - cx0(), p = 12;
+            Component faceName = Component.translatable("curvegen.screen.match_colours_to");
+            int faceText = Math.max(tw(CommonComponents.optionNameValue(faceName, Component.translatable("curvegen.screen.side")).getString()),
+                    tw(CommonComponents.optionNameValue(faceName, Component.translatable("curvegen.screen.top")).getString())), room = cx1() - cx0(), p = 12;
             while (p > 4 && colourText + faceText + 2 * p + 4 > room) p -= 2;
             addRenderableWidget(cycler(List.of(PreviewTexture.Colors.values()), colors, colourName, cx0(), cy1() - 20, colourText + p, tr("curvegen.screen.colour"), v -> colors = v));
             CycleButton<Boolean> face = cycler(List.of(false, true), S.topColours, v -> Component.translatable(v ? "curvegen.screen.top" : "curvegen.screen.side"),
@@ -219,13 +236,20 @@ public class CurveScreen extends ControlScreen {
         String on = CommonComponents.optionStatus(true).getString(), off = CommonComponents.optionStatus(false).getString();
         int orientText = Math.max(tw(tr("curvegen.screen.upright")), tw(tr("curvegen.screen.flat"))), labelW = Math.max(tw(tr("curvegen.screen.depth")), tw(tr("curvegen.screen.height"))) + 2, fieldW = 30;
         int replaceText = Math.max(tw(CommonComponents.optionNameValue(Component.translatable("curvegen.screen.replace"), Component.literal(on)).getString()), tw(CommonComponents.optionNameValue(Component.translatable("curvegen.screen.replace"), Component.literal(off)).getString())), carveText = Math.max(tw(CommonComponents.optionNameValue(Component.translatable("curvegen.screen.carve"), Component.literal(on)).getString()), tw(CommonComponents.optionNameValue(Component.translatable("curvegen.screen.carve"), Component.literal(off)).getString()));
-        int actionText = Math.max(tw(tr("curvegen.screen.place")), Math.max(tw(tr("curvegen.screen.export")), tw(tr("curvegen.screen.done"))));
+        int[] actionTexts = {tw(tr("curvegen.screen.place")), tw(tr("curvegen.screen.export")), tw(tr("curvegen.screen.done"))};
+        int actionText = Math.max(actionTexts[0], Math.max(actionTexts[1], actionTexts[2]));
+        // The action buttons share one width, wider than their words, until that no longer fits. Then each takes its own.
         int bpad = 12, bgap = 4;
-        for (;; bpad -= 2) {
+        boolean ownWidths = false;
+        for (;;) {
             int left = M + orientText + bpad + bgap + labelW + fieldW + bgap + replaceText + bpad + bgap + carveText + bpad;
-            int right = 3 * (actionText + bpad + 8) + 2 * bgap;
-            if (left + bgap + right + M <= width || bpad <= 4) break;
-            if (bgap > 2) bgap--;
+            int right = ownWidths ? actionTexts[0] + actionTexts[1] + actionTexts[2] + 3 * bpad + 2 * bgap : 3 * (actionText + bpad + 8) + 2 * bgap;
+            if (left + bgap + right + M <= width) break;
+            if (bpad > 4) {
+                bpad -= 2;
+                if (bgap > 2) bgap--;
+            } else if (!ownWidths) ownWidths = true;
+            else break;
         }
         int x = M;
         CycleButton<Boolean> orient = CycleButton.builder((Boolean v) -> Component.translatable(v ? "curvegen.screen.flat" : "curvegen.screen.upright")).withInitialValue(S.floor)
@@ -258,16 +282,20 @@ public class CurveScreen extends ControlScreen {
                 S.is3d() ? tr("curvegen.screen.carve_3d_tooltip")
                 : tr("curvegen.screen.carve_2d_tooltip"))));
         addRenderableWidget(carve);
-        int aw = actionText + bpad + 8, bx = width - M - 3 * aw - 2 * bgap;
-        Button place = Button.builder(Component.translatable("curvegen.screen.place"), b -> place()).bounds(bx, by, aw, 20).build();
+        int[] aw = new int[3];
+        for (int k = 0; k < 3; k++) aw[k] = ownWidths ? actionTexts[k] + bpad : actionText + bpad + 8;
+        int bx = width - M - aw[0] - aw[1] - aw[2] - 2 * bgap;
+        Button place = Button.builder(Component.translatable("curvegen.screen.place"), b -> place()).bounds(bx, by, aw[0], 20).build();
         boolean placeable = Editor.isActive() || !mode3d || RadialScreen.offers(S.gen);
         place.active = placeable;
         place.setTooltip(Tooltip.create(Component.literal(!placeable ? tr("curvegen.screen.this_shape_can_t_be_put_in_the_world")
                 : Editor.isActive() ? tr("curvegen.screen.back_to_the_shape_in_the_world_with_the")
                 : tr("curvegen.screen.puts_the_shape_in_the_world_as_a_hologram"))));
         addRenderableWidget(place);
-        addRenderableWidget(Button.builder(Component.translatable("curvegen.screen.export"), b -> export()).bounds(bx + aw + bgap, by, aw, 20).build());
-        addRenderableWidget(Button.builder(Component.translatable("curvegen.screen.done"), b -> onClose()).bounds(bx + 2 * (aw + bgap), by, aw, 20).build());
+        Button export = Button.builder(Component.translatable("curvegen.screen.export"), b -> export()).bounds(bx + aw[0] + bgap, by, aw[1], 20).build();
+        export.setTooltip(Tooltip.create(Component.translatable("curvegen.screen.export_litematica")));
+        addRenderableWidget(export);
+        addRenderableWidget(Button.builder(Component.translatable("curvegen.screen.done"), b -> onClose()).bounds(bx + aw[0] + aw[1] + 2 * bgap, by, aw[2], 20).build());
     }
 
     // ---------- presets ----------
@@ -277,11 +305,8 @@ public class CurveScreen extends ControlScreen {
     private void presetButtons() {
         int y = presetRowY(), w = (PANEL_W - 4) / 2;
         Button save = Button.builder(Component.translatable("curvegen.screen.save_preset"), b -> savePreset()).bounds(M, y, w, 20).build();
-        save.setTooltip(Tooltip.create(Component.translatable("curvegen.screen.save_this_tab_s_shape_settings_under_a_name")));
         addRenderableWidget(save);
-        Button load = Button.builder(Component.translatable("curvegen.screen.load_preset"),
-                b -> minecraft.setScreen(new PresetsScreen(this, S.gen, this::loadPreset))).bounds(M + w + 4, y, w, 20).build();
-        load.setTooltip(Tooltip.create(Component.translatable("curvegen.screen.browse_preview_and_load_saved_shapes")));
+        Button load = Button.builder(Component.translatable("curvegen.screen.load_preset"), b -> minecraft.setScreen(new PresetsScreen(this, S.gen, this::loadPreset))).bounds(M + w + 4, y, w, 20).build();
         addRenderableWidget(load);
     }
 
@@ -302,14 +327,15 @@ public class CurveScreen extends ControlScreen {
         ShapeSettings.Gen g = p.gen();
         if (g == null) return;
         PresetData.apply(p.data, g, S);
-        if (withBlocks && p.blocks != null) { BlockChoices.apply(p.blocks, S, BlockChoices.CHOICE); textureDirty = true; }
+        boolean noGradient = false;
+        if (withBlocks && p.blocks != null) { noGradient = p.applyBlocks(S, BlockChoices.CHOICE); textureDirty = true; }
         tab = tabFor(g);
         mode3d = S.is3d();
         remember();
         pointScroll = 0;
         dirty = true; autoFit = true; fit3 = true;
         rebuildWidgets();
-        flash(tr("curvegen.screen.loaded_preset_s", p.name));
+        flash(noGradient ? tr("curvegen.paint.preset_no_gradient") : tr("curvegen.screen.loaded_preset_s", p.name));
     }
 
     private void switchTab(Tab t) {
@@ -340,9 +366,9 @@ public class CurveScreen extends ControlScreen {
     }
 
     private void initEllipse() {
-        spin(M, row(0), 64, 20, String.valueOf(S.eW), v -> { S.eW = clampInt(v, 1, 400, S.eW); dirty = true; }, () -> S.eW, 1, 1, 400, () -> true, true);
+        named(spin(M, row(0), 64, 20, String.valueOf(S.eW), v -> { S.eW = clampInt(v, 1, 400, S.eW); dirty = true; }, () -> S.eW, 1, 1, 400, () -> true, true), "curvegen.screen.width");
         labels.add(new Label(M + 71, row(0) + 6, "×"));
-        spin(M + 86, row(0), 64, 20, String.valueOf(S.eH), v -> { S.eH = clampInt(v, 1, 400, S.eH); dirty = true; }, () -> S.eH, 1, 1, 400, () -> true, true);
+        named(spin(M + 86, row(0), 64, 20, String.valueOf(S.eH), v -> { S.eH = clampInt(v, 1, 400, S.eH); dirty = true; }, () -> S.eH, 1, 1, 400, () -> true, true), "curvegen.screen.height");
         addRenderableWidget(cycler(List.of(EllipseMode.values()), S.eMode, m -> Component.literal(switch (m) {
                     case THIN -> tr("curvegen.screen.thin"); case FILLED -> tr("curvegen.screen.filled"); case OUTWARDS -> tr("curvegen.screen.thick_outwards");
                     case INWARDS -> tr("curvegen.screen.thick_inwards"); case MIDDLE -> tr("curvegen.screen.thick_middle"); }),
@@ -352,6 +378,7 @@ public class CurveScreen extends ControlScreen {
         EditBox t = spin(M + 60, row(2), PANEL_W - 60, 20, fmt(S.eT), v -> { S.eT = clampNum(v, 0.0625, 50, S.eT); dirty = true; },
                 () -> S.eT, 0.25, 0.0625, 50, () -> thick, false);
         t.setEditable(thick);
+        t.setTooltip(thick ? null : Tooltip.create(Component.translatable("curvegen.screen.only_the_thick_shapes_have_a_thickness")));
         hint = switch (S.eMode) {
             case THIN -> tr("curvegen.screen.a_hollow_shell_the_outer_surface_follows_the_ellipse");
             case FILLED -> tr("curvegen.screen.everything_inside_the_ellipse");
@@ -367,6 +394,7 @@ public class CurveScreen extends ControlScreen {
         eq.setMaxLength(256);
         eq.setValue(S.src);
         eq.setResponder(v -> { S.src = v; dirty = true; updateEquationControls(); });
+        named(eq, "curvegen.screen.equation_2d_tooltip");
         addRenderableWidget(eq);
         labels.add(new Label(M, row(1) + 6, "x"));
         addRenderableWidget(text(M + 10, row(1), 62, S.xmin, v -> { S.xmin = v; dirty = true; }));
@@ -377,12 +405,12 @@ public class CurveScreen extends ControlScreen {
         labels.add(new Label(M + 76, row(2) + 6, tr("curvegen.screen.to")));
         addRenderableWidget(text(M + 90, row(2), 60, S.ymax, v -> { S.ymax = v; dirty = true; }));
         labels.add(new Label(M, row(3) + 6, tr("curvegen.screen.w")));
-        spin(M + 10, row(3), 62, 20, String.valueOf(S.qW), v -> { S.qW = clampInt(v, 1, 400, S.qW); dirty = true; }, () -> S.qW, 1, 1, 400, () -> true, true);
+        named(spin(M + 10, row(3), 62, 20, String.valueOf(S.qW), v -> { S.qW = clampInt(v, 1, 400, S.qW); dirty = true; }, () -> S.qW, 1, 1, 400, () -> true, true), "curvegen.screen.width");
         labels.add(new Label(M + 76, row(3) + 6, tr("curvegen.screen.h")));
         qHField = spin(M + 90, row(3), 60, 20, String.valueOf(S.qH), v -> { if (!S.qLock) { S.qH = clampInt(v, 1, 400, S.qH); dirty = true; } },
                 () -> S.qH, 1, 1, 400, () -> !S.qLock, true);
         qHField.setEditable(!S.qLock);
-        addRenderableWidget(toggle(S.qLock, M, row(4), PANEL_W, tr("curvegen.screen.same_scale"), v -> { S.qLock = v; qHField.setEditable(!v); dirty = true; }));
+        addRenderableWidget(toggle(S.qLock, M, row(4), PANEL_W, tr("curvegen.screen.same_scale"), v -> { S.qLock = v; qHField.setEditable(!v); dirty = true; updateEquationControls(); }));
         eqShape = cycler(List.of(EqMode.values()), S.qMode, m -> Component.literal(switch (m) {
                     case LINE -> tr("curvegen.screen.line"); case UNDER -> tr("curvegen.screen.fill_under"); case OVER -> tr("curvegen.screen.fill_over"); }),
                 M, row(5), PANEL_W, tr("curvegen.screen.shape"), v -> { S.qMode = v; dirty = true; updateEquationControls(); });
@@ -394,6 +422,9 @@ public class CurveScreen extends ControlScreen {
     }
 
 
+    /** Gives a field with no visible label of its own a short name as its tooltip. */
+    private static void named(EditBox f, String key) { f.setTooltip(Tooltip.create(Component.translatable(key))); }
+
     private static boolean isInequality(String src) { return dev.curvegen.core.edit.Edit2D.isInequality(src); }
 
     /** An inequality decides the filled side itself, so the Shape choice (and line width) don't apply. */
@@ -402,7 +433,12 @@ public class CurveScreen extends ControlScreen {
         boolean ineq = isInequality(S.src);
         eqShape.active = !ineq;
         eqShape.setTooltip(ineq ? Tooltip.create(Component.translatable("curvegen.screen.your_inequality_sets_the_shape_use_to_choose_it")) : null);
-        if (qLWField != null) qLWField.setEditable(!ineq && S.qMode == EqMode.LINE);
+        named(qHField, S.qLock ? "curvegen.screen.same_scale_works_this_out_from_the_width_and" : "curvegen.screen.height");
+        if (qLWField != null) {
+            boolean line = !ineq && S.qMode == EqMode.LINE;
+            qLWField.setEditable(line);
+            qLWField.setTooltip(line ? null : Tooltip.create(Component.translatable("curvegen.screen.filled_shapes_don_t_use_a_line_width")));
+        }
     }
 
     /** A filled Bézier shape ignores line width. */
@@ -413,9 +449,9 @@ public class CurveScreen extends ControlScreen {
     }
 
     private void initBezier() {
-        spin(M, row(0), 64, 20, String.valueOf(S.bW), v -> { S.bW = clampInt(v, 1, 400, S.bW); dirty = true; autoFit = true; }, () -> S.bW, 1, 1, 400, () -> true, true);
+        named(spin(M, row(0), 64, 20, String.valueOf(S.bW), v -> { S.bW = clampInt(v, 1, 400, S.bW); dirty = true; autoFit = true; }, () -> S.bW, 1, 1, 400, () -> true, true), "curvegen.screen.width");
         labels.add(new Label(M + 71, row(0) + 6, "×"));
-        spin(M + 86, row(0), 64, 20, String.valueOf(S.bH), v -> { S.bH = clampInt(v, 1, 400, S.bH); dirty = true; autoFit = true; }, () -> S.bH, 1, 1, 400, () -> true, true);
+        named(spin(M + 86, row(0), 64, 20, String.valueOf(S.bH), v -> { S.bH = clampInt(v, 1, 400, S.bH); dirty = true; autoFit = true; }, () -> S.bH, 1, 1, 400, () -> true, true), "curvegen.screen.height");
         addRenderableWidget(cycler(List.of(BzMode.values()), S.bMode, m -> Component.literal(m == BzMode.LINE ? tr("curvegen.screen.line") : tr("curvegen.screen.filled")),
                 M, row(1), PANEL_W, tr("curvegen.screen.shape"), v -> { S.bMode = v; dirty = true; updateBezierControls(); }));
         labels.add(new Label(M, row(2) + 6, tr("curvegen.screen.line_width")));
@@ -430,11 +466,13 @@ public class CurveScreen extends ControlScreen {
             dirty = true; rebuildWidgets();
         }).bounds(M, row(4), 73, 20).build();
         add.active = S.pts.size() < 10;
+        add.setTooltip(add.active ? null : Tooltip.create(Component.translatable("curvegen.screen.a_curve_can_have_s_points_at_most", 10)));
         Button rem = Button.builder(Component.translatable("curvegen.screen.remove"), b -> {
             S.pts.remove(S.pts.size() - 2 >= 1 ? S.pts.size() - 2 : S.pts.size() - 1);
             dirty = true; rebuildWidgets();
         }).bounds(M + 77, row(4), 73, 20).build();
         rem.active = S.pts.size() > 2;
+        rem.setTooltip(rem.active ? null : Tooltip.create(Component.translatable("curvegen.screen.curve_minimum_points_tooltip")));
         addRenderableWidget(add);
         addRenderableWidget(rem);
         hint = tr("curvegen.screen.drag_the_numbered_handles_in_the_preview");
@@ -458,7 +496,7 @@ public class CurveScreen extends ControlScreen {
                 if (S.pts.size() > 2) { S.pts.remove(idx); dirty = true; rebuildWidgets(); }
             }).bounds(M + 132, y, 18, 16).build();
             x.active = n > 2;
-            x.setTooltip(Tooltip.create(Component.literal(n > 2 ? tr("curvegen.screen.remove_point_s", k + 1) : tr("curvegen.screen.a_curve_needs_at_least_two_points"))));
+            x.setTooltip(Tooltip.create(Component.literal(n > 2 ? tr("curvegen.screen.remove_point_s", k + 1) : tr("curvegen.screen.curve_minimum_points_tooltip"))));
             addRenderableWidget(x);
             for (int axis = 0; axis < 2; axis++) {
                 EditBox f = axis == 0 ? fx : fy;
@@ -506,6 +544,8 @@ public class CurveScreen extends ControlScreen {
     private void initBlocks() {
         // On short screens the rows close up, so the last one stays clear of the buttons along the bottom.
         int rows = BlockChoices.FAMILIES.length + 1, pitch = Math.min(ROW, (height - 30 - top()) / rows), h = Math.min(20, pitch - 1);
+        // The Use buttons are as wide as their words need, and the block buttons take what's left.
+        int useW = Math.max(26, Math.max(tw(tr("curvegen.screen.use")), tw(tr("curvegen.screen.off"))) + 6), pickX = M + useW + 22, pickW = PANEL_W - useW - 22;
         for (int k = 0; k < BlockChoices.FAMILIES.length; k++) {
             Family f = BlockChoices.FAMILIES[k];
             int y = top() + k * pitch;
@@ -514,7 +554,7 @@ public class CurveScreen extends ControlScreen {
             } else {
                 boolean on = S.allows(f);
                 Button use = Button.builder(Component.translatable(on ? "curvegen.screen.use" : "curvegen.screen.off"), b -> { S.allow(f, !S.allows(f)); dirty = true; rebuildWidgets(); })
-                        .bounds(M, y, 26, h).build();
+                        .bounds(M, y, useW, h).build();
                 if (S.floor && !S.is3d() && (f == Family.SLAB || f == Family.STAIRS)) {
                     use.active = false;
                     use.setTooltip(Tooltip.create(Component.translatable("curvegen.screen.from_above_s_look_like_full_blocks_so_flat", BlockChoices.familyName(f))));
@@ -522,24 +562,42 @@ public class CurveScreen extends ControlScreen {
                 addRenderableWidget(use);
             }
             Block block = BlockChoices.CHOICE.get(f);
-            String name = font.plainSubstrByWidth(block.getName().getString(), PANEL_W - 54 - 8);
+            // A name too long for the button is cut with "…". The tooltip gives it whole.
+            String full = block.getName().getString(), name = tw(full) <= pickW - 14 ? full : font.plainSubstrByWidth(full, pickW - 14 - tw("…")) + "…";
             Button pick = Button.builder(Component.literal(name), b -> minecraft.setScreen(new BlockPickerScreen(this, f, chosen -> {
                 BlockChoices.CHOICE.put(f, chosen);
-                S.fullConnects = BlockChoices.fullBlockConnects();
+                S.fullConnects = BlockChoices.fullConnects(S);
                 dirty = true; textureDirty = true;
                 rebuildWidgets();
-            }))).bounds(M + 48, y, PANEL_W - 48, h).build();
+            }))).bounds(pickX, y, pickW, h).build();
             pick.setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.literal(BlockChoices.familyName(f) + ": " + block.getName().getString())));
             addRenderableWidget(pick);
-            icons.add(new Icon(M + 29, y + (h - 16) / 2, new ItemStack(block)));
+            icons.add(new Icon(M + useW + 3, y + (h - 16) / 2, new ItemStack(block)));
         }
-        addRenderableWidget(Button.builder(Component.translatable("curvegen.screen.match_a_colour"), b -> minecraft.setScreen(
+        // The last row: "Match a colour…" and the paint button, which names the paint source. The paint button gets
+        // room for its widest source, so it doesn't jump as the source changes, and the match button takes the rest,
+        // with a shorter name when the full one doesn't fit.
+        int ry = top() + (rows - 1) * pitch, room = PANEL_W - 4, paintText = 0;
+        for (Paint.Source s : Paint.Source.values()) paintText = Math.max(paintText, tw(tr("curvegen.screen.paint_button", PaintScreen.sourceName(s))));
+        String match = tr("curvegen.screen.match_a_colour");
+        if (tw(match) + paintText + 16 > room) match = tr("curvegen.screen.match_a_colour_short");
+        int matchW = tw(match) + Math.max(0, room - tw(match) - paintText) / 2;
+        if (room - matchW < paintText + 6) {
+            matchW = room - paintText - 6;
+            match = font.plainSubstrByWidth(match, matchW - 6 - tw("…")) + "…";
+        }
+        Button matchButton = Button.builder(Component.literal(match), b -> minecraft.setScreen(
                 new ColorPickerScreen(this, BlockChoices.pickedColor >= 0 ? BlockChoices.pickedColor : 0x8E6B4A, rgb -> {
                     BlockChoices.autoSelect(rgb);
-                    S.fullConnects = BlockChoices.fullBlockConnects();
+                    S.fullConnects = BlockChoices.fullConnects(S);
                     dirty = true; textureDirty = true;
                     rebuildWidgets();
-                }))).bounds(M, top() + (rows - 1) * pitch, PANEL_W, h).build());
+                }))).bounds(M, ry, matchW, h).build();
+        matchButton.setTooltip(Tooltip.create(Component.translatable("curvegen.screen.match_a_colour_tip")));
+        addRenderableWidget(matchButton);
+        Button paintButton = Button.builder(Component.translatable("curvegen.screen.paint_button", PaintScreen.sourceName(S.paint.source)), b -> minecraft.setScreen(new PaintScreen(this))).bounds(M + matchW + 4, ry, PANEL_W - matchW - 4, h).build();
+        paintButton.setTooltip(Tooltip.create(Component.translatable("curvegen.screen.paint_button_tip")));
+        addRenderableWidget(paintButton);
         hint = tr("curvegen.screen.choose_a_block_per_piece_type_or_match_them");
         hintY = top() + rows * pitch + 2;
     }
@@ -548,7 +606,11 @@ public class CurveScreen extends ControlScreen {
     private int countScroll, countContentH;
 
     /** One line of the list, with its texts already cut to fit. */
-    private record CountRow(boolean header, String text, String count, int countW, int state, boolean dim, String tip, boolean solid) {}
+    private record CountRow(boolean header, String text, String count, int countW, int state, boolean dim, String tip, boolean solid, ItemStack item) {
+        CountRow(boolean header, String text, String count, int countW, int state, boolean dim, String tip, boolean solid) {
+            this(header, text, count, countW, state, dim, tip, solid, null);
+        }
+    }
     /** The rows last built, and the result and depth they were built for. Every other input rebuilds the widgets, which clears them. */
     private List<CountRow> countRows;
     private Object countResult;
@@ -587,7 +649,8 @@ public class CurveScreen extends ControlScreen {
 
     /** Grouped by piece type, then one row per state. States that look the same (and are named the same) share a row. */
     private List<CountRow> countRows() {
-        Object from = mode3d ? solved3 : result;
+        Repaint3.View view = mode3d ? painted3() : null;
+        Object from = mode3d ? view != null ? view : solved3 : result;
         if (countRows != null && countResult == from && countDepth == S.depth) return countRows;
         List<CountRow> rows = new ArrayList<>();
         countRows = rows; countResult = from; countDepth = S.depth;
@@ -595,17 +658,21 @@ public class CurveScreen extends ControlScreen {
         if (result == null || result.target().error != null) return rows;
         boolean floor = result.floor();
         int mult = Math.max(1, S.depth);
+        Painted painted = painted();
+        PaintBlocks.Resolved resolved = painted == null ? null : PaintBlocks.resolve(painted, net.minecraft.core.Direction.UP);
         for (Family f : BlockChoices.FAMILIES) {
             java.util.LinkedHashMap<String, int[]> merged = new java.util.LinkedHashMap<>();
             for (int st : statesFor(f, floor)) merged.computeIfAbsent(Pieces.SHORT_NAME[st], key -> new int[]{st, 0})[1] += result.counts()[st] * mult;
-            int total = 0;
+            long total = 0;
             for (int[] m : merged.values()) total += m[1];
+            if (painted != null && painted.open() > 0) total = java.util.Arrays.stream(painted.counts()[f.ordinal()]).sum();   // a pattern's holes left out
             boolean unused = floor && (f == Family.SLAB || f == Family.STAIRS);
             String blockName = BlockChoices.CHOICE.get(f).getName().getString();
             String n = String.valueOf(total);
             int nw = tw(n);
             String title = unused ? tr("curvegen.screen.family_unused_flat", BlockChoices.familyName(f)) : S.allows(f) ? BlockChoices.familyName(f) : tr("curvegen.screen.family_off", BlockChoices.familyName(f));
-            rows.add(new CountRow(true, font.plainSubstrByWidth(title, PANEL_W - nw - 6), n, nw, -1, unused || !S.allows(f), blockName, false));
+            rows.add(header(title, n, nw, unused || !S.allows(f), blockName, false));
+            if (painted != null) { paintedRows(rows, f, painted, resolved); continue; }
             for (var e : merged.entrySet()) {
                 int st = e.getValue()[0], count = e.getValue()[1];
                 n = String.valueOf(count);
@@ -619,10 +686,57 @@ public class CurveScreen extends ControlScreen {
         return rows;
     }
 
+    /** How many of the drawing's pieces a pattern's holes open in the front layer, which the picture shows. */
+    private int openPieces() {
+        Painted p = painted();
+        if (p == null || p.open() == 0 || result == null) return 0;
+        if (p == openFor) return openPieces;
+        int n = result.nx() * result.ny(), open = 0;
+        for (int c = 0; c < n; c++) {
+            if (result.grid()[c] != Pieces.EMPTY && p.at(c) == Painted.OPEN) open++;
+        }
+        openFor = p;
+        return openPieces = open;
+    }
+
+    /** The paint {@link #openPieces} last counted, and its count. */
+    private Painted openFor;
+    private int openPieces;
+
+    /** A piece type's heading row. A title too long for the panel is cut with "…", and its tooltip starts with the whole of it. */
+    private CountRow header(String title, String n, int nw, boolean dim, String blockName, boolean solid) {
+        int room = PANEL_W - nw - 6;
+        if (tw(title) <= room) return new CountRow(true, title, n, nw, -1, dim, blockName, solid);
+        return new CountRow(true, font.plainSubstrByWidth(title, room - tw("…")) + "…", n, nw, -1, dim, title + '\n' + blockName, solid);
+    }
+
+    /** A painted shape's rows for one piece type: one per block, with its item, the most used first. */
+    private void paintedRows(List<CountRow> rows, Family f, Painted painted, PaintBlocks.Resolved resolved) {
+        long[] counts = painted.counts()[f.ordinal()];
+        java.util.Map<Block, Long> byBlock = new java.util.LinkedHashMap<>();
+        for (int e = 0; e < counts.length; e++) {
+            if (counts[e] == 0) continue;
+            Block b = resolved.block(e - 1);   // entry 0 is the Blocks tab's choice
+            byBlock.merge(b != null ? b : BlockChoices.CHOICE.get(f), counts[e], Long::sum);
+        }
+        List<java.util.Map.Entry<Block, Long>> sorted = new ArrayList<>(byBlock.entrySet());
+        sorted.sort(java.util.Map.Entry.<Block, Long>comparingByValue().reversed());
+        for (var e : sorted) {
+            String full = e.getKey().getName().getString(), n = String.valueOf(e.getValue()), name = full;
+            int nw = tw(n), room = PANEL_W - 20 - nw - 6;
+            if (tw(name) > room) name = font.plainSubstrByWidth(name, room - tw("…")) + "…";
+            rows.add(new CountRow(false, name, n, nw, -1, false, tr("curvegen.screen.piece_count", BlockChoices.familyName(f), full, e.getValue()),
+                    false, new ItemStack(e.getKey())));
+        }
+    }
+
     /** A 3D shape's rows: by piece type, then one row for each way a builder would tell its states apart. */
     private void countRows3(List<CountRow> rows) {
         if (solved3 == null || solved3.error != null) return;
-        int[] counts = solved3.result.counts();
+        Repaint3.View view = painted3();
+        int[] counts = (view == null ? solved3.result : view.done().result()).counts();   // a pattern's holes left out
+        Painted painted = view == null ? null : view.done().painted();
+        PaintBlocks.Resolved resolved = painted == null ? null : PaintBlocks.resolve(painted, PaintBlocks.viewer3(view.done()));
         for (Family f : BlockChoices.FAMILIES) {
             int total = 0;
             for (Count3.Group g : Count3.GROUPS) if (g.family() == f) total += g.count(counts);
@@ -630,7 +744,8 @@ public class CurveScreen extends ControlScreen {
             String n = String.valueOf(total);
             int nw = tw(n);
             String title = S.allows(f) ? BlockChoices.familyName(f) : tr("curvegen.screen.family_off", BlockChoices.familyName(f));
-            rows.add(new CountRow(true, font.plainSubstrByWidth(title, PANEL_W - nw - 6), n, nw, -1, !S.allows(f), blockName, true));
+            rows.add(header(title, n, nw, !S.allows(f), blockName, true));
+            if (painted != null) { paintedRows(rows, f, painted, resolved); continue; }
             for (Count3.Group g : Count3.GROUPS) {
                 if (g.family() != f) continue;
                 int count = g.count(counts);
@@ -674,7 +789,8 @@ public class CurveScreen extends ControlScreen {
                 ctx.fill(x0, y + 10, x1, y + 11, 0x40FFFFFF);
                 if (my >= y && my < y + 11 && mx >= x0 && mx < x1 && my >= top && my < bottom) tip = r.tip;
             } else {
-                if (r.solid) drawIcon3(ctx, r.state, x0 + 1, y + 1, r.dim);
+                if (r.item != null) ctx.renderItem(r.item, x0, y);
+                else if (r.solid) drawIcon3(ctx, r.state, x0 + 1, y + 1, r.dim);
                 else drawIcon(ctx, r.state, x0 + 1, y + 1, r.dim);
                 int c = r.dim ? 0xFF5C6470 : 0xFFC8CED6;
                 ctx.drawString(font, r.text, x0 + 20, y + 4, c, false);
@@ -691,7 +807,7 @@ public class CurveScreen extends ControlScreen {
             ctx.fill(x1 + 1, top, x1 + 3, bottom, 0x30FFFFFF);
             ctx.fill(x1 + 1, by, x1 + 3, by + bar, 0xA0FFFFFF);
         }
-        if (tip != null) setTooltipForNextRenderPass(Component.literal(tip));
+        if (tip != null) setTooltipForNextRenderPass(font.split(Component.literal(tip), width));   // split only at a heading's line break
     }
 
     /** A 14-pixel piece icon painted exactly like the preview: same colours, same silhouette outline. */
@@ -893,10 +1009,24 @@ public class CurveScreen extends ControlScreen {
         sizes3(0, whd(), new String[]{tr("curvegen.screen.width_of_the_box_the_curve_is_in"), tr("curvegen.screen.height_of_the_box_the_curve_is_in"), tr("curvegen.screen.depth_of_the_box_the_curve_is_in")},
                 new IntSupplier[]{() -> S.b3W, () -> S.b3H, () -> S.b3D}, new IntConsumer[]{v -> S.b3W = v, v -> S.b3H = v, v -> S.b3D = v},
                 new BooleanSupplier[]{ALWAYS, ALWAYS, ALWAYS}, null);
-        CycleButton<BzMode> shape = short3(cycler(List.of(BzMode.values()), BzMode.LINE, m -> Component.literal(m == BzMode.LINE ? tr("curvegen.screen.line") : tr("curvegen.screen.filled")),
-                M, r3(1), PANEL_W, tr("curvegen.screen.shape"), v -> { }));
-        shape.active = false;
-        shape.setTooltip(Tooltip.create(Component.translatable("curvegen.screen.a_3d_curve_is_always_a_line_only_a")));
+        // Solid, hollow with open ends, or hollow and capped: the two settings as one choice, so they take one row.
+        CycleButton<Integer> shape = short3(cycler(List.of(0, 1, 2), !S.b3Hollow ? 0 : S.b3Open ? 1 : 2,
+                m -> Component.translatable(m == 0 ? "curvegen.screen.line" : m == 1 ? "curvegen.screen.hollow" : "curvegen.screen.hollow_capped"),
+                M, r3(1), PANEL_W, tr("curvegen.screen.shape"), m -> {
+                    S.b3Hollow = m != 0;
+                    if (m != 0) S.b3Open = m == 1;
+                    dirty = true;
+                }));
+        boolean[] was = {false};
+        Runnable room = () -> {
+            boolean on = S.b3T >= ShapeSettings.HOLLOW_MIN;
+            if (on == was[0] && shape.active == on) return;
+            was[0] = on;
+            shape.active = on;
+            shape.setTooltip(Tooltip.create(Component.translatable(on ? "curvegen.screen.curve_shape_tooltip" : "curvegen.option.off.hollow_thin")));
+        };
+        room.run();
+        live.add(room);
         thickness(2, () -> S.b3T, v -> S.b3T = v, ALWAYS, null);
         short3(toggle(S.snap, M, r3(3), PANEL_W, tr("curvegen.screen.snap_to_half_blocks"), v -> S.snap = v));
         int n = S.pts3.size();
@@ -962,7 +1092,7 @@ public class CurveScreen extends ControlScreen {
             labels.add(new Label(M, y + 4, name));
             for (int axis = 0; axis < 3; axis++) {
                 int a = axis;
-                EditBox f = new EditBox(font, x0 + a * step, y, fw, 16, Component.translatable("curvegen.screen.point_s_s", name, "xyz".charAt(a)));
+                EditBox f = new EditBox(font, x0 + a * step, y, fw, 16, Component.translatable("curvegen.screen.point_s_s", name, String.valueOf("xyz".charAt(a))));
                 f.setMaxLength(12);
                 f.setValue(coord(pts.get(k)[a]));
                 f.setResponder(v -> {
@@ -987,14 +1117,21 @@ public class CurveScreen extends ControlScreen {
                 if (pts.size() > 2 && idx < pts.size()) { pts.remove(idx); dirty = true; rebuildWidgets(); }
             }).bounds(M + 133, y, 17, 16).build();
             x.active = n > 2;
-            x.setTooltip(Tooltip.create(Component.literal(n > 2 ? tr("curvegen.screen.remove_point_s", k + 1) : tr("curvegen.screen.a_curve_needs_at_least_two_points"))));
+            x.setTooltip(Tooltip.create(Component.literal(n > 2 ? tr("curvegen.screen.remove_point_s", k + 1) : tr("curvegen.screen.curve_minimum_points_tooltip"))));
             addRenderableWidget(x);
         }
     }
 
     // ---------- the 3D preview ----------
-    /** A solve of a 3D shape: the blocks, their faces, and how many there are. With an {@code error} the rest is null. */
-    record Solved3(Solver3.Result result, Mesh3 mesh, int blocks, Message error) {}
+    /**
+     * A solve of a 3D shape: the blocks, their faces, and how many there are, with what paints it and whether fences
+     * attached to full blocks in it. With an {@code error} the rest is null.
+     */
+    record Solved3(Solver3.Result result, Mesh3 mesh, int blocks, Message error, Solve3Painter painter, boolean fullConnects) {}
+
+    /** The menu shows a 3D shape unturned, its own axes the world's. */
+    static final Orient UNTURNED = new Orient(Orient.EAST, Orient.UP, Orient.SOUTH);
+    private final Repaint3 repaint3 = new Repaint3();
 
     private final Preview3 preview3 = new Preview3();
     private Solved3 solved3;
@@ -1050,7 +1187,15 @@ public class CurveScreen extends ControlScreen {
                 if (now - droppingSince < DROP_FOR) cancel3.set(true);
             }
         }
-        preview3.palette(Preview3.palette(colors, BlockChoices.CHOICE, S.topColours));
+        // The paint screen can change whether fences attach to full blocks, which the shape is solved with.
+        if (solved3 != null && solved3.error == null && job3 == null && S.fullConnects != solved3.fullConnects) dirty = true;
+        if (repaint3.poll(solved3 == null ? null : solved3.painter, solved3 != null && solved3.fullConnects, S)) countRows = null;
+        Repaint3.View view = painted3();
+        // A pattern's holes change the blocks, so they show in every colouring.
+        if (solved3 != null && solved3.result != null)
+            preview3.mesh(view != null && view.mesh() != null ? view.mesh() : solved3.mesh, solved3.result.shape().pad());
+        if (view != null && colors == PreviewTexture.Colors.BLOCKS) preview3.palette(view.palette(), view.perBlock());
+        else preview3.palette(Preview3.palette(colors, BlockChoices.CHOICE, S.topColours));
         preview3.showWires(showCurve);
         // The box the player set, without the room a thickness adds: a thicker shape keeps the view it has.
         int pad = shape.pad();
@@ -1061,15 +1206,18 @@ public class CurveScreen extends ControlScreen {
         }
     }
 
+    /** The paint the 3D shape on show is drawn with: the last finished for this solve, kept while a repaint runs. */
+    private Repaint3.View painted3() { return solved3 == null ? null : repaint3.current(solved3.painter, S.paint); }
+
     /** Runs on the worker thread. Returns null once the solve is no longer wanted. */
     static Solved3 solve3(ShapeSettings copy, BooleanSupplier cancelled) {
         Shape3 shape = Shape3.of(copy);
-        if (shape.error() != null) return new Solved3(null, null, 0, shape.error());
+        if (shape.error() != null) return new Solved3(null, null, 0, shape.error(), null, copy.fullConnects);
         Solver3.Result r = Solver3.solve(shape, copy, cancelled);
         if (r == null) return null;
         int blocks = 0;
         for (int p = 1; p < Pieces3.COUNT; p++) blocks += r.counts()[p];
-        return new Solved3(r, new Mesh3(r), blocks, null);
+        return new Solved3(r, new Mesh3(r), blocks, null, new Solve3Painter(r, shape, UNTURNED), copy.fullConnects);
     }
 
     /** The control points the tab shows in the picture, or null. */
@@ -1135,15 +1283,17 @@ public class CurveScreen extends ControlScreen {
     }
 
     private void export3() {
-        if (solved3 == null || job3 != null || dirty) { flash(tr("curvegen.screen.still_working_on_the_shape_try_again_in_a")); return; }
+        if (solved3 == null || job3 != null || dirty || solved3.error == null && repaint3.pending(solved3.painter, S)) { flash(tr("curvegen.screen.still_working_on_the_shape_try_again_in_a")); return; }
         if (solved3.error != null) { flash(tr("curvegen.screen.fix_the_shape_first_s", Lang.text(solved3.error))); return; }
-        Solver3.Result r = solved3.result;
-        BlockState[] states = BlockChoices.statesFor3();
+        Repaint3.View view = repaint3.fresh(solved3.painter, S);
+        Solver3.Result r = view == null ? solved3.result : view.done().result();
+        Painted painted = view == null ? null : view.done().painted();
+        PaintBlocks.States3 states = new PaintBlocks.States3(painted == null ? null : PaintBlocks.resolve(painted, PaintBlocks.viewer3(view.done())));
         List<EditShape.Placed> blocks = new ArrayList<>(solved3.blocks);
-        for (int y = 0, c = 0; y < r.ny(); y++)
+        for (int y = 0, c = 0, k = 0; y < r.ny(); y++)
             for (int z = 0; z < r.nz(); z++)
                 for (int x = 0; x < r.nx(); x++, c++)
-                    if (r.grid()[c] != Pieces3.AIR) blocks.add(new EditShape.Placed(x, y, z, states[r.grid()[c]]));
+                    if (r.grid()[c] != Pieces3.AIR) blocks.add(new EditShape.Placed(x, y, z, states.get(r.grid()[c], painted == null ? -1 : painted.at(k++))));
         if (blocks.isEmpty()) { flash(tr("curvegen.screen.empty_export")); return; }
         try {
             String author = minecraft.player != null ? minecraft.player.getName().getString() : tr("key.category.curvegen.main");
@@ -1229,6 +1379,7 @@ public class CurveScreen extends ControlScreen {
         if (job != null && job.isDone()) {
             try { result = job.get(); } catch (Exception e) { flash(tr("curvegen.screen.couldn_t_build_this_shape_s", e.getMessage())); }
             job = null;
+            resultConnects = jobConnects;
             if (result != null) {
                 if (S.gen == Gen.EQUATION && S.qLock && result.target().error == null) {
                     S.qH = result.ny();
@@ -1237,19 +1388,51 @@ public class CurveScreen extends ControlScreen {
                 textureDirty = true;
             }
         }
+        // The paint screen can change whether fences attach to full blocks, which the shape is solved with.
+        if (result != null && job == null && S.fullConnects != resultConnects) dirty = true;
         if (dirty && job == null) {
             dirty = false;
             ShapeSettings copy = S.copy();
+            jobConnects = copy.fullConnects;
             job = EXEC.submit(() -> Solver.run(copy));
         }
+        repaint();
         if (result != null && preview.id() == null) textureDirty = true;   // released while a picker was open
         if (textureDirty && result != null) {
             textureDirty = false;
-            preview.update(result, colors, showCurve, true);
+            preview.update(result, colors, showCurve, true, BlockChoices.CHOICE, painted());
             if (autoFit || result.nx() != lastNx || result.ny() != lastNy) fitView();
             lastNx = result.nx(); lastNy = result.ny();
         }
     }
+
+    /** Paints the 2D shape again after a new solve or a paint change, without solving it again. */
+    private void repaint() {
+        if (paintJob != null && paintJob.isDone()) {
+            try { painted = paintJob.get(); } catch (Exception e) { painted = null; flash(tr("curvegen.screen.couldn_t_build_this_shape_s", e.getMessage())); }
+            paintedResult = paintingResult; paintedFor = paintingFor; paintedMatcher = paintingMatcher;
+            paintJob = null;
+            textureDirty = true; countRows = null;
+        }
+        if (paintJob != null || job != null || result == null || mode3d) return;
+        if (paintedResult == result && paintedFor != null && paintedFor.same(S.paint) && (!S.paint.on() || paintedMatcher == Chroma.matcherVersion())) return;
+        Paint paint = S.paint.copy();
+        Solver.Result r = result;
+        int depth = S.depth;
+        boolean connects = resultConnects;
+        Catalog catalog = paint.on() ? PaintBlocks.catalog(S) : null;
+        paintingResult = r; paintingFor = paint; paintingMatcher = Chroma.matcherVersion();
+        paintJob = EXEC.submit(() -> Painter2D.paint(r, depth, paint, connects, catalog));
+    }
+
+    /** {@link Chroma#matcherVersion} for the 2D paint on show and the paint under way: when it moves on, the shape is painted again. */
+    private int paintedMatcher, paintingMatcher;
+
+    /** The paint for the result on show, or null when it's unpainted or its paint isn't ready. */
+    Painted painted() { return paintedResult == result && paintedFor != null && paintedFor.same(S.paint) ? painted : null; }
+
+    /** Whether the result on show still waits for its paint. */
+    private boolean paintPending() { return S.paint.on() && !mode3d && painted() == null; }
 
     private void fitView() {
         if (result == null) return;
@@ -1307,11 +1490,13 @@ public class CurveScreen extends ControlScreen {
                 Solver3.Result r = solved3.result;
                 double pct = r.volume() > 0 ? r.err() / r.volume() * 100 : 0;
                 boolean busy = job3 != null || dirty;
-                line = tr("curvegen.screen.status_3d", solved3.blocks, r.nx(), r.ny(), r.nz(), String.format(java.util.Locale.ROOT, "%.1f", r.err()), String.format(java.util.Locale.ROOT, "%.1f", pct));
+                Repaint3.View view = painted3();
+                long blocks = solved3.blocks - (view == null ? 0 : view.done().painted().open());   // a pattern's holes left out
+                line = tr("curvegen.screen.status_3d", blocks, r.nx(), r.ny(), r.nz(), String.format(java.util.Locale.ROOT, "%.1f", r.err()), String.format(java.util.Locale.ROOT, "%.1f", pct));
                 if (busy) line = tr("curvegen.screen.status_updating", line);
                 // On a narrow screen the share alone says how close the blocks are.
                 if (tw(line) > x1 - x0 - 6) {
-                    line = tr("curvegen.screen.status_3d_short", solved3.blocks, r.nx(), r.ny(), r.nz(), String.format(java.util.Locale.ROOT, "%.1f", pct));
+                    line = tr("curvegen.screen.status_3d_short", blocks, r.nx(), r.ny(), r.nz(), String.format(java.util.Locale.ROOT, "%.1f", pct));
                     if (busy) line = tr("curvegen.screen.status_updating", line);
                 }
             }
@@ -1321,6 +1506,7 @@ public class CurveScreen extends ControlScreen {
         else {
             int total = 0;
             for (int p = 1; p < Pieces.COUNT; p++) total += result.counts()[p];
+            total -= openPieces();
             double pct = result.area() > 0 ? result.err() / result.area() * 100 : 0;
             line = tr("curvegen.screen.status_2d", total, result.nx(), result.ny(), String.format(java.util.Locale.ROOT, "%.2f", result.err()), String.format(java.util.Locale.ROOT, "%.1f", pct));
             if (result.floor()) line = tr("curvegen.screen.status_above", line);
@@ -1475,7 +1661,7 @@ public class CurveScreen extends ControlScreen {
 
     // ---------- actions ----------
     private boolean ready() {
-        if (result == null || job != null || dirty) { flash(tr("curvegen.screen.still_working_on_the_shape_try_again_in_a")); return false; }
+        if (result == null || job != null || dirty || paintPending()) { flash(tr("curvegen.screen.still_working_on_the_shape_try_again_in_a")); return false; }
         if (result.target().error != null) { flash(tr("curvegen.screen.fix_the_equation_first")); return false; }
         return true;
     }
@@ -1519,7 +1705,7 @@ public class CurveScreen extends ControlScreen {
         String kind = switch (S.gen) { case ELLIPSE -> "ellipse"; case EQUATION -> "equation"; case BEZIER -> "bezier"; default -> "shape"; };
         try {
             String author = minecraft.player != null ? minecraft.player.getName().getString() : tr("key.category.curvegen.main");
-            Path file = LitematicExporter.export(layout, S.depth, S.floor, LitematicExporter.defaultName(kind) + (S.floor ? "_floor" : ""), author);
+            Path file = LitematicExporter.export(result, S.depth, painted(), LitematicExporter.defaultName(kind) + (S.floor ? "_floor" : ""), author);
             flash(tr("curvegen.screen.exported_to_schematics_s", file.getFileName().toString()));
             Placement.say(Component.translatable("curvegen.screen.exported_to_schematics_s", file.getFileName().toString()));
         } catch (Exception e) {

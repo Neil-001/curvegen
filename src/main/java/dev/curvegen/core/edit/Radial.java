@@ -11,8 +11,8 @@ public final class Radial {
     private Radial() {}
 
     /** The top-level wedges' ids in their default order: with no hologram, and with one. */
-    public static final List<String> START = List.of("2d", "3d", "presets", "last"),
-            EDIT = List.of("options", "blocks", "presets", "export", "full", "place", "cancel");
+    public static final List<String> START = List.of("2d", "3d", "presets", "last", "capture"),
+            EDIT = List.of("options", "blocks", "paint", "presets", "export", "full", "place", "cancel");
 
     /** A label box's size, and the most wedges a menu can have without two labels overlapping on a 427 by 240 screen. */
     public static final int LABEL_W = 80, LABEL_H = 22, MAX_WEDGES = 12;
@@ -21,8 +21,8 @@ public final class Radial {
 
     public static String name(String id) {
         return switch (id) {
-            case "2d" -> "curvegen.radial.2d"; case "3d" -> "curvegen.radial.3d"; case "presets" -> "curvegen.radial.presets"; case "last" -> "curvegen.radial.last";
-            case "options" -> "curvegen.radial.options"; case "blocks" -> "curvegen.radial.blocks"; case "export" -> "curvegen.radial.export"; case "full" -> "curvegen.radial.full";
+            case "2d" -> "curvegen.radial.2d"; case "3d" -> "curvegen.radial.3d"; case "presets" -> "curvegen.radial.presets"; case "last" -> "curvegen.radial.last"; case "capture" -> "curvegen.radial.capture";
+            case "options" -> "curvegen.radial.options"; case "blocks" -> "curvegen.radial.blocks"; case "paint" -> "curvegen.paint.title"; case "export" -> "curvegen.radial.export"; case "full" -> "curvegen.radial.full";
             case "place" -> "curvegen.radial.place"; case "cancel" -> "curvegen.radial.cancel";
             default -> id;
         };
@@ -111,13 +111,17 @@ public final class Radial {
     }
 
     /**
-     * A menu's wedges in the player's order. Ids in {@code saved} come first, in that order. The rest follow in their
-     * default order, so a wedge added in a later version still shows up. Ids the menu doesn't have are ignored.
+     * A menu's wedges in the player's order. Ids in {@code saved} keep that order. A wedge {@code saved} lacks, such
+     * as one added in a later version, goes in right after the wedge before it in the default order, or first when it
+     * has none, so Paint turns up beside Blocks wherever the player put that. Ids the menu doesn't have are ignored.
      */
     public static List<String> order(List<String> defaults, List<String> saved) {
         List<String> out = new ArrayList<>();
         for (String id : saved) if (defaults.contains(id) && !out.contains(id)) out.add(id);
-        for (String id : defaults) if (!out.contains(id)) out.add(id);
+        for (int k = 0; k < defaults.size(); k++) {
+            String id = defaults.get(k);
+            if (!out.contains(id)) out.add(k == 0 ? 0 : out.indexOf(defaults.get(k - 1)) + 1, id);
+        }
         return out;
     }
 
