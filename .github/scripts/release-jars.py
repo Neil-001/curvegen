@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Collect release jars and print the publishing matrix. Run from the source checkout."""
+"""Collect release jars and print the publishing matrix. Run from the source checkout.
+
+The mod's name, version, loader and Minecraft range all come from each jar's own metadata, so nothing here
+names the mod.
+"""
 
 import json
 from pathlib import Path
@@ -29,17 +33,21 @@ def collect(version, line, java, root=Path(".")):
                 if "fabric.mod.json" in archive.namelist():
                     metadata = json.loads(archive.read("fabric.mod.json"))
                     loader = "fabric"
+                    name = metadata.get("name")
                     jar_version = metadata["version"]
                     minecraft = metadata["depends"]["minecraft"]
                     if isinstance(minecraft, list):
                         minecraft = "\n".join(minecraft)
                 else:
                     metadata = tomllib.loads(archive.read("META-INF/neoforge.mods.toml").decode())
-                    mod = next(mod for mod in metadata["mods"] if mod["modId"] == "curvegen")
+                    mod = metadata["mods"][0]
                     loader = "neoforge"
+                    name = mod.get("displayName")
                     jar_version = mod["version"]
-                    minecraft = next(dep["versionRange"] for dep in metadata["dependencies"]["curvegen"]
+                    minecraft = next(dep["versionRange"] for dep in metadata["dependencies"][mod["modId"]]
                                      if dep["modId"] == "minecraft")
+            if not name:
+                raise ValueError(f"{jar} has no mod name in its metadata")
             if jar_version != version and not jar_version.startswith(version + "+"):
                 raise ValueError(f"{jar} has version {jar_version}, expected {version}")
             if dual_loader and loader != jar.relative_to(root).parts[0]:
@@ -47,11 +55,13 @@ def collect(version, line, java, root=Path(".")):
             published_version = f"{version}+mc{line}-{loader}" if dual_loader else jar_version
             if any(item["version"] == published_version for item in jars):
                 raise ValueError(f"Multiple jars would publish as {published_version}")
-            jars.append(dict(file=jar.name, version=published_version, loader=loader,
+            jars.append(dict(file=jar.name, name=name, version=published_version, loader=loader,
                              java=java, minecraft=minecraft))
             sources[jar.name] = jar
     if not jars:
         raise ValueError("The build produced no jars")
+    if len({item["name"] for item in jars}) > 1:
+        raise ValueError("The jars disagree on the mod's name")
     if dual_loader and {item["loader"] for item in jars} != {"fabric", "neoforge"}:
         raise ValueError("The build must produce both Fabric and NeoForge jars")
     # Validate everything before copying, so a partial collection cannot be published.

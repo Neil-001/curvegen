@@ -2,6 +2,8 @@ package dev.curvegen.client.edit;
 
 import dev.curvegen.core.Message;
 import dev.curvegen.core.ShapeSettings;
+import dev.curvegen.core.paint.Catalog;
+import dev.curvegen.core.paint.Paint;
 import dev.curvegen.core.edit.Option;
 import dev.curvegen.core.edit.Orient;
 import java.util.List;
@@ -120,6 +122,13 @@ public interface EditShape {
      * the result is no longer wanted, and a slow solve should return null instead of finishing.
      */
     Object solve(ShapeSettings copy, Orient orient, BooleanSupplier cancelled);
+
+    /**
+     * Paints a solve for {@code paint}, on a worker thread, and returns the solve with its paint, which goes to
+     * {@link #build} in its place. It mustn't change the solve's pieces. {@code catalog} was taken on the client
+     * thread. A shape that isn't painted yet returns {@code solved} as it is, and so does any shape while paint is off.
+     */
+    default Object paint(Object solved, Paint paint, Catalog catalog) { return solved; }
 
     /** True when {@link #solve} only works out what Carve clears while Carve is on, so switching it on needs a new solve. */
     default boolean solveUsesCarve() { return false; }

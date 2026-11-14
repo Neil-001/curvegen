@@ -4,6 +4,7 @@ import dev.curvegen.client.ClientPlatform;
 import dev.curvegen.client.ColorIndex;
 import dev.curvegen.client.CurveGenClient;
 import dev.curvegen.client.Placement;
+import dev.curvegen.client.edit.Capture;
 import dev.curvegen.client.edit.Editor;
 import dev.curvegen.net.PlaceBlocksPayload;
 import java.nio.file.Path;
@@ -34,11 +35,17 @@ public class CurveGenFabricClient implements ClientModInitializer, ClientPlatfor
         KeyMapping.Category.register(CurveGenClient.CATEGORY.id());
         CurveGenClient.init(this).forEach(KeyMappingHelper::registerKeyMapping);
         ClientTickEvents.END_CLIENT_TICK.register(CurveGenClient::tick);
-        LevelRenderEvents.COLLECT_SUBMITS.register(ctx -> Editor.render(ctx.submitNodeCollector(), ctx.poseStack(), ctx.levelState().cameraRenderState.pos));
+        LevelRenderEvents.COLLECT_SUBMITS.register(ctx -> {
+            Editor.render(ctx.submitNodeCollector(), ctx.poseStack(), ctx.levelState().cameraRenderState.pos);
+            Capture.render(ctx.submitNodeCollector(), ctx.poseStack(), ctx.levelState().cameraRenderState.pos);
+        });
         // Block colours come from the active resource packs, so recompute them whenever packs change.
         ResourceLoader.get(PackType.CLIENT_RESOURCES).registerReloadListener(Identifier.fromNamespaceAndPath("curvegen", "block_colours"),
                 (ResourceManagerReloadListener) _ -> ColorIndex.clear());
-        HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("curvegen", "placement"), (dc, _) -> Editor.renderHud(dc));
+        HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("curvegen", "placement"), (dc, _) -> {
+            Editor.renderHud(dc);
+            Capture.renderHud(dc);
+        });
         // Keeps the replies to the mod's own /setblock commands out of chat, on a server without the mod.
         ClientReceiveMessageEvents.ALLOW_GAME.register((message, overlay) -> !Placement.hidesFeedback(message, overlay));
     }
@@ -47,6 +54,7 @@ public class CurveGenFabricClient implements ClientModInitializer, ClientPlatfor
     @Override public void sendToServer(PlaceBlocksPayload payload) { ClientPlayNetworking.send(payload); }
     @Override public Path configDir() { return FabricLoader.getInstance().getConfigDir(); }
     @Override public Path gameDir() { return FabricLoader.getInstance().getGameDir(); }
+    @Override public boolean isModLoaded(String id) { return FabricLoader.getInstance().isModLoaded(id); }
     @Override public void modelParts(BlockStateModel model, BlockState state, RandomSource random, List<BlockStateModelPart> out) {
         model.collectParts(random, out);
     }

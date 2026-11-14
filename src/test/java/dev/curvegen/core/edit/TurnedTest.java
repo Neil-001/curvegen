@@ -110,4 +110,26 @@ class TurnedTest {
         assertEquals(0, t.uniform(5, 2, 3));
         assertEquals(-1, t.uniform(5, 2, 7));
     }
+
+    @Test
+    void aTurnedShapeCutsWhereItsOwnDoes() {
+        ShapeSettings s = new ShapeSettings();
+        s.gen = Gen.BEZIER3; s.b3W = 12; s.b3H = 8; s.b3D = 10; s.b3T = 4; s.b3Hollow = true;
+        Shape3 shape = Shape3.of(s);
+        int[] own = {shape.nx(), shape.ny(), shape.nz()};
+        for (Orient o : all()) {
+            Shape3 t = Turned.of(shape, o);
+            assertTrue(t.cuts());
+            int cut = 0;
+            for (int j = 0; j < t.ny(); j++)
+                for (int k = 0; k < t.nz(); k++)
+                    for (int i = 0; i < t.nx(); i++) {
+                        double[] c = o.toOwn(new double[]{i + .5, j + .5, k + .5}, own);
+                        boolean gone = t.cut(i + .5, j + .5, k + .5);
+                        assertEquals(shape.cut(c[0], c[1], c[2]), gone, o + " at " + i + "," + j + "," + k);
+                        if (gone) cut++;
+                    }
+            assertTrue(cut > 10, o + ": " + cut);
+        }
+    }
 }
