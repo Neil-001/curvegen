@@ -348,8 +348,9 @@ public class PatternLibraryScreen extends Screen {
             String end = font.plainSubstrByWidth(file, 30, true);
             shortFile = font.plainSubstrByWidth(file, 80 - 30 - font.width("…")) + "…" + end;
         }
-        dropProblem = key == null ? null : tr(key, shortFile);
-        dropProblemTip = key == null ? null : tr(key, file);
+        // A message about no one file, such as Chroma Studio missing, takes no argument: a null one isn't allowed.
+        dropProblem = key == null ? null : file == null ? tr(key) : tr(key, shortFile);
+        dropProblemTip = key == null ? null : file == null ? tr(key) : tr(key, file);
     }
 
     private void rename(Saved s) {

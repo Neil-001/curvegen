@@ -1094,7 +1094,7 @@ public class CurveScreen extends ControlScreen {
             labels.add(new Label(M, y + 4, name));
             for (int axis = 0; axis < 3; axis++) {
                 int a = axis;
-                EditBox f = new EditBox(font, x0 + a * step, y, fw, 16, Component.translatable("curvegen.screen.point_s_s", name, "xyz".charAt(a)));
+                EditBox f = new EditBox(font, x0 + a * step, y, fw, 16, Component.translatable("curvegen.screen.point_s_s", name, String.valueOf("xyz".charAt(a))));
                 f.setMaxLength(12);
                 f.setValue(coord(pts.get(k)[a]));
                 f.setResponder(v -> {
