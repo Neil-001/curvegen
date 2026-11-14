@@ -12,7 +12,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.network.chat.Component;
 
-/** A small dialog on top of the previous screen: a name field, an optional on/off option, and confirm or cancel. */
+/** A small dialog on top of the previous screen, or of the world when there is none: a name field, an optional on/off option, and confirm or cancel. */
 public class NameDialogScreen extends Screen {
     /** What the dialog says about a name: whether it can be used, what the confirm button says, and an optional note. */
     public record Check(boolean allowed, String confirmLabel, String note) {}
@@ -51,7 +51,8 @@ public class NameDialogScreen extends Screen {
     protected void init() {
         int x = x0() + 10, y = y0() + 24;
         String text = field != null ? field.getValue() : initial;
-        field = new EditBox(font, x, y, W - 20, 20, Component.translatable("curvegen.screen.preset_name"));
+        // The field reads out as the dialog it is in: a preset, a pattern or a renaming.
+        field = new EditBox(font, x, y, W - 20, 20, title);
         field.setMaxLength(80);
         field.setValue(text);
         field.setCursorPosition(0);               // select it all, so typing replaces the suggestion
@@ -92,9 +93,12 @@ public class NameDialogScreen extends Screen {
 
     @Override
     public void render(GuiGraphics ctx, int mx, int my, float delta) {
-        parent.renderBackground(ctx, -1, -1, delta);   // the screen underneath, not interactive
-        parent.render(ctx, -1, -1, delta);
-        ctx.nextStratum();   // above everything the parent drew, items included
+        // The screen underneath, not interactive. Without one, as after capturing a pattern, the world shows through.
+        if (parent != null) {
+            parent.renderBackground(ctx, -1, -1, delta);
+            parent.render(ctx, -1, -1, delta);
+            ctx.nextStratum();   // above everything the parent drew, items included
+        }
         ctx.fill(0, 0, width, height, 0xA0000000);
         int x = x0(), y = y0();
         ctx.fill(x - 1, y - 1, x + W + 1, y + h() + 1, 0xFF5A6472);

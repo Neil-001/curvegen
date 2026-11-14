@@ -1,5 +1,6 @@
 package dev.curvegen.client.fabric.mixin;
 
+import dev.curvegen.client.edit.Capture;
 import dev.curvegen.client.edit.Editor;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.MouseHandler;
@@ -12,8 +13,8 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * Fabric API has no event for mouse input outside screens, so this gives the editor the first look at clicks and
- * scrolling while no screen is open. It cancels only what the editor says it used.
+ * Fabric API has no event for mouse input outside screens, so this gives capture and the editor the first look at clicks and
+ * scrolling while no screen is open. It cancels only what they say they used.
  */
 @Mixin(MouseHandler.class)
 abstract class MouseHandlerMixin {
@@ -25,7 +26,7 @@ abstract class MouseHandlerMixin {
 
     @Inject(method = "onButton", at = @At("HEAD"), cancellable = true)
     private void curvegen$onButton(long handle, MouseButtonInfo button, int action, CallbackInfo ci) {
-        if (curvegen$inWorld(handle) && Editor.mouseButton(button.button(), action == 1)) ci.cancel();
+        if (curvegen$inWorld(handle) && (Capture.mouseButton(button.button(), action == 1) || Editor.mouseButton(button.button(), action == 1))) ci.cancel();
     }
 
     @Inject(method = "onScroll", at = @At("HEAD"), cancellable = true)

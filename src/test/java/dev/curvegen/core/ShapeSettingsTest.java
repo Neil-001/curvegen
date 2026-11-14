@@ -2,6 +2,7 @@ package dev.curvegen.core;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import dev.curvegen.core.paint.Paint;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.List;
@@ -20,6 +21,7 @@ class ShapeSettingsTest {
             Object[] all = t.getEnumConstants();
             f.set(s, all[(((Enum) f.get(s)).ordinal() + 1) % all.length]);
         } else if (List.class.isAssignableFrom(t)) ((List<double[]>) f.get(s)).get(0)[1] += 0.25;
+        else if (t == Paint.class) ((Paint) f.get(s)).turn += 15;   // PaintTest covers each of its own settings
         else fail("ShapeSettings." + f.getName() + " has a type this test doesn't know: teach it, and copy(), set() and same()");
     }
 

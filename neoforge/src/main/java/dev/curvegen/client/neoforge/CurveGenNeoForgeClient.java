@@ -5,6 +5,7 @@ import dev.curvegen.client.ClientPlatform;
 import dev.curvegen.client.ColorIndex;
 import dev.curvegen.client.CurveGenClient;
 import dev.curvegen.client.Placement;
+import dev.curvegen.client.edit.Capture;
 import dev.curvegen.client.edit.Editor;
 import dev.curvegen.client.edit.Hologram;
 import dev.curvegen.client.edit.StepHold;
@@ -27,6 +28,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
+import net.neoforged.fml.ModList;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.loading.FMLPaths;
 import net.neoforged.neoforge.client.event.AddClientReloadListenersEvent;
@@ -57,14 +59,17 @@ public final class CurveGenNeoForgeClient implements ClientPlatform {
         // NeoForge draws modded layers even with the HUD hidden (F1). Fabric doesn't, so this checks for it.
         modBus.addListener(RegisterGuiLayersEvent.class, event -> event.registerAboveAll(
                 Identifier.fromNamespaceAndPath("curvegen", "placement"), (graphics, tick) -> {
-                    if (!Minecraft.getInstance().options.hideGui) Editor.renderHud(graphics);
+                    if (Minecraft.getInstance().options.hideGui) return;
+                    Editor.renderHud(graphics);
+                    Capture.renderHud(graphics);
                 }));
         NeoForge.EVENT_BUS.addListener(ClientTickEvent.Post.class, event -> CurveGenClient.tick(Minecraft.getInstance()));
-        // The editor takes a click or a scroll only when it uses it. Both events fire for screens too, which it leaves alone.
+        // Capture, then the editor, takes a click or a scroll only when it uses it. Both events fire for screens too, which it leaves alone.
         NeoForge.EVENT_BUS.addListener(InputEvent.MouseButton.Pre.class, event -> {
             Minecraft mc = Minecraft.getInstance();
             if (mc.screen == null && mc.getOverlay() == null
-                    && Editor.mouseButton(event.getButton(), event.getAction() == 1)) event.setCanceled(true);
+                    && (Capture.mouseButton(event.getButton(), event.getAction() == 1)
+                        || Editor.mouseButton(event.getButton(), event.getAction() == 1))) event.setCanceled(true);
         });
         NeoForge.EVENT_BUS.addListener(InputEvent.MouseScrollingEvent.class, event -> {
             Minecraft mc = Minecraft.getInstance();
@@ -77,6 +82,7 @@ public final class CurveGenNeoForgeClient implements ClientPlatform {
             if (Placement.hidesFeedback(event.getMessage(), event.isOverlay())) event.setCanceled(true);
         });
         // The editor draws after entities, before water, and keeps what goes over the water for after it.
+        // Capture's outline goes with it.
         NeoForge.EVENT_BUS.addListener(RenderLevelStageEvent.AfterEntities.class,
                 event -> Editor.render(event.getPoseStack(), event.getLevelRenderState().cameraRenderState.pos));
         NeoForge.EVENT_BUS.addListener(RenderLevelStageEvent.AfterTripwireBlocks.class, event -> Hologram.drawAfterWater());
@@ -89,6 +95,7 @@ public final class CurveGenNeoForgeClient implements ClientPlatform {
     @Override public void sendToServer(PlaceBlocksPayload payload) { ClientPacketDistributor.sendToServer(payload); }
     @Override public Path configDir() { return FMLPaths.CONFIGDIR.get(); }
     @Override public Path gameDir() { return FMLPaths.GAMEDIR.get(); }
+    @Override public boolean isModLoaded(String id) { return ModList.get().isLoaded(id); }
     // The colours are worked out without a world, so NeoForge's methods get an empty one.
     @Override public void modelParts(BlockStateModel model, BlockState state, RandomSource random, List<BlockModelPart> out) {
         model.collectParts(EmptyBlockAndTintGetter.INSTANCE, BlockPos.ZERO, state, random, out);

@@ -2,6 +2,7 @@ package dev.curvegen.client;
 
 import static dev.curvegen.client.Lang.tr;
 
+import dev.curvegen.client.chroma.Chroma;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
@@ -38,7 +39,34 @@ public final class PresetStore {
         public long saved;          // last saved or renamed, in milliseconds
         public Map<String, String> data = new LinkedHashMap<>();
         public Map<String, String> blocks; // block choices, or null if saved without them
+        /** Paint settings with a copy of the pattern, saved along with the blocks; null without them, and in older presets. */
+        public Map<String, String> paint;
         private transient Path file; // where it's saved, or null before the first save
+
+        /**
+         * Puts the preset's blocks and paint into {@code s} and {@code choice}, when it has blocks. A preset saved
+         * with blocks before painting existed loads unpainted, as it looked then, and so does one painted with a gradient
+         * when Chroma Studio 1.2 or newer isn't installed. Returns true in that last case, for the caller to say why.
+         */
+        public boolean applyBlocks(ShapeSettings s, Map<dev.curvegen.core.Pieces.Family, net.minecraft.world.level.block.Block> choice) {
+            if (blocks == null) return false;
+            boolean dropped = false;
+            BlockChoices.apply(blocks, s, choice);
+            if (paint != null) {
+                // The preset's paint whole, so a setting it left at its default, such as Fit, doesn't keep the current one.
+                dev.curvegen.core.paint.Paint saved = new dev.curvegen.core.paint.Paint();
+                saved.apply(paint);
+                s.paint.set(saved);
+                if (saved.source == dev.curvegen.core.paint.Paint.Source.GRADIENT && !Chroma.available()) {
+                    s.paint.source = dev.curvegen.core.paint.Paint.Source.OFF;
+                    dropped = true;
+                }
+            } else {
+                s.paint.source = dev.curvegen.core.paint.Paint.Source.OFF;
+            }
+            s.fullConnects = PaintBlocks.fullConnects(s, choice);
+            return dropped;
+        }
 
         public ShapeSettings.Gen gen() {
             try { return ShapeSettings.Gen.valueOf(gen); } catch (Exception ignored) { return null; }
@@ -127,6 +155,7 @@ public final class PresetStore {
         p.name = name.trim();
         p.data = new LinkedHashMap<>(PresetData.capture(s, gen));
         p.blocks = withBlocks ? BlockChoices.capture(s) : null;
+        p.paint = withBlocks ? s.paint.capture() : null;
         p.saved = System.currentTimeMillis();
         write(p);
         return p;

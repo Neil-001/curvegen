@@ -1,15 +1,42 @@
 package dev.curvegen.core;
 
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.List;
 
-/** Shapes and settings the 3D tests solve: one or more of every kind the mod builds, and a few shapes made to bring out connectors and corner stairs. */
+/**
+ * Shapes and settings the 3D tests solve: one or more of every kind the mod builds, and a few shapes made to bring out
+ * connectors and corner stairs. Some have holes, emptied after the solve with {@link Solver3#settle}.
+ */
 public final class Shapes3Cases {
     private Shapes3Cases() {}
 
-    public record Case(String name, Shape3 shape, ShapeSettings settings) {
-        public Solver3.Result solve() { return Solver3.solve(shape, settings, () -> false); }
+    public record Case(String name, Shape3 shape, ShapeSettings settings, Holes holes) {
+        public Case(String name, Shape3 shape, ShapeSettings settings) { this(name, shape, settings, null); }
+
+        public Solver3.Result solve() {
+            Solver3.Result r = Solver3.solve(shape, settings, () -> false);
+            return holes == null ? r : Solver3.settle(r, gone(r, holes), settings.fullConnects, () -> false);
+        }
     }
+
+    /** Blocks to empty after a solve. */
+    public interface Holes { boolean at(int x, int y, int z); }
+
+    /** The cells of this grid that {@code holes} empties, indexed like the grid. */
+    public static BitSet gone(Solver3.Result r, Holes holes) {
+        BitSet gone = new BitSet(r.grid().length);
+        for (int y = 0; y < r.ny(); y++)
+            for (int z = 0; z < r.nz(); z++)
+                for (int x = 0; x < r.nx(); x++) if (holes.at(x, y, z)) gone.set((y * r.nz() + z) * r.nx() + x);
+        return gone;
+    }
+
+    /** About one block in nine, scattered. */
+    static final Holes SCATTERED = (x, y, z) -> (5 * x + 3 * y + 7 * z) % 9 == 0;
+
+    /** A lattice's openings, 2 blocks across with bars 1 wide, run straight through the shape from front to back, as a pattern's holes do. */
+    static final Holes LATTICE = (x, y, unused) -> x % 3 != 0 && y % 3 != 0;
 
     /** A shape given only by its box and field, with none of the optional hints. */
     public interface Field { double at(double x, double y, double z); }
@@ -84,21 +111,35 @@ public final class Shapes3Cases {
                     if (d[5] == 13) s.tD = 13;
                     out.add(new Case("torus " + d[0] + "/" + d[1] + " in " + s.tW + "x" + s.tH + "x" + s.tD + tag, Shape3.of(s), s));
                 }
+                for (ShapeSettings.EllipseMode m : new ShapeSettings.EllipseMode[]{ShapeSettings.EllipseMode.MIDDLE, ShapeSettings.EllipseMode.FILLED}) {
+                    ShapeSettings s = base.copy();
+                    s.gen = ShapeSettings.Gen.ELLIPSOID; s.e3W = 16; s.e3H = 13; s.e3D = 11; s.e3Mode = m; s.e3T = 2.5;
+                    out.add(new Case("ellipsoid " + m + " with a lattice through it" + tag, Shape3.of(s), s, LATTICE));
+                }
+                ShapeSettings ring = base.copy();
+                ring.gen = ShapeSettings.Gen.TORUS; ring.tRing = 16; ring.tTube = 6; ring.tW = 22; ring.tH = 9; ring.tD = 22;
+                out.add(new Case("torus with a lattice through it" + tag, Shape3.of(ring), ring, LATTICE));
                 for (ShapeSettings s : List.of(Shapes3Test.equation("z = x y / 3", ShapeSettings.Eq3Mode.SURFACE, 0.75, 14, "-3", "3", "-3", "3", "-3", "3"),
                         Shapes3Test.equation("z < 2 - floor(x^2 + y^2)/3", ShapeSettings.Eq3Mode.SURFACE, 1, 14, "-3", "3", "-3", "3", "-1", "3"),
                         Shapes3Test.curve(14, 10, 14, 1.25, 1, 1, 2, 4, 12, 13, 13, 9, 1, 12, 2, 12),
+                        Shapes3Test.hollow(Shapes3Test.curve(18, 14, 18, 4.5, 2, 2, 3, 9, 10, 4, 6, 12, 12, 14, 4, 13), true),
+                        Shapes3Test.hollow(Shapes3Test.curve(12, 10, 12, 3, 1, 2, 1, 4, 9, 2, 9, 1, 11), false),
                         Shapes3Test.surface(14, 9, 12, 3, 4, 0.75, 2, 6, 3, 7, 5, 2, 8, 4, 3, 7, 2, 6))) {
                     ShapeSettings own = base.copy();
                     own.set(s);
                     for (Pieces.Family f : Pieces.Family.values()) own.allow(f, base.allows(f));
                     own.fullConnects = fullConnects;
-                    out.add(new Case(PresetData.defaultName(own, own.gen) + tag, Shape3.of(own), own));
+                    String hollow = own.b3Hollow ? own.b3Open ? " hollow" : " hollow, capped" : "";
+                    out.add(new Case(PresetData.defaultName(own, own.gen) + hollow + tag, Shape3.of(own), own));
                 }
                 out.add(new Case("sheets" + tag, sheets(0.18), base));
                 out.add(new Case("thick sheets" + tag, sheets(0.45), base));
                 out.add(new Case("posts" + tag, posts(), base));
                 out.add(new Case("pyramid" + tag, pyramid(false), base));
                 out.add(new Case("upside-down pyramid" + tag, pyramid(true), base));
+                out.add(new Case("sheets with holes" + tag, sheets(0.18), base, SCATTERED));
+                out.add(new Case("posts with holes" + tag, posts(), base, SCATTERED));
+                out.add(new Case("pyramid with holes" + tag, pyramid(false), base, SCATTERED));
             }
             n++;
         }
