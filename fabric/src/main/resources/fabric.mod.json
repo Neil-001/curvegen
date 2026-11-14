@@ -31,6 +31,6 @@
     "fabric-api": ">=0.160.6"
   },
   "suggests": {
-    "chromastudio": ">=1.2.0-"
+    "chromastudio": ">=1.2.0"
   }
 }
