@@ -27,7 +27,7 @@ Most classes say what they do in a comment at the top, and their fields and meth
 
 ## Solvers
 
-The 2D solver's results must not change when the 3D one does. The two share nothing but `Pieces.Family` and the settings' piece toggles and `fullConnects`. A pattern's holes in a 2D shape are the one exception: `Settle2D` lays the shape out as 3D states and settles it with `Solver3.settle`, after the solve. Run `GameRules2Test` after touching `Settle2D`, the 2D block states or `Solver3`'s rules.
+The 2D solver's results must not change when the 3D one does. The two share nothing but `Pieces.Family` and the settings' piece toggles and `fullConnects`. A pattern's holes in a 2D shape are the one exception: `Settle2D` lays the shape out as 3D states and settles it with `Solver3.settle`, after the solve. Run `GameRules2Test` after touching `Settle2D`, the 2D block states or `Solver3`'s rules. Without holes, settling must give exactly the states placed unsettled.
 
 In both, a refinement pick must be judged on every cell whose state it can change. `Solver`'s affected sets and `Solver3`'s `Run.gather` list them. Leave a cell out and a pick can raise the total error, and then refinement can cycle.
 
@@ -73,7 +73,8 @@ Known limits the comments don't give:
 `ConnectionRulesTest` covers the connection rules, and `Pieces`, `Solver` and `BlockChoices` state most of them where they apply them. The ones they leave out:
 
 - Fences, panes and walls attach to sturdy full faces, including a stair's tall side, an open trapdoor's panel and a shelf's panel. They don't attach to slabs or closed trapdoors.
-- At depth 1, an upright wall has a post unless both sides connect. A straight wall keeps its post only if the block above covers its centre and the sides aren't both tall.
+- At depth 1, an upright wall has a post unless both sides connect. A straight wall keeps its post only if the block above covers its centre and the sides aren't both tall, or the wall above has a post. `Solver` adds that last one after refinement, so a pick still changes nothing more than a row below. At any depth, `Solver.Result.placedWallPost` gives the post each layer places.
+- A flat wall has no post when every side it joins has its opposite: straight or a crossing.
 - A shelf's lips are 2 pixels deep and 4 tall. Only the panel's back is a sturdy face.
 - `NativeImage.getPixel` and `setPixel` take ARGB.
 
