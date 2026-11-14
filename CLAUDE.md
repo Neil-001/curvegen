@@ -23,7 +23,7 @@ Most classes say what they do in a comment at the top, and their fields and meth
 - `client/edit/` is the in-world editor. `client/screen/` has the screens: `CurveScreen` is the main UI on G and `RadialScreen` the radial menu on V. `SettingsScreen` opens from the main UI's cogwheel, from Mod Menu on Fabric and from the mod list's Config button on NeoForge.
 - Mod Menu is optional. Only `ModMenuIntegration`, which Mod Menu itself loads, may refer to it.
 - Chroma Studio is optional too. Only `client/chroma/ChromaBridge` may refer to it, and `Chroma.init` loads that class only once the loader reports the mod and its API says version 2 (Chroma Studio 1.2) or later. Both loaders compile against `chromastudio_version` from its GitHub releases without bundling it, and `-PwithChroma` adds it to a dev client.
-- Read `listing/README.md` before changing anything in `listing/`. After editing `listing/description.md`, run `listing/art/curseforge.py`, or the build fails. Run `listing/art/render.py` after a change to either solver, to painting or to the 3D preview's drawing, and expect only the pictures you meant to change to differ.
+- Read `listing/README.md` before changing anything in `listing/`. After editing `listing/description.md`, run `listing/art/curseforge.py`, or the build fails. Run `listing/art/render.py` after a change to either solver or to the 3D preview's drawing, and expect only the pictures you meant to change to differ. The gallery is screenshots from the game, which it doesn't draw.
 
 ## Solvers
 

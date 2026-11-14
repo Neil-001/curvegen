@@ -56,7 +56,8 @@ import java.util.StringJoiner;
  * a preset's text does ({@link Paint#apply}), "paintPattern" picks a bundled pattern and "paintMix" a mix of a bundled
  * pattern's blocks, both by their field names in {@link Patterns}. A painted shape is drawn in 3D in each block's colour,
  * as the menu's "Block colours" picture draws it, a 2D one built as {@link Settle2D} lays it out, flat with "floor"
- * and as deep as "depth". The reply then lists the painted blocks with how many of each.
+ * and as deep as "depth". The reply then lists the painted blocks with how many of each. Painting is unused: only
+ * render.py's unused paint() and gallery() ask for it, and the listing no longer shows their pictures.
  */
 public class Dump {
     public static void main(String[] args) throws Exception {
