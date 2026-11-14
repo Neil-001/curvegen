@@ -2,8 +2,22 @@ package dev.curvegen.core.edit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import dev.curvegen.core.paint.Paint;
+import java.awt.image.BufferedImage;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import javax.imageio.ImageIO;
 import org.junit.jupiter.api.Test;
 
 class RadialTest {
@@ -292,24 +306,27 @@ class RadialTest {
     }
 
     @Test
-    void aSavedOrderComesFirstAndTheRestKeepTheirPlaces() {
-        assertEquals(List.of("place", "blocks", "options", "presets", "export", "full", "cancel"),
+    void aSavedOrderKeepsItsOrderAndTheRestFollowTheirNeighbours() {
+        assertEquals(List.of("options", "place", "cancel", "blocks", "paint", "presets", "export", "full"),
                 Radial.order(Radial.EDIT, List.of("place", "blocks")));
+        // A wedge added since the order was saved turns up after the one before it by default: Paint beside Blocks.
+        assertEquals(List.of("cancel", "place", "full", "export", "presets", "blocks", "paint", "options"),
+                Radial.order(Radial.EDIT, List.of("cancel", "place", "full", "export", "presets", "blocks", "options")));
         // Unknown ids, another menu's ids and repeats are skipped.
-        assertEquals(List.of("last", "2d", "3d", "presets"), Radial.order(Radial.START, List.of("nonsense", "place", "last", "last")));
+        assertEquals(List.of("2d", "3d", "presets", "last", "capture"), Radial.order(Radial.START, List.of("nonsense", "place", "last", "last")));
     }
 
     @Test
     void bothMenusOrdersSurviveBeingSavedAsOneList() {
-        List<String> start = new ArrayList<>(List.of("last", "presets", "3d", "2d"));
-        List<String> edit = new ArrayList<>(List.of("cancel", "place", "full", "export", "presets", "blocks", "options"));
+        List<String> start = new ArrayList<>(List.of("last", "capture", "presets", "3d", "2d"));
+        List<String> edit = new ArrayList<>(List.of("cancel", "place", "full", "export", "presets", "paint", "blocks", "options"));
         List<String> saved = Radial.merge(start, edit);
         assertEquals(start, Radial.order(Radial.START, saved));
         assertEquals(edit, Radial.order(Radial.EDIT, saved));
         assertEquals(List.of(), Radial.merge(Radial.START, Radial.EDIT), "the default order is saved as nothing");
         // Presets first in one menu and last in the other.
-        start = List.of("presets", "2d", "3d", "last");
-        edit = List.of("options", "blocks", "export", "full", "place", "cancel", "presets");
+        start = List.of("presets", "2d", "capture", "3d", "last");
+        edit = List.of("options", "paint", "blocks", "export", "full", "place", "cancel", "presets");
         saved = Radial.merge(start, edit);
         assertEquals(start, Radial.order(Radial.START, saved));
         assertEquals(edit, Radial.order(Radial.EDIT, saved));
@@ -319,5 +336,84 @@ class RadialTest {
     void everyWedgeHasAName() {
         for (String id : Radial.START) assertNotEquals(id, Radial.name(id));
         for (String id : Radial.EDIT) assertNotEquals(id, Radial.name(id));
+    }
+
+    /**
+     * The game's default font's advances, from its bitmaps as the game works them out: the last column with any pixel,
+     * scaled to the line, plus one. The rest of the characters come from Unifont, which the game downloads, so they
+     * count as Unifont's usual wide glyph: 16 pixels at half size, plus one.
+     */
+    private static Map<Integer, Integer> fontAdvances() throws Exception {
+        Map<Integer, Integer> advance = new HashMap<>();
+        advance.put((int) ' ', 4);
+        JsonObject font;
+        try (InputStream in = RadialTest.class.getResourceAsStream("/assets/minecraft/font/include/default.json")) {
+            assertNotNull(in, "the game's font is on the test classpath");
+            font = JsonParser.parseReader(new InputStreamReader(in, StandardCharsets.UTF_8)).getAsJsonObject();
+        }
+        for (var e : font.getAsJsonArray("providers")) {
+            JsonObject p = e.getAsJsonObject();
+            if (!p.get("type").getAsString().equals("bitmap")) continue;
+            String file = p.get("file").getAsString().replace("minecraft:", "");
+            BufferedImage img;
+            try (InputStream in = RadialTest.class.getResourceAsStream("/assets/minecraft/textures/" + file)) { img = ImageIO.read(in); }
+            var rows = p.getAsJsonArray("chars");
+            int cols = (int) rows.get(0).getAsString().codePoints().count();
+            int cw = img.getWidth() / cols, ch = img.getHeight() / rows.size();
+            double scale = (p.has("height") ? p.get("height").getAsInt() : 8) / (double) ch;
+            for (int r = 0; r < rows.size(); r++) {
+                int[] cps = rows.get(r).getAsString().codePoints().toArray();
+                for (int c = 0; c < cps.length; c++) {
+                    if (cps[c] == 0 || advance.containsKey(cps[c])) continue;   // the first provider with a character wins
+                    int last = -1;
+                    for (int x = 0; x < cw; x++)
+                        for (int y = 0; y < ch; y++)
+                            if ((img.getRGB(c * cw + x, r * ch + y) >>> 24) != 0) last = x;
+                    advance.put(cps[c], (int) (0.5 + (last + 1) * scale) + 1);
+                }
+            }
+        }
+        return advance;
+    }
+
+
+    /**
+     * The radial menu's top page and its Paint page, in every language: each wedge's name and each value it can show in
+     * words fits the 72 pixels inside a label, so none is cut. Names of patterns, mixes and gradients are left out: the
+     * menu cuts a long one and the wedge's tip gives the whole name.
+     */
+    @Test
+    void theTopAndPaintWedgesFitTheirLabelsInEveryLanguage() throws Exception {
+        Map<Integer, Integer> advance = fontAdvances();
+        // Widths the game itself measured, in English, Russian and Japanese.
+        for (Object[] seen : new Object[][]{{"Choose a gradient", 92}, {"Выбрать градиент", 95}, {"グラデーションを選ぶ", 90}, {"Mélange moussu", 79}})
+            assertEquals(seen[1], ((String) seen[0]).codePoints().map(cp -> advance.getOrDefault(cp, 9)).sum(), (String) seen[0]);
+        Set<String> keys = new LinkedHashSet<>(List.of("curvegen.radial.back", "curvegen.radial.paint.choose"));
+        for (String id : Radial.START) keys.add(Radial.name(id));
+        for (String id : Radial.EDIT) keys.add(Radial.name(id));
+        for (Paint.Source src : Paint.Source.values())
+            for (boolean gradients : new boolean[]{false, true})
+                for (boolean wraps : new boolean[]{false, true}) {
+                    Paint p = new Paint();
+                    p.source = src;
+                    for (Option o : PaintOptions.of(p, gradients, wraps)) {
+                        keys.add(o.label());
+                        if (o instanceof Option.Cycler c) keys.addAll(c.names());
+                    }
+                }
+        int room = Radial.LABEL_W - 8;
+        List<String> cut = new ArrayList<>();
+        try (var files = Files.list(Path.of("../src/main/resources/assets/curvegen/lang"))) {
+            for (Path f : files.sorted().toList()) {
+                JsonObject lang = JsonParser.parseString(Files.readString(f)).getAsJsonObject();
+                for (String key : keys) {
+                    assertTrue(lang.has(key), f.getFileName() + " has " + key);
+                    String text = lang.get(key).getAsString();
+                    int w = text.codePoints().map(cp -> advance.getOrDefault(cp, 9)).sum();
+                    if (w > room) cut.add(f.getFileName() + " " + key + " \"" + text + "\" is " + w + " pixels");
+                }
+            }
+        }
+        assertEquals(List.of(), cut, "wider than a label's " + room + " pixels");
     }
 }

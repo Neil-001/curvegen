@@ -1,3 +1,32 @@
+# 3.0.0
+
+Curve Generator 3.0.0 paints shapes. A shape no longer has to be one block for each piece type: it can take its blocks from a pattern, a mix or a gradient, and the mod still picks slabs, stairs and the other pieces in the same material, so painting never changes the shape. Patterns come with the mod, from blocks you've built or from a picture, and a pattern's empty spots can be left open as holes. 3D Bézier curves can now be hollow. This version is for Minecraft 1.21 and 1.21.1 on Fabric, and 1.21.1 on NeoForge. Shelves aren't available before Minecraft 1.21.9, so painting doesn't use them here.
+
+Chroma Studio 1.2 or newer for Minecraft 1.21.1 is optional. With it installed, you can paint with the gradients you save in it, mix blocks from its palettes and make patterns from pictures, and painting and "Match a colour…" choose blocks by colour the way Chroma Studio does. Without it, everything else works.
+
+## Features
+
+- Hollow 3D Bézier curves, with open or capped ends: a pipe, an arch to walk under or, with Carve on, a tunnel through a hill (#86)
+- Painting keeps every piece where it was. A painted block's slabs, stairs and walls come from its own material, such as stone brick stairs for stone bricks, or else from the closest colour. A pattern runs along a line and round a loop without a seam, and a turned stripe becomes a spiral (#85)
+- Paint 2D shapes with a pattern from the new Paint screen, opened from the Blocks tab. Choose how the pattern fits, its size, turn, mirror and where it starts, and watch the shape's picture change. The hologram, placing, undo, the block count and Litematica export all use the painted blocks (#87)
+- Mix: scatter blocks over a shape in set shares, one at a time or in patches, and shuffle for a new arrangement (#88)
+- The Blocks tab's block choices are kept when you restart the game, a preset's picture shows its paint, and the G menu's buttons no longer overlap at 1280×720 in any language (#89)
+- Paint 3D shapes: wrap a pattern round an ellipsoid, a torus, a tube or a surface, or project it from above, the front or the side. Mixes work on 3D shapes too (#90)
+- A pattern library to keep your own patterns, pin, rename or delete them, and try one on your shape before choosing it. Capture a new pattern from blocks in the world by clicking two corners, from the library or the radial menu's Capture wedge (#91)
+- A Paint wedge in the radial menu changes the source, pattern, turn, slide, size and mirror while you look at the hologram. The Blocks tab's Use toggles are kept when you restart the game too (#92)
+- Leave a pattern's empty spots open as holes, for a lattice, a screen or a dome you can see through. Holes place and clear nothing, the blocks beside them settle as the game would settle them, and a lattice pattern comes with the mod (#93)
+- With Chroma Studio 1.2 or newer: paint with its saved gradients, bottom to top, along or across the shape, or outwards from the middle, with sharp or ragged edges. Mix blocks from its palettes, and match colours its way (#94)
+- With Chroma Studio 1.2 or newer, drop a picture onto the pattern library to make a pattern up to 128 blocks across, chosen as soon as you save it. Clear pixels become empty spots (#95)
+- Shorter tooltips, and every greyed-out control says why (#84)
+
+## Fixes
+
+- Repainting a large shape with holes is faster, and the line above the G menu's picture no longer counts holes as blocks (#96)
+- The Paint screen, the pattern library and the radial menu's top and Paint pages no longer cut or hide text at 1280×720 in any language (#97)
+- Screen readers name the pattern name fields after their dialog instead of reading "Preset name" (#100)
+- Walls in thick shapes now get a post wherever the wall above them has one, so the game no longer changes them after placing (#102)
+- A pattern made from a picture no longer reads like a warning on the Paint screen: its status line says how many blocks were matched to its colours. The gradient chooser marks blocks painting can't place, such as a chain or concrete powder, and says they take the closest colour (#104)
+
 # 2.1.0
 
 Curve Generator 2.1.0 is for Minecraft 1.21 and 1.21.1 on Fabric, and 1.21.1 on NeoForge. It is the first release for these versions since 1.0.0, so it also brings everything in the sections below. The mod now runs on NeoForge as well as Fabric, curves can use chains and end rods, and its messages show above the hotbar. Shapes can be 3D and appear in the world as holograms you edit with handles, a radial menu on V starts them, and a settings screen holds the mod's options. Shelves aren't available before Minecraft 1.21.9, so the option isn't offered here.

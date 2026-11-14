@@ -4,6 +4,7 @@ import dev.curvegen.client.ClientPlatform;
 import dev.curvegen.client.ColorIndex;
 import dev.curvegen.client.CurveGenClient;
 import dev.curvegen.client.Placement;
+import dev.curvegen.client.edit.Capture;
 import dev.curvegen.client.edit.Editor;
 import dev.curvegen.client.edit.Hologram;
 import dev.curvegen.net.PlaceBlocksPayload;
@@ -37,7 +38,10 @@ public class CurveGenFabricClient implements ClientModInitializer, ClientPlatfor
         CurveGenClient.init(this).forEach(KeyBindingHelper::registerKeyBinding);
         ClientTickEvents.END_CLIENT_TICK.register(CurveGenClient::tick);
         // The editor draws after entities, before water, and keeps what goes over the water for after it.
-        WorldRenderEvents.AFTER_ENTITIES.register(ctx -> Editor.render(ctx.matrixStack(), ctx.camera().getPosition()));
+        WorldRenderEvents.AFTER_ENTITIES.register(ctx -> {
+            Editor.render(ctx.matrixStack(), ctx.camera().getPosition());
+            Capture.render(ctx.matrixStack(), ctx.camera().getPosition());
+        });
         WorldRenderEvents.AFTER_TRANSLUCENT.register(ctx -> Hologram.drawAfterWater());
         // Block colours come from the active resource packs, so recompute them whenever packs change.
         ResourceManagerHelper.get(PackType.CLIENT_RESOURCES).registerReloadListener(new SimpleSynchronousResourceReloadListener() {
@@ -45,7 +49,9 @@ public class CurveGenFabricClient implements ClientModInitializer, ClientPlatfor
             @Override public void onResourceManagerReload(ResourceManager manager) { ColorIndex.clear(); }
         });
         HudRenderCallback.EVENT.register((dc, tick) -> {
-            if (!Minecraft.getInstance().options.hideGui) Editor.renderHud(dc);
+            if (Minecraft.getInstance().options.hideGui) return;
+            Editor.renderHud(dc);
+            Capture.renderHud(dc);
         });
         // Keeps the replies to the mod's own /setblock commands out of chat, on a server without the mod.
         ClientReceiveMessageEvents.ALLOW_GAME.register((message, overlay) -> !Placement.hidesFeedback(message, overlay));
@@ -55,6 +61,7 @@ public class CurveGenFabricClient implements ClientModInitializer, ClientPlatfor
     @Override public void sendToServer(PlaceBlocksPayload payload) { ClientPlayNetworking.send(payload); }
     @Override public Path configDir() { return FabricLoader.getInstance().getConfigDir(); }
     @Override public Path gameDir() { return FabricLoader.getInstance().getGameDir(); }
+    @Override public boolean isModLoaded(String id) { return FabricLoader.getInstance().isModLoaded(id); }
     @Override public List<BakedQuad> quads(BakedModel model, BlockState state, Direction side, RandomSource random) {
         return model.getQuads(state, side, random);
     }

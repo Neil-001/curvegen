@@ -1,0 +1,34 @@
+name: Listing
+
+# Puts listing/description.md, the gallery and the icon on the Modrinth project page. CurseForge has no API for
+# its page, so that one is pasted by hand from listing/curseforge.html.
+on:
+  workflow_dispatch:
+    inputs:
+      replace:
+        description: Remove and upload again any gallery picture whose title is already on the page
+        type: boolean
+        default: false
+      dry_run:
+        description: Say what would change without changing it
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  modrinth:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Upload to Modrinth
+        env:
+          MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
+          MODRINTH_PROJECT_ID: ${{ vars.MODRINTH_PROJECT_ID }}
+        run: >
+          python3 .github/scripts/listing-modrinth.py
+          ${{ inputs.replace && '--replace' || '' }}
+          ${{ inputs.dry_run && '--dry-run' || '' }}

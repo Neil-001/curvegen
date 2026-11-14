@@ -30,6 +30,8 @@ final class Preview3 implements AutoCloseable {
     private int meshPad, wirePad;
     private List<double[]> wires = List.of();
     private int[] palette = new int[Family.values().length];
+    /** Each block's index into {@link #palette}, for a painted shape, or null to colour by piece type. */
+    private int[] perBlock;
     private boolean showWires = true, dirty = true;
     private Orbit drawn;
 
@@ -45,15 +47,30 @@ final class Preview3 implements AutoCloseable {
     /** No more pixels than this are drawn. A larger preview is drawn coarser and stretched. */
     private static final int MOST_PIXELS = 1_600_000;
 
-    /** The faces to draw. {@code pad} is the room the shape's own box adds around the one the player set. */
-    void mesh(Mesh3 m, int pad) { mesh = m; meshPad = pad; dirty = true; }
+    /**
+     * The faces to draw. {@code pad} is the room the shape's own box adds around the one the player set. Giving the
+     * mesh already on show again does nothing.
+     */
+    void mesh(Mesh3 m, int pad) {
+        if (m == mesh && pad == meshPad) return;
+        mesh = m; meshPad = pad; dirty = true;
+    }
 
     /** The outline, as {@code Shape3.wireframe} gives it. */
     void wires(List<double[]> lines, int pad) { wires = lines; wirePad = pad; dirty = true; }
 
     void showWires(boolean on) { if (on != showWires) { showWires = on; dirty = true; } }
 
-    void palette(int[] rgb) { if (!Arrays.equals(rgb, palette)) { palette = rgb.clone(); dirty = true; } }
+    void palette(int[] rgb) { palette(rgb, null); }
+
+    /**
+     * Colours: {@code rgb} per piece type by ordinal, or for a painted shape a palette whose indices {@code perBlock}
+     * gives for each block, as {@code Repaint3} makes them. Drawing a painted shape costs about what an unpainted one
+     * does, a lookup a face more, and its faces take 4 bytes each more.
+     */
+    void palette(int[] rgb, int[] perBlock) {
+        if (perBlock != this.perBlock || !Arrays.equals(rgb, palette)) { palette = rgb.clone(); this.perBlock = perBlock; dirty = true; }
+    }
 
     boolean hasMesh() { return mesh != null; }
 
@@ -103,7 +120,7 @@ final class Preview3 implements AutoCloseable {
         if (dirty || !view.same(drawn)) {
             dirty = false; drawn = view;
             raster.clear(BG);
-            if (mesh != null) raster.draw(mesh, shifted(view, meshPad), palette);
+            if (mesh != null) raster.draw(mesh, shifted(view, meshPad), palette, perBlock);
             if (showWires) {
                 Orbit v = shifted(view, wirePad);
                 for (double[] line : wires)

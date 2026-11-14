@@ -44,7 +44,13 @@ public final class Raster3 {
     }
 
     /** Draws the faces the camera can see. {@code palette} gives an RGB colour per piece family, by ordinal. */
-    public void draw(Mesh3 mesh, Orbit cam, int[] palette) {
+    public void draw(Mesh3 mesh, Orbit cam, int[] palette) { draw(mesh, cam, palette, null); }
+
+    /**
+     * The same, with {@code perBlock} giving each block's index into {@code palette}, by {@link Mesh3#block}, or null
+     * to colour by piece family.
+     */
+    public void draw(Mesh3 mesh, Orbit cam, int[] palette, int[] perBlock) {
         double[] r = cam.right(), u = cam.up(), f = cam.forward();
         double s = cam.scale;
         // A step of one block along each world axis, on the screen and in depth.
@@ -67,6 +73,7 @@ public final class Raster3 {
             for (int k = 0; k < palette.length; k++) { lit[k] = shade(palette[k], LIGHT[d]); dark[k] = shade(palette[k], LIGHT[d] * GRID_SHADE); }
             float[] rects = mesh.rects[d];
             byte[] fam = mesh.family[d];
+            int[] blocks = mesh.block[d];
             for (int q = 0, o = 0; q < n; q++, o += 5) {
                 double a0 = rects[o], b0 = rects[o + 1], a1 = rects[o + 2], b1 = rects[o + 3], c = rects[o + 4];
                 double cx = bx + c * ex[axis], cy = by + c * ey[axis];
@@ -80,7 +87,8 @@ public final class Raster3 {
                 if (py1 >= height) py1 = height - 1;
                 if (px0 > px1 || py0 > py1) continue;
                 double dc = bd + c * ed[axis];
-                int colour = lit[fam[q]], line = dark[fam[q]];
+                int at = perBlock == null ? fam[q] : perBlock[blocks[q]];
+                int colour = lit[at], line = dark[at];
                 for (int py = py0; py <= py1; py++) {
                     double qy = py + 0.5 - cy, qx = px0 + 0.5 - cx;
                     double fa = qx * iax + qy * iay, fb = qx * ibx + qy * iby;

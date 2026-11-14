@@ -2,9 +2,11 @@ package dev.curvegen.client;
 
 import static dev.curvegen.client.Lang.tr;
 
+import dev.curvegen.client.chroma.Chroma;
 import dev.curvegen.core.Pieces.Family;
 import dev.curvegen.core.Pieces;
 import dev.curvegen.core.Pieces3;
+import dev.curvegen.core.Settle2D;
 import dev.curvegen.core.PresetData;
 import dev.curvegen.core.ShapeSettings;
 import java.util.ArrayList;
@@ -111,7 +113,18 @@ public final class BlockChoices {
         }
     }
 
+    /**
+     * The block of a piece type closest to a colour, on the face the build is matched by: by Chroma Studio's matcher
+     * when it's installed, and otherwise by distance between average colours.
+     */
     public static Block closest(Family f, int rgb) {
+        if (Chroma.available()) {
+            ShapeSettings s = CurveGenClient.SETTINGS;
+            Map<Family, List<String>> allowed = PaintBlocks.allowedIds();
+            String id = Chroma.matcher(s.is3d() ? s.topColours : s.floor, allowed, (a, b) -> null).closest(rgb, allowed.get(f));
+            Block b = id == null ? null : PaintBlocks.block(id);
+            if (b != null) return b;
+        }
         Block best = null; double bd = Double.MAX_VALUE;
         for (Block b : candidates(f)) {
             double d = ColorIndex.distance(ColorIndex.of(b), rgb);
@@ -122,6 +135,9 @@ public final class BlockChoices {
 
     /** Fences, panes and walls refuse to attach to some full blocks (leaves, pumpkins, melons, shulker boxes…). */
     public static boolean fullBlockConnects() { return connects(CHOICE.get(Family.FULL)); }
+
+    /** {@link ShapeSettings#fullConnects} for these settings, which follows the paint while a shape is painted. */
+    public static boolean fullConnects(ShapeSettings s) { return PaintBlocks.fullConnects(s); }
 
     public static boolean connects(Block full) { return !Block.isExceptionForConnection(full.defaultBlockState()); }
 
@@ -137,12 +153,7 @@ public final class BlockChoices {
      * mod that isn't installed) or don't fit their piece type keep the current choice.
      */
     public static void apply(Map<String, String> blocks, ShapeSettings s, Map<Family, Block> choice) {
-        PresetData.applyBlocks(blocks, s, (f, id) -> {
-            ResourceLocation key = ResourceLocation.tryParse(id);
-            if (key == null || !BuiltInRegistries.BLOCK.containsKey(key)) return;
-            Block b = BuiltInRegistries.BLOCK.get(key);
-            if (fits(b, f)) choice.put(f, b);
-        });
+        applyChoices(blocks, s, choice);
         s.fullConnects = connects(choice.get(Family.FULL));
         noShelves(s);
     }
@@ -153,20 +164,50 @@ public final class BlockChoices {
      */
     public static void noShelves(ShapeSettings s) { s.shelf = false; }
 
+    /**
+     * The Blocks tab as {@code PaintStore} saves it, the same way a preset does: the block chosen for each piece type,
+     * by id under the piece type's name, and whether {@code s} uses that piece type.
+     */
+    public static Map<String, String> captureChoices(ShapeSettings s, Map<Family, Block> choice) {
+        Map<String, String> d = PresetData.captureBlocks(s, f -> choice.containsKey(f) ? BuiltInRegistries.BLOCK.getKey(choice.get(f)).toString() : null);
+        d.values().removeIf(java.util.Objects::isNull);   // no shelf block, though "shelfUsed" stays, as false
+        return d;
+    }
+
+    /**
+     * Puts back what {@link #captureChoices} took. A piece type that's missing, or names a block that doesn't exist or
+     * fit it, keeps its choice, and one without a saved toggle keeps it, as in a file saved before the toggles were.
+     */
+    public static void applyChoices(Map<String, String> d, ShapeSettings s, Map<Family, Block> choice) {
+        PresetData.applyBlocks(d, s, (f, id) -> choose(choice, f, id));
+        noShelves(s);
+    }
+
+    private static void choose(Map<Family, Block> choice, Family f, String id) {
+        if (f == Family.SHELF) return;   // this game has none
+        ResourceLocation key = ResourceLocation.tryParse(id);
+        if (key == null || !BuiltInRegistries.BLOCK.containsKey(key)) return;
+        Block b = BuiltInRegistries.BLOCK.get(key);
+        if (fits(b, f)) choice.put(f, b);
+    }
+
     public static Block blockFor(int piece) { return CHOICE.get(Pieces.FAMILY[piece]); }
 
     // ---------- piece → BlockState ----------
 
     /**
      * @param above the piece in the cell above
+     * @param post whether an upright wall has its post, from {@link dev.curvegen.core.Solver.Result#placedWallPost}
      * @param right world direction of the drawing's +x
      * @param forward upright: the direction the shape is extruded in (depth); flat: the direction of the drawing's +y
      * @param k layer, 0 … depth-1 (upright: front to back; flat: bottom to top)
      * @param floor whether the shape lies flat, drawn from above
+     * @param block the block to place, or null for the Blocks tab's choice for the piece type
      */
-    public static BlockState stateFor(int piece, int above, Direction right, Direction forward, int k, int depth, boolean floor) {
-        if (floor) return floorState(piece, right, forward, k, depth);
-        BlockState s = blockFor(piece).defaultBlockState();
+    public static BlockState stateFor(int piece, int above, boolean post, Direction right, Direction forward, int k, int depth, boolean floor, Block block) {
+        if (block == null) block = blockFor(piece);
+        if (floor) return floorState(block, piece, right, forward, k, depth);
+        BlockState s = block.defaultBlockState();
         Direction left = right.getOpposite();
         switch (piece) {
             case Pieces.CHAIN_H, Pieces.CHAIN_V, Pieces.ROD_U, Pieces.ROD_D, Pieces.ROD_L, Pieces.ROD_R -> s = lineState(s, piece, right, Direction.UP);
@@ -187,7 +228,7 @@ public final class BlockChoices {
             case Pieces.SH_R -> s = with(s, BlockStateProperties.HORIZONTAL_FACING, left);
             default -> {
                 if (Pieces.FAMILY[piece] == Family.WALL) {
-                    s = wallState(s, piece, above, right, forward, k, depth);
+                    s = wallState(s, piece, above, post, right, forward, k, depth);
                 } else if (Pieces.isConnector(piece)) {
                     s = with(s, side(left), Pieces.connectsLeft(piece));
                     s = with(s, side(right), Pieces.connectsRight(piece));
@@ -201,9 +242,28 @@ public final class BlockChoices {
         return s;
     }
 
+    /**
+     * A fence, pane or wall of a 2D shape whose sides {@link Settle2D#joints} gives, in {@code block} or, when that's
+     * null, the block chosen for its piece type. Front is {@code forward}: the way the layers run for an upright
+     * shape, and the drawing's +y for a flat one.
+     */
+    public static BlockState connector(int piece, int joints, Direction right, Direction forward, Block block) {
+        if (block == null) block = blockFor(piece);
+        BlockState s = block.defaultBlockState();
+        Direction[] dirs = {right.getOpposite(), right, forward, forward.getOpposite()};
+        int[] sides = {Settle2D.LEFT, Settle2D.RIGHT, Settle2D.FRONT, Settle2D.BACK};
+        boolean wall = Pieces.FAMILY[piece] == Family.WALL;
+        for (int d = 0; d < 4; d++) {
+            int v = Settle2D.side(joints, sides[d]);
+            s = wall ? with(s, wallSide(dirs[d]), shape(v)) : with(s, side(dirs[d]), v > 0);
+        }
+        if (wall) s = with(s, BlockStateProperties.UP, (joints & Settle2D.POST) != 0);
+        return finish(s);
+    }
+
     /** A flat shape: the drawing is the view from above and layers stack upwards. */
-    private static BlockState floorState(int piece, Direction right, Direction forward, int k, int depth) {
-        BlockState s = blockFor(piece).defaultBlockState();
+    private static BlockState floorState(Block block, int piece, Direction right, Direction forward, int k, int depth) {
+        BlockState s = block.defaultBlockState();
         Direction left = right.getOpposite(), back = forward.getOpposite();
         switch (piece) {
             case Pieces.CHAIN_H, Pieces.CHAIN_V, Pieces.ROD_U, Pieces.ROD_D, Pieces.ROD_L, Pieces.ROD_R -> s = lineState(s, piece, right, forward);
@@ -250,22 +310,16 @@ public final class BlockChoices {
     }
 
     /**
-     * Wall sides come from the solver (left/right: none, low or tall). Walls in the layers in front and
-     * behind (depth) connect too, tall when the piece above covers them, and the post follows the game's rule for the whole set of four sides.
+     * Wall sides come from the solver (left/right: none, low or tall). Walls in the layers in front and behind
+     * (depth) connect too, tall when the piece above covers them. The post is the caller's, which follows the game's
+     * rule for the whole set of four sides and the wall above.
      */
-    private static BlockState wallState(BlockState s, int piece, int above, Direction right, Direction forward, int k, int depth) {
-        int l = Pieces.wallLeft(piece), r = Pieces.wallRight(piece);
-        boolean covered = Pieces.wallCovered(piece), front = k < depth - 1, back = k > 0;
-        WallSide depthShape = covered && Pieces.spansDepth(above) ? WallSide.TALL : WallSide.LOW;
-        s = with(s, wallSide(right.getOpposite()), shape(l));
-        s = with(s, wallSide(right), shape(r));
-        s = with(s, wallSide(forward), front ? depthShape : WallSide.NONE);
-        s = with(s, wallSide(forward.getOpposite()), back ? depthShape : WallSide.NONE);
-        boolean post;
-        if (!front && !back && l == 0 && r == 0) post = true;                       // on its own
-        else if (front != back || (l == 0) != (r == 0)) post = true;                // a corner or an end
-        else if ((front && back && depthShape == WallSide.TALL) || (l == 2 && r == 2)) post = false; // straight and tall
-        else post = covered;                                                        // straight: post if something sits on it
+    private static BlockState wallState(BlockState s, int piece, int above, boolean post, Direction right, Direction forward, int k, int depth) {
+        WallSide depthShape = Pieces.wallCovered(piece) && Pieces.spansDepth(above) ? WallSide.TALL : WallSide.LOW;
+        s = with(s, wallSide(right.getOpposite()), shape(Pieces.wallLeft(piece)));
+        s = with(s, wallSide(right), shape(Pieces.wallRight(piece)));
+        s = with(s, wallSide(forward), k < depth - 1 ? depthShape : WallSide.NONE);
+        s = with(s, wallSide(forward.getOpposite()), k > 0 ? depthShape : WallSide.NONE);
         return with(s, BlockStateProperties.UP, post);
     }
 
@@ -276,9 +330,12 @@ public final class BlockChoices {
      * property {@link Pieces3#props} names. The solver has already settled connections, corner shapes and wall
      * heights by the game's rules, so nothing here depends on the neighbours.
      */
-    public static BlockState stateFor3(int piece) {
+    public static BlockState stateFor3(int piece) { return stateFor3(piece, null); }
+
+    /** The same, in {@code block} instead of the block chosen for its piece type, unless that is null. */
+    public static BlockState stateFor3(int piece, Block block) {
         if (piece == Pieces3.AIR) return Blocks.AIR.defaultBlockState();
-        Block b = CHOICE.get(Pieces3.FAMILY[piece]);
+        Block b = block != null ? block : CHOICE.get(Pieces3.FAMILY[piece]);
         if (b == null) return Blocks.AIR.defaultBlockState();   // a family this game lacks, which the solver never uses
         BlockState s = b.defaultBlockState();
         String props = Pieces3.props(piece);
@@ -298,6 +355,12 @@ public final class BlockChoices {
         BlockState[] out = new BlockState[Pieces3.COUNT];
         for (int p = 0; p < Pieces3.COUNT; p++) out[p] = stateFor3(p);
         return out;
+    }
+
+    /** Every placed state: never waterlogged, and leaves that don't decay. */
+    public static BlockState finish(BlockState s) {
+        s = with(s, BlockStateProperties.WATERLOGGED, false);
+        return s.hasProperty(BlockStateProperties.PERSISTENT) ? s.setValue(BlockStateProperties.PERSISTENT, true) : s;
     }
 
     private static <T extends Comparable<T>> BlockState withNamed(BlockState s, Property<T> p, String value) {

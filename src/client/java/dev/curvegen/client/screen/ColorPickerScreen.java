@@ -12,6 +12,7 @@ import java.util.function.IntConsumer;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
@@ -43,6 +44,7 @@ public class ColorPickerScreen extends Screen {
     @Override
     protected void init() {
         hex = new EditBox(font, sqX(), sqY() + SQ + 10, 80, 20, Component.translatable("curvegen.screen.hex_colour"));
+        hex.setTooltip(Tooltip.create(Component.translatable("curvegen.screen.hex_colour")));
         hex.setMaxLength(7);
         hex.setResponder(v -> {
             if (updatingHex) return;

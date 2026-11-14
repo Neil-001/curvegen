@@ -1,47 +1,59 @@
 # Gallery
 
-Screenshots for the galleries on Modrinth and CurseForge, with the title and description to enter for each. Upload them by hand, in this order. The descriptions fit Modrinth's limit of 255 characters.
+Screenshots for the galleries on Modrinth and CurseForge, with the title and description for each. The `Listing` workflow uploads them to Modrinth in this order, reading the titles and descriptions from this file, except that a picture whose title Modrinth already shows keeps its old place unless the workflow runs with `replace=true`. On CurseForge, upload them by hand. Titles fit Modrinth's limit of 64 characters and descriptions its 255.
 
-All seven are 1920 by 1080, taken in Minecraft 26.3 with the default textures.
+All nine are 1920 by 1080, taken in Minecraft 26.3 with the default textures, of shapes built and painted with the mod. Keep it to nine at most, and screenshots only. No build is the subject of two pictures, and a picture of a build also shows the mod's menus or screens where it can.
 
-## 1. Ringed planet
+## 1. Painted ringed planet
 
-`01-planet.jpg`
+`01-painted-planet.jpg`
 
-An ellipsoid for the planet, a torus squashed flat for its ring and a small ellipsoid for the moon. The mod picks slabs and stairs where a full block would stick out.
+A sphere painted with a pattern of bands, and a flat ring round it painted with a gradient from dark wood to quartz. The mod picks slabs and stairs where a full block would stick out.
 
-## 2. Editing a Bézier curve
+## 2. A road that follows the curve
 
-`02-tentacles.jpg`
+`02-road.jpg`
 
-Tentacles from 3D Bézier curves. Three are placed. The fourth is still a hologram, with a handle on each of its six points and on its box. Drag a handle and the blocks follow.
+The Two-lane road pattern on a flat Bézier line 140 blocks long, leading to a lattice dome. The lane lines follow every bend, and the dome's empty spots are left open, so you see the sky through it.
 
-## 3. Gyroid from an equation
+## 3. Painting from the radial menu
 
-`03-gyroid.jpg`
+`03-radial-paint.jpg`
 
-A 3D equation in x, y and z: a gyroid cut to a ball, 65 blocks across. Anything you can write as an equation or inequality can be built.
+Hold V and open Paint to change the paint without leaving the world. Here stripes turned 35° wind round a tentacle that is still a hologram. Scroll over Turn, Size or Slide and it repaints at once.
 
-## 4. Armillary sphere
+## 4. The Paint screen
 
-`04-armillary.jpg`
+`04-paint-screen.jpg`
 
-Three 2D ellipses, one flat and two upright, each three blocks deep, around a small ellipsoid. Slabs, stairs, trapdoors and shelves round off the rings.
+An hourglass tower from an equation, with a gradient saved in Chroma Studio running from bottom to top. Paint with a pattern, a mix of blocks or a gradient, and see every block before you place it.
 
-## 5. Radial menu
+## 5. Shaping a surface in the full menu
 
-`05-wave.jpg`
+`05-surface-menu.jpg`
 
-A Bézier surface shaped into a breaking wave. Hold V for the radial menu, which changes the shape's options and blocks, places it or exports it to Litematica without leaving the world.
+Press G for every setting. A Bézier surface shaped into a wave, painted with a mix of four stages of weathered copper, beside its control points. Type a point's position, or drag it in the picture.
 
-## 6. Full menu
+## 6. Building from an equation
 
-`06-full-menu.jpg`
+`06-equation-menu.jpg`
 
-Press G for every setting. Here it shows a Bézier surface's size, thickness and control points beside a 3D preview you can turn and zoom. Drag a point in the preview to move it.
+Type an equation in x, y and z and the mod builds it. This one is a gyroid, a maze of twisting tunnels, painted with a gradient that runs out from its middle.
 
-## 7. Choosing blocks by colour
+## 7. Capturing a pattern from the world
 
-`07-block-picker.jpg`
+`07-capture.jpg`
 
-The block list for one piece type, sorted by how close each block's texture is to the block chosen now. Search by name, or sort by name instead.
+Right-click two corners round any blocks in the world to save them as a pattern. Here the bands of a badlands cliff are being captured, with the box outlined and its size beside the crosshair.
+
+## 8. The pattern library
+
+`08-pattern-library.jpg`
+
+Every saved pattern in one list, with search, pins and renaming. Point at one and the picture paints your shape with it before you choose, here the cliff bands captured in the last picture.
+
+## 9. Counting the blocks
+
+`09-count.jpg`
+
+The Count tab lists every block a shape needs, with how many of each, so you can gather them before you build. Here it is a stone arch painted with a mix of stone and cobblestone, mossy and plain.

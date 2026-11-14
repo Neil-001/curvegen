@@ -4,10 +4,12 @@ import dev.curvegen.client.Pixels;
 import com.mojang.blaze3d.platform.NativeImage;
 import dev.curvegen.client.BlockChoices;
 import dev.curvegen.client.ColorIndex;
+import dev.curvegen.client.PaintBlocks;
 import dev.curvegen.core.Pieces;
 import dev.curvegen.core.Silhouette;
 import dev.curvegen.core.Solver;
 import dev.curvegen.core.Target;
+import dev.curvegen.core.paint.Painted;
 import java.util.Map;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
@@ -30,11 +32,22 @@ public final class PreviewTexture implements AutoCloseable {
     public ResourceLocation id() { return id; }
 
     public void update(Solver.Result r, Colors colors, boolean curve, boolean grid) {
-        update(r, colors, curve, grid, BlockChoices.CHOICE);
+        update(r, colors, curve, grid, BlockChoices.CHOICE, null);
     }
 
-    /** Paints with the given block choices, for the Blocks colouring. */
-    public void update(Solver.Result r, Colors colors, boolean curve, boolean grid, Map<Pieces.Family, Block> choice) {
+    /**
+     * Paints with the given block choices, for the Blocks colouring, and with the shape's paint, or null when it
+     * isn't painted. Block colours is the only colouring that shows the paint, and a shape painted on its edge shows
+     * its front layer. A pattern's holes change the blocks, so they show in every colouring, as the front layer has them.
+     */
+    public void update(Solver.Result r, Colors colors, boolean curve, boolean grid, Map<Pieces.Family, Block> choice, Painted painted) {
+        if (painted != null && painted.settled() != null) r = painted.settled().layer(0);
+        int[] paintColour = null;
+        if (painted != null && colors == Colors.BLOCKS) {
+            PaintBlocks.Resolved blocks = PaintBlocks.resolve(painted, net.minecraft.core.Direction.UP);
+            paintColour = new int[painted.blocks().size()];
+            for (int k = 0; k < paintColour.length; k++) paintColour[k] = blocks.block(k) == null ? -1 : 0xFF000000 | ColorIndex.of(blocks.block(k));
+        }
         int n = Math.max(r.nx(), r.ny());
         sub = Math.max(2, Math.min(16, 1024 / Math.max(1, n)));
         int w = r.nx() * sub, h = r.ny() * sub;
@@ -52,7 +65,8 @@ public final class PreviewTexture implements AutoCloseable {
             for (int i = 0; i < r.nx(); i++) {
                 int p = r.at(i, j);
                 if (p == Pieces.EMPTY) continue;
-                int rgb = colorFor(p, colors, choice), edge = darken(rgb, 0.55f);
+                int entry = paintColour == null ? -1 : painted.at(j * r.nx() + i);
+                int rgb = entry >= 0 && paintColour[entry] != -1 ? paintColour[entry] : colorFor(p, colors, choice), edge = darken(rgb, 0.55f);
                 int ox = i * sub, oy = (r.ny() - 1 - j) * sub;
                 boolean[] in = shape(p), border = sub >= 8 ? Silhouette.outline(in, sub) : null;
                 for (int y = 0; y < sub; y++)
