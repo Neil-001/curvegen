@@ -74,6 +74,21 @@ public final class Pieces {
     }
 
     /**
+     * Whether an upright wall placed in layer k of a shape {@code depth} layers deep has its post by the game's rule,
+     * leaving out the wall above: the game also gives a wall a post whenever the wall above has one, which
+     * {@link Solver.Result#placedWallPost} adds. The layers in front and behind connect, tall when the piece above
+     * covers them.
+     */
+    public static boolean ownWallPost(int piece, int above, int k, int depth) {
+        int l = wallLeft(piece), r = wallRight(piece);
+        boolean covered = wallCovered(piece), front = k < depth - 1, back = k > 0;
+        if (front != back || (l == 0) != (r == 0)) return true;                // a corner, an end or on its own
+        if (!front && l == 0) return true;
+        if ((front && covered && spansDepth(above)) || (l == 2 && r == 2)) return false;   // straight and tall
+        return covered;                                                       // straight: post if something sits on it
+    }
+
+    /**
      * Does this piece, above a wall more than one block deep, cover the wall's front and back sides as well as its
      * centre? Chains and end rods are as thin from the side as from the front, so they reach the centre only.
      */
@@ -84,8 +99,13 @@ public final class Pieces {
     public static final int LEFT = 1, RIGHT = 2, TOP = 4, BOTTOM_SIDE = 8;
     public static boolean isFloorConnector(int s) { return s >= F_FENCE && s < F_WALL + 16; }
     public static int floorBits(int s) { return (s - F_FENCE) & 15; }
-    /** A floor wall is straight (and so has no post) when it connects on exactly two opposite sides. */
-    public static boolean floorWallPost(int bits) { return bits != (LEFT | RIGHT) && bits != (TOP | BOTTOM_SIDE); }
+    /**
+     * A floor wall has a post unless every side it joins has its opposite joined too: straight, or a crossing. With
+     * nothing above the top layer, the game gives those no post, and every layer below follows the one above.
+     */
+    public static boolean floorWallPost(int bits) {
+        return bits == 0 || ((bits & LEFT) == 0) != ((bits & RIGHT) == 0) || ((bits & TOP) == 0) != ((bits & BOTTOM_SIDE) == 0);
+    }
 
     private static int swapBits(int b, int x, int y) {
         boolean bx = (b & x) != 0, by = (b & y) != 0;

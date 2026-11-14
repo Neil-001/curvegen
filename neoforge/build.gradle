@@ -2,6 +2,28 @@ plugins {
 	id 'net.neoforged.moddev' version '2.0.148'
 }
 
+repositories {
+	// Chroma Studio's releases are GitHub release files, read as an Ivy repository.
+	exclusiveContent {
+		forRepository {
+			ivy {
+				name = 'Chroma Studio releases'
+				url = 'https://github.com/Neil-001/chroma-studio/releases/download/'
+				patternLayout { artifact '[revision]+mc26.2/[module]-[revision].[ext]' }
+				metadataSources { artifact() }
+			}
+		}
+		filter { includeGroup 'dev.chromastudio' }
+	}
+}
+
+dependencies {
+	// Chroma Studio is optional: only dev.curvegen.client.chroma.ChromaBridge refers to it, and only once it is loaded.
+	compileOnly "dev.chromastudio:chromastudio-neoforge:${project.chromastudio_version}"
+	// -PwithChroma runs the dev client with it.
+	if (project.hasProperty('withChroma')) runtimeOnly "dev.chromastudio:chromastudio-neoforge:${project.chromastudio_version}"
+}
+
 neoForge {
 	version = project.neoforge_version
 	runs {
