@@ -3,7 +3,7 @@
   
 ![Curve Generator, spelled out in blocks. Below it, an ellipse, a sine wave, a heart and a Bézier curve, each built from blocks, and then a torus turning.](listing/media/banner.gif)
 <a href="https://modrinth.com/mod/curvegen"><img alt="Available on Modrinth" height="48" src="https://cdn.jsdelivr.net/gh/JMcrafter26/badges@main/src/assets/available/modrinth/cozy.svg"></a>
-<a href="https://www.curseforge.com/minecraft/mc-mods/curvegen"><img alt="Available on Modrinth" height="48" src="https://cdn.jsdelivr.net/gh/JMcrafter26/badges@main/src/assets/available/curseforge/cozy.svg"></a>
+<a href="https://www.curseforge.com/minecraft/mc-mods/curvegen"><img alt="Available on CurseForge" height="48" src="https://cdn.jsdelivr.net/gh/JMcrafter26/badges@main/src/assets/available/curseforge/cozy.svg"></a>
 </div>
 
 
@@ -22,7 +22,7 @@ On Windows, use `gradlew.bat`. The jars end up in `fabric/build/libs/` and `neof
 - [Chroma Studio](https://github.com/Neil-001/chroma-studio) 1.2 or newer is an optional dependency that adds gradients, palettes and its colour matching. The build compiles against the version in `gradle.properties` without bundling it. Add `-PwithChroma` to `runClient` to start a dev client with it.
 - Run `./gradlew build` before pushing.
 
-Development PRs target `main`. When a version is ready, one release PR promotes a tested commit to `26.3/stable`, using a merge commit, and backport PRs port it to the older lines' stable branches. Publishing runs from each stable branch's source. See [the branch and release workflow](AGENTS.md#branch-workflow) for the steps.
+Development PRs target `main`. When a version is ready, one release PR promotes a tested commit to `26.3/stable`, using a merge commit, and backport PRs port it to the older lines' stable branches. Publishing runs from each stable branch's source. See [the branch and release workflow](CLAUDE.md#branch-workflow) for the steps.
 
 ---
 
