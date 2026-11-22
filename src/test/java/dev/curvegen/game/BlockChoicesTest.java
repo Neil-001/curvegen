@@ -15,7 +15,6 @@ import net.minecraft.world.level.block.Blocks;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-/** Saving and restoring the Blocks tab's choices and toggles, as blocks.json keeps them. */
 class BlockChoicesTest {
     @BeforeAll
     static void loadBlocks() {
@@ -47,7 +46,7 @@ class BlockChoicesTest {
     void aFileSavedBeforeTheTogglesKeepsThem() {
         Map<String, String> d = new HashMap<>();
         d.put("full", "minecraft:oak_planks");
-        d.put("wall", "minecraft:cobblestone_wall");   // only blocks, as before the toggles were saved
+        d.put("wall", "minecraft:cobblestone_wall");
         ShapeSettings s = new ShapeSettings();
         s.slab = false;
         Map<Family, Block> choice = new EnumMap<>(BlockChoices.CHOICE);
@@ -63,11 +62,11 @@ class BlockChoicesTest {
         Map<Family, Block> choice = new EnumMap<>(BlockChoices.CHOICE);
         Map<Family, Block> before = new EnumMap<>(choice);
         Map<String, String> d = new HashMap<>();
-        d.put("full", "othermod:missing_block");        // a mod that isn't installed
-        d.put("slab", "minecraft:oak_stairs");           // a stair is no slab
+        d.put("full", "othermod:missing_block");
+        d.put("slab", "minecraft:oak_stairs");
         d.put("wall", "not an id");
-        d.put("pane", "minecraft:iron_bars");            // fine, and taken
-        d.put("teapot", "minecraft:stone");              // a piece type that doesn't exist
+        d.put("pane", "minecraft:iron_bars");
+        d.put("teapot", "minecraft:stone");
         BlockChoices.applyChoices(d, new ShapeSettings(), choice);
         before.put(Family.PANE, Blocks.IRON_BARS);
         assertEquals(before, choice);

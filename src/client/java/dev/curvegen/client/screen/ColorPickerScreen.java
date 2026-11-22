@@ -19,12 +19,13 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
 
-/** Choose a colour; every piece type then uses the block whose texture is closest to it. */
 public class ColorPickerScreen extends Screen {
+    private enum Drag { NONE, SATURATION_VALUE, HUE }
+
     private final Screen parent;
     private final IntConsumer onApply;
     private float hue, sat, val;
-    private int dragging; // 0 none, 1 square, 2 hue bar
+    private Drag dragging = Drag.NONE;
     private EditBox hex;
     private boolean updatingHex;
     private final Map<Family, Block> preview = new EnumMap<>(Family.class);
@@ -83,7 +84,6 @@ public class ColorPickerScreen extends Screen {
         super.extractRenderState(ctx, mx, my, delta);
         ctx.text(font, title, sqX(), 16, 0xFFFFFFFF);
         int x0 = sqX(), y0 = sqY();
-        // saturation → x, value → y: one vertical gradient per column
         for (int i = 0; i < SQ; i++) {
             int topC = 0xFF000000 | hsvToRgb(hue, i / (float) (SQ - 1), 1f);
             ctx.fillGradient(x0 + i, y0, x0 + i + 1, y0 + SQ, topC, 0xFF000000);
@@ -96,10 +96,9 @@ public class ColorPickerScreen extends Screen {
         ctx.fill(hx - 2, hy - 1, hx + 14, hy + 1, 0xFFFFFFFF);
         ctx.fill(x0 + 86, y0 + SQ + 10, x0 + 106, y0 + SQ + 30, 0xFF000000 | rgb());
 
-        int lx = hx + 30, ly = 16;   // level with the title, so every piece type fits on a short screen
+        int lx = hx + 30, ly = 16;
         ctx.text(font, tr("curvegen.screen.closest_blocks"), lx, ly, 0xFFC8CED6, false);
         ly += 14;
-        // On a short screen the rows close up so that the last one stays above the buttons.
         int pitch = Math.min(22, (height - 30 - ly) / BlockChoices.FAMILIES.length), h = Math.min(18, pitch - 1);
         for (Family f : BlockChoices.FAMILIES) {
             Block b = preview.get(f);
@@ -116,29 +115,29 @@ public class ColorPickerScreen extends Screen {
     public boolean mouseClicked(MouseButtonEvent event, boolean doubled) {
         double mx = event.x(), my = event.y();
         if (super.mouseClicked(event, doubled)) return true;
-        if (inRect(mx, my, sqX(), sqY(), SQ, SQ)) { dragging = 1; pick(mx, my); return true; }
-        if (inRect(mx, my, hueX() - 2, sqY(), 16, SQ)) { dragging = 2; pick(mx, my); return true; }
+        if (inRect(mx, my, sqX(), sqY(), SQ, SQ)) { dragging = Drag.SATURATION_VALUE; pick(mx, my); return true; }
+        if (inRect(mx, my, hueX() - 2, sqY(), 16, SQ)) { dragging = Drag.HUE; pick(mx, my); return true; }
         return false;
     }
 
     @Override
     public boolean mouseDragged(MouseButtonEvent event, double dx, double dy) {
         double mx = event.x(), my = event.y();
-        if (dragging != 0) { pick(mx, my); return true; }
+        if (dragging != Drag.NONE) { pick(mx, my); return true; }
         return super.mouseDragged(event, dx, dy);
     }
 
     @Override
     public boolean mouseReleased(MouseButtonEvent event) {
-        if (dragging != 0) { dragging = 0; refreshPreview(); }
+        if (dragging != Drag.NONE) { dragging = Drag.NONE; refreshPreview(); }
         return super.mouseReleased(event);
     }
 
     private void pick(double mx, double my) {
-        if (dragging == 1) {
+        if (dragging == Drag.SATURATION_VALUE) {
             sat = clamp01((float) (mx - sqX()) / (SQ - 1));
             val = 1 - clamp01((float) (my - sqY()) / (SQ - 1));
-        } else if (dragging == 2) {
+        } else if (dragging == Drag.HUE) {
             hue = Math.min(0.999f, clamp01((float) (my - sqY()) / SQ));
         }
         syncHex();

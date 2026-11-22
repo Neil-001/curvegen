@@ -8,12 +8,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/**
- * {@link Settle2D} settles a shape without holes from a few layers and then only the blocks near the holes. Both
- * must give exactly what laying out every layer with its holes and settling every block gives.
- */
 class Settle2DTest {
-    /** Piece sets: everything, fences beside full blocks, panes and walls, walls alone, walls with slabs and stairs. */
     private static final String[] SETS = {"all", "fence", "pane wall", "wall", "wall slab stair"};
 
     private static List<ShapeSettings> shapes() {
@@ -49,7 +44,6 @@ class Settle2DTest {
             int nx = r.nx(), ny = r.ny(), n = nx * ny;
             for (int depth : new int[]{1, 2, 4, 5, 6, 7, 9}) {
                 Solver3.Result plain = Solver3.settleAll(Settle2D.layout(r, depth), new BitSet(), s.fullConnects, () -> false);
-                // No holes, one block in forty, one in twelve through every layer, and one in four, block by block.
                 for (int odds : new int[]{0, 40, -12, 4}) {
                     Random rnd = new Random(depth * 31L + odds);
                     BitSet gone = new BitSet(depth * n);
@@ -76,7 +70,6 @@ class Settle2DTest {
             }
         }
         assertTrue(checked > 1000, checked + " checked");
-        // Holes did reshape the blocks beside them.
         assertTrue(changed > 1000, changed + " blocks changed beside holes");
     }
 }

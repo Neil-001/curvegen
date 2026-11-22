@@ -41,29 +41,28 @@ import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
 import net.neoforged.neoforge.client.network.ClientPacketDistributor;
 import net.neoforged.neoforge.common.NeoForge;
 
-/** NeoForge's client entrypoint. */
 @Mod(value = CurveGen.MOD_ID, dist = Dist.CLIENT)
 public final class CurveGenNeoForgeClient implements ClientPlatform {
     public CurveGenNeoForgeClient(IEventBus modBus, ModContainer container) {
         List<KeyMapping> keys = CurveGenClient.init(this);
-        // The mod list's Config button.
         container.registerExtensionPoint(IConfigScreenFactory.class, (_, modList) -> new SettingsScreen(modList));
         modBus.addListener(RegisterKeyMappingsEvent.class, event -> {
             event.registerCategory(CurveGenClient.CATEGORY);
             keys.forEach(event::register);
         });
-        // Block colours come from the active resource packs, so recompute them whenever packs change.
+
         modBus.addListener(AddClientReloadListenersEvent.class, event -> event.addListener(
                 Identifier.fromNamespaceAndPath("curvegen", "block_colours"), (ResourceManagerReloadListener) _ -> ColorIndex.clear()));
-        // NeoForge draws modded layers even with the HUD hidden (F1). Fabric doesn't, so this checks for it.
+
         modBus.addListener(RegisterGuiLayersEvent.class, event -> event.registerAboveAll(
                 Identifier.fromNamespaceAndPath("curvegen", "placement"), (graphics, _) -> {
                     if (Minecraft.getInstance().gui.hud.isHidden()) return;
                     Editor.renderHud(graphics);
                     Capture.renderHud(graphics);
                 }));
+
         NeoForge.EVENT_BUS.addListener(ClientTickEvent.Post.class, _ -> CurveGenClient.tick(Minecraft.getInstance()));
-        // Capture, then the editor, takes a click or a scroll only when it uses it. Both events fire for screens too, which it leaves alone.
+
         NeoForge.EVENT_BUS.addListener(InputEvent.MouseButton.Pre.class, event -> {
             Minecraft mc = Minecraft.getInstance();
             if (mc.gui.screen() == null && mc.gui.overlay() == null
@@ -74,12 +73,13 @@ public final class CurveGenNeoForgeClient implements ClientPlatform {
             Minecraft mc = Minecraft.getInstance();
             if (mc.gui.screen() == null && mc.gui.overlay() == null && Editor.mouseScroll(event.getScrollDeltaY())) event.setCanceled(true);
         });
-        // Hold-to-type tells a new press from the repeats of a held key by seeing it come up, screen or no screen.
+
         NeoForge.EVENT_BUS.addListener(InputEvent.Key.class, event -> StepHold.keyEvent(event.getKeyEvent(), event.getAction()));
-        // Keeps the replies to the mod's own /setblock commands out of chat, on a server without the mod.
+
         NeoForge.EVENT_BUS.addListener(ClientChatReceivedEvent.System.class, event -> {
             if (Placement.hidesFeedback(event.getMessage(), event.isOverlay())) event.setCanceled(true);
         });
+
         NeoForge.EVENT_BUS.addListener(SubmitCustomGeometryEvent.class, event -> {
             Editor.render(event.getSubmitNodeCollector(), event.getPoseStack(), event.getLevelRenderState().cameraRenderState.pos);
             Capture.render(event.getSubmitNodeCollector(), event.getPoseStack(), event.getLevelRenderState().cameraRenderState.pos);
@@ -94,7 +94,7 @@ public final class CurveGenNeoForgeClient implements ClientPlatform {
     @Override public Path configDir() { return FMLPaths.CONFIGDIR.get(); }
     @Override public Path gameDir() { return FMLPaths.GAMEDIR.get(); }
     @Override public boolean isModLoaded(String id) { return ModList.get().isLoaded(id); }
-    // The colours are worked out without a world, so NeoForge's methods get an empty one.
+
     @Override public void modelParts(BlockStateModel model, BlockState state, RandomSource random, List<BlockStateModelPart> out) {
         model.collectParts(BlockAndTintGetter.EMPTY, BlockPos.ZERO, state, random, out);
     }

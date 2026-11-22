@@ -5,16 +5,11 @@ import org.junit.jupiter.api.Test;
 import static dev.curvegen.core.Pieces3.*;
 import static org.junit.jupiter.api.Assertions.*;
 
-/**
- * Checks every stair, fence, pane and wall the 3D solver outputs against an independent re-implementation of
- * Minecraft's rules, worked out from the finished states and their shapes rather than the solver's tables.
- */
 class Rules3Test {
     private static int at(Solver3.Result r, int x, int y, int z) {
         return x < 0 || y < 0 || z < 0 || x >= r.nx() || y >= r.ny() || z >= r.nz() ? AIR : r.at(x, y, z);
     }
 
-    /** Is the state's side face in horizontal direction d a full square? */
     private static boolean fullFace(int s, int d) {
         boolean[] v = voxels(s);
         for (int a = 0; a < 16; a++)
@@ -31,10 +26,9 @@ class Rules3Test {
         return fullFace(neighbour, (d + 2) % 4);
     }
 
-    /** The bottom of a state's collision shape: does it cover x0..x1 by z0..z1? */
     private static boolean floorCovers(int s, int x0, int z0, int x1, int z1) {
         boolean[] v = voxels(s);
-        if (FAMILY[s] == Pieces.Family.FENCE) {   // collision arms are 6 to 10 wide and solid
+        if (FAMILY[s] == Pieces.Family.FENCE) {
             v = new boolean[4096];
             for (int z = 0; z < 16; z++)
                 for (int x = 0; x < 16; x++) {

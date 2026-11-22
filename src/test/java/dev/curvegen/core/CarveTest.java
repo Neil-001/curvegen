@@ -4,7 +4,6 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Which space "Carve" clears, per generator and shape. */
 class CarveTest {
     @Test
     void ellipseCarvesTheHollow() {
@@ -12,7 +11,6 @@ class CarveTest {
         s.eMode = ShapeSettings.EllipseMode.THIN;
         Layout l = Layout.of(Solver.run(s));
         assertFalse(l.carve().isEmpty());
-        // The centre of the ellipse is carved, and nothing carved is also built.
         Solver.Result r = Solver.run(s);
         assertTrue(r.target().carve[(r.ny() / 2) * r.nx() + r.nx() / 2]);
         for (Layout.Cell c : l.carve()) assertEquals(Pieces.EMPTY, c.piece());

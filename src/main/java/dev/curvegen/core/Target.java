@@ -6,39 +6,20 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * The ideal shape on an nx×ny grid (local block coordinates, origin bottom-left, y up).
- * Each cell is empty (0), full (1) or mixed (2, with its pixel error against every piece state).
- */
 public final class Target {
     public final int nx, ny;
     public final byte[] kind;
     public final short[][] errTab;
     public double area;
     public boolean symX, symY, hollow;
-    /** Curve overlay: flat segment lists {x1,y1,x2,y2,...}; dashed ones mark wall edges. */
     public final List<double[]> overlay = new ArrayList<>(), dashed = new ArrayList<>();
     public Double axisX, axisY;
-    /**
-     * For a line or an outline: its centre line, as segment lists like {@link #overlay}, and how wide the line is.
-     * Null for a filled shape. Painting lays a pattern along it, and nothing in the solve reads it.
-     */
     public List<double[]> centre;
     public double centreWidth;
-    /**
-     * For a filled equation: where its range cuts the filled side off, as segments like {@link #overlay}, meeting the
-     * curve's own ends exactly. With the curve, that is the shape's whole outline. Painting reads it, the solve doesn't.
-     */
     public double[] rim;
-    /** Cells whose centre lies in the space the shape encloses; cleared to air when carving (null = never carve). */
     public boolean[] carve;
-    /**
-     * How many cells the grid extends past the shape's box on each side: an ellipse's grows for a wall that reaches
-     * outwards. Painting places a mix by position in the box, so it takes this off; nothing in the solve reads it.
-     */
     public int margin;
     public Message error;
-    /** For equations: block → math coordinates. */
     public double mx0, msx, my0, msy;
     public boolean hasMath;
 
@@ -76,14 +57,12 @@ public final class Target {
 
     void full(int idx) { kind[idx] = 1; area++; }
 
-    // ================= builders =================
-
     public static Target build(ShapeSettings s) {
         return switch (s.gen) {
             case ELLIPSE -> ellipse(s);
             case EQUATION -> equation(s);
             case BEZIER -> bezier(s);
-            default -> {   // 3D shapes go through Shape3 and Solver3
+            default -> {
                 Target t = new Target(1, 1);
                 t.error = Message.of("curvegen.error.shape_is_3d");
                 yield t;
@@ -91,7 +70,6 @@ public final class Target {
         };
     }
 
-    /** Signed distance to an axis-aligned ellipse (negative inside). */
     public static double sdEllipse(double px, double py, double a, double b) {
         double x = Math.abs(px), y = Math.abs(py), tx = 0.7071067811865476, ty = tx, k2 = a * a - b * b;
         for (int it = 0; it < 5; it++) {
@@ -126,7 +104,6 @@ public final class Target {
         t.symX = t.symY = true;
         t.hollow = s.eMode == ShapeSettings.EllipseMode.THIN;
         final double flo = lo, fhi = hi;
-        // Carving clears the hollow the wall surrounds: inside the ellipse, or inside the wall's inner edge.
         double carveBelow = switch (s.eMode) {
             case THIN, OUTWARDS -> 0;
             case INWARDS -> -T;
@@ -151,7 +128,6 @@ public final class Target {
             if (lo != 0) t.dashed.add(ellipseCurve(a, b, lo, x0, y0, n));
         }
         if (s.eMode != ShapeSettings.EllipseMode.FILLED) {
-            // A thin outline is the one block just inside the ellipse.
             boolean thin = s.eMode == ShapeSettings.EllipseMode.THIN;
             t.centre = List.of(ellipseCurve(a, b, thin ? -0.5 : (lo + hi) / 2, x0, y0, n));
             t.centreWidth = thin ? 1 : T;
@@ -173,14 +149,12 @@ public final class Target {
         return out;
     }
 
-    // ---------- segments ----------
     static final class Segs {
-        double[] a = new double[256]; int n = 0;   // n = number of doubles
+        double[] a = new double[256]; int n = 0;
         void add(double x1, double y1, double x2, double y2) {
             if (n + 4 > a.length) a = Arrays.copyOf(a, a.length * 2);
             a[n++] = x1; a[n++] = y1; a[n++] = x2; a[n++] = y2;
         }
-        /** Adds a segment split into pieces no longer than half a block. */
         void addSplit(double x1, double y1, double x2, double y2) {
             int k = Math.max(1, (int) Math.ceil(Math.hypot(x2 - x1, y2 - y1) / 0.5));
             for (int q = 0; q < k; q++)
@@ -240,7 +214,6 @@ public final class Target {
         }
     }
 
-    /** A line of width w centred on the segments. */
     void fillLine(double[] segs, double w) {
         SegIndex si = new SegIndex(nx, ny, segs);
         double hw = w / 2, reach = hw + R_CELL, hw2 = hw * hw;
@@ -266,7 +239,6 @@ public final class Target {
         }
     }
 
-    /** The inside of closed loop(s) of segments (even-odd rule). */
     void fillPolygon(double[] segs) {
         SegIndex si = new SegIndex(nx, ny, segs);
         int n = segs.length / 4;
@@ -356,7 +328,6 @@ public final class Target {
         }
         else {
             boolean under = mode == ShapeSettings.EqMode.UNDER;
-            // Carving clears the other side: above the curve for "fill under", below it for "fill over".
             t.carve = new boolean[W * H];
             for (int j = 0; j < H; j++)
                 for (int i = 0; i < W; i++) {
@@ -383,13 +354,8 @@ public final class Target {
         return t;
     }
 
-    /**
-     * The edges of an equation's range that its filled side reaches, as segments. A crossing is found with the same
-     * call, on the same samples, as the curve's end on that edge, so the two meet at exactly the same point.
-     */
     private static double[] rim(Expr.Fn Fl, double[] V, int cols, int rows, int r, boolean under) {
         Segs out = new Segs();
-        // Each edge as its samples' indices in V, lowest first, as the curve's cells call root() with them.
         int[][] edges = new int[4][];
         edges[0] = new int[cols]; edges[1] = new int[cols]; edges[2] = new int[rows]; edges[3] = new int[rows];
         for (int a = 0; a < cols; a++) { edges[0][a] = a; edges[1][a] = (rows - 1) * cols + a; }
@@ -408,14 +374,12 @@ public final class Target {
         return out.toArray();
     }
 
-    /** The height that gives an equation the same scale on both axes. */
     public static int lockedHeight(int width, double xmin, double xmax, double ymin, double ymax) {
         return (int) Math.min(400, Math.max(1, Math.round(width * (ymax - ymin) / (xmax - xmin))));
     }
 
     private static int st(double v, boolean under) { return Double.isNaN(v) ? 2 : (under ? v <= 0 : v >= 0) ? 1 : 0; }
 
-    /** Crossing on an edge, refined by bisection; null if there's none or it's a jump (asymptote). */
     private static double[] root(Expr.Fn F, double ax, double ay, double fa, double bx, double by, double fb) {
         if (Double.isNaN(fa) || Double.isNaN(fb) || (fa <= 0) == (fb <= 0)) return null;
         double A = Math.abs(fa), B = Math.abs(fb);

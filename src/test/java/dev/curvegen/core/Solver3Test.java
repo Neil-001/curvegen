@@ -10,10 +10,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static dev.curvegen.core.Pieces3.*;
 import static org.junit.jupiter.api.Assertions.*;
 
-/**
- * The volumetric solver's results. The regression numbers pin what gets built: if a change moves them, make sure
- * that's intended, then update them.
- */
 class Solver3Test {
     private static final double EPS = 1e-3;
 
@@ -33,7 +29,6 @@ class Solver3Test {
 
     @Test
     void regressionEllipsoids() {
-        // Error, ideal volume and blocks placed, for Thin, Filled, Outwards, Inwards and Middle.
         double[][] expected = {{212.0176, 4848.1426, 1342}, {212.0176, 4848.1426, 5353}, {462.3320, 2388.8711, 3496}, {366.0820, 1795.5391, 2576}, {409.8496, 2081.6465, 3068}};
         ShapeSettings.EllipseMode[] modes = ShapeSettings.EllipseMode.values();
         for (int k = 0; k < modes.length; k++) {
@@ -61,7 +56,7 @@ class Solver3Test {
         Solver3.Result r = Solver3.run(torus(25, 9, 25, 9, 25, false));
         assertEquals(194.6055, r.err(), EPS);
         assertEquals(3196.8438, r.volume(), EPS);
-        assertEquals(2 * Math.PI * Math.PI * 8 * 4.5 * 4.5, r.volume(), 3);   // 2π²Rr²
+        assertEquals(2 * Math.PI * Math.PI * 8 * 4.5 * 4.5, r.volume(), 3);
         assertEquals(AIR, r.at(12, 4, 12));
         assertNotEquals(AIR, r.at(4, 4, 12));
 
@@ -74,11 +69,10 @@ class Solver3Test {
         assertEquals(1957.1680, r.volume(), EPS);
     }
 
-
     @Test
     void solvesAreMirrorSymmetric() {
         for (Shapes3Cases.Case c : Shapes3Cases.all()) {
-            if (!c.shape().symX() || c.holes() != null) continue;   // holes needn't be symmetric
+            if (!c.shape().symX() || c.holes() != null) continue;
             Solver3.Result r = c.solve();
             int nx = r.nx(), ny = r.ny(), nz = r.nz();
             for (int y = 0; y < ny; y++)
@@ -88,7 +82,6 @@ class Solver3Test {
                         String where = c.name() + " at " + x + "," + y + "," + z;
                         assertEquals(MX[s], r.at(nx - 1 - x, y, z), where);
                         assertEquals(MZ[s], r.at(x, y, nz - 1 - z), where);
-                        // A wall's heights and post come from the block above, which isn't the same upside down.
                         if (isWall(s)) assertTrue(isWall(r.at(x, ny - 1 - y, z)), where);
                         else if (s != FULL || !c.shape().hollow()) assertEquals(MY[s], r.at(x, ny - 1 - y, z), where);
                     }
@@ -97,7 +90,6 @@ class Solver3Test {
 
     @Test
     void symmetryOnlySavesWork() {
-        // Solved as a whole, without the mirroring, the shape and its volume are the same and the error is close.
         for (ShapeSettings s : List.of(ellipsoid(13, 10, 16, ShapeSettings.EllipseMode.MIDDLE, 1.5), torus(18, 6, 18, 6, 18, false))) {
             Shape3 sh = Shape3.of(s);
             Solver3.Result fast = Solver3.run(s);
@@ -140,7 +132,6 @@ class Solver3Test {
     void carveClearsWhatTheShapeEncloses() {
         assertNull(Solver3.carve(Shape3.of(ellipsoid(9, 9, 9, ShapeSettings.EllipseMode.FILLED, 1))));
         assertNull(Solver3.carve(Shape3.of(torus(25, 9, 25, 9, 25, false))));
-        // A shell 2 thick: outwards it surrounds the whole ellipsoid, inwards a smaller one.
         BitSet out = Solver3.carve(Shape3.of(ellipsoid(11, 11, 11, ShapeSettings.EllipseMode.OUTWARDS, 2)));
         BitSet in = Solver3.carve(Shape3.of(ellipsoid(11, 11, 11, ShapeSettings.EllipseMode.INWARDS, 2)));
         BitSet thin = Solver3.carve(Shape3.of(ellipsoid(11, 11, 11, ShapeSettings.EllipseMode.THIN, 2)));
@@ -149,7 +140,7 @@ class Solver3Test {
             for (int z = 0; z < 11; z++)
                 for (int x = 0; x < 11; x++) {
                     double d = Math.sqrt((x - 5) * (x - 5) + (y - 5) * (y - 5) + (z - 5) * (z - 5));
-                    assertEquals(d < 5.5, out.get(((y + 2) * 15 + z + 2) * 15 + x + 2), "outwards at " + x + "," + y + "," + z);   // padded by 2
+                    assertEquals(d < 5.5, out.get(((y + 2) * 15 + z + 2) * 15 + x + 2), "outwards at " + x + "," + y + "," + z);
                     assertEquals(d < 3.5, in.get((y * 11 + z) * 11 + x), "inwards at " + x + "," + y + "," + z);
                     assertEquals(d < 5.5, thin.get((y * 11 + z) * 11 + x));
                     if (d < 5.5) outN++;
@@ -164,8 +155,6 @@ class Solver3Test {
 
     @Test
     void aSheetOfWallsStopsAtAnyCell() {
-        // Beside an asymptote the filled side narrows to a sliver, which is walls in columns as tall as the shape, and a
-        // pick in one weighs the whole column. So a solve asks whether it's still wanted at every cell, not every so many.
         ShapeSettings s = Shapes3Test.equation("z = tan(x)", ShapeSettings.Eq3Mode.BELOW, 1, 40, "-4", "4", "-4", "4", "-4", "4");
         s.slab = s.stair = s.trap = s.shelf = s.fence = s.pane = false;
         AtomicInteger checks = new AtomicInteger();
@@ -174,7 +163,6 @@ class Solver3Test {
         for (int p = WALL; p < COUNT; p++) walls += r.counts()[p];
         assertTrue(walls > 1000, walls + " walls");
         assertTrue(r.sweeps() <= Solver3.MAX_SWEEPS, "refinement didn't settle");
-        // Once when a cell is sampled and once in each pass of refinement.
         assertTrue(checks.get() >= 2 * walls, checks.get() + " checks for " + walls + " walls");
         assertNull(Solver3.carve(Shape3.of(ellipsoid(20, 20, 20, ShapeSettings.EllipseMode.THIN, 1)), () -> true));
     }
@@ -186,12 +174,11 @@ class Solver3Test {
         AtomicInteger checks = new AtomicInteger();
         assertNotNull(Solver3.solve(Shape3.of(s), s, () -> checks.incrementAndGet() < 0));
         assertTrue(checks.get() > 20, "only " + checks.get() + " checks");
-        for (int after = 0; after < checks.get(); after++) {   // through sampling, refinement and the last check before returning
+        for (int after = 0; after < checks.get(); after++) {
             int limit = after;
             AtomicInteger calls = new AtomicInteger();
             assertNull(Solver3.solve(Shape3.of(s), s, () -> calls.incrementAndGet() > limit), "cancelled after " + after + " checks");
         }
-        // Cancelled from inside the sampling of a single layer, with nothing to refine afterwards.
         ShapeSettings plain = new ShapeSettings();
         plain.slab = plain.stair = plain.trap = plain.shelf = plain.fence = plain.pane = plain.wall = false;
         AtomicBoolean stop = new AtomicBoolean();
@@ -201,7 +188,6 @@ class Solver3Test {
 
     @Test
     void tinyShapesSurvive() {
-        // The fields crease at the middle of an ellipsoid and along a tube's core, so small shapes are sampled point by point.
         ShapeSettings s = ellipsoid(1, 1, 1, ShapeSettings.EllipseMode.FILLED, 1);
         s.slab = s.stair = s.trap = s.shelf = s.fence = s.pane = s.wall = false;
         Solver3.Result r = Solver3.run(s);
@@ -239,7 +225,6 @@ class Solver3Test {
         double[][] points = {{0, 0, 0}, {3, 0, 0}, {0, 2, 0}, {0, 0, 1}, {1, 2, 3}, {9, 0.5, 0}, {12, 7, -4}, {-2.5, 3.25, 0}, {0.25, 0.25, 0.25}, {0, 3, 2}, {20, 0, 0}};
         for (double[] e : axes)
             for (double[] p : points) {
-                // Brute force: the nearest of a fine mesh of surface points.
                 double best = Double.MAX_VALUE;
                 int n = 700;
                 for (int a = 0; a <= n; a++) {
@@ -258,8 +243,20 @@ class Solver3Test {
     }
 
     @Test
+    void theEllipsoidCentreProjectsOntoTheNearestSurface() {
+        double[] nearest = new double[3];
+        assertEquals(-2, Shapes3.sdEllipsoid(0, 0, 0, 4, 2, 6, nearest));
+        assertArrayEquals(new double[]{0, 2, 0}, nearest);
+
+        Shape3 shape = Shape3.of(ellipsoid(9, 5, 11, ShapeSettings.EllipseMode.FILLED, 1));
+        double[] uv = new double[2];
+        Shape3.Wrapping wrap = shape.wrapping();
+        wrap.place(4.5, 2.5, 5.5, uv);
+        assertArrayEquals(new double[]{0, wrap.width()}, uv);
+    }
+
+    @Test
     void skippedCellsReallyAreUniform() {
-        // The shapes' fields must never be steeper than 1 per block, or the solver would skip cells that hold the surface.
         for (ShapeSettings s : List.of(ellipsoid(14, 9, 20, ShapeSettings.EllipseMode.MIDDLE, 1.5), ellipsoid(30, 5, 9, ShapeSettings.EllipseMode.FILLED, 1),
                 ellipsoid(8, 8, 8, ShapeSettings.EllipseMode.OUTWARDS, 3), torus(20, 6, 30, 9, 14, false), torus(12, 6, 12, 20, 9, true))) {
             Shape3 sh = Shape3.of(s);
@@ -314,7 +311,7 @@ class Solver3Test {
         int lines = 0;
         for (int st = CHAIN; st < FENCE; st++) lines += r.counts()[st];
         assertTrue(lines > 50, lines + " chains and rods");
-        assertEquals(0, r.sweeps());   // nothing here depends on a neighbour, so there's nothing to refine
+        assertEquals(0, r.sweeps());
     }
 
     @Test
@@ -332,7 +329,6 @@ class Solver3Test {
                     minZ = Math.min(minZ, l[q + 2]); maxZ = Math.max(maxZ, l[q + 2]);
                 }
             }
-            // The lines trace the size the player set, which sits inside the padding.
             int p = sh.pad();
             assertEquals(p, minX, 1e-6); assertEquals(sh.nx() - p, maxX, 1e-6);
             assertEquals(p, minY, 1e-6); assertEquals(sh.ny() - p, maxY, 1e-6);
@@ -372,7 +368,7 @@ class Solver3Test {
 
     @Test
     void settlingEmptiesOnlyWhatItsTold() {
-        ShapeSettings s = Shapes3Cases.pieceSets().get(2);   // connectors only
+        ShapeSettings s = Shapes3Cases.pieceSets().get(2);
         Solver3.Result r = Solver3.solve(Shapes3Cases.sheets(0.18), s, () -> false);
         BitSet gone = new BitSet();
         int fences = 0;
@@ -387,17 +383,11 @@ class Solver3Test {
                 if (r.grid()[p] != h.grid()[p]) changed++;
             }
         }
-        // The connectors beside a gap lose their arm towards it.
         assertTrue(changed > 5, changed + " changed");
         assertEquals(r.counts()[AIR] + gone.cardinality(), h.counts()[AIR]);
         assertNull(Solver3.settle(r, gone, s.fullConnects, () -> true));
     }
 
-    /**
-     * Settling works out only the cells near the emptied ones, which must give exactly what working out every cell
-     * gives: on every test shape and piece set, with holes scattered, in a lattice, at random and in most cells,
-     * and again on a shape that already has holes.
-     */
     @Test
     void settlingNearTheHolesMatchesSettlingEverything() {
         List<Shapes3Cases.Holes> layouts = List.of(Shapes3Cases.SCATTERED, Shapes3Cases.LATTICE,
@@ -415,11 +405,9 @@ class Solver3Test {
                 for (int p = 0; p < r.grid().length; p++) if (!gone.get(p) && near.grid()[p] != r.grid()[p]) { changed++; break; }
             }
         }
-        // The holes did reshape blocks beside them, so the cells near them were really worked out again.
         assertTrue(changed > 100, changed + " settles changed a block");
     }
 
-    /** Settling near holes atop tall walls, which reach all the way down, still gives up soon after it's cancelled. */
     @Test
     void settlingNearTheHolesStopsWhenCancelled() {
         int nx = 64, ny = 256, nz = 64;

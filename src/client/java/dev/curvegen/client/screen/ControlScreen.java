@@ -27,9 +27,7 @@ import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 
-/** A screen with the mod's own controls: number fields with arrows, and buttons that step backwards on a right-click. */
 abstract class ControlScreen extends Screen {
-    /** What a right-click does on buttons that step through options: step backwards. */
     protected final Map<AbstractWidget, Runnable> reverse = new HashMap<>();
 
     protected ControlScreen(Component title) { super(title); }
@@ -41,19 +39,15 @@ abstract class ControlScreen extends Screen {
         return t.contains(".") ? t.replaceAll("0+$", "").replaceAll("\\.$", "") : t;
     }
 
-    /** Horizontal space the arrows take from a field: 8 px of arrows plus a 1 px gap. */
     static final int ARROW_SLOT = 9;
 
     private record Spinner(Arrow up, Arrow down, DoubleSupplier value, double min, double max, BooleanSupplier enabled) {}
     private final List<Spinner> spinners = new ArrayList<>();
 
-    /** A field the mouse wheel changes while the cursor is between x0 and x1 of its row: {@code turn} gets 1 for up, -1 for down. */
     private record Wheel(EditBox field, int x0, int x1, IntConsumer turn, BooleanSupplier enabled) {}
     private final List<Wheel> wheels = new ArrayList<>();
-    /** Fields the wheel only changes while they have the keyboard, because the wheel over them means something else. */
     private final Set<EditBox> focusOnly = new HashSet<>();
 
-    /** A small up or down arrow. Drawn by hand so it stays crisp at 8 pixels, and greyed out when it can't go further. */
     private static final class Arrow extends AbstractButton {
         private final boolean up;
         private final Runnable action;
@@ -70,7 +64,7 @@ abstract class ControlScreen extends Screen {
             int x = getX(), y = getY();
             ctx.fill(x, y, x + width, y + height, !active ? 0xFF22262C : isHovered() ? 0xFF55606E : 0xFF3A424D);
             int c = active ? 0xFFE4E9EF : 0xFF4E5560, cx = x + width / 2, cy = y + height / 2;
-            for (int r = 0; r < 3; r++) {          // a 5-pixel-wide triangle
+            for (int r = 0; r < 3; r++) {
                 int half = up ? r : 2 - r, yy = cy - 1 + r - (up ? 1 : 0);
                 ctx.fill(cx - half, yy, cx + half + 1, yy + 1, c);
             }
@@ -80,22 +74,20 @@ abstract class ControlScreen extends Screen {
         protected void updateWidgetNarration(NarrationElementOutput builder) { defaultButtonNarrationText(builder); }
     }
 
-    /** A lone arrow button, for moving a row of a list up or down. */
     protected AbstractButton arrow(int x, int y, int w, int h, boolean up, Runnable action) { return new Arrow(x, y, w, h, up, action); }
 
-    /**
-     * A number field of total width w whose right edge holds up/down arrows (taken from the field, not added to it).
-     * The arrows step the value within [min, max] and grey out at the ends or when the field doesn't apply.
-     * Scrolling over the field or its arrows does the same, a step to a notch.
-     */
     protected EditBox spin(int x, int y, int w, int h, String value, Consumer<String> onChange,
                            DoubleSupplier current, double step, double min, double max, BooleanSupplier enabled, boolean integer) {
-        EditBox f = new EditBox(font, x, y, w - ARROW_SLOT, h, Component.empty());
+        return spin(new EditBox(font, x, y, w - ARROW_SLOT, h, Component.empty()), value, onChange, current, step, min, max, enabled, integer);
+    }
+
+    protected EditBox spin(EditBox f, String value, Consumer<String> onChange, DoubleSupplier current,
+                           double step, double min, double max, BooleanSupplier enabled, boolean integer) {
         f.setMaxLength(64);
         f.setValue(value);
         f.setResponder(onChange);
         addRenderableWidget(f);
-        arrows(f, x + w - ARROW_SLOT + 1, y, h, current, step, min, max, enabled, integer);
+        arrows(f, f.getRight() + 1, f.getY(), f.getHeight(), current, step, min, max, enabled, integer);
         return f;
     }
 
@@ -112,23 +104,16 @@ abstract class ControlScreen extends Screen {
         wheels.add(new Wheel(f, f.getX(), ax + ARROW_SLOT - 1, dir -> nudge(f, current, dir * step, min, max, integer), enabled));
     }
 
-    /** Has the wheel change a field without arrows: {@code turn} gets 1 for a notch up and -1 for a notch down. */
     protected void wheel(EditBox f, IntConsumer turn, BooleanSupplier enabled) {
         wheels.add(new Wheel(f, f.getX(), f.getX() + f.getWidth(), turn, enabled));
     }
 
-    /**
-     * For a field in a list that scrolls: the wheel changes it only once it has been clicked into, and scrolls the
-     * list otherwise. The screen has to ask {@link #wheelTurned} before it scrolls the list.
-     */
     protected void wheelNeedsFocus(EditBox f) { focusOnly.add(f); }
 
-    /** Writes a number into a field, whose own listener then applies it. */
     protected static void write(EditBox f, double v, boolean integer) {
         f.setValue(integer ? String.valueOf(Math.round(v)) : coord(v));
     }
 
-    /** Steps the field under the cursor, if the wheel changes one there. A screen with its own use for the wheel asks this first. */
     protected boolean wheelTurned(double mx, double my, double v) {
         if (v == 0) return false;
         for (Wheel w : wheels) {
@@ -146,7 +131,6 @@ abstract class ControlScreen extends Screen {
         return wheelTurned(mx, my, v) || super.mouseScrolled(mx, my, h, v);
     }
 
-    /** Steps the value and writes it into the field, whose own listener then applies it (clamped to the limits). */
     private void nudge(EditBox f, DoubleSupplier current, double step, double min, double max, boolean integer) {
         write(f, Stepper.step(current.getAsDouble(), step, min, max), integer);
     }
@@ -158,7 +142,6 @@ abstract class ControlScreen extends Screen {
         sp.down.active = on && v > sp.min + 1e-9;
     }
 
-    /** A button that steps through options: click for the next one, right-click for the previous one. */
     protected <T> CycleButton<T> cycler(List<T> values, T initial, Function<T, Component> names,
                                         int x, int y, int w, String label, Consumer<T> onChange) {
         CycleButton<T> b = CycleButton.builder(names, initial).withValues(values)
@@ -175,7 +158,6 @@ abstract class ControlScreen extends Screen {
         return cycler(List.of(true, false), initial, CommonComponents::optionStatus, x, y, w, label, onChange);
     }
 
-    /** Runs before every rebuild, so the controls of the old layout don't linger. */
     @Override
     protected void clearWidgets() {
         super.clearWidgets();
@@ -198,7 +180,7 @@ abstract class ControlScreen extends Screen {
                 AbstractWidget w = e.getKey();
                 if (w.active && w.visible && w.isMouseOver(event.x(), event.y())) {
                     w.playDownSound(minecraft.getSoundManager());
-                    e.getValue().run();   // may rebuild the screen, so stop looking straight away
+                    e.getValue().run();
                     return true;
                 }
             }

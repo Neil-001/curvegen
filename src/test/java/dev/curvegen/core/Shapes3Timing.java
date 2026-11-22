@@ -6,11 +6,6 @@ import org.junit.jupiter.api.Test;
 import java.util.Arrays;
 import java.util.Random;
 
-/**
- * How long the 3D shapes take to solve. Nothing is asserted, because the answer depends on the machine: take the
- * {@code @Disabled} off and run {@code ./gradlew :fabric:test --tests '*Shapes3Timing*' -i} to see the numbers.
- * The editor solves again on every drag, so these want to stay near the sphere's.
- */
 class Shapes3Timing {
     private static void time(String what, ShapeSettings s) {
         long[] took = new long[30];

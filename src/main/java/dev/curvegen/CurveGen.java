@@ -17,21 +17,15 @@ import net.minecraft.world.level.block.state.BlockState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** What both sides share. The mod loader's entrypoint, in {@code dev.curvegen.fabric} or {@code dev.curvegen.neoforge}, hooks it up. */
 public final class CurveGen {
     private CurveGen() {}
 
     public static final String MOD_ID = "curvegen";
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
-    /** How far from the player a placement may reach. */
     public static final int MAX_DISTANCE = 512;
-    /** Per player, the positions an undo has restored so far. An undo arrives in batches, and the updates wait for the last one. */
+
     private static final Map<UUID, List<BlockPos>> RESTORED = new HashMap<>();
 
-    /**
-     * Applies one placement batch on a server (or the integrated server in singleplayer). Only operators may place
-     * (permission level 2, the same as /setblock). Call it on the server thread.
-     */
     public static void place(ServerPlayer player, PlaceBlocksPayload payload) {
         if (!player.permissions().hasPermission(Permissions.COMMANDS_GAMEMASTER)) {
             if (payload.last())
@@ -39,10 +33,8 @@ public final class CurveGen {
             return;
         }
         ServerLevel world = player.level();
-        // Undo first puts every block back exactly as it was, without block updates. With them, a block restored before
-        // the one it stands on or hangs from would break again. The updates run once the last batch is in.
         int flags = payload.undo() ? Block.UPDATE_CLIENTS | Block.UPDATE_SKIP_ALL_SIDEEFFECTS : Block.UPDATE_ALL;
-        if (!payload.undo()) RESTORED.remove(player.getUUID());   // drops the list of an undo that never finished
+        if (!payload.undo()) RESTORED.remove(player.getUUID());
         List<BlockPos> restored = payload.undo() ? RESTORED.computeIfAbsent(player.getUUID(), _ -> new ArrayList<>()) : null;
         int skipped = 0;
         for (int i = 0; i < payload.states().length; i++) {
@@ -54,8 +46,6 @@ public final class CurveGen {
             if (restored != null) restored.add(pos);
         }
         if (payload.last() && restored != null) {
-            // Now that everything is back, let the surroundings react as they would to a normal block change: fences and
-            // panes reconnect, grass under restored snow turns snowy, and sand left on the removed shape falls.
             RESTORED.remove(player.getUUID());
             for (BlockPos pos : restored) {
                 BlockState state = world.getBlockState(pos);
@@ -68,7 +58,6 @@ public final class CurveGen {
         if (payload.last()) {
             String key = payload.undo() ? "curvegen.placement.undone" : "curvegen.placement.placed";
             if (skipped > 0) key += ".skipped";
-            // Shown above the hotbar on one line that doesn't wrap, so it has to stay short.
             player.sendOverlayMessage(Component.translatable(key, payload.total(), skipped));
         }
     }

@@ -12,10 +12,6 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-/**
- * Fabric API has no event for mouse input outside screens, so this gives capture and the editor the first look at clicks and
- * scrolling while no screen is open. It cancels only what they say they used.
- */
 @Mixin(MouseHandler.class)
 abstract class MouseHandlerMixin {
     @Shadow @Final private Minecraft minecraft;

@@ -4,10 +4,6 @@ import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.List;
 
-/**
- * Shapes and settings the 3D tests solve: one or more of every kind the mod builds, and a few shapes made to bring out
- * connectors and corner stairs. Some have holes, emptied after the solve with {@link Solver3#settle}.
- */
 public final class Shapes3Cases {
     private Shapes3Cases() {}
 
@@ -20,10 +16,8 @@ public final class Shapes3Cases {
         }
     }
 
-    /** Blocks to empty after a solve. */
     public interface Holes { boolean at(int x, int y, int z); }
 
-    /** The cells of this grid that {@code holes} empties, indexed like the grid. */
     public static BitSet gone(Solver3.Result r, Holes holes) {
         BitSet gone = new BitSet(r.grid().length);
         for (int y = 0; y < r.ny(); y++)
@@ -32,13 +26,10 @@ public final class Shapes3Cases {
         return gone;
     }
 
-    /** About one block in nine, scattered. */
     static final Holes SCATTERED = (x, y, z) -> (5 * x + 3 * y + 7 * z) % 9 == 0;
 
-    /** A lattice's openings, 2 blocks across with bars 1 wide, run straight through the shape from front to back, as a pattern's holes do. */
     static final Holes LATTICE = (x, y, _) -> x % 3 != 0 && y % 3 != 0;
 
-    /** A shape given only by its box and field, with none of the optional hints. */
     public interface Field { double at(double x, double y, double z); }
 
     public static Shape3 shape(int nx, int ny, int nz, double lo, double hi, Field f) {
@@ -53,13 +44,11 @@ public final class Shapes3Cases {
         };
     }
 
-    /** Two thin upright sheets that cross, under a sloping top: walls and panes of every height, with and without posts. */
     public static Shape3 sheets(double half) {
         return shape(14, 9, 13, Double.NEGATIVE_INFINITY, 0, (x, y, z) ->
                 Math.max(Math.min(Math.abs(x - 6.5), Math.abs(z - 5.5)) - half, (y - 3 - 0.3 * x - 0.2 * z) / 1.2));
     }
 
-    /** Thin posts on a grid, joined by rails at two heights: fences, chains and end rods. */
     public static Shape3 posts() {
         return shape(13, 8, 13, Double.NEGATIVE_INFINITY, 0, (x, y, z) -> {
             double px = Math.abs(x % 4 - 2.5), pz = Math.abs(z % 4 - 2.5);
@@ -69,7 +58,6 @@ public final class Shapes3Cases {
         });
     }
 
-    /** A stepped pyramid with a pit in its top: stairs that turn outer and inner corners. */
     public static Shape3 pyramid(boolean upsideDown) {
         return shape(15, 8, 15, Double.NEGATIVE_INFINITY, 0, (x, y, z) -> {
             double r = Math.max(Math.abs(x - 7.5), Math.abs(z - 7.5)), h = upsideDown ? 8 - y : y;
@@ -83,7 +71,6 @@ public final class Shapes3Cases {
         return s;
     }
 
-    /** Piece sets: the default, everything, and sets that leave connectors little competition. */
     public static List<ShapeSettings> pieceSets() {
         return List.of(new ShapeSettings(), pieces(true, true, true, true, true, true, true, true),
                 pieces(false, false, false, false, true, true, true, false), pieces(false, true, false, false, false, false, true, false),

@@ -21,7 +21,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
 
-/** Pick the block used for one piece type. */
 public class BlockPickerScreen extends Screen {
     private enum Sort { NAME, COLOUR }
 
@@ -42,7 +41,6 @@ public class BlockPickerScreen extends Screen {
         this.all = BlockChoices.candidates(family);
     }
 
-    /** Colour the list is sorted against: the colour you picked, or the current block's own colour. */
     private int reference() {
         return BlockChoices.pickedColor >= 0 ? BlockChoices.pickedColor : ColorIndex.of(BlockChoices.CHOICE.get(family));
     }

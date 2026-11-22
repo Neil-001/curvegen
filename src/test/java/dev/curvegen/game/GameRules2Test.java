@@ -42,11 +42,6 @@ import java.util.Random;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/**
- * Checks 2D shapes with holes cut through them against the game itself, as {@link GameRules3Test} does for 3D
- * shapes: once a pattern's holes are out, no fence, pane, wall or stair left changes when the game updates it. The
- * states come from the client's own mapping, {@code PaintBlocks.state2D}, so this covers what gets placed.
- */
 class GameRules2Test {
     @BeforeAll
     static void loadBlocks() throws ReflectiveOperationException {
@@ -68,16 +63,14 @@ class GameRules2Test {
         bind.invoke(b.builtInRegistryHolder(), tags);
     }
 
-    /** Piece sets: everything, fences beside full blocks, panes and walls, walls with slabs and stairs. */
     private static final String[] SETS = {"all", "fence", "pane wall", "wall slab stair"};
 
     static List<ShapeSettings> shapes() { return shapes(SETS, new int[]{1, 3}, false); }
 
-    /** Every set at every depth, upright and flat, beside full blocks that connect and ones that don't. */
     static List<ShapeSettings> shapes(String[] sets, int[] depths, boolean chains) {
         List<ShapeSettings> out = new ArrayList<>();
         for (String set : sets)
-            for (int k = 0; k < 2 * depths.length * 2; k++) {   // flat or not fastest, then depth, then fullConnects
+            for (int k = 0; k < 2 * depths.length * 2; k++) {
                 ShapeSettings base = new ShapeSettings();
                 if (!set.equals("all")) {
                     base.slab = set.contains("slab"); base.stair = set.contains("stair"); base.trap = base.shelf = false;
@@ -104,10 +97,6 @@ class GameRules2Test {
         return out;
     }
 
-    /**
-     * Holes in about one block in four: through every layer alike when {@code perLayer} is false, as a pattern on a
-     * shape's face makes them, or block by block, as one on its edge does.
-     */
     static BitSet holes(Solver.Result r, int depth, boolean perLayer, long seed) {
         Random rnd = new Random(seed);
         int n = r.nx() * r.ny();
@@ -119,7 +108,6 @@ class GameRules2Test {
         return gone;
     }
 
-    /** A painted shape that paints nothing and leaves {@code gone} open, settled as the painter settles it. */
     static Painted open(Solver.Result r, int depth, BitSet gone, boolean fullConnects) {
         int n = r.nx() * r.ny();
         int[] slots = new int[depth * n];
@@ -133,10 +121,8 @@ class GameRules2Test {
         return new Painted(slots, depth, List.of(), new int[0], new long[f][w], new long[f][1], open, Settle2D.of(r, depth, gone, fullConnects, () -> false));
     }
 
-    /** The blocks as the client places them, with the drawing's x east: upright, layers run south; flat, its y runs north. */
     static Map<BlockPos, BlockState> world(Solver.Result r, int depth, Painted painted) { return world(r, depth, painted, null); }
 
-    /** The same painted with {@code paint}'s blocks, which may be null for the Blocks tab's. */
     static Map<BlockPos, BlockState> world(Solver.Result r, int depth, Painted painted, PaintBlocks.Resolved paint) {
         Map<BlockPos, BlockState> w = new HashMap<>();
         boolean floor = r.floor();
@@ -164,7 +150,6 @@ class GameRules2Test {
     private static final ScheduledTickAccess NO_TICKS = (ScheduledTickAccess) Proxy.newProxyInstance(ScheduledTickAccess.class.getClassLoader(),
             new Class<?>[]{ScheduledTickAccess.class}, (_, method, _) -> { throw new UnsupportedOperationException(method.toString()); });
 
-    /** The state after the game has told the block about each of its six neighbours. */
     static BlockState updated(LevelReader level, BlockPos pos) {
         BlockState st = level.getBlockState(pos);
         for (Direction d : Direction.values())
@@ -172,13 +157,11 @@ class GameRules2Test {
         return st;
     }
 
-    /** Blocks whose state depends on their neighbours. Leaves would ask for a tick, and other blocks never change. */
     static boolean dependent(BlockState s) {
         Block b = s.getBlock();
         return b instanceof CrossCollisionBlock || b instanceof WallBlock || b instanceof StairBlock;
     }
 
-    /** Checks every block that depends on its neighbours. Returns how many fences, panes and walls touch a hole. */
     private static int check(ShapeSettings c, Map<BlockPos, BlockState> w, String what) {
         LevelReader level = level(w);
         int beside = 0;
@@ -192,7 +175,7 @@ class GameRules2Test {
     }
 
     static void choose(ShapeSettings c) {
-        BlockChoices.CHOICE.put(Pieces.Family.FULL, c.fullConnects ? Blocks.STONE : Blocks.OAK_LEAVES);   // nothing attaches to leaves
+        BlockChoices.CHOICE.put(Pieces.Family.FULL, c.fullConnects ? Blocks.STONE : Blocks.OAK_LEAVES);
     }
 
     @Test
@@ -209,14 +192,8 @@ class GameRules2Test {
         assertTrue(beside > 20000, beside + " blocks beside holes");
     }
 
-    /** Piece sets for shapes without holes: those above, walls alone, and walls with fences and panes. */
     private static final String[] PLAIN_SETS = {"all", "fence", "pane wall", "wall slab stair", "wall", "wall pane fence"};
 
-    /**
-     * Shapes without holes, unpainted, one, two, three and five deep, upright and flat: the game keeps every state. A
-     * wall takes a post from the wall above it, so in a shape three or more deep a wall in the middle layers below a
-     * wall with a post has one too.
-     */
     @Test
     void theGameKeepsEveryStateOfAShapeWithoutHoles() {
         int checked = 0;
@@ -229,10 +206,6 @@ class GameRules2Test {
         assertTrue(checked > 900000, checked + " blocks");
     }
 
-    /**
-     * One layer deep, a wall below a wall with a post has one too: in this narrow ellipse of walls beside leaves, a
-     * wall with both sides tall sits below one with a post, and the drawing and the placed blocks both show its post.
-     */
     @Test
     void aWallBelowAWallWithAPostHasOneAtDepthOne() {
         ShapeSettings c = new ShapeSettings();
@@ -252,11 +225,9 @@ class GameRules2Test {
         check(c, world(r, 1, null), "depth 1");
     }
 
-    /** Flat walls joined every way, one to four layers deep: a crossing has no post, as a straight wall has none. */
     @Test
     void flatWallsJoinedEveryWay() {
         for (int bits = 0; bits < 16; bits++) {
-            // The wall in the middle of a 3×3 drawing, with a wall on each side it joins.
             byte[] grid = new byte[9];
             int[][] at = {{0, 1}, {2, 1}, {1, 2}, {1, 0}};
             grid[4] = (byte) (Pieces.F_WALL + bits);
@@ -272,10 +243,6 @@ class GameRules2Test {
         }
     }
 
-    /**
-     * The blocks a painted shape may use besides the Blocks tab's, by piece type: ones that join as those do. Full
-     * blocks that fences, panes and walls join, or, without {@code fullConnects}, ones they don't.
-     */
     private static Map<Pieces.Family, Block[]> paints(boolean fullConnects) {
         return Map.of(
                 Pieces.Family.FULL, fullConnects ? new Block[]{Blocks.STONE_BRICKS, Blocks.GRANITE} : new Block[]{Blocks.OAK_LEAVES, Blocks.MELON},
@@ -283,10 +250,6 @@ class GameRules2Test {
                 Pieces.Family.PANE, new Block[]{Blocks.IRON_BARS}, Pieces.Family.WALL, new Block[]{Blocks.ANDESITE_WALL, Blocks.BRICK_WALL});
     }
 
-    /**
-     * The same painted, block by block, with blocks of each piece type that join as the Blocks tab's do. Paint never
-     * changes a state but the block, so the game keeps every one.
-     */
     @Test
     void theGameKeepsEveryStateOfAPaintedShape() {
         int checked = 0, seed = 0;
@@ -313,7 +276,6 @@ class GameRules2Test {
         assertTrue(checked > 200000, checked + " blocks");
     }
 
-    /** Settling with nothing taken out gives exactly what the shape gives unsettled. */
     @Test
     void settlingWithoutHolesChangesNothing() {
         int same = 0;

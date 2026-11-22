@@ -16,13 +16,13 @@ Both jars target 26.3 only. Minecraft is unobfuscated, so use its own names with
 
 Both loaders compile the shared `src/main` and `src/client` code with their own entrypoints and metadata. Fabric splits common and client source sets and also compiles `src/test`. NeoForge combines them in one jar. Common code must never touch client classes.
 
-Most classes say what they do in a comment at the top, and their fields and methods say the rest. Read those before changing a class, and keep them true. This file has only what no one class says.
+Read the package guide before changing code there if it has one. Keep decisions and their reasons in `CLAUDE.md` and use a relative `AGENTS.md` symlink to it.
 
 - `dev/curvegen/core/`, with `core/edit/` and `core/paint/`, must have no Minecraft imports. `Pieces`, `Target` and `Solver` are the 2D solver. `Pieces3`, `Shape3`, `Shapes3`, `Bezier3` and `Solver3` are the 3D one. `core/edit/` has the editor's and menus' maths, and `core/paint/` painting's.
 - Only `fabric/src/` and `neoforge/src/` may import their loader's classes. Shared client code goes through `ClientPlatform`. Each loader hooks the shared code into its own events, `Editor.render` among them, so a change to `ClientPlatform` or a new hook goes into both. NeoForge lists its one mixin in `curvegen.neoforge.mixins.json`.
 - `client/edit/` is the in-world editor. `client/screen/` has the screens: `CurveScreen` is the main UI on G and `RadialScreen` the radial menu on V. `SettingsScreen` opens from the main UI's cogwheel, from Mod Menu on Fabric and from the mod list's Config button on NeoForge.
 - Mod Menu is optional. Only `ModMenuIntegration`, which Mod Menu itself loads, may refer to it.
-- Chroma Studio is optional too. Only `client/chroma/ChromaBridge` may refer to it, and `Chroma.init` loads that class only once the loader reports the mod and its API says version 2 (Chroma Studio 1.2) or later. Both loaders compile against `chromastudio_version` from its GitHub releases without bundling it, and `-PwithChroma` adds it to a dev client.
+- Chroma Studio is optional too. Only `client/chroma/ChromaBridge` may refer to it. Once the loader reports the mod, `Chroma.init` calls `ChromaBridge.supported()` and installs hooks only for API version 2 (Chroma Studio 1.2) or later. Both loaders compile against `chromastudio_version` from its GitHub releases without bundling it, and `-PwithChroma` adds it to a dev client.
 - Read `listing/README.md` before changing anything in `listing/`. After editing `listing/description.md`, run `listing/art/curseforge.py`, or the build fails. Run `listing/art/render.py` after a change to either solver or to the 3D preview's drawing, and expect only the pictures you meant to change to differ. The gallery is screenshots from the game, which it doesn't draw.
 
 ## Solvers
@@ -49,7 +49,7 @@ In both, a refinement pick must be judged on every cell whose state it can chang
 
 ### Adding a 3D shape
 
-Implement `Shape3`, whose comments describe each method, and add it to `Shape3.of`. Beyond those comments:
+Read the `core` package guide for the `Shape3` contract. Implement `Shape3` and add the new shape to `Shape3.of`.
 
 - `field` is called from several threads, so it must not share scratch state. The solver drops any voxel with a NaN among the eight samples around it.
 - `Solver3Test.skippedCellsReallyAreUniform` and its namesake in `Shapes3Test` show how to test a field that may be steeper than the default `uniform` allows.
@@ -62,7 +62,7 @@ Control points and equation ranges are in the shape's own box, in blocks from it
 
 Removing one curve point takes it out of the list. The G menu's Remove uses `Bezier3.reduce` instead, which lowers the degree and keeps the ends.
 
-Known limits the comments don't give:
+Known limits of 3D surfaces:
 
 - An equation's Surface mode never samples point by point, because that would take seconds. A wall loses up to a quarter of a block where it ends at a jump off the block grid, an asymptote or the edge of the equation's domain. A wall much thicker than the surface's bends are wide is only roughly that thick.
 - Off the block grid, a surface's edge can land up to an eighth of a block out.
@@ -70,7 +70,7 @@ Known limits the comments don't give:
 
 ## Minecraft rules
 
-`ConnectionRulesTest` covers the connection rules, and `Pieces`, `Solver` and `BlockChoices` state most of them where they apply them. The ones they leave out:
+`ConnectionRulesTest` covers these connection rules. See the `core` and client package guides for the solver and block choice decisions.
 
 - Fences, panes and walls attach to sturdy full faces, including a stair's tall side, an open trapdoor's panel and a shelf's panel. They don't attach to slabs or closed trapdoors.
 - At depth 1, an upright wall has a post unless both sides connect. A straight wall keeps its post only if the block above covers its centre and the sides aren't both tall, or the wall above has a post. `Solver` adds that last one after refinement, so a pick still changes nothing more than a row below. At any depth, `Solver.Result.placedWallPost` gives the post each layer places.
@@ -118,7 +118,7 @@ Painting chooses each block of a solved shape from the paint's source: a pattern
 
 ## Placement
 
-`Placement`, `CurveGen`, `LastPlacement` and `CommandReplies` say how placing, undo, redo and the `/setblock` fallback work. Beyond their comments:
+See the `dev.curvegen` guide in `src/main` for server placement and the client and `core` guides for undo, redo and the `/setblock` fallback.
 
 - Undo restores a nearby block that broke even if its support has since gone. It doesn't remove dropped items.
 - Hiding the fallback's replies never touches the server's `sendCommandFeedback`.

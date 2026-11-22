@@ -4,10 +4,8 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Chains and end rods: thin lines the solver uses only when asked. */
 class ChainRodTest {
 
-    /** A line an eighth of a block wide through the middle of a row or column of cells. */
     private static ShapeSettings thinLine(String eq) {
         ShapeSettings s = new ShapeSettings();
         s.gen = ShapeSettings.Gen.EQUATION;
@@ -34,7 +32,7 @@ class ChainRodTest {
             for (boolean rod : new boolean[]{false, true}) {
                 ShapeSettings s = thinLine("y = 2.5");
                 s.floor = floor; s.chain = true; s.rod = rod;
-                s.pane = false;   // a lone pane looks the same as an upright chain, and the older piece wins a tie
+                s.pane = false;
                 Solver.Result r = Solver.run(s);
                 for (int i = 1; i < 4; i++) assertEquals(Pieces.CHAIN_H, r.at(i, 2), "across, column " + i);
                 s.src = "x = 2.5";
@@ -54,7 +52,7 @@ class ChainRodTest {
     @Test
     void mirrorsAreMirrorImages() {
         for (int p = 0; p < Pieces.COUNT; p++) {
-            if (Pieces.isConnector(p)) continue;   // connectors take their shape from neighbours
+            if (Pieces.isConnector(p)) continue;
             for (int y = 0; y < 16; y++)
                 for (int x = 0; x < 16; x++) {
                     assertEquals(Pieces.MASK[p][y * 16 + x], Pieces.MASK[Pieces.MX[p]][y * 16 + 15 - x], Pieces.NAME[p] + " left to right");
@@ -75,7 +73,6 @@ class ChainRodTest {
 
     @Test
     void coverOnlyTheCentreOfAWallBelow() {
-        // Upright, a chain or rod standing on a wall covers its post but not its sides, at any depth.
         for (int p : new int[]{Pieces.CHAIN_V, Pieces.ROD_U, Pieces.ROD_D}) {
             assertEquals(0x0180, Pieces.BOTTOM[p] & 0x0180, Pieces.NAME[p]);
             assertNotEquals(0x01FF, Pieces.BOTTOM[p] & 0x01FF, Pieces.NAME[p]);
@@ -91,7 +88,6 @@ class ChainRodTest {
         for (Layout.Cell c : l.cells()) if (c.y() < l.height() - 1) assertEquals(Pieces.CHAIN_V, c.above(), "above row " + c.y());
     }
 
-    /** A curve half a block wide, where upright chains cover exactly as much of the curve as they add outside it. */
     private static ShapeSettings halfWideCurve() {
         ShapeSettings s = new ShapeSettings();
         s.gen = ShapeSettings.Gen.BEZIER; s.bW = 40; s.bH = 24; s.bLW = 0.5;
@@ -109,7 +105,6 @@ class ChainRodTest {
 
     @Test
     void chainsAndRodsWinTiesWithAir() {
-        // Chains alone used to leave air where a chain fits as well, while rods filled the same cells for their plates.
         ShapeSettings s = halfWideCurve();
         s.chain = true;
         Solver.Result chains = Solver.run(s);

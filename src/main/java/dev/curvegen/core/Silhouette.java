@@ -3,11 +3,9 @@ package dev.curvegen.core;
 import java.util.ArrayList;
 import java.util.List;
 
-/** A piece drawn at a given pixel size, and the pixels on its outline. Shared by the preview and the Count tab icons. */
 public final class Silhouette {
     private Silhouette() {}
 
-    /** The piece at size×size pixels, row 0 at the top. */
     public static boolean[] of(int piece, int size) {
         boolean[] in = new boolean[size * size];
         for (int[] q : Pieces.RECTS[piece]) {
@@ -20,10 +18,6 @@ public final class Silhouette {
         return in;
     }
 
-    /**
-     * Pixels on the edge of the silhouette: any filled pixel touching an empty one, diagonals included, so inside
-     * corners (like a stair's) are outlined too. Pieces without inside corners are unaffected by the diagonal check.
-     */
     public static boolean[] outline(boolean[] in, int size) {
         boolean[] e = new boolean[size * size];
         for (int y = 0; y < size; y++)
@@ -38,10 +32,6 @@ public final class Silhouette {
         return e;
     }
 
-    /**
-     * The same picture as {@link #of} and {@link #outline}, as rectangles that don't overlap: {x0, y0, x1, y1, edge}
-     * each, with edge 1 for outline pixels. Far fewer shapes to draw than one per pixel.
-     */
     public static int[][] rects(int piece, int size) {
         boolean[] in = of(piece, size), edge = outline(in, size);
         List<int[]> out = new ArrayList<>();
@@ -51,7 +41,7 @@ public final class Silhouette {
                 if (!in[k]) { x++; continue; }
                 while (x < size && in[y * size + x] && edge[y * size + x] == edge[k]) x++;
                 int e = edge[k] ? 1 : 0, x1 = x;
-                int[] above = null;                 // a run directly above with the same span and kind grows down instead
+                int[] above = null;
                 for (int[] r : out) if (r[3] == y && r[0] == x0 && r[2] == x1 && r[4] == e) above = r;
                 if (above != null) above[3]++;
                 else out.add(new int[]{x0, y, x1, y + 1, e});

@@ -34,12 +34,6 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/**
- * Checks the 3D pieces against the game itself rather than a copy of its rules: every state's properties build a
- * real block state with the same shape, and no block in a solved shape changes when the game updates it.
- * The states come from the client's mapping, {@code BlockChoices.stateFor3}, so this covers what gets placed.
- * This is the one test that loads Minecraft's blocks. It needs no world or client.
- */
 class GameRules3Test {
     private static final Direction[] DIRS = {Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST, Direction.DOWN, Direction.UP};
 
@@ -47,7 +41,6 @@ class GameRules3Test {
     static void loadBlocks() throws ReflectiveOperationException {
         SharedConstants.tryDetectVersion();
         Bootstrap.bootStrap();
-        // Tags come from data packs, which aren't loaded here. Walls and fences find each other by tag.
         tag(Blocks.COBBLESTONE_WALL, List.of(BlockTags.WALLS));
         tag(Blocks.OAK_FENCE, List.of(BlockTags.FENCES, BlockTags.WOODEN_FENCES));
         tag(Blocks.OAK_LEAVES, List.of(BlockTags.LEAVES));
@@ -64,9 +57,8 @@ class GameRules3Test {
         bind.invoke(b.builtInRegistryHolder(), tags);
     }
 
-    /** The block state for a piece state, from the client's own mapping with these blocks chosen. */
     private static BlockState state(int piece, boolean fullConnects) {
-        BlockChoices.CHOICE.put(Pieces.Family.FULL, fullConnects ? Blocks.STONE : Blocks.OAK_LEAVES);   // nothing attaches to leaves
+        BlockChoices.CHOICE.put(Pieces.Family.FULL, fullConnects ? Blocks.STONE : Blocks.OAK_LEAVES);
         return BlockChoices.stateFor3(piece);
     }
 
@@ -85,11 +77,10 @@ class GameRules3Test {
     @Test
     void everyStateHasTheGamesShape() {
         for (int s = 0; s < Pieces3.COUNT; s++) {
-            if (s == Pieces3.WALL) continue;   // a wall with no sides and no post: never produced
+            if (s == Pieces3.WALL) continue;
             BlockState st = state(s, true);
             boolean[] ours = Pieces3.voxels(s), game = voxels(st.getShape(EmptyBlockGetter.INSTANCE, BlockPos.ZERO));
             Pieces.Family f = Pieces3.FAMILY[s];
-            // A fence's bars, a chain and an end rod are drawn thinner than their outline, and scored as drawn.
             boolean thinner = f == Pieces.Family.FENCE || f == Pieces.Family.CHAIN || f == Pieces.Family.ROD;
             for (int v = 0; v < 4096; v++) {
                 if (thinner) assertTrue(!ours[v] || game[v], Pieces3.name(s) + " reaches outside the game's shape");
@@ -117,7 +108,6 @@ class GameRules3Test {
     private static final ScheduledTickAccess NO_TICKS = (ScheduledTickAccess) Proxy.newProxyInstance(ScheduledTickAccess.class.getClassLoader(),
             new Class<?>[]{ScheduledTickAccess.class}, (_, method, _) -> { throw new UnsupportedOperationException(method.toString()); });
 
-    /** The state after the game has told the block about each of its six neighbours. */
     private static BlockState updated(LevelReader level, BlockPos pos) {
         BlockState st = level.getBlockState(pos);
         for (Direction d : Direction.values())
@@ -168,7 +158,6 @@ class GameRules3Test {
                 for (Property<?> prop : st.getProperties())
                     if (prop.getName().equals("waterlogged")) assertEquals("false", name(st, prop), Pieces3.name(s));
             }
-            // Leaves placed by hand don't decay.
             assertEquals("true", name(BlockChoices.stateFor3(Pieces3.FULL), Blocks.OAK_LEAVES.getStateDefinition().getProperty("persistent")));
             assertSame(BlockChoices.stateFor3(Pieces3.WALL_POST), BlockChoices.statesFor3()[Pieces3.WALL_POST]);
         } finally {
@@ -180,7 +169,6 @@ class GameRules3Test {
 
     @Test
     void theGameCorrectsAWrongState() {
-        // The check above only means something if the game does change states it disagrees with.
         Solver3.Result r = new Solver3.Result(new short[]{(short) Pieces3.wall(1, 0, 1, 0, false), 0, (short) Pieces3.stair(0, Pieces3.N, Pieces3.INNER_LEFT)},
                 3, 1, 1, 0, 0, new int[Pieces3.COUNT], null, 0);
         LevelReader level = level(r, true);

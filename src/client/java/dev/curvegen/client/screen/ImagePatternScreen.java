@@ -14,17 +14,11 @@ import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.network.chat.Component;
 
-/**
- * A small dialog over the pattern library for a picture dropped onto it: the new pattern's name and its width in blocks,
- * with the height that gives. Saving scales the picture ({@link ImagePattern}) and adds it to the library. The picture
- * is freed when the dialog closes, whichever way.
- */
 class ImagePatternScreen extends ControlScreen {
     private static final int W = 240, H = 136;
     private final PatternLibraryScreen parent;
     private final ImageFile image;
     private final String initialName;
-    /** Given the saved pattern, or null with a message when the picture made no pattern. */
     private final Consumer<Pattern> onSaved;
     private final int maxWidth;
     private int cells;
@@ -79,7 +73,6 @@ class ImagePatternScreen extends ControlScreen {
                 : taken ? tr("curvegen.capture.name_taken") : null;
         noteOk = taken && widthOk();
         save.active = !n.isEmpty() && widthOk();
-        // Greyed, it says why, as the note under the fields does.
         save.setTooltip(save.active ? null : Tooltip.create(Component.literal(note)));
         save.setMessage(Component.translatable(taken ? "curvegen.capture.replace" : "curvegen.screen.save"));
     }
@@ -114,7 +107,7 @@ class ImagePatternScreen extends ControlScreen {
             ctx.text(font, font.plainSubstrByWidth(size, W - 20), x + 10, y + 78, 0xFF9AA5B3, false);
         }
         if (note != null) ctx.text(font, font.plainSubstrByWidth(note, W - 20), x + 10, y + 92, noteOk ? 0xFFE0C07A : 0xFFFF8098, false);
-        super.extractRenderState(ctx, mx, my, delta);   // the controls, with the arrows greyed at the ends
+        super.extractRenderState(ctx, mx, my, delta);
     }
 
     @Override
