@@ -2,38 +2,19 @@ package dev.curvegen.core.paint;
 
 import dev.curvegen.core.paint.Pattern.Cell;
 
-/**
- * Turns a picture into a pattern of colour-only cells, one per block, by scaling it to a chosen width. The height
- * follows the picture's proportions, and neither may pass {@link Pattern#MAX}.
- *
- * <p>Each cell takes the average of the part of the picture it covers, each pixel weighted by how much of it the cell
- * covers and by how opaque it is, so a clear pixel's hidden colour never tints its neighbours. Colours are averaged in
- * linear light, as light mixes, so fine black and white stripes come out mid grey rather than dark grey.
- *
- * <p>A cell is empty when less than half of what it covers is opaque: its average alpha is below 128 out of 255. Each
- * colour is then rounded to 32 levels a channel, a step no block colour match can tell apart, which keeps the number of
- * distinct cells, and so the work of matching them, down for a photograph.
- */
 public final class ImagePattern {
     private ImagePattern() {}
 
-    /** A picture's pixels as 0xAARRGGBB, x from the left and y from the top. */
     public interface Pixels { int argb(int x, int y); }
 
-    /** The widest pattern a {@code w}×{@code h} picture can make, with its height still within {@link Pattern#MAX}. */
     public static int maxWidth(int w, int h) {
         return (int) Math.max(1, Math.min(Pattern.MAX, Math.floor((Pattern.MAX + 0.5) * w / h)));
     }
 
-    /** The pattern's height for a picture {@code w}×{@code h} scaled to {@code width} cells, at least 1 and at most {@link Pattern#MAX}. */
     public static int heightFor(int w, int h, int width) {
         return (int) Math.max(1, Math.min(Pattern.MAX, Math.round((double) h * width / w)));
     }
 
-    /**
-     * The picture scaled to {@code width} cells across, at most {@link #maxWidth}. Null when every cell would be empty,
-     * as for a picture that is clear all over.
-     */
     public static Pattern of(String name, Pixels img, int w, int h, int width) {
         if (w < 1 || h < 1 || width < 1 || width > maxWidth(w, h)) throw new IllegalArgumentException();
         int height = heightFor(w, h, width);
@@ -67,7 +48,6 @@ public final class ImagePattern {
         return any ? Pattern.of(name, rows) : null;
     }
 
-    /** A linear channel back in sRGB, rounded to one of 32 levels and written as 0 to 255. */
     static int level(double linear) {
         int q = (int) Math.round(fromLinear(Math.max(0, Math.min(1, linear))) * 31);
         return (q * 255 + 15) / 31;

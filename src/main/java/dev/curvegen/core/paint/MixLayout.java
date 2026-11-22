@@ -2,23 +2,12 @@ package dev.curvegen.core.paint;
 
 import dev.curvegen.core.paint.Paint.Arrange;
 
-/**
- * Where a {@link Mix}'s blocks go: which entry the block at a position takes. It needs only the block's position in
- * the shape's own box, not a wrap, so 2D and 3D shapes call it alike, and the same settings always give the same
- * blocks: the preview, the hologram and what gets placed agree.
- *
- * <p>Scatter picks every block on its own, weighted. Patches splits space into lumps about {@code patch} blocks
- * across, the same in every direction, and each lump takes one weighted pick, so a mix's shares hold on average either
- * way. The lumps are cells round points jittered off a grid, with their edges roughened a little so they don't run
- * straight.
- */
 public final class MixLayout {
     public static final int MIN_PATCH = 2, MAX_PATCH = 16;
 
     private final boolean patches;
     private final long seed;
     private final double patch, rough;
-    /** Running totals of the weights, for a weighted pick. */
     private final long[] upTo;
 
     public MixLayout(Palette mix, Arrange arrange, int patch, int seed) {
@@ -32,10 +21,8 @@ public final class MixLayout {
         if (t <= 0) throw new IllegalArgumentException();
     }
 
-    /** The entry the block at x, y, z takes. */
     public int at(int x, int y, int z) {
         if (!patches) return pick(hash(x, y, z, 1));
-        // The block's centre, nudged a little at random so the lumps' edges aren't straight lines.
         double px = x + .5 + rough * (unit(hash(x, y, z, 2)) - .5) * 2;
         double py = y + .5 + rough * (unit(hash(x, y, z, 3)) - .5) * 2;
         double pz = z + .5 + rough * (unit(hash(x, y, z, 4)) - .5) * 2;
@@ -74,7 +61,6 @@ public final class MixLayout {
 
     private static double unit(long h) { return (h >>> 11) * 0x1.0p-53; }
 
-    /** SplitMix64's finaliser. */
     private static long mix(long z) {
         z = (z ^ (z >>> 30)) * 0xBF58476D1CE4E5B9L;
         z = (z ^ (z >>> 27)) * 0x94D049BB133111EBL;

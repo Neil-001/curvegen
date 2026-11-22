@@ -9,7 +9,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/** A small made-up set of blocks for painting tests, so they don't need the game. */
 final class TestWorld {
     private TestWorld() {}
 
@@ -17,13 +16,11 @@ final class TestWorld {
 
     static Catalog catalog() { return catalog(Map.of()); }
 
-    /** The catalog, with any of the Blocks tab's choices replaced. */
     static Catalog catalog(Map<Family, String> choices) {
         Map<Family, List<String>> allowed = new EnumMap<>(Family.class);
         Map<String, Integer> colours = new HashMap<>();
         Map<String, String> material = new HashMap<>();
         Map<String, Map<Family, String>> variants = new HashMap<>();
-        // material, colour, then its pieces by family
         Object[][] mats = {
                 {"stone_bricks", 0x7a7a7a, Family.SLAB, "stone_brick_slab", Family.STAIRS, "stone_brick_stairs", Family.WALL, "stone_brick_wall"},
                 {"mossy_stone_bricks", 0x737d63, Family.SLAB, "mossy_stone_brick_slab", Family.STAIRS, "mossy_stone_brick_stairs", Family.WALL, "mossy_stone_brick_wall"},
@@ -55,7 +52,6 @@ final class TestWorld {
             }
             variants.put(base, v);
         }
-        // Sand falls, so the Blocks tab never offers it, but a pattern may still name it.
         colours.put(m("sand"), 0xdbd3a0);
         allowed.get(Family.PANE).add(m("glass_pane"));
         colours.put(m("glass_pane"), 0xc0e0e8);

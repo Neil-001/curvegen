@@ -10,29 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * Picks the block for one cell of a pattern or mix and one piece type, in order:
- * <ol>
- * <li>A full block uses the cell's own block as it is, properties and all.
- * <li>Any other piece uses that material's block for its piece type: stone bricks give stone brick stairs.
- * <li>When the material has no such piece, the piece type's block with the closest colour.
- * <li>Otherwise the Blocks tab's choice.
- * </ol>
- * The rules that keep painting from changing the shape apply on top. Full blocks that fences, panes and walls attach
- * to differently from the rest of the shape become gaps: the Blocks tab's full block, or the closest one that attaches
- * the right way. Fences come only from the group the Blocks tab's fence joins. Only blocks the Blocks tab could offer
- * are used, so falling blocks never are.
- *
- * <p>With "One material per colour", a cell whose material lacks the slabs or stairs the shape uses swaps to the
- * closest material that has them, for its full blocks too, and its other pieces follow that material.
- *
- * <p>Each answer is worked out once per pattern cell and piece type, so painting costs little per block.
- */
 public final class Ladder {
-    /**
-     * Why a block was chosen, for the status line: its own material, the closest colour, the Blocks tab's choice
-     * because nothing else fit, a gap where it would have joined fences differently, or an empty pattern cell.
-     */
     public enum Why { OWN, CLOSEST, BLOCKS_TAB, GAP, EMPTY }
 
     private static final Family[] FAMILIES = Family.values();
@@ -44,7 +22,6 @@ public final class Ladder {
     private final List<Family> needed = new ArrayList<>();
     private final Map<Family, Set<String>> allowed = new EnumMap<>(Family.class);
     private final Map<Family, List<String>> candidates = new EnumMap<>(Family.class);
-    /** The blocks chosen so far; a pick is an index into this, or -1 for the Blocks tab's choice. */
     final List<String> blocks = new ArrayList<>();
     private final Map<String, Integer> index = new HashMap<>();
     private final int[][] pick;
@@ -52,10 +29,6 @@ public final class Ladder {
     private final String[] base;
     private List<String> swapTo;
 
-    /**
-     * @param used           piece types the shape has at least one of
-     * @param shapeConnects  whether the solve had fences, panes and walls attach to full blocks
-     */
     public Ladder(Catalog c, Palette p, boolean oneMaterial, boolean shapeConnects, Set<Family> used) {
         this.c = c; this.p = p; this.one = oneMaterial; this.shapeConnects = shapeConnects;
         connectors = used.contains(Family.FENCE) || used.contains(Family.PANE) || used.contains(Family.WALL);
@@ -69,7 +42,6 @@ public final class Ladder {
         base = new String[p.paletteSize()];
     }
 
-    /** The block for pattern cell {@code cell} (a palette index) as piece type {@code f}: an index into {@link #blocks}, or -1. */
     public int pick(int cell, Family f) {
         int k = f.ordinal();
         if (pick[cell][k] == UNSET) compute(cell, f);
@@ -107,11 +79,9 @@ public final class Ladder {
             else if (rgb >= 0 && (chosen = c.matcher().closest(rgb, candidates.get(f))) != null) reason = Why.CLOSEST;
         }
         if (f == Family.FULL && connectors) {
-            // Fences, panes and walls beside a full block must join it the way the solve assumed.
             if (chosen != null && attaches(chosen) != shapeConnects) { chosen = null; reason = Why.GAP; }
             String tab = c.choice().get(Family.FULL);
             if (chosen == null && tab != null && attaches(tab) != shapeConnects) {
-                // The Blocks tab's block would join wrongly too: the closest one that joins the right way.
                 int near = rgb >= 0 ? rgb : c.colours().getOrDefault(tab, -1);
                 if (near >= 0) chosen = c.matcher().closest(near, agreeing());
             }
@@ -136,7 +106,6 @@ public final class Ladder {
         return agreeing;
     }
 
-    /** The cell's material's base block, swapped for "One material per colour" when it lacks a piece the shape uses. */
     private String material(int cell, int rgb) {
         if (base[cell] != null) return base[cell].isEmpty() ? null : base[cell];
         String b = p.cell(cell).block();
@@ -149,7 +118,6 @@ public final class Ladder {
         return mat;
     }
 
-    /** Whether a material has a full block and every one of the slab and stairs the shape uses. */
     private boolean complete(String mat) {
         if (!allows(Family.FULL, c.variant(mat, Family.FULL))) return false;
         for (Family f : needed) if (!allows(f, c.variant(mat, f))) return false;

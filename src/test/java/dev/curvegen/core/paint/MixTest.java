@@ -65,7 +65,6 @@ class MixTest {
                 int size = 160;
                 for (int x = 0; x < size; x++) for (int y = 0; y < size; y++) for (int z = 0; z < 8; z++) n[l.at(x, y, z * 40)]++;
                 double total = n[0] + n[1] + n[2];
-                // Patches are lumps, so their shares wander more: about 1,000 lumps of 16 here, against 200,000 blocks.
                 double tol = a == Arrange.SCATTER ? .01 : patch < 10 ? .03 : .06;
                 assertEquals(.6, n[0] / total, tol, a + " " + patch);
                 assertEquals(.3, n[1] / total, tol, a + " " + patch);
@@ -73,7 +72,6 @@ class MixTest {
             }
     }
 
-    /** The average length of runs of the same entry along one axis, over a cube. */
     private static double run(MixLayout l, int axis) {
         int size = 96, runs = 0, cells = 0;
         for (int a = 0; a < size; a++)
@@ -91,7 +89,6 @@ class MixTest {
 
     @Test
     void patchesAreLumpsTheSameEveryWayRoundAndGrowWithTheirSize() {
-        // Two equal blocks, so scatter's runs average 2 and patches' show their size.
         Mix mix = new Mix("two", List.of(A, B), new int[]{1, 1});
         double scatter = run(new MixLayout(mix, Arrange.SCATTER, 8, 1), 0);
         assertEquals(2, scatter, .1);

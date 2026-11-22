@@ -1,10 +1,8 @@
 package dev.curvegen.core.paint;
 
-/** CIELAB colours and the distance between them, which is how close two block colours look. */
 public final class Lab {
     private Lab() {}
 
-    /** {L, a, b} for a colour 0xRRGGBB. */
     public static double[] of(int rgb) {
         double r = lin(((rgb >> 16) & 0xFF) / 255.0), g = lin(((rgb >> 8) & 0xFF) / 255.0), b = lin((rgb & 0xFF) / 255.0);
         double x = (0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047;
