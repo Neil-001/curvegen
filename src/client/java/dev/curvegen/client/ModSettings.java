@@ -16,40 +16,24 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * The mod's own options, saved in {@code .minecraft/config/curvegen/settings.json}. They're plain static fields:
- * read them anywhere on the client, and call {@link #save()} after changing one.
- */
 public final class ModSettings {
     private ModSettings() {}
 
-    /** The limits the settings screen and the file reader both keep each number within. */
     public static final double HOLD_MIN = 0.5, HOLD_MAX = 10, BAR_DELAY_MAX = 5, HANDLE_MIN = 0.05, HANDLE_MAX = 1,
             PICK_MIN = 0.1, PICK_MAX = 2, OPACITY_MIN = 0.1, OPACITY_MAX = 1;
     public static final int BLOCK_LIMIT_MAX = 1_000_000;
 
-    /** How long a nudge or bump key is held before the number box opens. */
     public static double holdSeconds;
-    /** How long a key is held before the progress bar shows. */
     public static double barDelaySeconds;
-    /** False: the radial menu is open while its key is held. True: one press opens it and another closes it. */
     public static boolean radialToggle;
-    /** False: the radial menu's ring is an oval stretched like the menu, with even slices. True: it's a circle, with uneven ones. */
     public static boolean radialRound;
-    /** The radial menu's wedge ids in display order. Empty means the default order. */
     public static List<String> radialOrder;
-    /** The size of the in-world drag handles, in blocks. */
     public static double handleSize;
-    /** How close the crosshair must pass to a handle to pick it, in blocks. */
     public static double pickRadius;
     public static double hologramOpacity;
-    /** Above this many blocks the hologram shows only its outline. */
     public static int hologramBlockLimit;
-    /** Reverses which way scrolling moves a handle while it's dragged. */
     public static boolean invertDragScroll;
-    /** Whether a hologram's keys are listed on screen. */
     public static boolean showKeyHints;
-    /** Whether a hologram's shape, size and block counts are shown on screen. Warnings and errors show either way. */
     public static boolean showShapeInfo;
 
     static { reset(); }
@@ -76,7 +60,6 @@ public final class ModSettings {
     public static void load() { load(file()); }
     public static void save() { save(file()); }
 
-    /** Reads the file. A missing or unreadable file leaves every setting at its default. */
     public static void load(Path file) {
         reset();
         if (!Files.isRegularFile(file)) return;
@@ -88,7 +71,6 @@ public final class ModSettings {
         }
     }
 
-    /** Writes the file atomically: to a temporary file first, then over the real one. */
     public static void save(Path file) {
         try {
             Files.createDirectories(file.getParent());
@@ -104,10 +86,6 @@ public final class ModSettings {
         }
     }
 
-    /**
-     * Takes every setting from the JSON text. A setting that's missing, of the wrong type or outside its limits gets
-     * its default, and unknown names are ignored. Returns false if the text isn't a JSON object at all.
-     */
     public static boolean read(String json) {
         reset();
         JsonObject o;
@@ -160,7 +138,7 @@ public final class ModSettings {
         if (e == null || !e.isJsonPrimitive() || !e.getAsJsonPrimitive().isNumber()) return fallback;
         double v;
         try { v = e.getAsDouble(); } catch (NumberFormatException _) { return fallback; }
-        return v >= min && v <= max ? v : fallback;   // NaN fails both comparisons
+        return v >= min && v <= max ? v : fallback;
     }
 
     private static boolean flag(JsonObject o, String name, boolean fallback) {

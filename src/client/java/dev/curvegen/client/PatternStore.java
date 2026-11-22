@@ -22,35 +22,25 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
-/**
- * The pattern library: saved patterns, one JSON file each in {@code .minecraft/config/curvegen/patterns/}, holding
- * {@link Pattern#encode}'s text with a version, a pin and when it was saved. The first time it's used, the folder
- * starts out with the bundled patterns, whose names stay translation keys until the player renames them.
- */
 public final class PatternStore {
     private PatternStore() {}
 
-    /** Bumped when a pattern file's layout changes in a way older versions can't read. */
     private static final int FORMAT_VERSION = 1;
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
 
     public static final class Saved {
         public Pattern pattern;
         public boolean pinned;
-        /** Last saved or renamed, in milliseconds. */
         public long saved;
         private Path file;
 
-        /** The name as the player sees it: a bundled pattern's is translated. */
         public String name() { return shownName(pattern); }
     }
 
     private static List<Saved> all;
 
-    /** A pattern's name as the player sees it: a bundled pattern's is translated. */
     public static String shownName(Pattern p) { return shownName(p.name); }
 
-    /** A pattern's or a mix's stored name as the player sees it: one from a bundled pattern is translated. */
     public static String shownName(String name) { return name.startsWith(Pattern.BUNDLED) ? tr(name) : name; }
 
     private static Path dir() { return CurveGenClient.platform.configDir().resolve("curvegen").resolve("patterns"); }
@@ -64,7 +54,7 @@ public final class PatternStore {
             for (int i = 0; i < Patterns.BUNDLED.size(); i++) {
                 Saved s = new Saved();
                 s.pattern = Patterns.BUNDLED.get(i);
-                s.saved = t - i;   // keeps them in their own order
+                s.saved = t - i;
                 all.add(s);
                 write(s);
             }
@@ -77,7 +67,6 @@ public final class PatternStore {
             dev.curvegen.CurveGen.LOGGER.warn(tr("curvegen.log.patterns_list"), e);
             return all;
         }
-        // Files that can't be read are skipped and left alone: new patterns never take their names.
         for (Path f : files) {
             try {
                 Saved s = read(Files.readString(f));
@@ -94,7 +83,6 @@ public final class PatternStore {
         return all;
     }
 
-    /** A pattern file's contents, or null when it isn't a whole, valid pattern this version can read. */
     static Saved read(String json) {
         try {
             JsonElement root = JsonParser.parseString(json);
@@ -124,23 +112,19 @@ public final class PatternStore {
         return GSON.toJson(o);
     }
 
-    /** Every saved pattern: pinned first, then the most recently saved. */
     public static List<Saved> list() {
         List<Saved> out = new ArrayList<>(all());
         out.sort(Comparator.comparing((Saved s) -> !s.pinned).thenComparing(s -> -s.saved));
         return out;
     }
 
-    /** The saved pattern shown under this name, ignoring case, or null. */
     public static Saved find(String name) {
         for (Saved s : all()) if (s.name().equalsIgnoreCase(name.trim())) return s;
         return null;
     }
 
-    /** A name for a new pattern that no saved one has yet. */
     public static String unique(String name) { return PatternNames.unique(name, n -> find(n) != null); }
 
-    /** Saves a new pattern, or replaces the one of the same name, which keeps its pin. */
     public static Saved save(Pattern p) {
         Saved s = find(p.name);
         if (s == null) { s = new Saved(); all().add(s); }
@@ -168,7 +152,6 @@ public final class PatternStore {
         }
     }
 
-    /** The file named after the pattern, or "-2", "-3"… after it if another file has that name. */
     private static Path fileFor(Saved s) {
         String stem = PatternNames.fileStem(s.pattern.name);
         for (int i = 1; ; i++) {
@@ -177,7 +160,6 @@ public final class PatternStore {
         }
     }
 
-    /** Writes one pattern atomically, moving it to a file named after its new name after a rename. */
     private static void write(Saved s) {
         try {
             Files.createDirectories(dir());

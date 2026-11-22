@@ -6,7 +6,6 @@ import dev.curvegen.core.ShapeSettings;
 import dev.curvegen.core.edit.Orient;
 import org.junit.jupiter.api.Test;
 
-/** A drawing can take over a hologram from a 3D shape that was turned any way up. */
 class Shape2DOrientTest {
     @Test
     void anyOrientationBecomesOneADrawingAllows() {

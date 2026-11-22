@@ -27,24 +27,15 @@ import net.minecraft.nbt.NbtUtils;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 
-/**
- * Writes a single-region Litematica schematic into the game's schematics folder.
- * Upright shapes: the drawing's x axis runs east, its y axis up, and depth runs south.
- * Flat shapes: x runs east, the drawing's y runs north, and layers stack up. Rotate in Litematica as needed.
- * A hologram exports as it stands in the world.
- */
 public final class LitematicExporter {
     private LitematicExporter() {}
 
-    /** Litematica reads older schematic versions and upgrades them, so version 6 is the safe choice. */
     private static final int SCHEMATIC_VERSION = 6, SUB_VERSION = 1;
 
-    /** Exports a solved 2D shape, with its paint, or with {@code painted} null in the Blocks tab's blocks. A pattern's holes stay air. */
     public static Path export(Solver.Result r, int depth, Painted painted, String baseName, String author) throws IOException {
         Layout layout = Layout.of(r);
         int d = Math.max(1, depth);
         boolean floor = r.floor();
-        // Upright: drawing x → east, y → up, depth → south. Flat: drawing x → east, y → north, layers → up.
         int sx = layout.width(), sy = floor ? d : layout.height(), sz = floor ? layout.height() : d;
         Region region = new Region(sx, sy, sz);
         Direction forward = floor ? Direction.NORTH : Direction.SOUTH;
@@ -57,7 +48,6 @@ public final class LitematicExporter {
         return region.write(baseName, author);
     }
 
-    /** Exports blocks as they stand in the world, such as a hologram's: x east, y up and z south. The list mustn't be empty. */
     public static Path export(List<EditShape.Placed> blocks, String baseName, String author) throws IOException {
         int[] lo = {Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE}, hi = {Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE};
         for (EditShape.Placed p : blocks) {
@@ -69,7 +59,6 @@ public final class LitematicExporter {
         return region.write(baseName, author);
     }
 
-    /** One region's blocks as palette indices, in Litematica's order: x fastest, then z, then y. */
     private static final class Region {
         final int sx, sy, sz;
         final int[] values;

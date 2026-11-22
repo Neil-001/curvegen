@@ -29,39 +29,24 @@ import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Vector3fc;
 
-/**
- * Capturing a pattern from the world: the player right-clicks two corners of a box, names it, and it is saved to the
- * pattern library. The Cancel key backs out a step at a time: the second corner, the first, then out of capture. The
- * box is outlined from the first click, with the pattern's size beside the crosshair, and a line at the top of the
- * screen says what the next click does. The pattern lies as the player sees the box when they click the second corner
- * ({@link Flatten}), and a box too big for a pattern that way is refused then.
- *
- * <p>Each loader passes it mouse buttons before the editor, and draws its box and its lines beside the editor's. It
- * only takes right clicks, so a hologram that is out keeps its handles.
- */
 public final class Capture {
     private Capture() {}
 
-    /** How far away a corner can be marked. */
     private static final int REACH = 64;
     private static final int LINE = 0xFFFFFFFF, TOO_BIG = 0xFFFF5566;
 
     private enum Step { OFF, FIRST, SECOND, NAMING }
     private static Step step = Step.OFF;
     private static BlockPos first, second;
-    /** What to do with the pattern once it's named and saved. */
     private static Consumer<Pattern> done;
-    /** Buttons whose press was taken, so their release is taken too. */
     private static int swallowed;
 
     public static boolean isActive() { return step != Step.OFF; }
 
-    /** Starts waiting for the first corner. {@code onSaved} gets the pattern once it's been named and saved. */
     public static void start(Consumer<Pattern> onSaved) {
         step = Step.FIRST; first = null; second = null; done = onSaved;
     }
 
-    /** The Cancel key: back out one step. */
     public static void back() {
         switch (step) {
             case SECOND, NAMING -> { step = Step.FIRST; first = null; second = null; }
@@ -73,27 +58,20 @@ public final class Capture {
         }
     }
 
-    /** Its release then goes to whatever screen is open, or to a game that never saw the press, so nothing is owed. */
     private static void stop() { step = Step.OFF; first = null; second = null; done = null; swallowed = 0; }
 
-    /** Call every client tick. Naming that was cancelled goes back to waiting for the second corner. */
     public static void tick(Minecraft mc) {
         if (step == Step.OFF) return;
         if (mc.player == null || mc.level == null) { stop(); return; }
         if (step == Step.NAMING && mc.gui.screen() == null) { step = Step.SECOND; second = null; }
     }
 
-    /** The block the player is looking at, within reach, or null. */
     private static BlockPos looking(Minecraft mc) {
         if (mc.player == null) return null;
         HitResult hit = mc.player.pick(REACH, 1f, false);
         return hit instanceof BlockHitResult b && hit.getType() == HitResult.Type.BLOCK ? b.getBlockPos() : null;
     }
 
-    /**
-     * A mouse button went down or up while no screen was open. Returns true when capture used it, and the game and
-     * the editor should then not see it.
-     */
     public static boolean mouseButton(int button, boolean pressed) {
         int bit = 1 << button;
         if (!pressed) {
@@ -123,7 +101,7 @@ public final class Capture {
         if (p == null) { Placement.say(Lang.component("curvegen.capture.nothing")); return true; }
         second = at;
         step = Step.NAMING;
-        swallowed &= ~bit;   // the release goes to the dialog
+        swallowed &= ~bit;
         name(mc, p);
         return true;
     }
@@ -134,7 +112,6 @@ public final class Capture {
         return new int[]{Math.abs(a.getX() - b.getX()) + 1, Math.abs(a.getY() - b.getY()) + 1, Math.abs(a.getZ() - b.getZ()) + 1};
     }
 
-    /** How the pattern lies in the box as the player sees it now. */
     private static Flatten.Frame frame(Minecraft mc, BlockPos lo, int[] size) {
         var cam = mc.gameRenderer.mainCamera();
         Vec3 eye = cam.position();
@@ -143,7 +120,6 @@ public final class Capture {
                 new double[]{look.x(), look.y(), look.z()}, new double[]{up.x(), up.y(), up.z()});
     }
 
-    /** The pattern of the box from {@code lo}, or null when it holds no block a pattern can use. */
     private static Pattern read(Minecraft mc, BlockPos lo, int[] size, Flatten.Frame f) {
         Set<Block> full = new HashSet<>(BlockChoices.candidates(Family.FULL));
         Pattern p = Flatten.flatten("", size, f, (x, y, z) -> PaintBlocks.cell(mc.level.getBlockState(lo.offset(x, y, z)), full));
@@ -151,7 +127,6 @@ public final class Capture {
         return null;
     }
 
-    /** Asks for a name, then saves the pattern and hands it on. Cancelling goes back to the second corner. */
     private static void name(Minecraft mc, Pattern p) {
         String suggested = PatternStore.unique(tr("curvegen.capture.default_name"));
         mc.gui.setScreen(new NameDialogScreen(null, tr("curvegen.capture.name_title"), suggested, name -> {
@@ -167,9 +142,7 @@ public final class Capture {
         }));
     }
 
-    // ---------- drawing ----------
 
-    /** Outlines the box from the first corner to the second, or to the block looked at while the second is to come. */
     public static void render(SubmitNodeCollector out, PoseStack ms, Vec3 cam) {
         Minecraft mc = Minecraft.getInstance();
         if (first == null || mc.player == null) return;
@@ -184,7 +157,6 @@ public final class Capture {
         ms.pushPose();
         ms.translate(-cx, -cy, -cz);
         Editor.Lines lines = new Editor.Lines();
-        // A little outside the blocks, so the lines don't hide in their faces.
         double e = 0.005, x0 = -e, y0 = -e, z0 = -e, x1 = size[0] + e, y1 = size[1] + e, z1 = size[2] + e;
         for (int a = 0; a <= 1; a++)
             for (int b = 0; b <= 1; b++) {
@@ -199,7 +171,6 @@ public final class Capture {
         ms.popPose();
     }
 
-    /** The hint line at the top left, where the editor's lines go while it's out, and the box's size by the crosshair. */
     public static void renderHud(GuiGraphicsExtractor dc) {
         Minecraft mc = Minecraft.getInstance();
         if ((step != Step.FIRST && step != Step.SECOND) || mc.player == null || mc.gui.screen() != null) return;

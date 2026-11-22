@@ -17,31 +17,21 @@ import java.nio.file.StandardCopyOption;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/**
- * The player's paint settings, with a copy of the pattern, and the Blocks tab: the block chosen for each piece type,
- * which paint falls back to, and which piece types are used. They're kept in
- * {@code .minecraft/config/curvegen/paint.json} and {@code blocks.json} so they survive a restart, as
- * {@link Paint#capture} and {@link BlockChoices#captureChoices} write them. {@link #tick} saves them soon after they
- * change.
- */
 public final class PaintStore {
     private PaintStore() {}
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
     private static final long SAVE_AFTER_MS = 1000;
-    /** What was last read or written, and when the settings were first seen to differ from it. */
     private static Paint saved;
     private static Map<String, String> savedBlocks;
     private static long changedAt;
 
     private static Path file(String name) { return CurveGenClient.platform.configDir().resolve("curvegen").resolve(name); }
 
-    /** Reads the paint file into the live settings. A missing or unreadable file leaves them as they are. */
     public static void load() {
         Paint p = CurveGenClient.SETTINGS.paint;
         Map<String, String> d = readFile(file("paint.json"));
         if (d != null) p.apply(d);
-        // A gradient needs Chroma Studio. Without it the gradient is kept, for when it's back, but nothing is painted.
         if (p.source == Paint.Source.GRADIENT && !Chroma.available()) {
             p.source = Paint.Source.OFF;
             noGradient = true;
@@ -49,10 +39,6 @@ public final class PaintStore {
         saved = p.copy();
     }
 
-    /**
-     * Reads the block choices, the same way. NeoForge registers other mods' blocks after the client entrypoint runs,
-     * so this waits for the first tick. Fences, panes and walls then attach as the restored blocks and paint say.
-     */
     private static void loadBlocks() {
         Map<String, String> d = readFile(file("blocks.json"));
         if (d != null) BlockChoices.applyChoices(d, CurveGenClient.SETTINGS, BlockChoices.CHOICE);
@@ -60,7 +46,6 @@ public final class PaintStore {
         savedBlocks = BlockChoices.captureChoices(CurveGenClient.SETTINGS, BlockChoices.CHOICE);
     }
 
-    /** The file's settings, or null when it's missing or unreadable, which the log says. */
     private static Map<String, String> readFile(Path f) {
         if (!Files.isRegularFile(f)) return null;
         try {
@@ -73,7 +58,6 @@ public final class PaintStore {
         }
     }
 
-    /** The text's settings, or null when it isn't a JSON object. Values that aren't text are skipped. */
     static Map<String, String> read(String json) {
         try {
             JsonElement root = JsonParser.parseString(json);
@@ -93,13 +77,8 @@ public final class PaintStore {
         return GSON.toJson(o);
     }
 
-    /** Whether loading turned a gradient's paint off, for want of Chroma Studio, and the player hasn't been told yet. */
     private static boolean noGradient;
 
-    /**
-     * Call every client tick. Saves a second after the settings last changed, so a scroll through values writes once.
-     * Once the player is in a world, says why paint saved with a gradient came back off.
-     */
     public static void tick() {
         if (noGradient && net.minecraft.client.Minecraft.getInstance().player != null) {
             noGradient = false;
