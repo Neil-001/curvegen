@@ -23,12 +23,10 @@ import org.junit.jupiter.api.Test;
 class RadialTest {
     @Test
     void theCursorsDirectionPicksTheWedge() {
-        // Four wedges: up, right, down, left. Screen y runs downwards.
         assertEquals(0, Radial.wedgeAt(0, -50, 4, 9, 1, true));
         assertEquals(1, Radial.wedgeAt(50, 0, 4, 9, 1, true));
         assertEquals(2, Radial.wedgeAt(0, 50, 4, 9, 1, true));
         assertEquals(3, Radial.wedgeAt(-50, 0, 4, 9, 1, true));
-        // A wedge reaches halfway to its neighbours, however far out the cursor is.
         assertEquals(0, Radial.wedgeAt(40, -50, 4, 9, 1, true));
         assertEquals(1, Radial.wedgeAt(50, -40, 4, 9, 1, true));
         assertEquals(0, Radial.wedgeAt(-400, -500, 4, 9, 1, true));
@@ -46,7 +44,6 @@ class RadialTest {
 
     @Test
     void aStretchedMenusWedgesAreSlicesOfAnOval() {
-        // Twice as wide as tall: the corner of a square is now in the top wedge. The dead centre stays round.
         assertEquals(1, Radial.wedgeAt(50, -40, 4, 9, 1, true));
         assertEquals(0, Radial.wedgeAt(50, -40, 4, 9, 2, true));
         assertEquals(1, Radial.wedgeAt(90, -40, 4, 9, 2, true));
@@ -58,20 +55,17 @@ class RadialTest {
 
     @Test
     void theStretchedRingsDeadCentreIsAnOvalToo() {
-        // The same directions as the round ring's, but the dead centre is twice as wide as it is tall.
         assertEquals(0, Radial.wedgeAt(50, -40, 4, 9, 2, false));
         assertEquals(1, Radial.wedgeAt(90, -40, 4, 9, 2, false));
         assertEquals(-1, Radial.wedgeAt(17, 0, 4, 9, 2, false));
         assertEquals(1, Radial.wedgeAt(19, 0, 4, 9, 2, false));
         assertEquals(-1, Radial.wedgeAt(0, -8, 4, 9, 2, false));
         assertEquals(0, Radial.wedgeAt(0, -10, 4, 9, 2, false));
-        // Unstretched, the two rings pick alike.
         for (double x = -30; x <= 30; x += 1.5)
             for (double y = -30; y <= 30; y += 1.5)
                 assertEquals(Radial.wedgeAt(x, y, 5, 9, 1, true), Radial.wedgeAt(x, y, 5, 9, 1, false));
     }
 
-    /** Screens of several shapes and GUI scales, as the size the menu is laid out in. */
     private static final int[][] SCREENS = {{427, 240}, {320, 240}, {640, 360}, {960, 540}, {1920, 1080}, {860, 360}, {300, 500}};
 
     @Test
@@ -114,13 +108,11 @@ class RadialTest {
                         int w = ring[j * size + i];
                         if (w < 0) continue;
                         pixels[w]++;
-                        // Anywhere on the pixel, not only at its centre.
                         for (double[] in : new double[][]{{0.5, 0.5}, {0.05, 0.05}, {0.95, 0.05}, {0.05, 0.95}, {0.95, 0.95}})
                             assertEquals(w, Radial.wedgeAt(i + in[0] - Radial.RING, j + in[1] - Radial.RING, n, 0, stretch, true),
                                     screen[0] + " wide, " + n + " wedges: pixel " + i + ", " + j);
                     }
                 for (int k = 0; k < n; k++) assertTrue(pixels[k] >= 20, screen[0] + " wide, " + n + " wedges: wedge " + k + " has a slice to show");
-                // Each slice points at its own label.
                 int[][] at = Radial.labels(n, 0, 0, r[0], r[1]);
                 for (int k = 0; k < n; k++) {
                     double lx = at[k][0] + Radial.LABEL_W / 2.0, ly = at[k][1] + Radial.LABEL_H / 2.0, far = Math.hypot(lx, ly);
@@ -155,7 +147,6 @@ class RadialTest {
                         lo[0] = Math.min(lo[0], i); hi[0] = Math.max(hi[0], i);
                         lo[1] = Math.min(lo[1], j); hi[1] = Math.max(hi[1], j);
                     }
-                // The oval can end up to a pixel inside its box, which is a whole number of pixels wide.
                 assertTrue(lo[0] <= 1 && hi[0] >= wide - 2, screen[0] + " wide, " + n + " wedges: it reaches its box's sides");
                 assertArrayEquals(new int[]{0, high - 1}, new int[]{lo[1], hi[1]}, "and its top and bottom");
             }
@@ -177,18 +168,15 @@ class RadialTest {
                         int w = ring[j * wide + i];
                         if (w < 0) continue;
                         pixels[w]++;
-                        // The gap between two slices is about a pixel, so most of a drawn pixel is inside its wedge.
                         for (double[] in : new double[][]{{0.5, 0.5}, {0.25, 0.25}, {0.75, 0.25}, {0.25, 0.75}, {0.75, 0.75}})
                             assertEquals(w, Radial.wedgeAt(i + in[0] - half, j + in[1] - Radial.RING, n, 0, stretch, false),
                                     screen[0] + " wide, " + n + " wedges: pixel " + i + ", " + j);
-                        // The hole is the picking's dead centre.
                         assertEquals(w, Radial.wedgeAt(i + 0.5 - half, j + 0.5 - Radial.RING, n, Radial.RING_IN, stretch, false));
                     }
                 int least = Integer.MAX_VALUE, most = 0;
                 for (int k = 0; k < n; k++) { least = Math.min(least, pixels[k]); most = Math.max(most, pixels[k]); }
                 assertTrue(least >= 20, screen[0] + " wide, " + n + " wedges: every wedge has a slice to show");
                 assertTrue(most - least <= 0.15 * most, screen[0] + " wide, " + n + " wedges: slices of " + least + " to " + most + " pixels are even");
-                // Each slice points at its own label.
                 int[][] at = Radial.labels(n, 0, 0, r[0], r[1]);
                 for (int k = 0; k < n; k++) {
                     double lx = (at[k][0] + Radial.LABEL_W / 2.0) / stretch, ly = at[k][1] + Radial.LABEL_H / 2.0, far = Math.hypot(lx, ly);
@@ -206,14 +194,12 @@ class RadialTest {
         assertEquals(213, Radial.centre(427, true));
         assertEquals(120, Radial.centre(240, false));
         assertEquals(120, Radial.centre(240, true));
-        // A 427 by 240 screen with four wedges: these two cursors are where the half pixel shows.
         int[] r = Radial.radii(427, 240);
         double stretch = Radial.stretch(r[0], r[1]);
         assertEquals(0, Radial.wedgeAt(247 - Radial.centre(427, false), 103 - Radial.centre(240, false), 4, Radial.RING_IN, stretch, false));
         assertEquals(-1, Radial.wedgeAt(231 - Radial.centre(427, false), 120 - Radial.centre(240, false), 4, Radial.RING_IN, stretch, false));
     }
 
-    /** The round ring's slices are uneven on a stretched menu, which is what the stretched ring is for. */
     @Test
     void onlyTheRoundRingsSlicesAreUneven() {
         int[] r = Radial.radii(427, 240);
@@ -223,10 +209,6 @@ class RadialTest {
         assertTrue(pixels[0] > 1.5 * pixels[1], "the top slice of " + pixels[0] + " pixels is wider than the side one of " + pixels[1]);
     }
 
-    /**
-     * The stretched ring's pixels and picking are as they were before the round ring came: these two numbers were
-     * worked out with that code. Change them only on purpose.
-     */
     @Test
     void theStretchedRingIsAsItWas() {
         int pixels = 0;
@@ -260,7 +242,6 @@ class RadialTest {
         }
     }
 
-    /** The convention is that nothing overlaps on a 427 px wide screen, which is 240 high. */
     @Test
     void labelsFitTheSmallestScreenWithoutOverlapping() {
         int width = 427, height = 240, ring = Radial.RING;
@@ -309,10 +290,8 @@ class RadialTest {
     void aSavedOrderKeepsItsOrderAndTheRestFollowTheirNeighbours() {
         assertEquals(List.of("options", "place", "cancel", "blocks", "paint", "presets", "export", "full"),
                 Radial.order(Radial.EDIT, List.of("place", "blocks")));
-        // A wedge added since the order was saved turns up after the one before it by default: Paint beside Blocks.
         assertEquals(List.of("cancel", "place", "full", "export", "presets", "blocks", "paint", "options"),
                 Radial.order(Radial.EDIT, List.of("cancel", "place", "full", "export", "presets", "blocks", "options")));
-        // Unknown ids, another menu's ids and repeats are skipped.
         assertEquals(List.of("2d", "3d", "presets", "last", "capture"), Radial.order(Radial.START, List.of("nonsense", "place", "last", "last")));
     }
 
@@ -324,7 +303,6 @@ class RadialTest {
         assertEquals(start, Radial.order(Radial.START, saved));
         assertEquals(edit, Radial.order(Radial.EDIT, saved));
         assertEquals(List.of(), Radial.merge(Radial.START, Radial.EDIT), "the default order is saved as nothing");
-        // Presets first in one menu and last in the other.
         start = List.of("presets", "2d", "capture", "3d", "last");
         edit = List.of("options", "paint", "blocks", "export", "full", "place", "cancel", "presets");
         saved = Radial.merge(start, edit);
@@ -338,11 +316,6 @@ class RadialTest {
         for (String id : Radial.EDIT) assertNotEquals(id, Radial.name(id));
     }
 
-    /**
-     * The game's default font's advances, from its bitmaps as the game works them out: the last column with any pixel,
-     * scaled to the line, plus one. The rest of the characters come from Unifont, which the game downloads, so they
-     * count as Unifont's usual wide glyph: 16 pixels at half size, plus one.
-     */
     private static Map<Integer, Integer> fontAdvances() throws Exception {
         Map<Integer, Integer> advance = new HashMap<>();
         advance.put((int) ' ', 4);
@@ -364,7 +337,7 @@ class RadialTest {
             for (int r = 0; r < rows.size(); r++) {
                 int[] cps = rows.get(r).getAsString().codePoints().toArray();
                 for (int c = 0; c < cps.length; c++) {
-                    if (cps[c] == 0 || advance.containsKey(cps[c])) continue;   // the first provider with a character wins
+                    if (cps[c] == 0 || advance.containsKey(cps[c])) continue;
                     int last = -1;
                     for (int x = 0; x < cw; x++)
                         for (int y = 0; y < ch; y++)
@@ -376,16 +349,9 @@ class RadialTest {
         return advance;
     }
 
-
-    /**
-     * The radial menu's top page and its Paint page, in every language: each wedge's name and each value it can show in
-     * words fits the 72 pixels inside a label, so none is cut. Names of patterns, mixes and gradients are left out: the
-     * menu cuts a long one and the wedge's tip gives the whole name.
-     */
     @Test
     void theTopAndPaintWedgesFitTheirLabelsInEveryLanguage() throws Exception {
         Map<Integer, Integer> advance = fontAdvances();
-        // Widths the game itself measured, in English, Russian and Japanese.
         for (Object[] seen : new Object[][]{{"Choose a gradient", 92}, {"Выбрать градиент", 95}, {"グラデーションを選ぶ", 90}, {"Mélange moussu", 79}})
             assertEquals(seen[1], ((String) seen[0]).codePoints().map(cp -> advance.getOrDefault(cp, 9)).sum(), (String) seen[0]);
         Set<String> keys = new LinkedHashSet<>(List.of("curvegen.radial.back", "curvegen.radial.paint.choose"));

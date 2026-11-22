@@ -32,11 +32,9 @@ class BoxTest {
     @Test
     void aThinDimensionKeepsOneLayerOfHandlesAndItsOwnTwoFaces() {
         assertEquals(26, Box.handles(new int[]{8, 4, 3}, 1.25).length, "nothing is thin");
-        // One block deep: the middle layer's four faces and four edges, and the front and back faces.
         Set<String> thin = names(Box.handles(new int[]{8, 4, 1}, 1.25));
         assertEquals(Set.of("1,0,0", "-1,0,0", "0,1,0", "0,-1,0", "1,1,0", "1,-1,0", "-1,1,0", "-1,-1,0", "0,0,1", "0,0,-1"), thin);
         assertEquals(thin, names(Box.handles(new int[]{8, 4, 2}, 1.25)), "two deep puts the layers a block apart");
-        // A column: every face still has its handle, so it can grow along any axis.
         assertEquals(Set.of("1,0,0", "-1,0,0", "0,1,0", "0,-1,0", "0,0,1", "0,0,-1"), names(Box.handles(new int[]{1, 9, 1}, 1.25)));
         assertEquals(6, Box.handles(new int[]{1, 1, 1}, 1.25).length);
     }
@@ -81,7 +79,6 @@ class BoxTest {
         int[] size = box.dragSize(east, new double[]{20, NAN, NAN}, true);
         assertArrayEquals(new int[]{12, 4, 2}, size);
         assertEquals(new Box(8, 60, 20, 12, 4, 2), box.fit(east, true, size));
-        // Dragged right through the middle, an even width stops at 2 and an odd one at 1, so the centre never shifts.
         assertEquals(2, box.dragSize(east, new double[]{0, NAN, NAN}, true)[0]);
         assertEquals(1, new Box(0, 0, 0, 7, 1, 1).dragSize(east, new double[]{-9, NAN, NAN}, true)[0]);
         assertEquals(new Box(3, 0, 0, 1, 1, 1), new Box(0, 0, 0, 7, 1, 1).fit(east, true, new int[]{1, 1, 1}));
@@ -89,7 +86,6 @@ class BoxTest {
 
     @Test
     void anAxisThatChangedWithoutBeingDraggedKeepsItsCentreOrItsBottom() {
-        // Dragging the east face of a locked equation also makes it taller and, flat, longer.
         Box b = box.fit(new int[]{1, 0, 0}, false, new int[]{12, 8, 6});
         assertEquals(new Box(10, 60, 18, 12, 8, 6), b);
     }
@@ -117,13 +113,10 @@ class BoxTest {
 
     @Test
     void regrowFollowsTheShapesOwnCorner() {
-        // Own x east: the grid grew 3 cells to the left, so the box's west side moves out by 3.
         Orient east = new Orient(Orient.EAST, Orient.UP, Orient.SOUTH);
         assertEquals(new Box(7, 60, 20, 11, 4, 2), box.regrown(east, new int[]{-3, 0, 0}, new int[]{11, 4, 2}));
-        // Own x west: the grid's left is the box's east side, so that's the side that moves out.
         Orient west = new Orient(Orient.WEST, Orient.UP, Orient.NORTH);
         assertEquals(new Box(10, 60, 20, 11, 4, 2), box.regrown(west, new int[]{-3, 0, 0}, new int[]{11, 4, 2}));
-        // Growing at the far end (no shift) is the other way round.
         assertEquals(new Box(7, 60, 20, 11, 4, 2), box.regrown(west, new int[]{0, 0, 0}, new int[]{11, 4, 2}));
     }
 }

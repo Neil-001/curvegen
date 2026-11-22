@@ -25,6 +25,8 @@ public interface Shape3 {
         return in ? n : -n;
     }
 
+    default boolean uniformRunsInAllDirections() { return false; }
+
     default boolean smooth() { return true; }
 
     default void lattice(int i, int j, int k, double[] lattice) {

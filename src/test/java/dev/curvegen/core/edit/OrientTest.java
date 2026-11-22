@@ -7,7 +7,6 @@ import org.junit.jupiter.api.Test;
 class OrientTest {
     @Test
     void facingPutsXToThePlayersRight() {
-        // Facing north, east is to the right.
         assertEquals(new Orient(Orient.EAST, Orient.UP, Orient.NORTH), Orient.facing(Orient.NORTH));
         assertEquals(new Orient(Orient.SOUTH, Orient.UP, Orient.EAST), Orient.facing(Orient.EAST));
     }
@@ -31,13 +30,13 @@ class OrientTest {
 
     @Test
     void sizesAndPointsGoThereAndBack() {
-        Orient o = new Orient(Orient.WEST, Orient.SOUTH, Orient.UP);   // flat, own y south
+        Orient o = new Orient(Orient.WEST, Orient.SOUTH, Orient.UP);
         int[] own = {7, 3, 2};
         assertArrayEquals(new int[]{7, 2, 3}, o.worldSize(own));
         assertArrayEquals(own, o.ownSize(o.worldSize(own)));
         double[] p = {1, 0.5, 2};
         double[] w = o.toWorld(p, own);
-        assertArrayEquals(new double[]{6, 2, 0.5}, w, 1e-12);   // own x runs west, so it counts from the east side
+        assertArrayEquals(new double[]{6, 2, 0.5}, w, 1e-12);
         assertArrayEquals(p, o.toOwn(w, own), 1e-12);
         assertEquals(1, o.ownAxis(2));
     }

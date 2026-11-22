@@ -14,7 +14,6 @@ import org.junit.jupiter.api.Test;
 class TurnedTest {
     private static final Orient UNTURNED = new Orient(Orient.EAST, Orient.UP, Orient.SOUTH);
 
-    /** Every way a shape can end up: four turns of each of the six ways its own y can point. */
     private static List<Orient> all() {
         List<Orient> out = new java.util.ArrayList<>();
         for (Orient base : new Orient[]{UNTURNED, UNTURNED.tip(Orient.NORTH), UNTURNED.tip(Orient.NORTH).tip(Orient.NORTH),
@@ -59,7 +58,7 @@ class TurnedTest {
             @Override public boolean symY() { return true; }
             @Override public List<double[]> wireframe() { return List.of(new double[]{1, 2, 3, 4, 5, 6}); }
         };
-        Orient tipped = UNTURNED.tip(Orient.NORTH);   // own y now runs north
+        Orient tipped = UNTURNED.tip(Orient.NORTH);
         Shape3 t = Turned.of(shape, tipped);
         assertFalse(t.symX());
         assertFalse(t.symY());
@@ -86,7 +85,6 @@ class TurnedTest {
                         boolean block = r.at(w[0], w[1], w[2]) != Pieces3.AIR;
                         if (block) filled++;
                         double d = shape.field(i + .5, j + .5, k + .5);
-                        // Well inside is a block and well outside is air, whichever way up the pieces had to go.
                         if (d < -0.9) assertEquals(Pieces3.FULL, r.at(w[0], w[1], w[2]), o + " at " + i + "," + j + "," + k);
                         if (d > 0.9) assertFalse(block, o + " at " + i + "," + j + "," + k);
                     }
@@ -96,7 +94,7 @@ class TurnedTest {
     }
 
     @Test
-    void aShapeWithItsOwnRunsIsOnlyTrustedOneBlockAtATime() {
+    void aDirectionalRunSurvivesOnlyWhenOwnPositiveXPointsEast() {
         Shape3 shape = new Shape3() {
             @Override public int nx() { return 8; }
             @Override public int ny() { return 8; }
@@ -105,10 +103,34 @@ class TurnedTest {
             @Override public int uniform(int i, int j, int k) { return i < 3 ? 3 - i : i > 4 ? -(8 - i) : 0; }
             @Override public List<double[]> wireframe() { return List.of(); }
         };
-        Shape3 t = Turned.of(shape, UNTURNED.turn());   // own x now runs south
-        assertEquals(1, t.uniform(5, 2, 0));
-        assertEquals(0, t.uniform(5, 2, 3));
-        assertEquals(-1, t.uniform(5, 2, 7));
+        for (Orient o : all()) {
+            Shape3 turned = Turned.of(shape, o);
+            for (int i : new int[]{0, 3, 5}) {
+                int[] cell = o.cell(i, 2, 2, new int[]{8, 8, 8});
+                int run = shape.uniform(i, 2, 2);
+                int expected = o.x() == Orient.EAST ? run : Integer.signum(run);
+                assertEquals(expected, turned.uniform(cell[0], cell[1], cell[2]), o.toString());
+            }
+        }
+    }
+
+    @Test
+    void distanceBoundShapesKeepFullRunsThroughTurnsAndTips() {
+        ShapeSettings ellipsoid = new ShapeSettings();
+        ellipsoid.gen = Gen.ELLIPSOID;
+        ellipsoid.e3Mode = ShapeSettings.EllipseMode.FILLED;
+        for (ShapeSettings settings : List.of(ellipsoid, torus())) {
+            Shape3 shape = Shape3.of(settings);
+            int[] size = {shape.nx(), shape.ny(), shape.nz()};
+            for (int[] at : new int[][]{{0, 0, 0}, {size[0] / 2, size[1] / 2, size[2] / 2}}) {
+                int run = shape.uniform(at[0], at[1], at[2]);
+                assertTrue(Math.abs(run) > 1, settings.gen + " run length " + run);
+                for (Orient o : all()) {
+                    int[] cell = o.cell(at[0], at[1], at[2], size);
+                    assertEquals(run, Turned.of(shape, o).uniform(cell[0], cell[1], cell[2]), o.toString());
+                }
+            }
+        }
     }
 
     @Test

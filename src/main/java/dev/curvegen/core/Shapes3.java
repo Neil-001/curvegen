@@ -79,6 +79,7 @@ public final class Shapes3 {
         @Override public int ny() { return ny; }
         @Override public int nz() { return nz; }
         @Override public int pad() { return pad; }
+        @Override public boolean uniformRunsInAllDirections() { return true; }
         @Override public double lo() { return lo; }
         @Override public double hi() { return hi; }
         @Override public boolean hollow() { return hollow; }
@@ -137,6 +138,7 @@ public final class Shapes3 {
         @Override public int ny() { return ny; }
         @Override public int nz() { return nz; }
         @Override public boolean hollow() { return hollow; }
+        @Override public boolean uniformRunsInAllDirections() { return true; }
         @Override public boolean smooth() { return minor * least >= 2 && (major - minor) * Math.min(sx, sz) >= 1; }
         @Override public double[] carve() { return hollow ? new double[]{Double.NEGATIVE_INFINITY, 0} : null; }
         @Override public boolean symX() { return true; }

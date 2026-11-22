@@ -112,6 +112,7 @@ public final class Editor {
         double coord;
         double[] offset = new double[3];
         double[] start, target;
+        double[] ownPoint, grabHit, dragHit;
         boolean scrolls;
         int away = 1;
         double scroll;
@@ -565,13 +566,15 @@ public final class Editor {
         Drag d = new Drag();
         d.handle = h; d.button = button; d.recorded = recorded;
         d.grab = snapshot();
-        d.start = handlePosition(h);
-        d.target = d.start.clone();
         if (h.isPoint()) {
+            d.ownPoint = shape.points().get(h.point);
+            d.start = pointInWorld(d.ownPoint);
             int plane = shape.pointPlane();
             d.normal = plane >= 0 ? Orient.worldAxis(orient.dir(plane)) : HandleMath.facingAxis(look);
             d.scrolls = plane < 0;
         } else {
+            d.start = box.handle(h.sign);
+            d.target = d.start.clone();
             int moving = 0, fixed = -1, only = -1;
             for (int a = 0; a < 3; a++) if (h.sign[a] != 0) { moving++; only = a; } else fixed = a;
             if (moving == 1) d.axis = only;
@@ -582,7 +585,10 @@ public final class Editor {
             d.coord = d.start[d.normal];
             d.away = look[d.normal] >= 0 ? 1 : -1;
             double[] hit = HandleMath.onPlane(eye, look, d.normal, d.coord, REACH);
-            if (hit != null) for (int a = 0; a < 3; a++) d.offset[a] = d.start[a] - hit[a];
+            if (h.isPoint()) {
+                d.grabHit = hit == null ? d.start : hit;
+                d.dragHit = d.grabHit.clone();
+            } else if (hit != null) for (int a = 0; a < 3; a++) d.offset[a] = d.start[a] - hit[a];
         } else {
             double t = HandleMath.alongAxis(eye, look, d.start, d.axis);
             if (!Double.isNaN(t)) d.offset[d.axis] = d.start[d.axis] - t;
@@ -602,8 +608,13 @@ public final class Editor {
         if (d.normal >= 0) {
             double coord = d.coord + (d.scrolls ? Math.round(d.scroll) * d.away : 0);
             double[] hit = HandleMath.onPlane(eye, look, d.normal, coord, REACH);
-            if (hit != null) for (int a = 0; a < 3; a++) d.target[a] = hit[a] + d.offset[a];
-            d.target[d.normal] = coord;
+            if (d.handle.isPoint()) {
+                if (hit != null) d.dragHit = hit;
+                d.dragHit[d.normal] = coord;
+            } else {
+                if (hit != null) for (int a = 0; a < 3; a++) d.target[a] = hit[a] + d.offset[a];
+                d.target[d.normal] = coord;
+            }
         } else {
             double t = HandleMath.alongAxis(eye, look, d.start, d.axis);
             if (!Double.isNaN(t) && Math.abs(t - eye[d.axis]) <= REACH) d.target[d.axis] = t + d.offset[d.axis];
@@ -613,9 +624,7 @@ public final class Editor {
         S.set(d.grab.settings);
         box = d.grab.box;
         if (d.handle.isPoint()) {
-            int[] ownSize = shape.size();
-            double[] rel = {d.target[0] - box.x(), d.target[1] - box.y(), d.target[2] - box.z()};
-            int[] shift = shape.movePoint(d.handle.point, orient.toOwn(rel, ownSize));
+            int[] shift = shape.movePoint(d.handle.point, orient.offsetPoint(d.ownPoint, d.grabHit, d.dragHit));
             if (shift != null) box = box.regrown(orient, shift, shape.size());
             pivot = null;
         } else {
@@ -631,8 +640,11 @@ public final class Editor {
     private static double[] eye = new double[3], look = {0, 0, 1};
 
     private static double[] handlePosition(Handle h) {
-        if (!h.isPoint()) return box.handle(h.sign);
-        double[] w = orient.toWorld(shape.points().get(h.point), shape.size());
+        return h.isPoint() ? pointInWorld(shape.points().get(h.point)) : box.handle(h.sign);
+    }
+
+    private static double[] pointInWorld(double[] point) {
+        double[] w = orient.toWorld(point, shape.size());
         return new double[]{box.x() + w[0], box.y() + w[1], box.z() + w[2]};
     }
 
