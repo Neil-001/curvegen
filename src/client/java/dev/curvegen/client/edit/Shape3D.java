@@ -22,21 +22,11 @@ import java.util.List;
 import java.util.function.BooleanSupplier;
 import net.minecraft.core.BlockPos;
 
-/**
- * The 3D shapes in the in-world editor. The volumetric solver works in the world's orientation, so turning or
- * tipping a shape changes which way its own axes point and solves it again.
- */
 final class Shape3D implements EditShape {
     private final ShapeSettings s;
 
     Shape3D(ShapeSettings s) { this.s = s; }
 
-    /**
-     * A solve, with the cells Carve clears (null while Carve was off) and whether colours match the top texture.
-     * {@code own} is the shape before it was turned, for its wireframe, with the kind and box it was solved for.
-     * {@code fullConnects} is whether fences attached to full blocks in the solve, {@code painter} repaints it, and
-     * {@code painted} is its paint, or null while it's unpainted.
-     */
     private record Solved(Solver3.Result result, BitSet carve, boolean topColours, Shape3 own, Gen gen, int[] size,
                           boolean fullConnects, Solve3Painter painter, Solve3Painter.Done painted) {}
 
@@ -63,7 +53,6 @@ final class Shape3D implements EditShape {
         double[] direct = Edit3D.curve(s);
         if (direct != null) return direct;
         if (s.gen == Gen.BEZIER3 || s.gen == Gen.SURFACE) return null;
-        // Tracing an equation's surface takes too long for every frame. The last solve's is stretched to the box as it is now.
         if (s.gen == Gen.EQUATION3) {
             if (!(solved instanceof Solved v) || v.gen != Gen.EQUATION3 || v.own.error() != null) return null;
             int[] size = size();
@@ -71,11 +60,9 @@ final class Shape3D implements EditShape {
         }
         Shape3 shape = Shape3.of(s);
         if (shape.error() != null) return null;
-        // The shape's box includes the room an outwards shell adds, and the handles' box doesn't.
         return segments(shape.wireframe(), shape.pad(), new double[]{1, 1, 1});
     }
 
-    /** Polylines as separate segments, moved in by {@code pad} and then stretched. */
     private static double[] segments(List<double[]> lines, int pad, double[] scale) {
         int n = 0;
         for (double[] line : lines) n += Math.max(0, line.length / 3 - 1);
@@ -94,7 +81,7 @@ final class Shape3D implements EditShape {
         if (r == null) return null;
         BitSet carve = copy.carve ? Solver3.carve(shape, cancelled) : null;
         if (cancelled.getAsBoolean()) return null;
-        if (own.error() == null) own.wireframe();   // traced here, off the client thread, and kept by the shape
+        if (own.error() == null) own.wireframe();
         return new Solved(r, carve, copy.topColours, own, copy.gen, Edit3D.size(copy), copy.fullConnects, new Solve3Painter(r, own, orient), null);
     }
 
@@ -113,7 +100,6 @@ final class Shape3D implements EditShape {
         if (error != null) return new Content(List.of(), List.of(), v.topColours, error);
         Painted painted = v.painted == null ? null : v.painted.painted();
         PaintBlocks.States3 states = new PaintBlocks.States3(painted == null ? null : PaintBlocks.resolve(painted, PaintBlocks.viewer3(v.painted)));
-        // A pattern's holes are air in the painted result. They place nothing and Carve leaves them alone.
         short[] built = v.painted == null ? r.grid() : v.painted.result().grid();
         int k = 0;
         int pad = r.shape().pad(), nx = r.nx(), ny = r.ny(), nz = r.nz();

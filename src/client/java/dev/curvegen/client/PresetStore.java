@@ -24,36 +24,25 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Stream;
 
-/**
- * Saved shape presets, one JSON file each in {@code .minecraft/config/curvegen/presets/}.
- * The first time it's used, the folder starts out with the old equation examples.
- */
 public final class PresetStore {
     private PresetStore() {}
 
     public static final class Preset {
         int version = FORMAT_VERSION;
         public String name;
-        public String gen;          // ELLIPSE, EQUATION or BEZIER
+        public String gen;
         public boolean pinned;
-        public long saved;          // last saved or renamed, in milliseconds
+        public long saved;
         public Map<String, String> data = new LinkedHashMap<>();
-        public Map<String, String> blocks; // block choices, or null if saved without them
-        /** Paint settings with a copy of the pattern, saved along with the blocks; null without them, and in older presets. */
+        public Map<String, String> blocks;
         public Map<String, String> paint;
-        private transient Path file; // where it's saved, or null before the first save
+        private transient Path file;
 
-        /**
-         * Puts the preset's blocks and paint into {@code s} and {@code choice}, when it has blocks. A preset saved
-         * with blocks before painting existed loads unpainted, as it looked then, and so does one painted with a gradient
-         * when Chroma Studio 1.2 or newer isn't installed. Returns true in that last case, for the caller to say why.
-         */
         public boolean applyBlocks(ShapeSettings s, Map<dev.curvegen.core.Pieces.Family, net.minecraft.world.level.block.Block> choice) {
             if (blocks == null) return false;
             boolean dropped = false;
             BlockChoices.apply(blocks, s, choice);
             if (paint != null) {
-                // The preset's paint whole, so a setting it left at its default, such as Fit, doesn't keep the current one.
                 dev.curvegen.core.paint.Paint saved = new dev.curvegen.core.paint.Paint();
                 saved.apply(paint);
                 s.paint.set(saved);
@@ -73,7 +62,6 @@ public final class PresetStore {
         }
     }
 
-    /** Bumped when a preset file's layout changes in a way older versions can't read. */
     private static final int FORMAT_VERSION = 1;
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
@@ -93,10 +81,8 @@ public final class PresetStore {
                 dev.curvegen.CurveGen.LOGGER.warn(tr("curvegen.log.presets_list"), e);
                 return presets;
             }
-            // Files that can't be read are skipped and left alone: new presets never take their names.
             for (Path f : files) {
                 try {
-                    // Read the version before binding the rest, since a newer layout may not bind to Preset.
                     JsonElement root = JsonParser.parseString(Files.readString(f));
                     JsonElement v = root.isJsonObject() ? root.getAsJsonObject().get("version") : null;
                     int version = v != null && v.isJsonPrimitive() && v.getAsJsonPrimitive().isNumber() ? v.getAsInt() : FORMAT_VERSION;
@@ -121,7 +107,7 @@ public final class PresetStore {
             for (int i = 0; i < ex.size(); i++) {
                 Preset p = new Preset();
                 p.name = tr(ex.get(i).name()); p.gen = ShapeSettings.Gen.EQUATION.name(); p.data = new LinkedHashMap<>(ex.get(i).data());
-                p.saved = t - i;   // keeps the examples in their original order
+                p.saved = t - i;
                 presets.add(p);
                 write(p);
             }
@@ -129,7 +115,6 @@ public final class PresetStore {
         return presets;
     }
 
-    /** Presets of one kind: pinned first, then the most recently saved. */
     public static List<Preset> list(ShapeSettings.Gen gen) {
         List<Preset> out = new ArrayList<>();
         for (Preset p : all()) if (p.gen() == gen) out.add(p);
@@ -142,13 +127,11 @@ public final class PresetStore {
         return null;
     }
 
-    /** name, or "name (2)", "name (3)"… whichever isn't taken yet. */
     public static String unique(ShapeSettings.Gen gen, String name) {
         if (find(gen, name) == null) return name;
         for (int i = 2; ; i++) if (find(gen, name + " (" + i + ")") == null) return name + " (" + i + ")";
     }
 
-    /** Saves the settings (and the block choices, if asked) under this name, replacing a preset of the same name (which keeps its pin). */
     public static Preset save(ShapeSettings.Gen gen, String name, ShapeSettings s, boolean withBlocks) {
         Preset p = find(gen, name);
         if (p == null) { p = new Preset(); p.gen = gen.name(); all().add(p); }
@@ -181,7 +164,6 @@ public final class PresetStore {
                 || p.data.getOrDefault("equation", "").toLowerCase(Locale.ROOT).contains(q);
     }
 
-    /** The file named after the preset: "equation-heart.json", or "equation-heart-2.json" if that's taken by another file. */
     private static Path fileFor(Preset p) {
         String stem = PresetData.fileStem(p.gen(), p.name);
         for (int i = 1; ; i++) {
@@ -190,10 +172,6 @@ public final class PresetStore {
         }
     }
 
-    /**
-     * Writes one preset atomically: to a temporary file first, then over the real one.
-     * After a rename, the preset moves to a file named after its new name.
-     */
     private static void write(Preset p) {
         try {
             Files.createDirectories(dir());

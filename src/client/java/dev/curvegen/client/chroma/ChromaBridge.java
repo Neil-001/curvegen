@@ -22,15 +22,9 @@ import net.minecraft.core.Direction;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 
-/**
- * The one class that refers to Chroma Studio. {@link Chroma#init} loads it only once the loader has Chroma Studio, and
- * calls {@link #install} only once {@link #supported} says its API is new enough. Everything else goes through
- * {@link Chroma}'s hooks, or through {@link MixSources#palettes}, which this sets.
- */
 final class ChromaBridge implements Chroma.Hooks {
     private ChromaBridge() {}
 
-    /** Whether the API is version 2, Chroma Studio 1.2, or later. 1.0 and 1.1 have no {@code apiVersion}. */
     static boolean supported() {
         try {
             return ChromaStudioApi.apiVersion() >= 2;
@@ -44,7 +38,6 @@ final class ChromaBridge implements Chroma.Hooks {
         return new ChromaBridge();
     }
 
-    // ---------- gradients and palettes ----------
 
     @Override
     public List<Gradient> gradients() {
@@ -57,13 +50,11 @@ final class ChromaBridge implements Chroma.Hooks {
             try {
                 out.add(new Gradient(g.name(), stops, steps));
             } catch (IllegalArgumentException _) {
-                // No steps, or a block written in a way this mod can't read: a gradient there's nothing to paint with.
             }
         }
         return out;
     }
 
-    /** Chroma Studio's palettes as mixes: each block once, weighted as the palette weights it. Blocks this game lacks are left out. */
     private static List<Mix> palettes() {
         List<Mix> out = new ArrayList<>();
         for (Palette p : ChromaStudioApi.palettes()) {
@@ -83,25 +74,15 @@ final class ChromaBridge implements Chroma.Hooks {
     @Override
     public boolean openGradientTab(String name) { return ChromaStudioApi.openGradientTab(name); }
 
-    // ---------- matching ----------
 
-    /** Matchers already made, by face and the blocks they hold, for the index build they were made from. */
     private static final Map<Boolean, Map<List<String>, BlockMatcher>> MADE = new HashMap<>();
     private static int madeFor = Integer.MIN_VALUE;
-    /** The last matcher handed out, and what it was made for, as a repaint asks again for the same one. */
     private static Catalog.Matcher last;
     private static Object lastFor;
 
     @Override
     public int matcherVersion() { return ChromaStudioApi.indexReady() ? ChromaStudioApi.indexVersion() : -1; }
 
-    /**
-     * One Chroma Studio matcher per piece type's list, kept until the index is built again. A list that isn't one of
-     * those, such as only the fences that join the Blocks tab's or only the full blocks fences attach to, is a part of
-     * one, so it is matched by measuring each of its blocks with the matcher that holds it. A block Chroma Studio
-     * doesn't know is left out of its matching; when none of a list's blocks is known, the matcher answers null. Null
-     * before the index is ready.
-     */
     @Override
     public Catalog.Matcher matcher(boolean top, Map<Family, List<String>> allowed) {
         if (!ChromaStudioApi.indexReady()) return null;

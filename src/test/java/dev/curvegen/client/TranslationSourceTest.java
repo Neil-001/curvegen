@@ -11,9 +11,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 
-/** Every production text literal must be a translation key or reviewed technical syntax. */
 class TranslationSourceTest {
-    // Match comments and character literals first, so quoted examples in them aren't UI text.
     private static final Pattern TOKENS = Pattern.compile("//[^\\n]*|/\\*[\\s\\S]*?\\*/|'(?:\\\\.|[^'\\\\])*'|\"(?:\\\\.|[^\"\\\\])*\"");
     private static final Pattern LETTER = Pattern.compile("[A-Za-z]");
 
@@ -38,7 +36,6 @@ class TranslationSourceTest {
                         if (!token.startsWith("\"")) continue;
                         String value = token.substring(1, token.length() - 1);
                         if (!LETTER.matcher(value).find() || technical.contains(value)) continue;
-                        // Prefixes are used to construct state-specific keys. LangTest checks the generated names.
                         assertTrue(keys.contains(value) || keys.stream().anyMatch(k -> k.startsWith(value)),
                                 file + ": unregistered text literal " + token);
                     }

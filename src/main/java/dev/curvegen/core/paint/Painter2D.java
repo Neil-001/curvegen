@@ -12,22 +12,9 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 
-/**
- * Paints a solved 2D shape. It reads the solve and never changes it: every piece stays where the solver put it.
- * Lines and outlines wrap the pattern, filled shapes project it, from {@link Wrap2D}, and {@link Ladder} picks each
- * block. A mix needs no wrap: {@link MixLayout} places its blocks by position, through the depth too. Fast enough
- * to run again on every change of a paint setting without solving again. With "Empty spots: Open" a pattern's empty
- * cells become holes, and {@link Settle2D} settles the blocks beside them.
- */
 public final class Painter2D {
     private Painter2D() {}
 
-    /**
-     * The blocks for {@code r} under {@code paint}, or null when paint is off or the shape has an error.
-     *
-     * @param depth         how many layers deep the shape is built
-     * @param fullConnects  the setting the shape was solved with
-     */
     public static Painted paint(Solver.Result r, int depth, Paint paint, boolean fullConnects, Catalog catalog) {
         if (!paint.on() || r.target().error != null) return null;
         if (paint.source == Paint.Source.MIX) return mix(r, depth, paint, fullConnects, catalog);
@@ -43,7 +30,6 @@ public final class Painter2D {
         int layers = edge ? d : 1, per = edge ? 1 : d;
         boolean[] holes = paint.holes();
         long open = 0;
-        // Entries are the ladder's blocks, full blocks as each strip turns them: an equation's loops can each be nudged their own way.
         java.util.Map<Long, Integer> entries = new java.util.HashMap<>();
         List<Integer> quarters = new ArrayList<>();
         int[] slots = new int[layers * nx * ny];
@@ -85,7 +71,6 @@ public final class Painter2D {
         return new Painted(slots, layers, List.of(names), turns, why, counts, open, open == 0 ? null : settle(r, d, slots, layers, fullConnects));
     }
 
-    /** The shape with its holes taken out, every layer of a single-layer paint opening alike. */
     private static Settle2D settle(Solver.Result r, int depth, int[] slots, int layers, boolean fullConnects) {
         int n = r.nx() * r.ny();
         BitSet gone = new BitSet(depth * n);
@@ -94,11 +79,6 @@ public final class Painter2D {
         return Settle2D.of(r, depth, gone, fullConnects, () -> false);
     }
 
-    /**
-     * A mix's blocks. Each layer has its own, so patches are lumps through the depth as well as across the face: the
-     * block in column i, row j and layer k sits at (i, j, k) in the shape's box, less the grid's margin round it, so
-     * the arrangement stays put when the margin changes. Nothing is turned.
-     */
     private static Painted mix(Solver.Result r, int depth, Paint paint, boolean fullConnects, Catalog catalog) {
         int nx = r.nx(), ny = r.ny(), d = Math.max(1, depth), m = r.target().margin;
         Ladder ladder = new Ladder(catalog, paint.mix, paint.oneMaterial(), fullConnects, used(r.counts()));
@@ -128,12 +108,6 @@ public final class Painter2D {
         return new Painted(slots, d, List.copyOf(ladder.blocks()), new int[n], why, byEntry);
     }
 
-    /**
-     * A gradient's blocks, spanning the shape once. Bottom to top runs up the picture, Along and Across run along a
-     * line's centre line and across its width, or across the picture and up it for a filled shape, and Outwards runs
-     * from the middle of the box round the blocks. Every layer takes the same blocks, so the steps run straight through
-     * the depth. Nothing is turned.
-     */
     private static Painted gradient(Solver.Result r, int depth, Paint paint, boolean fullConnects, Catalog catalog) {
         int nx = r.nx(), ny = r.ny(), per = Math.max(1, depth);
         Gradient g = paint.gradient;
@@ -149,7 +123,6 @@ public final class Painter2D {
             for (int j = j0; j <= j1; j++)
                 for (int i = i0; i <= i1; i++)
                     if (r.at(i, j) != Pieces.EMPTY) far = Math.max(far, Math.hypot(i + .5 - cx, j + .5 - cy) + .5);
-        // One layout per strip for Along and Across, as each of an equation's loops spans the gradient on its own.
         List<GradientLayout> layouts = new ArrayList<>();
         if (w != null) for (Tiling.Strip st : w.strips)
             layouts.add(new GradientLayout(g.paletteSize(), flow == Paint.Flow.ALONG ? st.length() : st.width(), paint.reverse, paint.edges == Paint.Edges.RAGGED));
@@ -189,13 +162,11 @@ public final class Painter2D {
         return new Painted(slots, 1, List.copyOf(ladder.blocks()), new int[n], why, counts);
     }
 
-    /** The entry for a ladder pick turned by {@code quarter} quarter turns, adding it the first time. -1 stays -1. */
     private static int entry(int pick, int quarter, java.util.Map<Long, Integer> entries, List<Integer> quarters) {
         if (pick < 0) return -1;
         return entries.computeIfAbsent((long) pick << 2 | quarter, _ -> { quarters.add(quarter); return quarters.size() - 1; });
     }
 
-    /** Piece types the solve placed at least one of. */
     static Set<Family> used(int[] counts) {
         Set<Family> out = EnumSet.noneOf(Family.class);
         for (int s = 1; s < Pieces.COUNT; s++) if (counts[s] > 0) out.add(Pieces.FAMILY[s]);

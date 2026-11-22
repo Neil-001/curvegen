@@ -15,20 +15,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * Paints a solved 3D shape. Like {@link Painter2D} it reads the solve and never changes it. {@link Wrap3} says where
- * each block lies on the pattern, and {@link Ladder} picks each block. A mix needs no wrap: {@link MixLayout} places
- * its blocks by where they are in the shape ({@link #mix}).
- *
- * <p>A 3D shape's {@link Painted} has one layer and one slot per block of the solve, in the grid's order
- * ({@code (y * nz + z) * nx + x}) with air left out. Wrap never turns a full block; a projection turns it with the
- * pattern, as seen from {@link Wrap3#right} × {@link Wrap3#up}. A hole's slot is {@link Painted#OPEN}: {@link
- * Solve3Painter} takes the holes out and settles the blocks beside them.
- */
 public final class Painter3 {
     private Painter3() {}
 
-    /** The blocks for {@code r} under {@code paint}, placed by {@code w}, or null when paint is off. */
     public static Painted paint(Solver3.Result r, Wrap3 w, Paint paint, boolean fullConnects, Catalog catalog) {
         if (!paint.on()) return null;
         Tiling tiling = new Tiling(paint.pattern, paint, paint.fitFor(false), w.strip);
@@ -38,7 +27,6 @@ public final class Painter3 {
         long open = 0;
         short[] grid = r.grid();
         int[] slots = new int[w.blocks()];
-        // Entries are the ladder's picks in the order first seen. Every full block turns the same way, so a pick is one entry.
         Map<Integer, Integer> entries = new HashMap<>();
         List<String> names = new ArrayList<>();
         long[][] why = new long[Family.values().length][Why.values().length];
@@ -75,11 +63,6 @@ public final class Painter3 {
         return new Painted(slots, 1, List.copyOf(names), quarters, why, counts, open, null);
     }
 
-    /**
-     * A mix's blocks for {@code r}, a solve of {@code own} turned by {@code o}, or null when paint is off. A block takes
-     * the mix's entry at its place in the shape's own box, before {@link Shape3#pad}, so the arrangement turns with the
-     * shape and stays put when a thickness changes. Nothing is turned. Slots are numbered as {@link #paint}'s.
-     */
     public static Painted mix(Solver3.Result r, Shape3 own, Orient o, Paint paint, boolean fullConnects, Catalog catalog) {
         if (!paint.on()) return null;
         Ladder ladder = new Ladder(catalog, paint.mix, paint.oneMaterial(), fullConnects, used(r.counts()));
@@ -113,14 +96,6 @@ public final class Painter3 {
         return new Painted(slots, 1, List.copyOf(ladder.blocks()), new int[n], why, counts);
     }
 
-    /**
-     * A gradient's blocks for {@code r}, a solve of {@code own} turned by {@code o}, spanning the shape once, or null when
-     * paint is off. Bottom to top runs up the shape's own box, so the steps turn with the shape, and Outwards from the
-     * middle of the box round its blocks. Along and Across take {@code w}, the shape's wrap, along and across its one
-     * strip; a shape that can't wrap passes null and runs bottom to top. Ragged edges scatter by each block's place in
-     * the shape's own box, before {@link Shape3#pad}, as a mix does. Nothing is turned. Slots are numbered as
-     * {@link #paint}'s.
-     */
     public static Painted gradient(Solver3.Result r, Shape3 own, Orient o, Wrap3 w, Paint paint, boolean fullConnects, Catalog catalog) {
         if (!paint.on()) return null;
         Gradient g = paint.gradient;
@@ -134,7 +109,6 @@ public final class Painter3 {
         short[] grid = r.grid();
         int blocks = 0;
         for (short c : grid) if (c != Pieces3.AIR) blocks++;
-        // Each block's place in the shape's own box, and the box round them all.
         int[] own3 = new int[blocks * 3];
         int[] lo = {Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE}, hi = {Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE};
         int[] world = new int[3];
@@ -182,13 +156,11 @@ public final class Painter3 {
         return new Painted(slots, 1, List.copyOf(ladder.blocks()), new int[n], why, counts);
     }
 
-    /** How far block {@code k}'s centre is from {@code mid}, in the shape's own box. */
     private static double out(int[] own3, int k, double[] mid) {
         double dx = own3[k * 3] + .5 - mid[0], dy = own3[k * 3 + 1] + .5 - mid[1], dz = own3[k * 3 + 2] + .5 - mid[2];
         return Math.sqrt(dx * dx + dy * dy + dz * dz);
     }
 
-    /** Piece types the solve placed at least one of. */
     static Set<Family> used(int[] counts) {
         Set<Family> out = EnumSet.noneOf(Family.class);
         for (int s = 1; s < Pieces3.COUNT; s++) if (counts[s] > 0) out.add(Pieces3.FAMILY[s]);

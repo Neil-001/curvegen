@@ -20,7 +20,6 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 public class GradientTest {
-    /** Dark to light in four steps, the third chosen by hand. */
     public static final Gradient GREYS = new Gradient("Greys",
             List.of(new Gradient.Stop(0x080a0f, m("black_concrete")), new Gradient.Stop(0xe9ecec, null)),
             List.of(new Gradient.Step(0x101010, m("black_concrete"), false), new Gradient.Step(0x404040, m("gray_concrete"), false),
@@ -62,14 +61,12 @@ public class GradientTest {
         back.apply(p.capture());
         assertTrue(back.same(p));
         assertEquals(GREYS, back.gradient);
-        // Off by default: one material per colour is on, edges ragged, bottom to top, and no gradient, so nothing is painted.
         Paint fresh = new Paint();
         fresh.source = Paint.Source.GRADIENT;
         assertFalse(fresh.on());
         assertTrue(fresh.oneMaterial());
         assertEquals(Edges.RAGGED, fresh.edges);
         assertEquals(Flow.UP, fresh.flow);
-        // A version that doesn't know gradients turns paint off.
         Map<String, String> d = new java.util.LinkedHashMap<>(p.capture());
         d.put("source", "SOMETHING_NEW");
         back.apply(d);
@@ -149,7 +146,6 @@ public class GradientTest {
         }
     }
 
-    /** Bottom to top on a ball: full blocks take each step's own block, rising level by level, hand swap included. */
     @Test
     void bottomToTopOnABallRisesThroughEveryStep() {
         ShapeSettings s = new ShapeSettings();
@@ -175,7 +171,6 @@ public class GradientTest {
                     highest[step] = Math.max(highest[step], y);
                 }
         for (int k = 1; k < 4; k++) assertTrue(lowest[k] > highest[k - 1], "step " + k + " should sit above step " + (k - 1));
-        // Reversed, the light end is at the bottom.
         paint.reverse = true;
         Painted rev = new Solve3Painter(r, Shape3.of(s), Painter3Test.UNTURNED).paint(paint, s.fullConnects, TestWorld.catalog()).painted();
         int k = 0;
@@ -184,13 +179,11 @@ public class GradientTest {
         assertEquals(m("quartz_block"), rev.blocks().get(rev.at(k)), "the lowest full block");
     }
 
-    /** Pieces other than full blocks take the step's material, or the piece type's block closest to the step's ideal colour. */
     @Test
     void otherPiecesFollowTheLadderWithTheIdealColour() {
         Ladder l = new Ladder(TestWorld.catalog(), GREYS, false, true, java.util.EnumSet.allOf(Family.class));
         assertEquals(m("stone_brick_stairs"), l.blocks().get(l.pick(2, Family.STAIRS)));
         assertEquals(Ladder.Why.OWN, l.why(2, Family.STAIRS));
-        // Black concrete has no slab: the closest slab to the step's ideal colour, near black.
         assertEquals(m("nether_brick_slab"), l.blocks().get(l.pick(0, Family.SLAB)));
         assertEquals(Ladder.Why.CLOSEST, l.why(0, Family.SLAB));
         assertEquals(m("black_concrete"), l.blocks().get(l.pick(0, Family.FULL)));

@@ -18,7 +18,6 @@ import org.junit.jupiter.api.Test;
 class Painter3Test {
     static final Orient UNTURNED = new Orient(Orient.EAST, Orient.UP, Orient.SOUTH);
 
-    /** Every 3D shape, small, solid and hollow. */
     static List<ShapeSettings> shapes() {
         List<ShapeSettings> out = new ArrayList<>();
         for (ShapeSettings.EllipseMode mode : ShapeSettings.EllipseMode.values()) {
@@ -119,7 +118,6 @@ class Painter3Test {
         return out;
     }
 
-    /** The distance between two places round a loop of length n. */
     private static double round(double a, double b, double n) {
         double d = Math.abs(a - b) % n;
         return Math.min(d, n - d);
@@ -135,7 +133,6 @@ class Painter3Test {
         assertTrue(w.closedAlong());
         assertFalse(w.closedAcross());
         double L = w.length(), A = w.width();
-        // Own z runs away from the player: the back is +z, and from there u runs to the player's left.
         assertEquals(0, round(place(w, 10, 10, 20)[0], 0, L), 1e-9);
         assertEquals(L / 4, place(w, 0, 10, 10)[0], 1e-9);
         assertEquals(L / 2, place(w, 10, 10, 0)[0], 1e-9);
@@ -143,22 +140,16 @@ class Painter3Test {
         assertEquals(A / 2, place(w, 10, 10, 0)[1], 1e-9);
         assertEquals(A, place(w, 10, 20, 10)[1], 1e-9);
         assertEquals(0, place(w, 10, 0, 10)[1], 1e-9);
-        // A point deeper in takes the place of the surface straight out from the middle.
         double[] out = place(w, 13, 17, 4), in = place(w, 11.5, 13.5, 7);
         assertEquals(out[0], in[0], 1e-9);
         assertEquals(out[1], in[1], 1e-9);
     }
 
-    /**
-     * Inside a long, thin filled ellipsoid, each block takes the place of its nearest point on the surface, not of the
-     * point straight out from the middle, so the pattern runs straight through the thickness.
-     */
     @Test
     void insideAnEllipsoidTheNearestSurfaceDecides() {
         ShapeSettings s = new ShapeSettings();
         s.gen = Gen.ELLIPSOID; s.e3W = 60; s.e3H = 20; s.e3D = 20; s.e3Mode = ShapeSettings.EllipseMode.FILLED;
         Shape3.Wrapping w = Shape3.of(s).wrapping();
-        // Under the top at x = 50, a point deeper in lies straight below its nearest surface point.
         double[] top = new double[2];
         double x = 50, y = 10 + 10 * Math.sqrt(1 - Math.pow((x - 30) / 30, 2));
         w.place(x, y, 10, top);
@@ -177,10 +168,9 @@ class Painter3Test {
         Shape3.Wrapping w = Shape3.of(s).wrapping();
         assertTrue(w.closedAlong());
         assertTrue(w.closedAcross());
-        assertEquals(2 * Math.PI * 10, w.length(), 1e-6);   // round the middle of the tube
+        assertEquals(2 * Math.PI * 10, w.length(), 1e-6);
         assertEquals(2 * Math.PI * 5, w.width(), 1e-6);
         double A = w.width();
-        // The tube's middle at the back is (15, 5, 25).
         assertEquals(0, round(place(w, 15, 0, 25)[1], 0, A), 1e-9, "underneath");
         assertEquals(A / 4, place(w, 15, 5, 30)[1], 1e-9, "the outside");
         assertEquals(A / 2, place(w, 15, 10, 25)[1], 1e-9, "on top");
@@ -204,12 +194,10 @@ class Painter3Test {
         double A = w.width(), y = 5 + pad, z = 5 + pad;
         assertEquals(12, place(w, 12 + pad, y - 2, z)[0], 1e-9);
         assertEquals(0, round(place(w, 12 + pad, y - 2, z)[1], 0, A), 1e-9, "the seam is underneath");
-        // Seen from the player's side, -z, the pattern runs to the right along the curve and up round the tube.
         assertEquals(A / 4, place(w, 12 + pad, y, z - 2)[1], 1e-9);
         assertEquals(A / 2, place(w, 12 + pad, y + 2, z)[1], 1e-9);
         assertEquals(0, place(w, pad - 2, y, z)[0], 1e-9, "past the first point is the start");
 
-        // Round a bend lying flat, the seam stays underneath all the way.
         s.pts3.clear();
         s.b3W = s.b3D = 30;
         s.pts3.add(new double[]{0, 5, 0}); s.pts3.add(new double[]{30, 5, 0}); s.pts3.add(new double[]{30, 5, 30});
@@ -231,12 +219,10 @@ class Painter3Test {
         Shape3 shape = Shape3.of(s);
         Shape3.Wrapping w = shape.wrapping();
         int pad = shape.pad();
-        // Along the columns runs from the first row to the last, across z; along the rows across x.
         assertEquals(20, w.length(), 1e-6);
         assertEquals(30, w.width(), 1e-6);
         double[] at = place(w, 12 + pad, pad, 5 + pad);
         assertEquals(12, at[1], 1e-6);
-        // It lies flat, so it reads unmirrored from above. With v running to the right, u runs towards the player.
         assertEquals(15, at[0], 1e-6);
     }
 
@@ -248,7 +234,6 @@ class Painter3Test {
         Shape3 own = Shape3.of(s);
         Solver3.Result r = Solver3.solve(Turned.of(own, o), s, () -> false);
         Wrap3 w = Wrap3.of(r, own, o, Mapping.ABOVE);
-        // Own y is up here, so every block of a column has the same place.
         float[][] seen = new float[r.nx() * r.nz()][];
         for (int y = 0, k = 0; y < r.ny(); y++)
             for (int z = 0; z < r.nz(); z++)
@@ -275,11 +260,6 @@ class Painter3Test {
         assertEquals(1, Wrap3.handedness(UNTURNED));
     }
 
-    /**
-     * A shape set out unturned is the mirror image of one an editor sets out for a player facing south. Each reads
-     * its pattern unmirrored, so on a shape that is its own mirror image the pattern lands on the same blocks. From
-     * the side is the exception: the mirror swaps which side is the player's right, so each reads from its own.
-     */
     @Test
     void aPatternReadsTheSameWhicheverWayRoundTheAxesAre() {
         ShapeSettings s = new ShapeSettings();
@@ -313,17 +293,15 @@ class Painter3Test {
         for (int q : front.quarters()) assertEquals(1, q);
     }
 
-    /** See {@link Paint3Timing} for the target. This only catches painting becoming many times slower. */
     @Test
     void repaintingIsQuick() {
-        ShapeSettings s = Paint3Timing.dome(64);
+        ShapeSettings s = Paint3Timing.hollowBall(64);
         Solver3.Result r = Solver3.run(s);
         Wrap3 w = Wrap3.of(r, Shape3.of(s), UNTURNED, Mapping.WRAP);
-        Paint3Timing.millis(r, w, s, TestWorld.catalog());   // warm up
+        Paint3Timing.millis(r, w, s, TestWorld.catalog());
         assertTrue(Paint3Timing.millis(r, w, s, TestWorld.catalog()) < 100);
     }
 
-    /** A mix places blocks by where they are in the shape's own box, so they turn with the shape, and never changes a piece. */
     @Test
     void aMixTurnsWithTheShape() {
         ShapeSettings s = new ShapeSettings();

@@ -45,12 +45,20 @@ class PaintTest {
     void unreadableTextKeepsTheCurrentSettings() {
         Paint p = new Paint();
         p.size = 3; p.pattern = Patterns.MOSSY_MIX;
-        Map<String, String> d = new HashMap<>(Map.of("size", "lots", "turn", "720", "source", "SOMETHING_NEW", "pattern.width", "2"));
+        p.mirror = p.patternOneMaterial = p.mixOneMaterial = p.reverse = true;
+        Map<String, String> d = new HashMap<>(Map.of("size", "lots", "turn", "720", "source", "SOMETHING_NEW", "pattern.width", "2",
+                "mirror", "maybe", "patternOneMaterial", "false", "mixOneMaterial", "", "gradientOneMaterial", "1"));
+        d.put("reverse", null);
         p.apply(d);
         assertEquals(3, p.size);
         assertEquals(359, p.turn);
         assertEquals(Paint.Source.OFF, p.source, "a source this version doesn't know turns paint off");
         assertSame(Patterns.MOSSY_MIX, p.pattern);
+        assertTrue(p.mirror);
+        assertFalse(p.patternOneMaterial);
+        assertTrue(p.mixOneMaterial);
+        assertTrue(p.reverse);
+        assertTrue(p.gradientOneMaterial);
     }
 
     @Test

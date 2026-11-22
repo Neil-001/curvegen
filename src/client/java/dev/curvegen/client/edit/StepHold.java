@@ -15,28 +15,19 @@ import net.minecraft.client.input.KeyEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Util;
 
-/**
- * Hold-to-type for the keys that move or resize the hologram. A press acts at once by one block. Held, a progress bar
- * fills under the crosshair, and when it's full the number box opens. The amount typed there replaces the press's one
- * block, as a single undo step.
- */
 public final class StepHold {
     private StepHold() {}
 
-    /** The furthest a typed amount goes, either way. */
     private static final int MAX_AMOUNT = 1000;
 
     private static final HoldTimer TIMER = new HoldTimer();
-    /** The undo step the held key's press recorded, or null if it changed nothing. */
     private static Object step;
 
-    /** Call every client tick, with or without a hologram. */
     public static void tick(Minecraft mc) {
         List<StepKey> keys = CurveGenClient.STEP_KEYS;
         for (int k = 0; k < keys.size(); k++) {
             boolean clicked = false;
             while (keys.get(k).key().consumeClick()) clicked = true;
-            // A keyboard key's clicks include its repeats, so its presses come from keyEvent. A mouse button doesn't repeat.
             if (clicked && !onKeyboard(keys.get(k).key())) TIMER.press(k);
         }
         int pressed = TIMER.takePress();
@@ -56,8 +47,6 @@ public final class StepHold {
                 mc.gui.setScreen(InputScreen.number(Lang.tr("curvegen.editor.step_amount", Component.translatable(key.key().getName()).getString()),
                         "1", true, -MAX_AMOUNT, MAX_AMOUNT, typed -> {
                             int n = (int) typed;
-                            // The press already moved one block. Take that back if it's still the last edit. If other
-                            // edits came after it, count it instead. Undo and redo call the hold off, so it wasn't undone.
                             if (pressStep == null || Editor.retract(pressStep)) key.action().accept(n);
                             else key.action().accept(n - 1);
                         }).ignoring(key.key()));
@@ -66,10 +55,6 @@ public final class StepHold {
         }
     }
 
-    /**
-     * Every key event, with or without a screen open: each loader passes them on. {@code action} is 0 for a release,
-     * 1 for a press and 2 for a repeat. Only a press with no screen open counts, as the game's own key clicks do.
-     */
     public static void keyEvent(KeyEvent event, int action) {
         if (action != 1 || Minecraft.getInstance().gui.screen() != null) return;
         List<StepKey> keys = CurveGenClient.STEP_KEYS;
@@ -80,10 +65,8 @@ public final class StepHold {
         return InputConstants.getKey(mapping.saveString()).getType() == InputConstants.Type.KEYBOARD;
     }
 
-    /** Calls off the hold in progress. The key that is down does nothing more until it's pressed again. */
     static void cancel() { TIMER.cancel(); }
 
-    /** The progress bar, just under the crosshair. */
     static void renderBar(GuiGraphicsExtractor dc) {
         double f = TIMER.progress(Util.getMillis(), ModSettings.barDelaySeconds, ModSettings.holdSeconds);
         if (f < 0) return;

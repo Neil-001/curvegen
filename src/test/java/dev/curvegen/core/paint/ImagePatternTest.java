@@ -8,14 +8,12 @@ import org.junit.jupiter.api.Test;
 class ImagePatternTest {
     private static final int WHITE = 0xFFFFFFFF, BLACK = 0xFF000000, RED = 0xFFFF0000, CLEAR_GREEN = 0x0000FF00;
 
-    /** A picture from rows of pixels, top row first. */
     private static ImagePattern.Pixels img(int[][] rows) { return (x, y) -> rows[y][x]; }
 
     private static Pattern of(int[][] rows, int width) {
         return ImagePattern.of("img", img(rows), rows[0].length, rows.length, width);
     }
 
-    /** The cell at x from the left and r rows from the top. */
     private static Cell cell(Pattern p, int x, int r) { return p.cell(p.at(x, p.height - 1 - r)); }
 
     @Test
@@ -35,7 +33,6 @@ class ImagePatternTest {
 
     @Test
     void cellsAverageTheAreaTheyCoverRatherThanPickingOnePixel() {
-        // Fine stripes: any one pixel is black or white, but the area is grey, mixed as light mixes.
         int[][] stripes = new int[4][8];
         for (int[] row : stripes) for (int x = 0; x < 8; x++) row[x] = x % 2 == 0 ? BLACK : WHITE;
         Pattern p = of(stripes, 2);
@@ -44,7 +41,6 @@ class ImagePatternTest {
         assertEquals(grey >> 16 & 0xFF, grey & 0xFF);
         assertEquals(189, grey & 0xFF, 5, "half white light is about 188 in sRGB, not 128");
 
-        // Three pixels into two cells: the middle pixel is split between them.
         Pattern split = of(new int[][]{{RED, WHITE, BLACK}}, 2);
         int left = cell(split, 0, 0).rgb(), right = cell(split, 1, 0).rgb();
         assertEquals(0xFF, left >> 16 & 0xFF, "two thirds red and one third white");
@@ -67,7 +63,6 @@ class ImagePatternTest {
 
     @Test
     void aCellIsEmptyWhenLessThanHalfOfItIsOpaque() {
-        // Four pixels in a row become one cell.
         assertNull(of(new int[][]{{RED, CLEAR_GREEN, CLEAR_GREEN, CLEAR_GREEN}}, 1), "a quarter opaque");
         assertEquals(0xFF0000, of(new int[][]{{RED, RED, CLEAR_GREEN, CLEAR_GREEN}}, 1).cell(0).rgb(),
                 "half opaque is a colour, and the clear pixels' green never shows");

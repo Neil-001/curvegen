@@ -9,7 +9,6 @@ import net.minecraft.locale.Language;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 
-/** Resolves the core's messages using the game's current language. */
 public final class Lang {
     private Lang() {}
 
