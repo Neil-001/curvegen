@@ -1,5 +1,3 @@
 # Fabric client
 
-- Keep Mod Menu imports in `ModMenuIntegration`. The separate entrypoint lets Curve Generator run when Mod Menu is absent.
-- Clear `ColorIndex` on client resource reload because the active resource packs supply the block textures.
-- Use `ALLOW_GAME` with `Placement.hidesFeedback` to filter replies to the placement fallback. The packet mixin supplies the send order that filter relies on.
+Clear `ColorIndex` on resource reload because block colours depend on active packs. Filter fallback replies through `ALLOW_GAME`. The packet mixin supplies the send order the filter needs.

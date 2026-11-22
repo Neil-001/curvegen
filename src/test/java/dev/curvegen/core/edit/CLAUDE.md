@@ -1,5 +1,5 @@
 # Editor tests
 
-- `RadialTest` captures the stretched ring's pixels and cursor picks from before the round ring was added. Keep those reference hashes unless the stretched behavior changes deliberately. The pixel tests sample corners and centres for the round ring and the inner part of a pixel for the stretched ring, following its narrower slice gaps. The oval can fall a pixel short of either side of its integer-sized raster.
-- The radial label width test runs without starting the client. It measures the bundled default font bitmaps in provider order using the last column with a nontransparent pixel, scaled to the line height, plus one pixel of spacing. It bounds characters from downloaded Unifont by its 16-pixel glyph width at half scale plus one pixel of spacing. The English, French, Russian and Japanese calibration strings use widths measured in the running game. Test all shipped languages and the fixed wedge strings. User-supplied paint names can be truncated because the tooltip shows the full name.
-- `HoldTimerTest` models the timer resetting each tick while the number box is open. A held key can still repeat when the screen closes, so test that separately from a fresh press between ticks.
+- Keep the stretched ring's pixel and cursor reference hashes unless its behavior changes on purpose. Its integer raster can be a pixel short on either side.
+- The radial width tests estimate font widths without starting the game. Keep calibration widths measured in the client and cover every shipped locale and fixed wedge label. User paint names can be clipped because their tooltip supplies the full name.
+- Test repeats after a number box closes separately from a fresh press between ticks.
