@@ -8,7 +8,6 @@ import java.util.HashSet;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 
-/** The menu's 3D preview without the game: which faces a solved shape shows, how they're drawn, and the Count tab's rows. */
 class Preview3Test {
     private static final int BG = 0xFF101010;
 
@@ -23,8 +22,6 @@ class Preview3Test {
         java.util.Arrays.fill(p, rgb);
         return p;
     }
-
-    // ---------- the mesh ----------
 
     @Test
     void aLoneBlockShowsItsSixFaces() {
@@ -42,7 +39,6 @@ class Preview3Test {
         assertEquals(10, m.faces());
         assertEquals(1, m.count[Pieces3.E]);
         assertEquals(1, m.count[Pieces3.W]);
-        // A solid 5×5×5 only shows its skin, and the block in the middle none at all.
         short[] solid = new short[125];
         java.util.Arrays.fill(solid, (short) Pieces3.FULL);
         assertEquals(6 * 25, new Mesh3(solid, 5, 5, 5).faces());
@@ -50,10 +46,8 @@ class Preview3Test {
 
     @Test
     void aSlabHidesOnlyTheFaceItFills() {
-        // A bottom slab on a full block: the block's top is still seen past nothing, since the slab's bottom fills it.
         Mesh3 m = new Mesh3(grid(1, 2, 1, 0, 0, 0, Pieces3.FULL, 0, 1, 0, Pieces3.SLAB_B), 1, 2, 1);
         assertEquals(5 + 5, m.faces());
-        // A top slab leaves a gap, so both faces across it show.
         m = new Mesh3(grid(1, 2, 1, 0, 0, 0, Pieces3.FULL, 0, 1, 0, Pieces3.SLAB_T), 1, 2, 1);
         assertEquals(6 + 6, m.faces());
         float[] up = m.rects[Pieces3.UP];
@@ -85,12 +79,10 @@ class Preview3Test {
         for (int p = 1; p < Pieces3.COUNT; p++) blocks += r.counts()[p];
         Mesh3 m = new Mesh3(r);
         assertTrue(m.faces() > 0 && m.faces() < 2 * blocks, m.faces() + " faces for " + blocks + " blocks");
-        // The shape is mirrored every way, so opposite directions show the same number of faces.
         assertEquals(m.count[Pieces3.N], m.count[Pieces3.S]);
         assertEquals(m.count[Pieces3.E], m.count[Pieces3.W]);
     }
 
-    /** Each face knows its block, numbered as a painted 3D shape's slots are: in grid order, air left out. */
     @Test
     void facesKnowTheirBlock() {
         Mesh3 m = new Mesh3(grid(3, 1, 1, 0, 0, 0, Pieces3.FULL, 2, 0, 0, Pieces3.SLAB_B), 3, 1, 1);
@@ -101,7 +93,6 @@ class Preview3Test {
             }
     }
 
-    /** Colouring each block by its piece type's colour draws exactly the picture colouring by piece type does. */
     @Test
     void perBlockColoursChangeNothingElse() {
         ShapeSettings s = new ShapeSettings();
@@ -124,8 +115,6 @@ class Preview3Test {
         }
     }
 
-    // ---------- drawing ----------
-
     private static Orbit lookingAt(double yaw, double pitch, double scale, int size) {
         Orbit o = new Orbit();
         o.yaw = Math.toRadians(yaw); o.pitch = Math.toRadians(pitch); o.scale = scale;
@@ -138,7 +127,7 @@ class Preview3Test {
         Mesh3 m = new Mesh3(grid(1, 1, 1, 0, 0, 0, Pieces3.FULL), 1, 1, 1);
         Raster3 r = new Raster3(40, 40);
         r.clear(BG);
-        r.draw(m, lookingAt(0, 0, 4, 40), palette(0xC86432));     // too small for lines between blocks
+        r.draw(m, lookingAt(0, 0, 4, 40), palette(0xC86432));
         int south = Raster3.shade(0xC86432, 0.82f), n = 0;
         for (int y = 0; y < 40; y++)
             for (int x = 0; x < 40; x++) {
@@ -163,7 +152,6 @@ class Preview3Test {
 
     @Test
     void theNearerBlockHidesTheOneBehindWhicheverIsDrawnFirst() {
-        // Two blocks in a row running away from a camera in the south: only the southern one's face is seen.
         for (int near : new int[]{Pieces3.FULL, Pieces3.SLAB_B}) {
             short[] g = grid(1, 1, 3, 0, 0, 0, Pieces3.FULL, 0, 0, 2, near);
             Mesh3 m = new Mesh3(g, 1, 1, 3);
@@ -173,7 +161,6 @@ class Preview3Test {
             p[Family.SLAB.ordinal()] = 0xFF0000;
             Orbit o = lookingAt(0, 0, 4, 40);
             r.draw(m, o, p);
-            // The lower half is the near piece either way. Above a slab, the block behind shows.
             assertEquals(Raster3.shade(p[Pieces3.FAMILY[near].ordinal()], 0.82f), r.argb[21 * 40 + 20]);
             assertEquals(-2.5f, r.depthAt(20, 21), 1e-6f);
             assertEquals(near == Pieces3.FULL ? -2.5f : -0.5f, r.depthAt(20, 18), 1e-6f);
@@ -191,7 +178,6 @@ class Preview3Test {
             Orbit o = new Orbit();
             o.yaw = 0.6; o.pitch = 0.9; o.scale = scale; o.tx = 10; o.ty = 1; o.tz = 10; o.ox = o.oy = 32;
             r.draw(m, o, palette(0x808080));
-            // Every pixel whose centre lies well inside the top face's outline is drawn.
             for (int y = 0; y < 64; y++)
                 for (int x = 0; x < 64; x++) {
                     double[] p = o.unproject(x + 0.5, y + 0.5, 0);
@@ -227,26 +213,22 @@ class Preview3Test {
         Orbit o = lookingAt(0, 0, 4, 40);
         r.draw(m, o, palette(0x808080));
         int face = r.argb[20 * 40 + 20];
-        r.line(o, -3, 0.5, 2, 4, 0.5, 2, 0xFF4D73, 1);      // in front, right across
-        r.line(o, -3, 0.75, -2, 4, 0.75, -2, 0xFF4D73, 1);  // behind
+        r.line(o, -3, 0.5, 2, 4, 0.5, 2, 0xFF4D73, 1);
+        r.line(o, -3, 0.75, -2, 4, 0.75, -2, 0xFF4D73, 1);
         assertEquals(0xFFFF4D73, r.argb[20 * 40 + 20]);
         assertEquals(0xFFFF4D73, r.argb[20 * 40 + 10]);
         assertEquals(0xFFFF4D73, r.argb[19 * 40 + 10], "beside the block the far line is in full too");
         int behind = r.argb[19 * 40 + 20];
         assertNotEquals(face, behind);
         assertNotEquals(0xFFFF4D73, behind);
-        // Drawn again, and thicker so its stamps overlap, a hidden line is no brighter.
         r.line(o, -3, 0.75, -2, 4, 0.75, -2, 0xFF4D73, 3);
         assertEquals(behind, r.argb[19 * 40 + 20]);
-        // A line that runs far off the picture is still drawn across it, and one that misses it changes nothing.
         int[] before = r.argb.clone();
         r.line(o, 1e7, 50, 0, 1e7 + 5, 50, 0, 0xFFFFFF, 2);
         assertArrayEquals(before, r.argb);
         r.line(o, -1e6, 2, 5, 1e6, 2, 5, 0x00FF00, 1);
         for (int x = 0; x < 40; x++) assertEquals(0xFF00FF00, r.argb[14 * 40 + x]);
     }
-
-    // ---------- Count rows ----------
 
     @Test
     void everyStateIsCountedInExactlyOneRowOfItsOwnFamily() {
@@ -293,7 +275,6 @@ class Preview3Test {
         assertEquals(Message.of("curvegen.count3.connector.straight"), Count3.name(Pieces3.wall(1, 0, 1, 0, true)));
         assertEquals(Message.of("curvegen.count3.connector.post"), Count3.name(Pieces3.WALL_POST));
         assertEquals(Message.of("curvegen.count3.chain.y"), Count3.name(Pieces3.CHAIN + 1));
-        // A stair's icon is its profile, not its back.
         for (Count3.Group g : Count3.GROUPS)
             if (g.family() == Family.STAIRS && g.name().key().endsWith(".straight")) assertEquals(192, Count3.silhouette(g.icon()));
     }

@@ -10,7 +10,6 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/** Desmos-style expression parser: implicit multiplication, |x|, sin x, sin^2(x), inequalities. */
 public final class Expr {
     private Expr() {}
 
@@ -24,9 +23,7 @@ public final class Expr {
         public Message text() { return text; }
     }
 
-    /** Parsed equation: F(x, y) = lhs - rhs, with the relation that was typed ("=", "<", ">", "<=", ">=" or null). */
     public record Equation(Fn f, String rel) {}
-    /** The same for a 3D equation: F(x, y, z) = lhs - rhs. */
     public record Equation3(Fn3 f, String rel) {}
 
     private interface F1 { double ap(double a); }
@@ -50,7 +47,6 @@ public final class Expr {
         FUNCS.put("max", new Func(-1, null, Math::max, true));
         FUNCS.put("mod", new Func(2, null, (a, b) -> ((a % b) + b) % b, false));
     }
-    /** The words an equation may use. Only a 3D equation knows z. */
     private static final List<String> NAMES = new ArrayList<>(), NAMES3 = new ArrayList<>();
     static {
         NAMES.addAll(FUNCS.keySet()); NAMES.addAll(CONSTS.keySet()); NAMES.add("x"); NAMES.add("y");
@@ -61,15 +57,14 @@ public final class Expr {
 
     static double pow(double b, double e) {
         if (b >= 0 || e == Math.rint(e)) return Math.pow(b, e);
-        for (int q = 3; q <= 15; q += 2) {           // real odd roots of negatives: x^(1/3), x^(2/3)
+        for (int q = 3; q <= 15; q += 2) {
             double pq = e * q; long p = Math.round(pq);
             if (Math.abs(pq - p) < 1e-9) return ((p & 1) != 0 ? -1 : 1) * Math.pow(-b, e);
         }
         return Double.NaN;
     }
 
-    // ---------- tokens ----------
-    private record Tok(char kind, double num, String s) {} // kind: 'n' number, 'i' identifier, 'o' operator
+    private record Tok(char kind, double num, String s) {}
 
     private static final Pattern NUM = Pattern.compile("^(\\d+\\.?\\d*|\\.\\d+)([eE][+-]?\\d+)?");
 
@@ -114,7 +109,6 @@ public final class Expr {
         return out;
     }
 
-    // ---------- AST ----------
     private sealed interface Node permits Num, Var, Neg, Bin, Call {}
     private record Num(double v) implements Node {}
     private record Var(char v) implements Node {}
@@ -229,7 +223,7 @@ public final class Expr {
                 Func f = FUNCS.get(c.f);
                 Fn3[] as = c.args.stream().map(Expr::compile).toArray(Fn3[]::new);
                 if (as.length == 1 && f.one != null) { Fn3 a = as[0]; F1 g = f.one; return (x, y, z) -> g.ap(a.eval(x, y, z)); }
-                if (as.length == 1) { return as[0]; }                      // min(v) / max(v)
+                if (as.length == 1) { return as[0]; }
                 var op = f.two;
                 return (x, y, z) -> {
                     double acc = as[0].eval(x, y, z);
@@ -240,7 +234,6 @@ public final class Expr {
         }
     }
 
-    /** The two sides of an equation and the relation between them, which is null for a bare expression. */
     private record Sides(Node lhs, Node rhs, String rel) {}
 
     private static Sides sides(String src, boolean z) throws ParseException {
@@ -255,7 +248,6 @@ public final class Expr {
         return new Sides(lhs, rhs, rel);
     }
 
-    /** Parses "y = f(x)", "x = g(y)", "F(x,y) = G(x,y)", an inequality, or a bare f(x) meaning y = f(x). */
     public static Equation parseEquation(String src) throws ParseException {
         if (src.isBlank()) throw new ParseException(Message.of("curvegen.error.empty_equation2"));
         Sides e = sides(src, false);
@@ -268,7 +260,6 @@ public final class Expr {
         return new Equation((x, y) -> l.eval(x, y, 0) - r.eval(x, y, 0), e.rel);
     }
 
-    /** Parses a 3D equation: anything in x, y and z with a relation, or a bare f(x, y) meaning z = f(x, y). */
     public static Equation3 parseEquation3(String src) throws ParseException {
         if (src.isBlank()) throw new ParseException(Message.of("curvegen.error.empty_equation3"));
         Sides e = sides(src, true);
@@ -281,7 +272,6 @@ public final class Expr {
         return new Equation3((x, y, z) -> l.eval(x, y, z) - r.eval(x, y, z), e.rel);
     }
 
-    /** Evaluates a constant expression such as "2pi" or "-3.5". The label is a translation key. */
     public static double constant(String src, String label) throws ParseException {
         Node n;
         try {

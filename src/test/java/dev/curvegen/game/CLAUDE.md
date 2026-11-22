@@ -1,0 +1,7 @@
+# Tests against Minecraft
+
+- Use the client mapping for state construction so `GameRules2Test` and `GameRules3Test` cover what placement actually sends. Bootstrap loads the blocks without starting a world. It leaves out data pack tags, so bind the wall, fence and leaf tags before asking blocks to update.
+- Compare shape and sturdy faces to Minecraft for each reachable 3D state. The base wall encoding with zero sides and no post is unreachable. A fence, chain or end rod intentionally scores its visible silhouette, so check containment in Minecraft's outline for those families.
+- Run neighbour updates on every direction and include a control that is known to change, so a mock that skips updates cannot pass. Use persistent leaves when testing full blocks that reject attachments, since leaf decay would otherwise ask for scheduled ticks.
+- Exercise both through-layer holes and holes that differ by layer. Include paint replacements that join the same way as the Blocks tab's choices, and compare the no-hole path with direct unpainted placement. In 2D, test posts inherited from a wall above at several depths and a flat crossing with no post.
+- `BlockChoicesTest` covers older `blocks.json` files containing block IDs alone. `PaintBlocksTest` checks block properties when the drawing or pattern turns. Use the south viewing direction for upright exports and the overhead view for flat exports. Keep material tests for unrecognised shapes, custom full-block properties and blocks that cannot be painted as-is.

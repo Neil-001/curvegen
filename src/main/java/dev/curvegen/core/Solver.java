@@ -5,21 +5,12 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-/**
- * Picks the best piece for every cell, aware that fences, panes and walls change shape with their surroundings.
- * Upright shapes are drawn from the side; flat shapes (floors) from above.
- */
 public final class Solver {
     private Solver() {}
 
     public record Result(byte[] grid, int nx, int ny, double err, double area, int[] counts, Target target, boolean floor) {
         public int at(int i, int j) { return grid[j * nx + i]; }
 
-        /**
-         * Whether the upright wall at column i and row j has its post where it's placed in layer k of {@code depth}.
-         * The game gives a wall a post when the wall above it has one, so a post reaches down a column of walls.
-         * One layer deep, the drawing's piece has it too. Deeper, the drawing shows the front layer's post.
-         */
         public boolean placedWallPost(int i, int j, int k, int depth) {
             for (int y = j; y < ny; y++) {
                 int p = at(i, y);
@@ -35,7 +26,6 @@ public final class Solver {
         final boolean floor = s.floor, deep = s.depth > 1, fullConnects = s.fullConnects;
         List<Integer> ids = new ArrayList<>(List.of(Pieces.EMPTY, Pieces.FULL));
         if (floor) {
-            // From above, slabs, stairs and closed trapdoors all look like full blocks, so only these differ.
             if (s.trap) ids.addAll(List.of(Pieces.TD_L, Pieces.TD_R, Pieces.F_TD_U, Pieces.F_TD_D));
             if (s.shelf) ids.addAll(List.of(Pieces.F_SH_L, Pieces.F_SH_R, Pieces.F_SH_U, Pieces.F_SH_D));
             if (s.fence) ids.add(Pieces.F_FENCE);
@@ -45,7 +35,6 @@ public final class Solver {
             if (s.slab) ids.addAll(List.of(Pieces.SLAB_B, Pieces.SLAB_T));
             if (s.stair) ids.addAll(List.of(Pieces.ST_UR, Pieces.ST_UL, Pieces.ST_DR, Pieces.ST_DL));
             if (s.trap) ids.addAll(List.of(Pieces.TD_B, Pieces.TD_T, Pieces.TD_L, Pieces.TD_R));
-            // From the side, a shelf facing the viewer or away looks like a full block, so only these differ.
             if (s.shelf) ids.addAll(List.of(Pieces.SH_L, Pieces.SH_R));
             if (s.fence) ids.add(Pieces.FENCE);
             if (s.pane) ids.add(Pieces.PANE);
@@ -62,7 +51,6 @@ public final class Solver {
         final boolean sx = t.symX, sy = t.symY;
 
         final class Ctx {
-            /** Does connector type v attach to neighbour nb through nb's given face (0 bottom, 1 top, 2 left, 3 right)? */
             boolean connects(int v, int nb, int face) {
                 if (Pieces.isConnector(nb)) return Pieces.joins(Pieces.FAMILY[v], Pieces.FAMILY[nb]);
                 if (nb == Pieces.FULL && !fullConnects) return false;
@@ -72,7 +60,6 @@ public final class Solver {
             boolean right(int idx) { return idx % nx < nx - 1 && connects(grid[idx], grid[idx + 1], 2); }
             boolean up(int idx) { return idx + nx < N && connects(grid[idx], grid[idx + nx], 0); }
             boolean down(int idx) { return idx - nx >= 0 && connects(grid[idx], grid[idx - nx], 1); }
-            /** Side view: bottom row of whatever is in cell idx, as a 16-bit mask: what a wall below it "feels". */
             int bottom(int idx) {
                 if (idx >= N) return 0;
                 int v = grid[idx];
@@ -85,12 +72,9 @@ public final class Solver {
                 int v = grid[idx];
                 if (!Pieces.isType(v)) return v;
                 boolean L = left(idx), R = right(idx);
-                if (v >= Pieces.F_FENCE)   // floor: four directions
+                if (v >= Pieces.F_FENCE)
                     return v + (L ? Pieces.LEFT : 0) + (R ? Pieces.RIGHT : 0) + (up(idx) ? Pieces.TOP : 0) + (down(idx) ? Pieces.BOTTOM_SIDE : 0);
                 if (v != Pieces.WALL) return v + (L ? 1 : 0) + (R ? 2 : 0);
-                // A wall side is tall when the block above covers it. A straight wall keeps its post only if the block
-                // above covers its centre, but with depth > 1 the front and back walls each connect on one side only,
-                // so they always have a post, and that's the post you see from the side.
                 int cov = bottom(idx + nx);
                 int l = L ? ((cov & 0x01FF) == 0x01FF ? 2 : 1) : 0, r = R ? ((cov & 0xFF80) == 0xFF80 ? 2 : 1) : 0;
                 boolean covered = (cov & 0x0180) == 0x0180;
@@ -101,11 +85,6 @@ public final class Solver {
                 int k = t.kind[idx];
                 return k == 0 ? Pieces.PIXELS[st] : k == 1 ? 256 - Pieces.PIXELS[st] : t.errTab[idx][st];
             }
-            /**
-             * What refinement minimises: the pixel error, plus in hollow shapes a penalty that outweighs any error for
-             * a connector that looks exactly like a full block, such as a wall with two tall sides mirrored from one
-             * with two low sides. The block above such a wall would have to stay to keep it tall.
-             */
             int cost(int idx) {
                 int st = resolve(idx);
                 return cellErr(idx) + (t.hollow && Pieces.isConnector(st) && Pieces.PIXELS[st] == 256 ? 1 << 16 : 0);
@@ -131,7 +110,6 @@ public final class Solver {
                 boolean selfX = sx && 2 * i + 1 == nx, selfY = sy && 2 * j + 1 == ny;
                 int[] cands = selfX && selfY ? cXY : selfX ? cX : selfY ? cY : cAll;
 
-                // First guess: connectors attach wherever a neighbour will hold something.
                 boolean nl = i > 0 && t.kind[idx - 1] != 0, nr = i < nx - 1 && t.kind[idx + 1] != 0;
                 boolean nu = j < ny - 1 && t.kind[idx + nx] != 0, nd = j > 0 && t.kind[idx - nx] != 0;
                 int side = (nl ? 1 : 0) + (nr ? 2 : 0);
@@ -147,8 +125,6 @@ public final class Solver {
                 }
                 setOrbit(grid, nx, cells, best);
 
-                // Cells whose shape can change when this one does: side neighbours (connections) always;
-                // upright, also the row below (wall heights); flat, the cells above and below (connections).
                 Set<Integer> aff = new LinkedHashSet<>();
                 for (int[] cc : cells) {
                     int ci = cc[0], cj = cc[1];
@@ -164,7 +140,6 @@ public final class Solver {
             }
         }
 
-        // Refine: re-pick each orbit given its neighbours' current pieces, until nothing improves.
         if (s.fence || s.pane || s.wall) {
             for (int it = 0; it < 30; it++) {
                 boolean changed = false;
@@ -186,8 +161,6 @@ public final class Solver {
         }
         byte[] out = new byte[N];
         for (int q = 0; q < N; q++) out[q] = (byte) c.resolve(q);
-        // One layer deep, a wall below a wall with a post has one too, which the pieces above leave out. Refinement
-        // judges pieces without it, so that a pick changes no cell more than a row below, and this comes after.
         if (!floor && !deep)
             for (int q = N - 1 - nx; q >= 0; q--) {
                 int v = out[q], above = out[q + nx];
@@ -205,9 +178,8 @@ public final class Solver {
                     if (solid[j * nx + i] != Pieces.FULL) continue;
                     if (Pieces.isConnector(at(solid, nx, ny, i - 1, j)) || Pieces.isConnector(at(solid, nx, ny, i + 1, j))) continue;
                     int below = at(solid, nx, ny, i, j - 1), above = at(solid, nx, ny, i, j + 1);
-                    if (floor ? Pieces.isConnector(below) || Pieces.isConnector(above)          // attached from the front or back
-                              : Pieces.FAMILY[below] == Pieces.Family.WALL) continue;           // a wall below takes its height from this block
-                    // Hidden when every neighbour fills the shared edge, whether or not it's a full face.
+                    if (floor ? Pieces.isConnector(below) || Pieces.isConnector(above)
+                              : Pieces.FAMILY[below] == Pieces.Family.WALL) continue;
                     boolean exposed = !Pieces.EDGE[above][0] || !Pieces.EDGE[below][1]
                             || !Pieces.EDGE[at(solid, nx, ny, i - 1, j)][3] || !Pieces.EDGE[at(solid, nx, ny, i + 1, j)][2];
                     if (!exposed) out[j * nx + i] = Pieces.EMPTY;
@@ -218,11 +190,6 @@ public final class Solver {
         return new Result(out, nx, ny, err, t.area, counts, t, floor);
     }
 
-    /**
-     * A chain or end rod wins a tie with air. A line half a block wide that crosses one always covers exactly half
-     * of it, so the two tie often, and a rod's plate would otherwise decide whether the curve gets a piece there.
-     * Air never wins a tie back, so refinement still can't cycle.
-     */
     private static boolean beatsAir(int cand, int best) { return best == Pieces.EMPTY && Pieces.isLine(cand); }
 
     private static int at(byte[] g, int nx, int ny, int i, int j) {
@@ -239,6 +206,5 @@ public final class Solver {
             };
     }
 
-    /** Convenience: build and solve in one go. */
     public static Result run(ShapeSettings s) { return solve(Target.build(s), s); }
 }

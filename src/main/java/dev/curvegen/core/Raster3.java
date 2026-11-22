@@ -3,25 +3,13 @@ package dev.curvegen.core;
 import dev.curvegen.core.edit.Orbit;
 import java.util.Arrays;
 
-/**
- * Draws a {@link Mesh3} into an array of pixels, as flat coloured faces lit by which way they face. It needs no
- * graphics card, so the same picture can be drawn and checked without the game running, and the menu only draws
- * again when the camera or the shape changes.
- *
- * <p>A picture is {@code width} × {@code height} ARGB pixels, row by row from the top, with a depth for each.
- * The camera has no perspective, so every face looking the same way is the same parallelogram on the screen:
- * a pixel finds its place on a face by one small matrix worked out per direction.
- */
 public final class Raster3 {
     public final int width, height;
     public final int[] argb;
     private final float[] depth;
-    /** Pixels a hidden line has already shown through, so stretches that overlap don't add up to a brighter line. */
     private final boolean[] faint;
 
-    /** How bright each direction's faces are: north, east, south, west, down, up. */
     private static final float[] LIGHT = {0.74f, 0.62f, 0.82f, 0.56f, 0.45f, 1f};
-    /** Below this many pixels to a block the lines between blocks would be all there is, so they're left out. */
     private static final double GRID_FROM = 5;
     private static final float GRID_SHADE = 0.8f;
 
@@ -43,17 +31,11 @@ public final class Raster3 {
         return 0xFF000000 | r << 16 | g << 8 | b;
     }
 
-    /** Draws the faces the camera can see. {@code palette} gives an RGB colour per piece family, by ordinal. */
     public void draw(Mesh3 mesh, Orbit cam, int[] palette) { draw(mesh, cam, palette, null); }
 
-    /**
-     * The same, with {@code perBlock} giving each block's index into {@code palette}, by {@link Mesh3#block}, or null
-     * to colour by piece family.
-     */
     public void draw(Mesh3 mesh, Orbit cam, int[] palette, int[] perBlock) {
         double[] r = cam.right(), u = cam.up(), f = cam.forward();
         double s = cam.scale;
-        // A step of one block along each world axis, on the screen and in depth.
         double[] ex = new double[3], ey = new double[3], ed = new double[3];
         for (int a = 0; a < 3; a++) { ex[a] = s * r[a]; ey[a] = -s * u[a]; ed[a] = f[a]; }
         double bx = cam.ox - (cam.tx * ex[0] + cam.ty * ex[1] + cam.tz * ex[2]);
@@ -63,13 +45,12 @@ public final class Raster3 {
         int[] lit = new int[palette.length], dark = new int[palette.length];
         for (int d = 0; d < 6; d++) {
             int n = mesh.count[d], axis = Mesh3.AXIS[d], a = Mesh3.A[d], b = Mesh3.B[d];
-            if (n == 0 || f[axis] * Mesh3.SIGN[d] > -1e-4) continue;      // turned away, or edge on
+            if (n == 0 || f[axis] * Mesh3.SIGN[d] > -1e-4) continue;
             double eax = ex[a], eay = ey[a], ebx = ex[b], eby = ey[b];
             double det = eax * eby - ebx * eay;
             if (Math.abs(det) < 1e-9) continue;
-            // From a pixel to its place on the face: (a, b) = inverse · (pixel - base).
             double iax = eby / det, iay = -ebx / det, ibx = -eay / det, iby = eax / det;
-            double lineA = 1 / Math.hypot(eax, eay), lineB = 1 / Math.hypot(ebx, eby);   // one pixel, in blocks
+            double lineA = 1 / Math.hypot(eax, eay), lineB = 1 / Math.hypot(ebx, eby);
             for (int k = 0; k < palette.length; k++) { lit[k] = shade(palette[k], LIGHT[d]); dark[k] = shade(palette[k], LIGHT[d] * GRID_SHADE); }
             float[] rects = mesh.rects[d];
             byte[] fam = mesh.family[d];
@@ -105,13 +86,8 @@ public final class Raster3 {
         }
     }
 
-    /**
-     * Draws a line {@code thick} pixels wide over the picture. Where the shape is in front of it, it shows through
-     * faintly, so an outline can be followed round the back.
-     */
     public void line(Orbit cam, double x0, double y0, double z0, double x1, double y1, double z1, int rgb, int thick) {
         double[] p = cam.project(x0, y0, z0), q = cam.project(x1, y1, z1);
-        // Only the part on the picture is walked, however far off it the line runs.
         double t0 = 0, t1 = 1;
         double[] lo = {-thick, -thick}, hi = {width + thick, height + thick};
         for (int a = 0; a < 2; a++) {
@@ -145,6 +121,5 @@ public final class Raster3 {
 
     private static int mix(int under, int over) { return under + (over - under) * 22 / 100; }
 
-    /** The depth of what is drawn at a pixel, or infinity where there's nothing. */
     public float depthAt(int x, int y) { return depth[y * width + x]; }
 }

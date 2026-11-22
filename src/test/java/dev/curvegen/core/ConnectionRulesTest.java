@@ -7,10 +7,6 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/**
- * Checks every fence, pane and wall the solver outputs against an independent re-implementation of
- * Minecraft's rules: what connects to what, when a wall side is tall, and when a wall has a post.
- */
 class ConnectionRulesTest {
     private static boolean sturdy(int s, int face) { return !Pieces.isConnector(s) && Pieces.STURDY[s][face]; }
     private static boolean conn(int st, int nb, int face) {
@@ -20,7 +16,7 @@ class ConnectionRulesTest {
     private static List<ShapeSettings> shapes() {
         List<ShapeSettings> out = new ArrayList<>();
         ShapeSettings base = new ShapeSettings();
-        for (int k = 0; k < 8; k++) {   // also with chains and end rods among the connectors, which must ignore them
+        for (int k = 0; k < 8; k++) {
             boolean floor = (k & 1) != 0;
             int depth = (k & 2) != 0 ? 3 : 1;
             base.chain = base.rod = (k & 4) != 0;
@@ -48,18 +44,14 @@ class ConnectionRulesTest {
         assertTrue(checked > 5000, "only " + checked + " connectors checked");
     }
 
-    /**
-     * Holes cut through a solved shape, through every layer as a pattern on its face cuts them: the connectors left
-     * follow the same rules, judged on the drawing with the holes in it. With more than one piece type switched off too.
-     */
     @Test
     void connectorsBesideHolesFollowTheGameRules() {
         int checked = 0;
         for (String set : new String[]{"all", "fence", "pane wall", "wall slab stair"})
             for (ShapeSettings c : shapes()) {
-                if (c.gen == ShapeSettings.Gen.ELLIPSE && c.eW > 31) continue;   // the widest take most of the time and add nothing new
+                if (c.gen == ShapeSettings.Gen.ELLIPSE && c.eW > 31) continue;
                 if (!set.equals("all")) {
-                    if (c.chain) continue;   // chains and end rods only need checking once
+                    if (c.chain) continue;
                     c.slab = set.contains("slab"); c.stair = set.contains("stair"); c.trap = c.shelf = false;
                     c.fence = set.contains("fence"); c.pane = set.contains("pane"); c.wall = set.contains("wall");
                 }
@@ -73,14 +65,12 @@ class ConnectionRulesTest {
         assertTrue(checked > 10000, "only " + checked + " connectors checked");
     }
 
-    /** Checks every connector of a drawing. Returns how many there are. */
     private static int check(ShapeSettings c, Solver.Result r) {
         int checked = 0;
         int nx = r.nx(), ny = r.ny();
         for (int j = 0; j < ny; j++)
             for (int i = 0; i < nx; i++) {
                 int st = r.at(i, j);
-                // Flat builds only use pieces that look different from above; upright builds never use flat states.
                 boolean uprightShelf = st == Pieces.SH_L || st == Pieces.SH_R;
                 boolean flatState = st >= Pieces.F_TD_U && st < Pieces.CHAIN_H && !uprightShelf;
                 boolean uprightOnly = (st >= Pieces.SLAB_B && st <= Pieces.TD_T) || (st >= Pieces.FENCE && st < Pieces.F_TD_U) || uprightShelf;
@@ -102,8 +92,6 @@ class ConnectionRulesTest {
                         int l = L ? ((cov & 0x01FF) == 0x01FF ? 2 : 1) : 0;
                         int rr = R ? ((cov & 0xFF80) == 0xFF80 ? 2 : 1) : 0;
                         boolean covered = (cov & 0x0180) == 0x0180;
-                        // Depth 1: the game's post rule, with the wall above's post. Depth > 1: the front wall
-                        // connects backwards only, so it has a post.
                         boolean aboveWallPost = Pieces.FAMILY[U0] == Pieces.Family.WALL && Pieces.wallPost(U0);
                         boolean post = c.depth > 1 || !(L && R) || (!(l == 2 && rr == 2) && covered) || aboveWallPost;
                         assertEquals(l, Pieces.wallLeft(st), where + " left side");
@@ -157,14 +145,12 @@ class ConnectionRulesTest {
 
     @Test
     void shelvesOfferOnlyTheirPanel() {
-        // Faces are bottom, top, left, right. A shelf's lips don't fill the faces beside its panel.
         assertArrayEquals(new boolean[]{false, false, true, false}, Pieces.STURDY[Pieces.SH_L]);
         assertArrayEquals(new boolean[]{false, false, false, true}, Pieces.STURDY[Pieces.SH_R]);
         assertArrayEquals(new boolean[]{false, false, true, false}, Pieces.STURDY[Pieces.F_SH_L]);
         assertArrayEquals(new boolean[]{false, false, false, true}, Pieces.STURDY[Pieces.F_SH_R]);
         assertArrayEquals(new boolean[]{false, true, false, false}, Pieces.STURDY[Pieces.F_SH_U]);
         assertArrayEquals(new boolean[]{true, false, false, false}, Pieces.STURDY[Pieces.F_SH_D]);
-        // The shelf above a wall reaches 5 pixels in, short of the 9 a tall side needs.
         assertNotEquals(0x01FF, Pieces.BOTTOM[Pieces.SH_L] & 0x01FF);
         assertNotEquals(0xFF80, Pieces.BOTTOM[Pieces.SH_R] & 0xFF80);
         for (int s = Pieces.SH_L; s <= Pieces.F_SH_D; s++) assertFalse(Pieces.isConnector(s) || Pieces.isFloorConnector(s), Pieces.NAME[s]);
@@ -172,7 +158,6 @@ class ConnectionRulesTest {
 
     @Test
     void fullBlocksThatRefuseConnections() {
-        // With a full block fences can't attach to (leaves, pumpkins…), no connector may attach to one.
         ShapeSettings s = new ShapeSettings();
         s.fullConnects = false;
         Solver.Result r = Solver.run(s);

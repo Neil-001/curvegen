@@ -3,15 +3,7 @@ package dev.curvegen.core;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * A solved shape trimmed to its non-empty cells: x from 0 to width-1 (left to right), y from 0 (bottom).
- * Carve cells use the same origin and may lie outside that box (they're cleared to air, not built).
- */
 public record Layout(List<Cell> cells, List<Cell> carve, int width, int height) {
-    /**
-     * above is the piece in the cell above, which an upright wall takes its height from, and cell where it was in the
-     * solve's grid, {@code j * nx + i}, which is how painting names it.
-     */
     public record Cell(int x, int y, int piece, int above, int cell) {}
 
     public static Layout of(Solver.Result r) {

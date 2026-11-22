@@ -8,7 +8,6 @@ import java.lang.reflect.Modifier;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
-/** The in-world editor's undo relies on {@code copy}, {@code set} and {@code same} covering every setting. */
 class ShapeSettingsTest {
     @SuppressWarnings({"unchecked", "rawtypes"})
     private static void change(Field f, ShapeSettings s) throws Exception {
@@ -21,7 +20,7 @@ class ShapeSettingsTest {
             Object[] all = t.getEnumConstants();
             f.set(s, all[(((Enum) f.get(s)).ordinal() + 1) % all.length]);
         } else if (List.class.isAssignableFrom(t)) ((List<double[]>) f.get(s)).get(0)[1] += 0.25;
-        else if (t == Paint.class) ((Paint) f.get(s)).turn += 15;   // PaintTest covers each of its own settings
+        else if (t == Paint.class) ((Paint) f.get(s)).turn += 15;
         else fail("ShapeSettings." + f.getName() + " has a type this test doesn't know: teach it, and copy(), set() and same()");
     }
 

@@ -9,12 +9,6 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
-/**
- * A preset stores one shape tab's own settings as text (so it survives format changes gracefully):
- * the ellipse's size and shape, the equation and its ranges, or the Bézier grid and points, and the same for each 3D shape.
- * It can also store the block choices: each piece type's block and whether it's used.
- * Orientation and depth aren't part of a preset.
- */
 public final class PresetData {
     private PresetData() {}
 
@@ -95,7 +89,6 @@ public final class PresetData {
         return d;
     }
 
-    /** Applies a preset to the settings, switching to its tab. Missing or unreadable values keep their current setting. */
     public static void apply(Map<String, String> d, ShapeSettings.Gen gen, ShapeSettings s) {
         s.gen = gen;
         switch (gen) {
@@ -157,7 +150,6 @@ public final class PresetData {
                 List<double[]> pts = points(d.get("points"), 3);
                 if (pts.size() >= 2 && pts.size() <= Bezier3.MAX_POINTS) { s.pts3.clear(); s.pts3.addAll(pts); }
                 s.b3T = decimal(d, "thickness", 0.0625, 50, s.b3T);
-                // A preset from before curves could be hollow is a solid one.
                 s.b3Hollow = Boolean.parseBoolean(d.get("hollow"));
                 if (d.containsKey("openEnds")) s.b3Open = Boolean.parseBoolean(d.get("openEnds"));
             }
@@ -165,7 +157,6 @@ public final class PresetData {
                 s.sW = integer(d, "width", 1, Shape3.MAX_SIZE, s.sW);
                 s.sH = integer(d, "height", 1, Shape3.MAX_SIZE, s.sH);
                 s.sD = integer(d, "depth", 1, Shape3.MAX_SIZE, s.sD);
-                // The grid only makes sense whole: its size and every point, or none of it.
                 int rows = integer(d, "rows", Bezier3.MIN_GRID, Bezier3.MAX_GRID, 0), cols = integer(d, "columns", Bezier3.MIN_GRID, Bezier3.MAX_GRID, 0);
                 List<double[]> pts = points(d.get("points"), 3);
                 if (rows > 0 && cols > 0 && pts.size() == rows * cols) { s.sRows = rows; s.sCols = cols; s.sPts.clear(); s.sPts.addAll(pts); }
@@ -174,7 +165,6 @@ public final class PresetData {
         }
     }
 
-    /** Control points as text: "x,y;x,y" for a 2D curve, "x,y,z;x,y,z" in 3D. */
     private static String points(List<double[]> pts) {
         List<String> out = new ArrayList<>();
         for (double[] p : pts) {
@@ -185,7 +175,6 @@ public final class PresetData {
         return String.join(";", out);
     }
 
-    /** Reads points back, skipping any that don't have exactly {@code dims} finite numbers. */
     private static List<double[]> points(String text, int dims) {
         List<double[]> pts = new ArrayList<>();
         for (String p : (text == null ? "" : text).split(";")) {
@@ -201,10 +190,6 @@ public final class PresetData {
         return pts;
     }
 
-    /**
-     * The block choices as text: for each piece type, its block's id ("slab": "minecraft:oak_slab")
-     * and, except for full blocks, whether it's used ("slabUsed": "true").
-     */
     public static Map<String, String> captureBlocks(ShapeSettings s, Function<Pieces.Family, String> blockId) {
         Map<String, String> d = new LinkedHashMap<>();
         for (Pieces.Family f : Pieces.Family.values()) {
@@ -215,14 +200,8 @@ public final class PresetData {
         return d;
     }
 
-    /**
-     * Applies stored block choices: sets whether each piece type is used, and hands each stored block id to setBlock.
-     * Missing values keep their current setting, except shelves, chains and end rods in presets older than them.
-     */
     public static void applyBlocks(Map<String, String> d, ShapeSettings s, BiConsumer<Pieces.Family, String> setBlock) {
-        // A preset saved before shelves existed lists every other piece type, and its build had no shelves.
         if (d.containsKey("wallUsed") && !d.containsKey("shelfUsed")) s.shelf = false;
-        // The same goes for chains and end rods, which came later still.
         if (d.containsKey("wallUsed") && !d.containsKey("chainUsed")) s.chain = false;
         if (d.containsKey("wallUsed") && !d.containsKey("rodUsed")) s.rod = false;
         for (Pieces.Family f : Pieces.Family.values()) {
@@ -236,7 +215,6 @@ public final class PresetData {
 
     private static String key(Pieces.Family f) { return f.name().toLowerCase(Locale.ROOT); }
 
-    /** A translatable name describing the shape, used to pre-fill the Save dialog. */
     public static Message defaultName(ShapeSettings s, ShapeSettings.Gen gen) {
         return switch (gen) {
             case ELLIPSE -> ellipseName(s.eMode, false, s.eW, s.eH, 0, s.eT);
@@ -273,10 +251,6 @@ public final class PresetData {
         return volume ? Message.of(key, w, h, d, num(thickness), points) : Message.of(key, w, h, num(thickness), points);
     }
 
-    /**
-     * A safe file name (without ".json") for a preset: its tab, then its name in lower case with
-     * anything but letters and digits turned into dashes, e.g. "equation-heart".
-     */
     public static String fileStem(ShapeSettings.Gen gen, String name) {
         String plain = Normalizer.normalize(name, Normalizer.Form.NFD).replaceAll("\\p{M}", "").toLowerCase(Locale.ROOT);
         String slug = plain.replaceAll("[^a-z0-9]+", "-").replaceAll("^-|-$", "");
@@ -284,7 +258,6 @@ public final class PresetData {
         return gen.name().toLowerCase(Locale.ROOT) + (slug.isEmpty() ? "" : "-" + slug);
     }
 
-    /** The examples that used to sit behind the Equation tab's example button, as starting presets. */
     public static List<Example> examples() {
         List<Example> out = new ArrayList<>();
         String[][] ex = {
@@ -304,7 +277,6 @@ public final class PresetData {
         return out;
     }
 
-    // ---------- parsing helpers ----------
     static String num(double v) {
         String t = String.format(Locale.ROOT, "%.4f", v);
         t = t.replaceAll("0+$", "");

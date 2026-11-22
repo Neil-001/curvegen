@@ -52,10 +52,10 @@ class CommandRepliesTest {
     void thePlayersOwnFailuresShowInTheirPlaceInTheOrder() {
         CommandReplies r = new CommandReplies();
         r.sent(0, 0, 0);
-        r.other("setblock 9 9 9 stone");   // on a block that's already there
+        r.other("setblock 9 9 9 stone");
         r.sent(1, 0, 0);
         r.sent(2, 0, 0);
-        r.other("fill 5000 0 0 5000 0 0 stone");   // somewhere that isn't loaded, twice
+        r.other("fill 5000 0 0 5000 0 0 stone");
         r.other("fill 5000 0 0 5000 0 0 stone");
         r.sent(3, 0, 0);
         assertTrue(r.hidesSuccess(S, 0, 0, 0));
@@ -86,7 +86,6 @@ class CommandRepliesTest {
         CommandReplies r = new CommandReplies();
         r.sent(0, 0, 0);
         assertTrue(r.hidesSuccess(S, 0, 0, 0));
-        // Everything of the mod's is answered when the player's command goes out, just before the next batch.
         r.other("setblock 9 9 9 stone");
         r.sent(1, 0, 0);
         r.sent(2, 0, 0);
@@ -108,7 +107,6 @@ class CommandRepliesTest {
         assertTrue(r.hidesFailure(CommandReplies.HERE));
         assertFalse(r.hidesFailure("argument.block.id.invalid"), "the player's");
         assertFalse(r.hidesFailure(CommandReplies.HERE), "and so is its second line");
-        // Nothing says the player's command hadn't been answered already, so the next error may be theirs too.
         assertFalse(r.hidesFailure("argument.block.id.invalid"));
         assertFalse(r.hidesFailure(CommandReplies.HERE));
     }
@@ -130,7 +128,7 @@ class CommandRepliesTest {
     void aPlayersSetblockAtAnUnknownPlaceMayBeTheOneThatWorked() {
         CommandReplies r = new CommandReplies();
         r.sent(5, 0, 0);
-        r.other("setblock ~ ~ ~ stone");            // where the player stands, which is where the mod sets a block next
+        r.other("setblock ~ ~ ~ stone");
         r.sent(6, 0, 0);
         r.sent(7, 0, 0);
         assertTrue(r.hidesSuccess(S, 5, 0, 0));
@@ -144,9 +142,37 @@ class CommandRepliesTest {
     }
 
     @Test
+    void aNestedSetblockCanPrintMoreThanOneReply() {
+        CommandReplies r = new CommandReplies();
+        r.sent(0, 0, 0);
+        r.other("execute as @a run execute at @s run setblock ~ ~ ~ stone");
+        r.sent(1, 0, 0);
+        assertTrue(r.hidesSuccess(S, 0, 0, 0));
+        assertFalse(r.hidesSuccess(S, 5, 0, 0));
+        for (int t = 0; t < CommandReplies.TIMEOUT; t++) r.tick();
+        assertFalse(r.hidesSuccess(S, 1, 0, 0));
+        assertFalse(r.hidesFailure(CommandReplies.FAILED));
+        r.sent(2, 0, 0);
+        assertFalse(r.hidesSuccess(S, 2, 0, 0));
+        for (int t = 0; t <= CommandReplies.TIMEOUT; t++) r.tick();
+        r.sent(3, 0, 0);
+        assertTrue(r.hidesSuccess(S, 3, 0, 0));
+    }
+
+    @Test
+    void textInAnotherCommandIsNotANestedSetblock() {
+        CommandReplies r = new CommandReplies();
+        r.other("execute run say run setblock 1 0 0 stone");
+        r.sent(1, 0, 0);
+        r.sent(2, 0, 0);
+        assertTrue(r.hidesSuccess(S, 1, 0, 0));
+        assertTrue(r.hidesSuccess(S, 2, 0, 0));
+    }
+
+    @Test
     void anErrorAfterAPlayersQuietCommandShowsAndSoDoTheNext() {
         CommandReplies r = new CommandReplies();
-        r.other("time query daytime");   // prints its result, which says nothing about the order
+        r.other("time query daytime");
         r.sent(0, 0, 0);
         r.other("setblock 9 9 9 stone");
         r.sent(1, 0, 0);
@@ -183,7 +209,6 @@ class CommandRepliesTest {
     void anErrorThePlayerNeedsShowsOnce() {
         CommandReplies r = new CommandReplies();
         for (int k = 0; k < 3; k++) r.sent(k, 0, 0);
-        // Without permission every command gets the error and a second line pointing at the command.
         assertFalse(r.hidesFailure(NO_COMMAND));
         assertFalse(r.hidesFailure(CommandReplies.HERE));
         for (int k = 1; k < 3; k++) {
@@ -192,7 +217,6 @@ class CommandRepliesTest {
         }
         assertEquals(0, r.awaiting());
         assertFalse(r.hidesFailure(NO_COMMAND), "the player's own mistake afterwards");
-        // A different error is news.
         r.sent(0, 0, 0);
         r.sent(0, 0, 1);
         assertTrue(r.hidesFailure(NO_COMMAND), "still the same run of commands");

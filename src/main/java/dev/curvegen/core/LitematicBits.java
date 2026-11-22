@@ -1,9 +1,5 @@
 package dev.curvegen.core;
 
-/**
- * Packs palette indices the way Litematica's LitematicaBitArray does: values are laid end to end
- * and may straddle two longs (unlike vanilla chunk sections, which pad each long).
- */
 public final class LitematicBits {
     private LitematicBits() {}
 

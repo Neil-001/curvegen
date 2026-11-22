@@ -4,10 +4,6 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/**
- * Pins the solver's results for the default shapes. If a change moves these numbers, it changed what gets built:
- * make sure that's intended, then update them. (Walls-off, shelves-off numbers also match the web version.)
- */
 class SolverRegressionTest {
     private static final double EPS = 1e-3;
 
@@ -51,7 +47,7 @@ class SolverRegressionTest {
         s.gen = ShapeSettings.Gen.EQUATION;
         Solver.Result r = Solver.run(s);
         assertEquals(48, r.nx());
-        assertEquals(23, r.ny());                   // "same scale" height for y = 2sin(x) over ±2π, ±3
+        assertEquals(23, r.ny());
         assertEquals(21.3438, r.err(), EPS);
 
         s.gen = ShapeSettings.Gen.BEZIER;
@@ -72,7 +68,6 @@ class SolverRegressionTest {
             s.floor = true;
             assertEquals(flat[k], err(s), EPS, "flat " + modes[k]);
         }
-        // Upright, a shelf's panel is on the left or right. Flat, it can be on any of the four sides.
         s.floor = false; s.eMode = ShapeSettings.EllipseMode.OUTWARDS;
         int[] counts = Solver.run(s).counts();
         assertTrue(counts[Pieces.SH_L] > 0 && counts[Pieces.SH_L] == counts[Pieces.SH_R], "upright shelves");
@@ -92,7 +87,7 @@ class SolverRegressionTest {
                 for (int j = 0; j < r.ny(); j++)
                     for (int i = 0; i < r.nx(); i++) {
                         int p = r.at(i, j);
-                        if (Pieces.isConnector(p)) continue;   // connectors take their shape from neighbours
+                        if (Pieces.isConnector(p)) continue;
                         assertEquals(Pieces.MX[p], r.at(r.nx() - 1 - i, j), m + " at " + i + "," + j);
                     }
             }
@@ -100,7 +95,6 @@ class SolverRegressionTest {
 
     @Test
     void thinEllipsesKeepNoHiddenBlocks() {
-        // A full block stays only if it shows, supports a connector beside it or sets the height of a wall below.
         ShapeSettings s = new ShapeSettings();
         for (int w : new int[]{7, 19, 31, 64})
             for (int h : new int[]{5, 13, 19, 40}) {
@@ -120,9 +114,7 @@ class SolverRegressionTest {
 
     @Test
     void thinEllipsesMirrorTopToBottomWithoutFullLookingConnectors() {
-        // A low wall fits the default ellipse's top row, but its mirror image in the bottom row would be tall on both
-        // sides: it looks like a full block and needs another block above to stay tall. Neither row may use it.
-        boolean[][] pieceSets = {   // slab, stair, trap, fence, pane, wall
+        boolean[][] pieceSets = {
                 {true, true, true, true, true, true}, {false, false, false, false, false, true},
                 {false, false, false, false, true, true}, {true, false, true, true, true, true}};
         int walls = 0;
@@ -159,7 +151,6 @@ class SolverRegressionTest {
     void asymptotesAndUndefinedRegions() {
         ShapeSettings s = new ShapeSettings();
         s.gen = ShapeSettings.Gen.EQUATION;
-        // y = tan(x): no false vertical lines at the asymptotes, so the columns there stay (nearly) empty.
         s.src = "y = tan(x)"; s.xmin = "-4"; s.xmax = "4"; s.ymin = "-4"; s.ymax = "4"; s.qW = 32;
         Solver.Result r = Solver.run(s);
         int col = (int) Math.floor((Math.PI / 2 + 4) / 8 * 32);
@@ -167,7 +158,6 @@ class SolverRegressionTest {
         for (int j = 0; j < r.ny(); j++) if (r.at(col, j) != Pieces.EMPTY) filled++;
         assertTrue(filled <= 4, "asymptote column has " + filled + " pieces");
 
-        // y = sqrt(x), fill under: nothing where sqrt is undefined (x < 0).
         s.src = "y = sqrt(x)"; s.xmin = "-2"; s.xmax = "6"; s.ymin = "-1"; s.ymax = "3"; s.qMode = ShapeSettings.EqMode.UNDER;
         r = Solver.run(s);
         int negCols = (int) Math.floor(2.0 / 8 * r.nx()) - 1;

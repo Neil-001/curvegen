@@ -16,7 +16,6 @@ class LastPlacementTest {
         assertNull(last.undo(), "it's already gone");
         assertEquals("arch", last.redo());
         assertNull(last.redo(), "it's already back");
-        // Redo hands the placement over, and it counts once it's placed again.
         assertNull(last.undo());
         last.placed("arch again");
         assertEquals("arch again", last.undo());

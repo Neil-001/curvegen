@@ -3,20 +3,6 @@ package dev.curvegen.core;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Every piece state the solver can place, as a 16×16 silhouette in the drawing (x right, y up).
- *
- * Upright shapes are seen from the side: all states below F_TD_U, plus SH_L and SH_R. Fence and pane states are base, +1 connected
- * left, +2 right, +3 both. Side walls are WALL + ((left*3 + right)*2 + covered)*2 + post, with left/right
- * 0 none, 1 low, 2 tall, and covered meaning the block above covers the wall's centre.
- *
- * Flat shapes (floors) are seen from above, with the drawing's "up" pointing away from the player. Only states that
- * look different from a full block from above are used: EMPTY, FULL, TD_L, TD_R, F_TD_U, F_TD_D, the F_SH shelves,
- * and floor fences, panes and walls, which connect in four directions: base + (left 1 | right 2 | top 4 | bottom 8).
- *
- * Chains and end rods lying in the drawing look the same in both orientations, so both share the states from CHAIN_H.
- * End-on they are only a dot, which isn't used.
- */
 public final class Pieces {
     private Pieces() {}
 
@@ -36,30 +22,21 @@ public final class Pieces {
     public enum Family { AIR, FULL, SLAB, STAIRS, TRAPDOOR, SHELF, FENCE, PANE, WALL, CHAIN, ROD }
 
     public static final Family[] FAMILY = new Family[COUNT];
-    /** Translation keys for complete piece names. */
     public static final String[] NAME = new String[COUNT];
-    /** Complete translated row labels for the Count tab. */
     public static final String[] SHORT_NAME = new String[COUNT];
-    /** Colour per state for the "piece type" colouring (0xRRGGBB). */
     public static final int[] COLOR = new int[COUNT];
-    /** Rectangles {x0, y0, x1, y1} per state, in 16ths of a block. */
     public static final int[][][] RECTS = new int[COUNT][][];
     public static final int[] MX = new int[COUNT], MY = new int[COUNT];
-    /** 256-entry masks, index = y*16 + x. */
     public static final byte[][] MASK = new byte[COUNT][256];
     public static final int[] PIXELS = new int[COUNT];
-    /** Bottom row of the silhouette as a 16-bit mask (bit x set when pixel x of row 0 is filled). */
     public static final int[] BOTTOM = new int[COUNT];
-    /** Edges the silhouette fills completely: [state][0=bottom,1=top,2=left,3=right]. */
     public static final boolean[][] EDGE = new boolean[COUNT][4];
-    /** Full faces a fence, pane or wall can attach to, indexed like EDGE. Connectors offer none. */
     public static final boolean[][] STURDY = new boolean[COUNT][4];
 
     private static void def(int s, Family f, String name, int color, int mx, int my, int[]... rects) {
         FAMILY[s] = f; NAME[s] = name; SHORT_NAME[s] = name + ".short"; COLOR[s] = color; MX[s] = mx; MY[s] = my; RECTS[s] = rects;
     }
 
-    // ---------- side walls ----------
     public static int wall(int left, int right, boolean covered, boolean post) {
         return WALL + ((left * 3 + right) * 2 + (covered ? 1 : 0)) * 2 + (post ? 1 : 0);
     }
@@ -67,42 +44,26 @@ public final class Pieces {
     public static int wallRight(int s) { return (s - WALL) / 4 % 3; }
     public static boolean wallCovered(int s) { return ((s - WALL) / 2 & 1) == 1; }
     public static boolean wallPost(int s) { return ((s - WALL) & 1) == 1; }
-    /** The game's post rule for a wall with nothing in front or behind. */
     public static boolean wallPostRule(int left, int right, boolean covered) {
         if (left == 0 || right == 0) return true;
         return covered && !(left == 2 && right == 2);
     }
 
-    /**
-     * Whether an upright wall placed in layer k of a shape {@code depth} layers deep has its post by the game's rule,
-     * leaving out the wall above: the game also gives a wall a post whenever the wall above has one, which
-     * {@link Solver.Result#placedWallPost} adds. The layers in front and behind connect, tall when the piece above
-     * covers them.
-     */
     public static boolean ownWallPost(int piece, int above, int k, int depth) {
         int l = wallLeft(piece), r = wallRight(piece);
         boolean covered = wallCovered(piece), front = k < depth - 1, back = k > 0;
-        if (front != back || (l == 0) != (r == 0)) return true;                // a corner, an end or on its own
+        if (front != back || (l == 0) != (r == 0)) return true;
         if (!front && l == 0) return true;
-        if ((front && covered && spansDepth(above)) || (l == 2 && r == 2)) return false;   // straight and tall
-        return covered;                                                       // straight: post if something sits on it
+        if ((front && covered && spansDepth(above)) || (l == 2 && r == 2)) return false;
+        return covered;
     }
 
-    /**
-     * Does this piece, above a wall more than one block deep, cover the wall's front and back sides as well as its
-     * centre? Chains and end rods are as thin from the side as from the front, so they reach the centre only.
-     */
     public static boolean spansDepth(int s) { return !isLine(s); }
     public static boolean isLine(int s) { return FAMILY[s] == Family.CHAIN || FAMILY[s] == Family.ROD; }
 
-    // ---------- floor connectors ----------
     public static final int LEFT = 1, RIGHT = 2, TOP = 4, BOTTOM_SIDE = 8;
     public static boolean isFloorConnector(int s) { return s >= F_FENCE && s < F_WALL + 16; }
     public static int floorBits(int s) { return (s - F_FENCE) & 15; }
-    /**
-     * A floor wall has a post unless every side it joins has its opposite joined too: straight, or a crossing. With
-     * nothing above the top layer, the game gives those no post, and every layer below follows the one above.
-     */
     public static boolean floorWallPost(int bits) {
         return bits == 0 || ((bits & LEFT) == 0) != ((bits & RIGHT) == 0) || ((bits & TOP) == 0) != ((bits & BOTTOM_SIDE) == 0);
     }
@@ -149,11 +110,9 @@ public final class Pieces {
                         String name = "curvegen.piece.wall." + heights[l] + "_" + heights[r] + (p == 1 ? ".with_post" : ".no_post");
                         int base = 0x6a6f8c + 0x0c0c0c * (l + r) + (l == 2 || r == 2 ? 0x000018 : 0) + (p == 1 ? 0x080000 : 0);
                         def(s, Family.WALL, name, base, wall(r, l, c == 1, p == 1), s, rects.toArray(new int[0][]));
-                        // With no sides, both encodings share the same Count row.
                         if (l == 0 && r == 0) SHORT_NAME[s] = "curvegen.piece.wall.none_none.with_post.short";
                     }
 
-        // ---- floors (top view) ----
         def(F_TD_U, Family.TRAPDOOR, "curvegen.piece.f_td_u", 0xb85bd6, F_TD_U, F_TD_D, new int[]{0, 13, 16, 16});
         def(F_TD_D, Family.TRAPDOOR, "curvegen.piece.f_td_d", 0x7d3aa0, F_TD_D, F_TD_U, new int[]{0, 0, 16, 3});
         String[] connections = {"post", "left", "right", "left_right", "top", "left_top", "right_top", "left_right_top",
@@ -170,7 +129,6 @@ public final class Pieces {
                     F_WALL + mx, F_WALL + my, arms(hasPost ? new int[]{4, 4, 12, 12} : null, bits, 5, 11));
         }
 
-        // A shelf is a panel 3 thick with a lip 2 deep along its top and bottom. From above it's a strip 5 deep.
         def(SH_L, Family.SHELF, "curvegen.piece.sh_l", 0xc98f5a, SH_R, SH_L, new int[]{0, 0, 3, 16}, new int[]{3, 0, 5, 4}, new int[]{3, 12, 5, 16});
         def(SH_R, Family.SHELF, "curvegen.piece.sh_r", 0x8a5a33, SH_L, SH_R, new int[]{13, 0, 16, 16}, new int[]{11, 0, 13, 4}, new int[]{11, 12, 13, 16});
         def(F_SH_L, Family.SHELF, "curvegen.piece.f_sh_l", 0xc98f5a, F_SH_R, F_SH_L, new int[]{0, 0, 5, 16});
@@ -178,8 +136,6 @@ public final class Pieces {
         def(F_SH_U, Family.SHELF, "curvegen.piece.f_sh_u", 0xe0b98a, F_SH_U, F_SH_D, new int[]{0, 11, 16, 16});
         def(F_SH_D, Family.SHELF, "curvegen.piece.f_sh_d", 0x6b4226, F_SH_D, F_SH_U, new int[]{0, 0, 16, 5});
 
-        // ---- chains and end rods (either view) ----
-        // A chain's two crossed strips are 3 wide but turned 45°, so it looks 2 wide. A rod points away from its plate.
         def(CHAIN_H, Family.CHAIN, "curvegen.piece.chain_h", 0xc75b8e, CHAIN_H, CHAIN_H, new int[]{0, 7, 16, 9});
         def(CHAIN_V, Family.CHAIN, "curvegen.piece.chain_v", 0x8f3a63, CHAIN_V, CHAIN_V, new int[]{7, 0, 9, 16});
         def(ROD_U, Family.ROD, "curvegen.piece.rod_u", 0xf5ecd0, ROD_U, ROD_D, new int[]{6, 0, 10, 1}, new int[]{7, 1, 9, 16});
@@ -209,7 +165,6 @@ public final class Pieces {
         }
     }
 
-    /** A post (or none) plus arms of width a0..a1 reaching from the centre to each connected edge. */
     private static int[][] arms(int[] post, int bits, int a0, int a1) {
         List<int[]> r = new ArrayList<>();
         if (post != null) r.add(post);
@@ -224,7 +179,6 @@ public final class Pieces {
         Family f = FAMILY[s];
         return f == Family.FENCE || f == Family.PANE || f == Family.WALL;
     }
-    /** Is this a type token used while solving (the base fence/pane/wall state of either orientation)? */
     public static boolean isType(int s) { return s == FENCE || s == PANE || s == WALL || s == F_FENCE || s == F_PANE || s == F_WALL; }
     public static boolean connectsLeft(int s) {
         if (isFloorConnector(s)) return (floorBits(s) & LEFT) != 0;
@@ -244,7 +198,6 @@ public final class Pieces {
             default -> false;
         };
     }
-    /** Do these two families join when side by side? (Fences only join fences; panes and walls join each other.) */
     public static boolean joins(Family a, Family b) {
         if (a == b) return true;
         return (a == Family.PANE && b == Family.WALL) || (a == Family.WALL && b == Family.PANE);

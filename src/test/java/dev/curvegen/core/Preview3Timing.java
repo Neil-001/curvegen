@@ -5,12 +5,6 @@ import java.util.Arrays;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
-/**
- * How long the menu's 3D picture takes: building the faces once per solve, and drawing them once per camera move.
- * Nothing is asserted. Take the {@code @Disabled} off and run
- * {@code ./gradlew :fabric:test --tests '*Preview3Timing*' -i} to see the numbers. Drawing happens on the client
- * thread, so it wants to stay well inside a frame.
- */
 class Preview3Timing {
     @Test
     @Disabled("prints timings; asserts nothing")
@@ -25,7 +19,6 @@ class Preview3Timing {
                 double build = (System.nanoTime() - t) / 1e6;
                 int[] palette = new int[Pieces.Family.values().length];
                 Arrays.fill(palette, 0x808080);
-                // A 259 by 144 preview at GUI scale 3, fitted and then zoomed in five times.
                 for (double zoom : new double[]{1, 5}) {
                     Raster3 raster = new Raster3(777, 432);
                     Orbit o = new Orbit();

@@ -6,17 +6,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * The rows of the Count tab for a 3D shape. {@link Pieces3} has 257 states, most of them the same piece turned
- * another way or a wall with another mix of sides, so states that a builder would call the same thing share a row.
- */
 public final class Count3 {
     private Count3() {}
 
-    /**
-     * One row: a piece family, what to call these states within it, the states, and the one whose view from the
-     * south says most about the piece, for the row's icon.
-     */
     public record Group(Family family, Message name, int[] states, int icon) {
         public int count(int[] counts) {
             int n = 0;
@@ -25,12 +17,10 @@ public final class Count3 {
         }
     }
 
-    /** Every row, by family in the order the states are numbered. */
     public static final List<Group> GROUPS;
 
     private static final String[] FACING = {"north", "east", "south", "west", "down", "up"};
 
-    /** What a state is called within its family. */
     public static Message name(int s) {
         String key = switch (Pieces3.FAMILY[s]) {
             case FULL -> "full";
@@ -56,7 +46,6 @@ public final class Count3 {
         return Message.of("curvegen.count3." + key);
     }
 
-    /** How much of a block's face the state covers seen from the south, in 256ths. */
     static int silhouette(int s) {
         boolean[] seen = new boolean[256];
         int n = 0;
@@ -76,7 +65,6 @@ public final class Count3 {
             for (List<Integer> states : byName.values()) {
                 int first = states.get(0);
                 if (Pieces3.FAMILY[first] != f) continue;
-                // The view that covers least shows the piece's profile rather than its back.
                 int icon = first;
                 for (int s : states) if (silhouette(s) < silhouette(icon)) icon = s;
                 out.add(new Group(f, name(first), states.stream().mapToInt(Integer::intValue).toArray(), icon));
