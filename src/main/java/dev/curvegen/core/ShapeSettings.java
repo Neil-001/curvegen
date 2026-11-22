@@ -4,9 +4,7 @@ import dev.curvegen.core.paint.Paint;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Everything the user can set for the shape. Kept in memory between screen openings. */
 public final class ShapeSettings {
-    /** Those from ELLIPSOID on are 3D: {@link Solver3} builds them, and {@link #is3d} tells them apart. */
     public enum Gen { ELLIPSE, EQUATION, BEZIER, ELLIPSOID, TORUS, EQUATION3, BEZIER3, SURFACE }
     public enum EllipseMode { THIN, FILLED, OUTWARDS, INWARDS, MIDDLE }
     public enum EqMode { LINE, UNDER, OVER }
@@ -32,30 +30,19 @@ public final class ShapeSettings {
     public double bLW = 1;
     public boolean snap = false;
 
-    /** Ellipsoid: width (east to west), height and depth (north to south), with the ellipse's modes. */
     public int e3W = 21, e3H = 21, e3D = 21;
     public EllipseMode e3Mode = EllipseMode.THIN;
     public double e3T = 1;
 
-    /** Torus: a ring tRing across with a tube tTube thick, stretched to fill a tW × tH × tD box. */
     public int tRing = 25, tTube = 9, tW = 25, tH = 9, tD = 25;
     public boolean tHollow = false;
 
-    /**
-     * 3D equation in x, y and z, where z is height. The ranges map onto a box q3W wide (x, east), q3D deep (y, north)
-     * and q3H high (z, up). With q3Lock the depth and height follow the width, to give every axis the same scale.
-     */
     public String src3 = "z = sin(x) cos(y)", x3min = "-pi", x3max = "pi", y3min = "-pi", y3max = "pi", z3min = "-1.5", z3max = "1.5";
     public int q3W = 32, q3D = 32, q3H = 15;
     public boolean q3Lock = true;
     public Eq3Mode q3Mode = Eq3Mode.SURFACE;
     public double q3T = 1;
 
-    /**
-     * 3D Bézier curve: one curve through control points {x, y, z} in blocks from the box's lowest corner, as a tube
-     * b3T thick. With b3Hollow the tube is a shell, and with b3Open as well its two ends are left open. A tube under
-     * {@link #HOLLOW_MIN} thick has no room inside and is built solid whatever these say.
-     */
     public int b3W = 32, b3H = 16, b3D = 32;
     public final List<double[]> pts3 = new ArrayList<>(List.of(
             new double[]{2, 2, 2}, new double[]{10, 14, 4}, new double[]{22, 14, 28}, new double[]{30, 2, 30}));
@@ -63,10 +50,6 @@ public final class ShapeSettings {
     public boolean b3Hollow = false, b3Open = true;
     public static final double HOLLOW_MIN = 3;
 
-    /**
-     * Bézier surface: one patch sT thick with sRows × sCols control points, row by row, so the point in row r and
-     * column c is sPts.get(r * sCols + c). {@link Bezier3} adds and removes rows and columns.
-     */
     public int sW = 30, sH = 12, sD = 30, sRows = 4, sCols = 4;
     public final List<double[]> sPts = new ArrayList<>();
     {
@@ -78,9 +61,7 @@ public final class ShapeSettings {
     public boolean is3d() { return is3d(gen); }
     public static boolean is3d(Gen gen) { return gen.ordinal() >= Gen.ELLIPSOID.ordinal(); }
 
-    /** Piece families the solver may use (full blocks are always allowed). */
     public boolean slab = true, stair = true, trap = true, shelf = true, fence = true, pane = true, wall = true;
-    /** Chains and end rods are thin lines rather than building blocks, so they start switched off. */
     public boolean chain = false, rod = false;
 
     public boolean allows(Pieces.Family f) {
@@ -96,32 +77,20 @@ public final class ShapeSettings {
             case CHAIN -> chain = v; case ROD -> rod = v; default -> {}
         }
     }
-    /** False when the chosen full block is one fences/panes refuse to attach to (leaves, pumpkins…). */
     public boolean fullConnects = true;
-    /** How many blocks deep the shape is extruded when placed or exported. */
     public int depth = 1;
-    /** Build flat on the ground (a floor, drawn from above) instead of upright (a wall, drawn from the side). */
     public boolean floor = false;
-    /** Placement: may the shape replace blocks that are already there? (Off: only air and replaceable blocks.) */
     public boolean overwrite = true;
-    /** Placement: clear the space the shape encloses (inside an ellipse wall, the far side of a filled equation). */
     public boolean carve = false;
-    /** 3D shapes: match block colours to the top texture rather than the side. */
     public boolean topColours = false;
-    /**
-     * How the shape is painted after it's solved. Painting never changes the solve, so code that decides whether a
-     * shape needs solving again compares everything but this.
-     */
     public final Paint paint = new Paint();
 
-    /** Independent copy, so the solver can run on a worker thread while the UI keeps editing. */
     public ShapeSettings copy() {
         ShapeSettings c = new ShapeSettings();
         c.set(this);
         return c;
     }
 
-    /** Takes every setting from another instance. The in-world editor's undo uses it to put a snapshot back. */
     public void set(ShapeSettings o) {
         if (o == this) return;
         gen = o.gen; eW = o.eW; eH = o.eH; eMode = o.eMode; eT = o.eT;
@@ -152,7 +121,6 @@ public final class ShapeSettings {
         return true;
     }
 
-    /** Whether every setting matches. {@code ShapeSettingsTest} checks that this and {@link #set} cover every field. */
     public boolean same(ShapeSettings o) {
         return same(pts, o.pts) && same(pts3, o.pts3) && same(sPts, o.sPts) && gen == o.gen && eW == o.eW && eH == o.eH && eMode == o.eMode && eT == o.eT
                 && src.equals(o.src) && xmin.equals(o.xmin) && xmax.equals(o.xmax) && ymin.equals(o.ymin) && ymax.equals(o.ymax)

@@ -14,10 +14,6 @@ import static dev.curvegen.core.Pieces3.*;
 import static dev.curvegen.core.ShapeSettings.Eq3Mode.*;
 import static org.junit.jupiter.api.Assertions.*;
 
-/**
- * 3D equations, Bézier curves and Bézier surfaces as the volumetric solver builds them. As in {@link Solver3Test},
- * the regression numbers pin what gets built: change them only on purpose.
- */
 class Shapes3Test {
     private static final double EPS = 1e-3;
 
@@ -48,7 +44,6 @@ class Shapes3Test {
         return s;
     }
 
-    /** A patch over a w × d floor with its control points evenly spread and at the given heights, row by row. */
     static ShapeSettings surface(int w, int h, int d, int rows, int cols, double thickness, double... heights) {
         ShapeSettings s = new ShapeSettings();
         s.gen = ShapeSettings.Gen.SURFACE; s.sW = w; s.sH = h; s.sD = d; s.sRows = rows; s.sCols = cols; s.sT = thickness;
@@ -64,14 +59,12 @@ class Shapes3Test {
         return surface(size, height, size, 4, 4, thickness, heights);
     }
 
-    /** Leaning, sheared and off the block grid. */
     private static ShapeSettings skew(double thickness) {
         ShapeSettings s = bumpy(30, 16, thickness, 5);
         for (int k = 0; k < 16; k++) { double[] p = s.sPts.get(k); p[0] = 3.3 + k % 4 * 6.1 + k / 4 * 2.2; p[2] = 2.7 + k / 4 * 7.3; p[1] = 3 + k % 4 * 2.1 + p[1] / 5; }
         return s;
     }
 
-    /** Bent back over itself, with three blocks between the two sheets. */
     private static ShapeSettings folded(double thickness) {
         ShapeSettings s = surface(20, 12, 20, 2, 4, thickness, 0);
         double[][] bend = {{2, 3}, {26, 3}, {26, 7}, {2, 7}};
@@ -121,7 +114,6 @@ class Shapes3Test {
         assertEquals(blocks, blocks(r), got);
     }
 
-    /** The same shape, with every point of a block that holds the surface looked at instead of interpolated. */
     private static Shape3 pointByPoint(Shape3 sh) {
         return new Shape3() {
             @Override public int nx() { return sh.nx(); }
@@ -135,8 +127,6 @@ class Shapes3Test {
             @Override public List<double[]> wireframe() { return List.of(); }
         };
     }
-
-    // ---------- regression ----------
 
     @Test
     void regressionEquations() {
@@ -186,24 +176,22 @@ class Shapes3Test {
         pinned("2 by 6", grid, 86.9478, 491.8833, 716);
     }
 
-    // ---------- every shape ----------
-
     private static List<ShapeSettings> awkward() {
         List<ShapeSettings> out = new ArrayList<>();
         for (ShapeSettings.Eq3Mode m : ShapeSettings.Eq3Mode.values()) {
             out.add(equation("z = sin(x) cos(y)", m, 1, 24));
             out.add(cube("z = tan(x)", m, 1, 32, "-4", "4"));
-            out.add(equation("z = tan(x)", m, 1, 12, "-4", "4", "-4", "4", "-10", "10"));      // a pole to every other block
+            out.add(equation("z = tan(x)", m, 1, 12, "-4", "4", "-4", "4", "-10", "10"));
             out.add(cube("z = 1/x", m, 1.5, 24, "-4", "4"));
             out.add(cube("z = floor(x)", m, 1, 32, "-4", "4"));
-            out.add(equation("z = floor(x)", m, 1, 30, "-4.1", "4", "-4", "4", "-4", "4.2"));  // steps that miss the block grid
+            out.add(equation("z = floor(x)", m, 1, 30, "-4.1", "4", "-4", "4", "-4", "4.2"));
             out.add(cube("x^2 + y^2 + z^2 = 16", m, 2, 24, "-5", "5"));
             out.add(cube("max(|x|, |y|, |z|) = 3", m, 1, 20, "-5", "5"));
-            out.add(equation("z = sqrt(16 - x^2 - y^2)", m, 1, 24, "-5", "5", "-5", "5", "-1", "5"));   // undefined outside a circle
+            out.add(equation("z = sqrt(16 - x^2 - y^2)", m, 1, 24, "-5", "5", "-5", "5", "-1", "5"));
             out.add(cube("(x^2 + 9/4 y^2 + z^2 - 1)^3 = x^2 z^3 + 9/80 y^2 z^3", m, 1, 24, "-1.5", "1.5"));
         }
         out.add(equation("z = sin(x) cos(y)", SURFACE, 0.25, 24));
-        out.add(equation("z = sin(3x) + y", SURFACE, 6, 40, "-4", "4", "-4", "4", "-12", "12"));   // mostly far from the surface
+        out.add(equation("z = sin(3x) + y", SURFACE, 6, 40, "-4", "4", "-4", "4", "-12", "12"));
         for (double t : new double[]{0.25, 0.75, 1, 2.5, 7}) {
             out.add(randomCurve(24, 8, t, 11));
             out.add(bumpy(24, 14, t, 3));
@@ -216,7 +204,6 @@ class Shapes3Test {
 
     @Test
     void skippedCellsReallyAreUniform() {
-        // No field here keeps to a slope of 1 by itself. Whatever each does instead, a skipped cell must look the same to the solver throughout.
         double[] lattice = new double[125];
         for (ShapeSettings s : awkward()) {
             Shape3 sh = Shape3.of(s);
@@ -251,11 +238,8 @@ class Shapes3Test {
         }
     }
 
-    // ---------- equations ----------
-
     @Test
     void equationVolumesAreRight() {
-        // A ball of radius 4 in a box 10 across and 30 blocks wide is 12 blocks in radius.
         double radius = 12;
         Solver3.Result r = Solver3.run(cube("x^2 + y^2 + z^2 < 16", SURFACE, 1, 30, "-5", "5"));
         assertEquals(4.0 / 3 * Math.PI * radius * radius * radius, r.volume(), 8);
@@ -266,7 +250,6 @@ class Shapes3Test {
             double shell = 4.0 / 3 * Math.PI * (Math.pow(radius + t / 2, 3) - Math.pow(radius - t / 2, 3));
             assertEquals(shell, r.volume(), shell * 0.005, "shell " + t + " thick");
         }
-        // The thickness is measured across the surface, not up and down: a steep plane is as thick as a level one.
         r = Solver3.run(equation("z = 3x", SURFACE, 1, 20, "-1", "1", "-1", "1", "-3", "3"));
         assertEquals(60, r.ny());
         assertEquals(20 * Math.sqrt(20 * 20 + 60 * 60), r.volume(), 20 * 63.2 * 0.02);
@@ -278,10 +261,8 @@ class Shapes3Test {
         Solver3.Result r = Solver3.run(s);
         assertEquals(FULL, r.at(7, 3, 4)); assertEquals(AIR, r.at(1, 5, 4));
         r = Solver3.run(cube("z = y", BELOW, 1, 8, "0", "8"));
-        // North is towards low z in the world, so the ground rises that way.
         assertEquals(FULL, r.at(4, 3, 0)); assertEquals(AIR, r.at(4, 5, 6));
         for (int x = 0; x < 8; x++) assertEquals(r.at(0, 3, 2), r.at(x, 3, 2));
-        // With that, the box isn't a mirror image: x to y to z turns the same way as east to north to up.
         r = Solver3.run(cube("x > 6", SURFACE, 1, 8, "0", "8"));
         assertEquals(128, blocks(r));
         assertEquals(FULL, r.at(7, 0, 0)); assertEquals(AIR, r.at(5, 7, 7));
@@ -297,7 +278,6 @@ class Shapes3Test {
             assertEquals(setting, ((Shapes3.Equation) Shape3.of(cube("x", setting, 1, 8, "0", "8"))).mode(), "a bare expression is z = …");
         }
         Solver3.Result below = Solver3.run(cube("z < x", SURFACE, 1, 8, "0", "8")), above = Solver3.run(cube("z > x", SURFACE, 1, 8, "0", "8"));
-        // Half the box each, and both get the points exactly on the surface, which here is a sheet of them.
         assertEquals(258, below.volume(), 1e-9);
         assertEquals(258, above.volume(), 1e-9);
         assertEquals(FULL, below.at(7, 0, 0)); assertEquals(AIR, above.at(7, 0, 0));
@@ -314,7 +294,6 @@ class Shapes3Test {
         s.q3Lock = false;
         sh = Shape3.of(s);
         assertEquals(40, sh.nx()); assertEquals(7, sh.nz()); assertEquals(9, sh.ny());
-        // Locked sizes stay within the limits too.
         s = equation("z = x", SURFACE, 1, 200, "0", "1", "0", "1000", "0", "0.001");
         sh = Shape3.of(s);
         assertEquals(Shape3.MAX_SIZE, sh.nz()); assertEquals(1, sh.ny());
@@ -347,30 +326,24 @@ class Shapes3Test {
 
     @Test
     void asymptotesAndJumpsAreNotSurface() {
-        // tan(x) leaves the box at each asymptote, 6.28 blocks either side of the middle of 32. Below it is solid up to there and empty after.
         Solver3.Result r = Solver3.run(cube("z < tan(x)", SURFACE, 1, 32, "-4", "4"));
         for (int y = 0; y < 28; y++) { assertEquals(FULL, r.at(21, y, 9), "left of the asymptote, level " + y); assertEquals(AIR, r.at(23, 20 + y % 12, 9)); }
-        assertEquals(16384, r.volume(), 1);      // half the box, by symmetry
-        // As a surface, the two branches pass each other without a wall joining them along the asymptote.
+        assertEquals(16384, r.volume(), 1);
         r = Solver3.run(cube("z = tan(x)", SURFACE, 1, 32, "-4", "4"));
         Solver3.Result one = Solver3.run(cube("z = tan(x)", SURFACE, 1, 32, "-1.5", "1.5"));
         assertTrue(blocks(one) > 500);
         for (int z = 0; z < 32; z++)
             for (int y = 0; y < 32; y++) {
-                // Between the branch rising on the left of x = pi/2 and the one arriving on its right, level with the middle, there's air.
                 if (y >= 14 && y <= 17) { assertEquals(AIR, r.at(21, y, z)); assertEquals(AIR, r.at(22, y, z)); assertEquals(AIR, r.at(23, y, z)); }
             }
-        // 1/x: nothing stands on the plane x = 0 near z = 0, where both branches are far away.
         r = Solver3.run(cube("z = 1/x", SURFACE, 1, 32, "-4", "4"));
         for (int z = 0; z < 32; z++) for (int y = 14; y <= 17; y++) for (int x = 15; x <= 16; x++) assertEquals(AIR, r.at(x, y, z));
         assertNotEquals(AIR, r.at(31, 16, 5));
-        // Steps on the block grid are exactly their treads: a slab's thickness above and below each level, and no risers.
         r = Solver3.run(cube("z = floor(x)", SURFACE, 1, 32, "-4", "4"));
         assertEquals(0, r.err(), 1e-9);
-        assertEquals(7.5 * 4 * 32, r.volume(), 1e-9);    // seven treads and the bottom half of the eighth, which the box cuts
+        assertEquals(7.5 * 4 * 32, r.volume(), 1e-9);
         assertEquals(AIR, r.at(16, 14, 3)); assertEquals(AIR, r.at(15, 18, 3));
         assertEquals(SLAB_T, r.at(16, 15, 3)); assertEquals(SLAB_B, r.at(16, 16, 3));
-        // Filled, they're whole blocks.
         r = Solver3.run(cube("z < floor(x)", SURFACE, 1, 32, "-4", "4"));
         assertEquals(0, r.err(), 1e-9);
         assertEquals(blocks(r), r.counts()[FULL]);
@@ -379,24 +352,20 @@ class Shapes3Test {
 
     @Test
     void anEquationThatTurnsAtItsSurfaceStillHasOne() {
-        // x^2 is flat where x is 0, so a slope taken there says the surface is nowhere near. It's half a block off.
         ShapeSettings s = cube("x^2 = 0.16", SURFACE, 1, 9, "-4.5", "4.5");
         Shape3 sh = Shape3.of(s);
         assertEquals(0, sh.uniform(4, 0, 0));
         Solver3.Result r = Solver3.run(s);
-        assertEquals(1.8 * 81, r.volume(), 5);      // two walls 0.8 apart, each a block thick, run together
+        assertEquals(1.8 * 81, r.volume(), 5);
         for (int x = 3; x <= 5; x++) assertNotEquals(AIR, r.at(x, 4, 4));
-        // Squared, an equation touches 0 without crossing it. It's the same surface as before.
         assertEquals(81, Solver3.run(cube("x = 0", SURFACE, 1, 9, "-4.5", "4.5")).volume(), 0.5);
         assertEquals(81, Solver3.run(cube("x^2 = 0", SURFACE, 1, 9, "-4.5", "4.5")).volume(), 0.5);
         double ball = Solver3.run(cube("x^2 + y^2 + z^2 = 16", SURFACE, 1, 24, "-5", "5")).volume();
         assertEquals(ball, Solver3.run(cube("(x^2 + y^2 + z^2 - 16)^2 = 0", SURFACE, 1, 24, "-5", "5")).volume(), ball * 0.02);
-        // Thin, too: the two sides of a surface that is only touched are told apart, so a thin wall doesn't fall between samples.
         Solver3.Result thin = Solver3.run(cube("x = 0.3", SURFACE, 0.25, 9, "-4.5", "4.5")), touched = Solver3.run(cube("(x - 0.3)^2 = 0", SURFACE, 0.25, 9, "-4.5", "4.5"));
         assertEquals(20.25, thin.volume(), 0.01);
         assertEquals(20.25, touched.volume(), 0.3);
         assertEquals(81, blocks(touched));
-        // A pole still isn't one, however the stepping goes.
         assertEquals(0, Solver3.run(cube("1/x^2 = 0", SURFACE, 1, 9, "-4.5", "4.5")).volume(), 1e-9);
     }
 
@@ -429,8 +398,6 @@ class Shapes3Test {
             }
     }
 
-    // ---------- curves ----------
-
     @Test
     void theTubeIsAsFarFromTheCurveAsItSays() {
         ShapeSettings s = randomCurve(24, 9, 3, 21);
@@ -444,14 +411,12 @@ class Shapes3Test {
             double[] c = on[r.nextInt(on.length)];
             double x = c[0] + r.nextGaussian() * 1.5, y = c[1] + r.nextGaussian() * 1.5, z = c[2] + r.nextGaussian() * 1.5, best = Double.MAX_VALUE;
             for (double[] p : on) best = Math.min(best, (p[0] - x) * (p[0] - x) + (p[1] - y) * (p[1] - y) + (p[2] - z) * (p[2] - z));
-            // The shape's own coordinates include the room it adds around the box, and it stops counting 2 blocks beyond the tube.
             assertEquals(Math.min(Math.sqrt(best), 3.5), sh.field(x + 2, y + 2, z + 2), 0.011, "trial " + trial);
         }
     }
 
     @Test
     void tubeVolumesAreRight() {
-        // A straight tube is a cylinder with half a ball on each end.
         for (double t : new double[]{0.5, 1, 2, 4}) {
             Solver3.Result r = Solver3.run(curve(20, 8, 8, t, 3, 4, 4, 17, 4, 4));
             double rad = t / 2, exact = Math.PI * rad * rad * 14 + 4.0 / 3 * Math.PI * rad * rad * rad;
@@ -463,7 +428,6 @@ class Shapes3Test {
             double rad = t / 2, exact = Math.PI * rad * rad * length(s) + 4.0 / 3 * Math.PI * rad * rad * rad;
             assertEquals(exact, r.volume(), exact * 0.04, "bent, " + t + " thick");
         }
-        // Sampled point by point, a tube a block thick or more is a little fatter: interpolating rounds its core off.
         ShapeSettings s = randomCurve(24, 8, 1, 11);
         Solver3.Result a = Solver3.run(s), b = Solver3.solve(pointByPoint(Shape3.of(s)), s, () -> false);
         assertTrue(a.volume() <= b.volume() && a.volume() >= b.volume() * 0.94, a.volume() + " against " + b.volume());
@@ -474,11 +438,9 @@ class Shapes3Test {
         ShapeSettings s = curve(8, 8, 8, 1, 4, 4, 4);
         assertEquals(Message.of("curvegen.error.curve_min_points"), Shape3.of(s).error());
         assertEquals(0, blocks(Solver3.run(s)));
-        // Two points in one place are a ball.
         s = curve(8, 8, 8, 4, 4, 4, 4, 4, 4, 4);
         assertNull(Shape3.of(s).error());
         assertEquals(4.0 / 3 * Math.PI * 8, Solver3.run(s).volume(), 0.5);
-        // Whatever sticks out of the box and its margin is cut off.
         s = curve(4, 4, 4, 1, -20, 2, 2, 30, 2, 2);
         Solver3.Result r = Solver3.run(s);
         assertEquals(6, r.nx());
@@ -492,26 +454,22 @@ class Shapes3Test {
 
     @Test
     void aHollowCurveWithOpenEndsIsAPipe() {
-        // Straight along x, 7 thick: with the 4 blocks of room around the box, the ends are at x = 7 and 21.
         ShapeSettings s = hollow(curve(20, 9, 9, 7, 3, 4.5, 4.5, 17, 4.5, 4.5), true);
         Solver3.Result r = Solver3.run(s), capped = Solver3.run(hollow(s.copy(), false));
         s.b3Hollow = false;
         Solver3.Result solid = Solver3.run(s);
         assertEquals(4, r.shape().pad());
-        // You can see right through it, and nothing is left past its ends.
         for (int i = 0; i < r.nx(); i++) assertEquals(AIR, r.at(i, 8, 8), "axis at " + i);
         for (int y = 0; y < r.ny(); y++)
             for (int z = 0; z < r.nz(); z++)
                 for (int x = 0; x < r.nx(); x++)
                     if (x < 7 || x > 20) assertEquals(AIR, r.at(x, y, z), x + "," + y + "," + z);
-        // The wall runs the whole way, and away from the ends it's the solid tube's outside.
         for (int x = 7; x <= 20; x++)
             for (int[] d : new int[][]{{0, 3}, {3, 0}, {0, -3}, {-3, 0}}) {
                 String where = "wall at " + x + " " + d[0] + "," + d[1];
                 assertNotEquals(AIR, r.at(x, 8 + d[0], 8 + d[1]), where);
                 if (x >= 9 && x <= 18) assertEquals(solid.at(x, 8 + d[0], 8 + d[1]), r.at(x, 8 + d[0], 8 + d[1]), where);
             }
-        // Capped, its rounded ends close it.
         boolean front = false, back = false;
         for (int x = 0; x < 7; x++) front |= capped.at(x, 8, 8) != AIR;
         for (int x = 21; x < r.nx(); x++) back |= capped.at(x, 8, 8) != AIR;
@@ -522,7 +480,6 @@ class Shapes3Test {
 
     @Test
     void aThickOpenTubeIsCutRightAcross() {
-        // 22 thick: the corners of the cut are far nearer the stretch past the end than the curve.
         ShapeSettings s = hollow(curve(30, 24, 24, 22, 3, 12, 12, 27, 12, 12), true);
         Solver3.Result r = Solver3.run(s);
         int pad = r.shape().pad(), cut = 0;
@@ -538,12 +495,10 @@ class Shapes3Test {
 
     @Test
     void anOpenEndIsCutSquareToTheCurveNotToItsFirstPiece() {
-        // The curve leaves its start along +z, but its first flattened piece is very short and well off that way.
         ShapeSettings s = hollow(curve(120, 24, 24, 22, 12, 12, 12, 12, 12, 13, 112, 12, 13), true);
         Solver3.Result open = Solver3.run(s), capped = Solver3.run(hollow(s.copy(), false));
         int pad = open.shape().pad();
         assertNotEquals(AIR, open.at(1 + pad, 12 + pad, 14 + pad));
-        // Behind the cut, the open tube is the capped one.
         for (int y = 0; y < open.ny(); y++)
             for (int x = 0; x < open.nx(); x++)
                 for (int z = 15 + pad; z < open.nz(); z++)
@@ -569,7 +524,6 @@ class Shapes3Test {
                         else if (r.shape().field(x + .5, y + .5, z + .5) < 2 && (a > 0.5 || b > 0.5)) beyond++;
                     }
             assertTrue(beyond > 20, "only " + beyond + " blocks cut");
-            // Just inside each end, you look into the tube.
             for (double t : new double[]{0.25, 1, 1.75}) {
                 for (double[][] e : new double[][][]{{p0, p1}, {q0, q1}}) {
                     double[] in = along(e[0], e[1], t);
@@ -579,13 +533,11 @@ class Shapes3Test {
         }
     }
 
-    /** How far c is past the curve's end at a, which heads away from b. */
     private static double out(double[] c, double[] a, double[] b) {
         double dx = a[0] - b[0], dy = a[1] - b[1], dz = a[2] - b[2], l = Math.sqrt(dx * dx + dy * dy + dz * dz);
         return ((c[0] - a[0]) * dx + (c[1] - a[1]) * dy + (c[2] - a[2]) * dz) / l;
     }
 
-    /** The point t blocks from a towards b. */
     private static double[] along(double[] a, double[] b, double t) {
         double dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2], l = Math.sqrt(dx * dx + dy * dy + dz * dz);
         return new double[]{a[0] + dx / l * t, a[1] + dy / l * t, a[2] + dz / l * t};
@@ -614,17 +566,13 @@ class Shapes3Test {
         java.util.function.IntBinaryOperator at = (x, y) -> (y * r.nz() + 8) * r.nx() + x;
         for (int x = 7; x <= 20; x++) assertTrue(carve.get(at.applyAsInt(x, 8)), "inside at " + x);
         for (int x = 0; x < r.nx(); x++) if (x < 7 || x > 20) assertFalse(carve.get(at.applyAsInt(x, 8)), "past the end at " + x);
-        // Capped, the ends are rounded and carve like the rest.
         assertTrue(Solver3.carve(Shape3.of(hollow(s.copy(), false))).get(at.applyAsInt(5, 8)));
         s.b3Hollow = false;
         assertNull(Solver3.carve(Shape3.of(s)));
     }
 
-    // ---------- surfaces ----------
-
     @Test
     void aFlatPatchIsALayerOfBlocks() {
-        // Level, on the block grid and a block thick: nothing but whole blocks, out to the edge and no further.
         ShapeSettings s = surface(12, 4, 12, 4, 4, 1, 2.5);
         Solver3.Result r = Solver3.run(s);
         assertEquals(1, r.shape().pad());
@@ -632,12 +580,10 @@ class Shapes3Test {
         assertEquals(144, blocks(r));
         assertEquals(0, r.err(), 1e-9);
         for (int z = 0; z < 14; z++) for (int x = 0; x < 14; x++) assertEquals(x >= 1 && x <= 12 && z >= 1 && z <= 12 ? FULL : AIR, r.at(x, 3, z));
-        // Half as thick and half a block lower, it's slabs.
         s = surface(12, 4, 12, 3, 5, 0.5, 2.25);
         r = Solver3.run(s);
         assertEquals(144, r.counts()[SLAB_B]);
         assertEquals(0, r.err(), 1e-9);
-        // Upright, on a block boundary: a wall one block thick.
         s = surface(6, 8, 6, 2, 2, 1, 0);
         for (int k = 0; k < 4; k++) { double[] p = s.sPts.get(k); p[0] = 2.5; p[1] = k / 2 * 8; p[2] = k % 2 * 6; }
         r = Solver3.run(s);
@@ -650,7 +596,6 @@ class Shapes3Test {
         for (double t : new double[]{0.125, 0.25, 0.5, 1, 2}) {
             for (ShapeSettings s : List.of(bumpy(30, 16, t, 7), skew(t), folded(t))) {
                 double exact = area(s) * t;
-                // Off the block grid, an edge can sit up to an eighth of a block out.
                 assertEquals(exact, Solver3.run(s).volume(), exact * 0.012, PresetData.defaultName(s, s.gen).toString());
             }
         }
@@ -665,11 +610,9 @@ class Shapes3Test {
             for (int v = 0; v <= n; v++) for (int u = 0; u <= n; u++) on[v * (n + 1) + u] = Bezier3.patchPoint(s.sPts, s.sRows, s.sCols, (double) u / n, (double) v / n);
             Random r = new Random(6);
             for (int trial = 0; trial < 300; trial++) {
-                // Around a point well inside the patch, so the nearest point isn't on an edge.
                 double[] c = Bezier3.patchPoint(s.sPts, s.sRows, s.sCols, 0.15 + 0.7 * r.nextDouble(), 0.15 + 0.7 * r.nextDouble());
                 double x = c[0] + r.nextGaussian() * 0.8, y = c[1] + r.nextGaussian() * 0.8, z = c[2] + r.nextGaussian() * 0.8, best = Double.MAX_VALUE;
                 for (double[] p : on) best = Math.min(best, (p[0] - x) * (p[0] - x) + (p[1] - y) * (p[1] - y) + (p[2] - z) * (p[2] - z));
-                // The nearest of those points is up to 0.05 from the truly nearest point of the patch, which only matters close in.
                 double far = Math.sqrt(best), near = Math.sqrt(Math.max(0, best - 0.05 * 0.05)), got = Math.abs(sh.field(x + 1, y + 1, z + 1));
                 assertTrue(got <= far + 0.01 && got >= near - 0.01, PresetData.defaultName(s, s.gen) + ", trial " + trial + ": " + got + " outside " + near + " to " + far);
             }
@@ -678,7 +621,6 @@ class Shapes3Test {
 
     @Test
     void aBlocksSamplesMatchTheFieldPointByPoint() {
-        // The patch works a block's samples out from one another. That must give what asking for each alone does.
         double[] fast = new double[125];
         for (ShapeSettings s : List.of(bumpy(24, 14, 1, 3), skew(0.25), folded(1))) {
             Shape3 sh = Shape3.of(s);
@@ -690,7 +632,6 @@ class Shapes3Test {
                         sh.lattice(i, j, k, fast);
                         for (int q = 0; q < 125; q++) {
                             double slow = sh.field(i + q % 5 / 4.0, j + q / 25 / 4.0, k + q / 5 % 5 / 4.0);
-                            // Right on an edge the two may fall either side of it.
                             if (Double.isNaN(slow) || Double.isNaN(fast[q])) continue;
                             assertEquals(slow, fast[q], 5e-3, "cell " + i + "," + j + "," + k + ", sample " + q);
                             compared++;
@@ -703,7 +644,6 @@ class Shapes3Test {
     @Test
     void bothSheetsOfAFoldAreBuilt() {
         Solver3.Result r = Solver3.run(folded(1));
-        // The sheets lie at heights 3 and 7 on the way out and back (4 and 8 with the margin), three blocks apart.
         int lower = 0, upper = 0, between = 0;
         for (int z = 4; z < 17; z++)
             for (int x = 4; x < 12; x++) {
@@ -716,7 +656,6 @@ class Shapes3Test {
 
     @Test
     void aHairpinKeepsBothItsArms() {
-        // A sheet bent double within a block or two: every point on it is on it, whichever arm is nearer the bucket's middle.
         ShapeSettings s = surface(18, 22, 4, 2, 3, 1, 0);
         double[][] bend = {{9, 9}, {13, 19}, {7, 10}};
         for (int k = 0; k < 6; k++) { s.sPts.get(k)[0] = bend[k % 3][0]; s.sPts.get(k)[1] = bend[k % 3][1]; s.sPts.get(k)[2] = k / 3 * 4; }
@@ -741,14 +680,12 @@ class Shapes3Test {
             for (int b = 1; b < 12; b++) {
                 double[] p = Bezier3.patchPoint(s.sPts, 2, 3, a / 400.0, b / 12.0);
                 assertEquals(0, sh.field(p[0] + 1, p[1] + 1, p[2] + 1), 0.02, "at u " + a / 400.0 + ", v " + b / 12.0);
-                // And as the solver samples it: the block's sample nearest the point is within its distance of the patch.
                 int i = (int) (p[0] + 1), j = (int) (p[1] + 1), k = (int) (p[2] + 1);
                 sh.lattice(i, j, k, lattice);
                 int qa = (int) Math.round((p[0] + 1 - i) * 4), qb = (int) Math.round((p[1] + 1 - j) * 4), qc = (int) Math.round((p[2] + 1 - k) * 4);
                 double v = lattice[(qb * 5 + qc) * 5 + qa];
                 if (v == v) assertTrue(Math.abs(v) <= 0.25, "sample by u " + a / 400.0 + ", v " + b / 12.0 + " is " + v);
             }
-        // The arms are close enough that their thickness runs together near the bend, so it's a little under area times thickness.
         double exact = area(s), built = Solver3.run(s).volume();
         assertTrue(built > exact * 0.85 && built < exact * 1.01, built + " against " + exact);
     }
@@ -762,7 +699,6 @@ class Shapes3Test {
         s = surface(12, 4, 12, 4, 4, 1, 2.5);
         s.sRows = 7;
         assertNotNull(Shape3.of(s).error());
-        // A patch squeezed to a line or a point has no area, and builds next to nothing rather than failing.
         s = surface(12, 4, 12, 4, 4, 1, 2.5);
         for (double[] p : s.sPts) p[2] = 6;
         assertTrue(Solver3.run(s).volume() < 30);
@@ -770,11 +706,8 @@ class Shapes3Test {
         assertTrue(Solver3.run(s).volume() < 2);
     }
 
-    // ---------- shared ----------
-
     @Test
     void turningAShapeKeepsItsOwnWayOfSampling() {
-        // The editor solves a turned shape through Turned, which has to pass on how these shapes sample a block.
         Orient[] ways = {new Orient(Orient.SOUTH, Orient.UP, Orient.WEST), new Orient(Orient.EAST, Orient.NORTH, Orient.UP), new Orient(Orient.DOWN, Orient.WEST, Orient.SOUTH)};
         List<ShapeSettings> shapes = List.of(equation("z < floor(x)", SURFACE, 1, 14, "-4.1", "4", "-2", "2", "-4", "4.2"), equation("z = floor(x)", SURFACE, 1, 16, "-2", "2", "-2", "2", "-2", "2"),
                 skew(0.5), randomCurve(14, 5, 1.5, 3));
@@ -788,7 +721,6 @@ class Shapes3Test {
                 assertEquals(sh.inset(), t.inset());
                 Solver3.Result r = Solver3.solve(t, s, () -> false);
                 String what = PresetData.defaultName(s, s.gen) + " " + o;
-                // The same shape, so the same volume, whichever way it lies. (The blocks differ: slabs and stairs know which way is up.)
                 assertEquals(plain.volume(), r.volume(), plain.volume() * 1e-3 + 1e-9, what);
                 for (int j = 0; j < t.ny(); j += 3)
                     for (int k = 0; k < t.nz(); k += 2)
@@ -801,7 +733,6 @@ class Shapes3Test {
                             for (int q = 0; q < 125; q++) { if (world[q] == world[q]) sumWorld += world[q]; if (own[q] == own[q]) sumOwn += own[q]; }
                             assertEquals(sumOwn, sumWorld, 1e-9, what);
                             assertEquals(sh.follows(own), t.follows(world), what);
-                            // Sample 1 is a quarter of a block along the world's x from the cell's corner.
                             double[] p = o.toOwn(new double[]{i + .25, j + t.inset(), k + t.inset()}, size);
                             double direct = sh.field(p[0], p[1], p[2]);
                             if (direct == direct && world[1] == world[1]) assertEquals(direct, world[1], 5e-3, what);
@@ -812,7 +743,6 @@ class Shapes3Test {
 
     @Test
     void wireframesShowTheShape() {
-        // A curve: the curve itself from its first point to its last, then the control polygon.
         ShapeSettings s = randomCurve(20, 6, 3, 2);
         List<double[]> lines = Shape3.of(s).wireframe();
         assertEquals(2, lines.size());
@@ -823,7 +753,6 @@ class Shapes3Test {
         Shape3 tube = Shape3.of(s);
         for (int q = 0; q < line.length; q += 3) assertEquals(0, tube.field(line[q], line[q + 1], line[q + 2]), 1e-6);
         assertTrue(line.length / 3 < 400, "few enough points to draw every frame");
-        // A patch: nine lines each way across it, then the rows and columns of the control net.
         s = bumpy(24, 14, 2, 3);
         Shape3 patch = Shape3.of(s);
         lines = patch.wireframe();
@@ -833,9 +762,8 @@ class Shapes3Test {
             double[] iso = lines.get(l);
             for (int q = 0; q < iso.length; q += 3) assertEquals(0, patch.field(iso[q], iso[q + 1], iso[q + 2]), 0.02, "line " + l);
         }
-        for (int c = 0; c < 3; c++) assertEquals(s.sPts.get(5)[c] + 1, lines.get(19)[3 + c], 1e-9);     // row 1, column 1
-        for (int c = 0; c < 3; c++) assertEquals(s.sPts.get(9)[c] + 1, lines.get(23)[6 + c], 1e-9);     // column 1, row 2
-        // An equation: the box's twelve edges in six lines, then where the surface cuts slices of the box.
+        for (int c = 0; c < 3; c++) assertEquals(s.sPts.get(5)[c] + 1, lines.get(19)[3 + c], 1e-9);
+        for (int c = 0; c < 3; c++) assertEquals(s.sPts.get(9)[c] + 1, lines.get(23)[6 + c], 1e-9);
         s = cube("x^2 + y^2 + z^2 = 16", SURFACE, 1, 30, "-5", "5");
         Shape3 ball = Shape3.of(s);
         lines = ball.wireframe();
@@ -848,7 +776,6 @@ class Shapes3Test {
                 if (l >= 6) assertEquals(12, Math.sqrt((p[q] - 15) * (p[q] - 15) + (p[q + 1] - 15) * (p[q + 1] - 15) + (p[q + 2] - 15) * (p[q + 2] - 15)), 0.05, "line " + l);
             }
         }
-        // An asymptote isn't outlined either.
         for (double[] p : Shape3.of(cube("z = tan(x)", SURFACE, 1, 32, "-1.7", "1.7")).wireframe().subList(6, 60))
             assertTrue(Math.abs(Math.tan(-1.7 + p[0] * 3.4 / 32) - (-1.7 + p[1] * 3.4 / 32)) < 0.3);
     }
@@ -860,7 +787,7 @@ class Shapes3Test {
         assertEquals(258, sh.nx()); assertEquals(3, sh.ny()); assertEquals(258, sh.nz());
         s = surface(999, -3, 256, 2, 2, 100, 1);
         sh = Shape3.of(s);
-        assertEquals(25, sh.pad());     // the thickness stops at 50
+        assertEquals(25, sh.pad());
         assertEquals(306, sh.nx()); assertEquals(51, sh.ny()); assertEquals(306, sh.nz());
         ShapeSettings e = equation("z = x", SURFACE, 1, 999);
         e.q3Lock = false; e.q3D = 0; e.q3H = 300;
@@ -893,7 +820,6 @@ class Shapes3Test {
             PresetData.apply(saved, gen, loaded);
             assertEquals(gen, loaded.gen);
             assertEquals(saved, PresetData.capture(loaded, gen));
-            // The same shape comes back, block for block.
             ShapeSettings again = s.copy();
             again.gen = gen;
             assertArrayEquals(Solver3.run(again).grid(), Solver3.run(loaded).grid(), gen + " shape");
@@ -907,11 +833,9 @@ class Shapes3Test {
         assertEquals("equation3-waves", PresetData.fileStem(ShapeSettings.Gen.EQUATION3, "Waves"));
         assertEquals("bezier3-arch", PresetData.fileStem(ShapeSettings.Gen.BEZIER3, "Arch"));
         assertEquals("surface-roof", PresetData.fileStem(ShapeSettings.Gen.SURFACE, "Roof"));
-        // Three numbers to a point, as text.
         assertEquals("0,20,0;7.5,17.75,10.125", PresetData.capture(s, ShapeSettings.Gen.BEZIER3).get("points").substring(0, 23));
         assertEquals("true", PresetData.capture(s, ShapeSettings.Gen.BEZIER3).get("hollow"));
         assertEquals("false", PresetData.capture(s, ShapeSettings.Gen.BEZIER3).get("openEnds"));
-        // A preset from before curves could be hollow is a solid curve.
         Map<String, String> old = new java.util.HashMap<>(PresetData.capture(s, ShapeSettings.Gen.BEZIER3));
         old.remove("hollow"); old.remove("openEnds");
         ShapeSettings loaded = s.copy();
@@ -924,7 +848,6 @@ class Shapes3Test {
     @Test
     void badPresetValuesKeepCurrentSettings() {
         ShapeSettings t = new ShapeSettings();
-        // A 2D curve's points aren't a 3D curve's, and one good point isn't a curve.
         PresetData.apply(Map.of("points", "1,2;3,4;5,6", "thickness", "abc", "depth", "-4"), ShapeSettings.Gen.BEZIER3, t);
         assertEquals(4, t.pts3.size());
         assertEquals(1, t.b3T); assertEquals(1, t.b3D);
@@ -933,7 +856,6 @@ class Shapes3Test {
         PresetData.apply(Map.of("points", "1,2,3;oops;4,5,6"), ShapeSettings.Gen.BEZIER3, t);
         assertEquals(2, t.pts3.size());
         assertArrayEquals(new double[]{4, 5, 6}, t.pts3.get(1));
-        // A surface takes its grid whole or not at all.
         PresetData.apply(Map.of("rows", "2", "columns", "2", "points", "0,0,0;1,0,0;0,0,1"), ShapeSettings.Gen.SURFACE, t);
         assertEquals(4, t.sRows); assertEquals(16, t.sPts.size());
         PresetData.apply(Map.of("rows", "2", "columns", "9", "points", "0,0,0;1,0,0;0,0,1;1,0,1"), ShapeSettings.Gen.SURFACE, t);
@@ -944,7 +866,6 @@ class Shapes3Test {
         PresetData.apply(Map.of("shape", "SQUIGGLE", "width", "9999", "sameScale", "false"), ShapeSettings.Gen.EQUATION3, t);
         assertEquals(SURFACE, t.q3Mode); assertEquals(256, t.q3W); assertFalse(t.q3Lock);
         assertEquals("z = sin(x) cos(y)", t.src3);
-        // A 2D curve preset still loads as it did, and 3D points don't leak into it.
         PresetData.apply(Map.of("points", "1,2;3,4;5,6"), ShapeSettings.Gen.BEZIER, t);
         assertEquals(3, t.pts.size());
         PresetData.apply(Map.of("points", "1,2,3;4,5,6"), ShapeSettings.Gen.BEZIER, t);

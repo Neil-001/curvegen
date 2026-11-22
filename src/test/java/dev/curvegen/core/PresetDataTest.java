@@ -51,7 +51,7 @@ class PresetDataTest {
         Map<String, String> junk = new HashMap<>(Map.of("width", "abc", "height", "-5", "shape", "SQUIGGLE", "points", "1,2;oops;3"));
         PresetData.apply(junk, ShapeSettings.Gen.BEZIER, t);
         assertEquals(40, t.bW);
-        assertEquals(1, t.bH);                                 // a number, clamped to the minimum
+        assertEquals(1, t.bH);
         assertEquals(ShapeSettings.BzMode.LINE, t.bMode);
         assertEquals(4, t.pts.size(), "fewer than two valid points: keep the old ones");
     }

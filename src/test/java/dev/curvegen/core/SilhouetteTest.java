@@ -4,9 +4,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** The outline drawn around pieces in the preview and the Count tab. */
 class SilhouetteTest {
-    /** The old rule: only the four direct neighbours count. */
     private static boolean[] outline4(boolean[] in, int n) {
         boolean[] e = new boolean[n * n];
         for (int y = 0; y < n; y++)
@@ -54,14 +52,13 @@ class SilhouetteTest {
         }
     }
 
-    /** The Count tab draws rectangles instead of single pixels. They must paint the very same picture. */
     @Test
     void rectsPaintTheSamePixels() {
         for (int size : new int[]{8, 12, 14, 16}) {
             int pixels = 0, rects = 0;
             for (int p = 1; p < Pieces.COUNT; p++) {
                 boolean[] in = Silhouette.of(p, size), edge = Silhouette.outline(in, size);
-                int[] painted = new int[size * size];   // 0 empty, 1 fill, 2 outline
+                int[] painted = new int[size * size];
                 for (int[] r : Silhouette.rects(p, size)) {
                     rects++;
                     for (int y = r[1]; y < r[3]; y++)

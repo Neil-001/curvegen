@@ -6,7 +6,6 @@ import java.util.Random;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Litematica packs palette indices end to end, straddling longs (unlike vanilla chunk sections). */
 class LitematicBitsTest {
     @Test
     void roundTrip() {

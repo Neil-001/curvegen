@@ -10,44 +10,19 @@ import java.util.stream.IntStream;
 
 import static dev.curvegen.core.Pieces3.*;
 
-/**
- * Picks the best block state for every cell of a 3D shape, by volume. Stairs take their corner shape, and fences,
- * panes and walls their connections, heights and post, from their neighbours by the game's own rules, so every
- * state in the result is one a block update would leave alone.
- *
- * The work is in three stages. Each cell is marked empty, full or mixed, and a mixed cell is sampled at 16³ points
- * for its overlap with every part in {@link Pieces3}. Each mixed cell then starts with its lowest-error token.
- * Refinement re-picks cells, counting the error of every cell the pick can change, until nothing improves.
- *
- * Refinement ends because each pick lowers the total error of the cells it's judged on, so everything a token can
- * change has to be in that list: {@link Run#gather} explains what is. A symmetric shape is sampled in one octant
- * and solved in the quarter x and z leave, with mirrored cells sharing a token and the error counted in that
- * quarter only.
- *
- * A shape that {@link Shape3#cuts} is solved as if it carried on through its cut blocks, which are emptied after
- * refinement. Every state is then worked out again, as {@link #settle} does for a solved shape, so the blocks
- * beside a cut take the states the game gives them, and the error counts only the blocks that are left.
- */
 public final class Solver3 {
     private Solver3() {}
 
-    /**
-     * The solved grid, x east, y up and z south, with the state at (x, y, z) in grid[(y*nz + z)*nx + x]. The error
-     * and the ideal shape's volume are in blocks. Refinement settled if it took at most MAX_SWEEPS passes.
-     */
     public record Result(short[] grid, int nx, int ny, int nz, double err, double volume, int[] counts, Shape3 shape, int sweeps) {
         public int at(int x, int y, int z) { return grid[(y * nz + z) * nx + x]; }
     }
 
     private static final int EMPTY = -1, SOLID = -2, NO_DATA = -3;
     public static final int MAX_SWEEPS = 30;
-    /** Rows of a level sampled as one task. */
     private static final int STRIP = 8;
 
-    // For each part, the rows of a block's 16×16×16 voxels it touches and its bits in each. A row runs along x.
     private static final int[][] PART_ROWS = new int[PART_COUNT][], PART_ROWS_FLIPPED = new int[PART_COUNT][], PART_MASKS = new int[PART_COUNT][];
     private static final short[] SOLID_OVERLAP = new short[PART_COUNT], EMPTY_OVERLAP = new short[PART_COUNT];
-    /** The twelve other cells within two steps on the same level, as {dx, dz}. */
     private static final int[][] NEAR = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}, {2, 0}, {-2, 0}, {0, 2}, {0, -2}, {1, 1}, {1, -1}, {-1, 1}, {-1, -1}};
 
     static {
@@ -69,19 +44,12 @@ public final class Solver3 {
 
     public static Result run(ShapeSettings s) { return solve(Shape3.of(s), s, () -> false); }
 
-    /**
-     * Solves the shape with the settings' piece types. It's meant for a worker thread: pass a copy of the settings,
-     * and have {@code cancelled} return true once the result is no longer wanted, which makes this return null soon after.
-     * Sampling spreads over the common pool, so the shape's field and {@code cancelled} are called from several threads.
-     */
     public static Result solve(Shape3 shape, ShapeSettings s, BooleanSupplier cancelled) {
         return new Run(shape, s, cancelled).solve();
     }
 
-    /** The cells carving clears: those whose centre is in the space the shape encloses. Indexed like the grid; null if there's none. */
     public static BitSet carve(Shape3 sh) { return carve(sh, () -> false); }
 
-    /** The same, giving up with null once {@code cancelled} reports true. */
     public static BitSet carve(Shape3 sh, BooleanSupplier cancelled) {
         double[] band = sh.carve();
         if (band == null || sh.error() != null) return null;
@@ -105,32 +73,15 @@ public final class Solver3 {
         return out;
     }
 
-    /**
-     * Empties these cells of a solved shape, indexed like the grid, and gives every block left the state the game
-     * gives it then: a fence arm that reached into an emptied cell drops, a corner stair straightens and a wall
-     * follows the block above it. Nothing is solved again, so every block keeps its piece. The error, volume and
-     * sweeps are the solve's. Returns null once {@code cancelled} reports true, which it asks once a level.
-     *
-     * <p>{@code r} must be settled already, as a solve or a settle leaves it. With few cells emptied, only those
-     * an emptied cell can reach are worked out again ({@link #settleNear}), so the time follows the holes rather
-     * than the grid. With many, working out every cell ({@link #settleAll}) is quicker, and gives the same result.
-     */
     public static Result settle(Result r, BitSet gone, boolean fullConnects, BooleanSupplier cancelled) {
         return nearIsQuicker(gone.cardinality(), r.grid().length) ? settleNear(r, gone, fullConnects, cancelled)
                 : settleAll(r, gone, fullConnects, cancelled);
     }
 
-    /** Whether settling near this many emptied cells is quicker than working out a grid of this many cells. */
     static boolean nearIsQuicker(long gone, long cells) { return gone * NEAR_COST <= cells; }
 
-    /** About what settling near one emptied cell costs, in cells of {@link #settleAll}'s work. */
     private static final int NEAR_COST = 8;
 
-    /**
-     * {@link #settle} working out only the cells an emptied cell can reach: those {@link Run#gather} lists for a
-     * changed token. The rest keep their state, so {@code r} must be settled already. It asks {@code cancelled}
-     * every few thousand cells it looks at.
-     */
     static Result settleNear(Result r, BitSet gone, boolean fullConnects, BooleanSupplier cancelled) {
         int nx = r.nx(), nz = r.nz(), level = nx * nz;
         Near s = new Near(r, gone, fullConnects, cancelled);
@@ -158,10 +109,6 @@ public final class Solver3 {
         return new Result(grid, r.nx(), r.ny(), nz, r.err(), r.volume(), counts, r.shape(), r.sweeps());
     }
 
-    /**
-     * {@link #settle} working out every cell. {@code r} need not be settled: its states are read as the
-     * tokens they're solved as, so a grid of tokens comes out settled. Asks {@code cancelled} once a level.
-     */
     static Result settleAll(Result r, BitSet gone, boolean fullConnects, BooleanSupplier cancelled) {
         int nx = r.nx(), ny = r.ny(), nz = r.nz();
         States s = new States(nx, ny, nz, fullConnects);
@@ -185,21 +132,15 @@ public final class Solver3 {
         return new Result(grid, nx, ny, nz, r.err(), r.volume(), counts, r.shape(), r.sweeps());
     }
 
-    /**
-     * The tokens of a settled grid with some cells emptied, read from the grid as they're asked for, so that
-     * {@link #settle} touches only the cells near the emptied ones. Walls already worked out are kept in a map.
-     */
     private static final class Near extends States {
         final short[] grid;
         final BitSet gone;
         final HashMap<Integer, Short> walls = new HashMap<>();
         final BitSet seen = new BitSet();
-        /** The grid cells to work out again, the first {@link #n} of these. */
         int[] cells = new int[256];
         int n;
 
         final BooleanSupplier cancelled;
-        /** Steps taken since {@link #cancelled} was last asked. */
         int steps;
 
         Near(Result r, BitSet gone, boolean fullConnects, BooleanSupplier cancelled) {
@@ -207,10 +148,6 @@ public final class Solver3 {
             grid = r.grid(); this.gone = gone; this.cancelled = cancelled;
         }
 
-        /**
-         * Counts a step and says whether to give up. It asks {@link #cancelled} every {@link #ASK_EVERY} steps,
-         * more often than once a level of any grid the editor solves.
-         */
         boolean stop() {
             if (++steps < ASK_EVERY) return false;
             steps = 0;
@@ -219,7 +156,6 @@ public final class Solver3 {
 
         static final int ASK_EVERY = 4096;
 
-        /** The token in grid cell c. */
         int token(int c) { return gone.get(c) ? AIR : Solver3.token(grid[c]); }
 
         @Override int tok(int p) {
@@ -232,10 +168,6 @@ public final class Solver3 {
 
         @Override void cacheWall(int p, int state) { walls.put(p, (short) state); }
 
-        /**
-         * Adds grid cell c to the cells to work out again, and the walls below it, as {@link Run#column} does.
-         * False if cancelled.
-         */
         boolean column(int c) {
             int level = nx * nz;
             do {
@@ -251,37 +183,23 @@ public final class Solver3 {
         }
     }
 
-    /** The token a state is solved as: a straight stair, or a fence, pane or wall before its neighbours shape it. */
     static int token(int state) {
         if (isStairs(state)) return state - stairShape(state);
         return state >= WALL ? WALL_POST : state >= PANE ? PANE : state >= FENCE ? FENCE : state;
     }
 
-    /**
-     * A grid of tokens and the states the game gives them. A stair takes its corner shape, and a fence, pane or
-     * wall its sides and post, from the tokens around it; every other token is its own state.
-     */
     private static class States {
         final int nx, ny, nz, px, pz;
         final boolean fullConnects;
-        /** Step to each neighbour in the padded arrays, by direction. */
         final int[] off;
         final int up, down;
-        /** Per padded cell, with a cell of air all round the grid. */
         final short[] tok;
-        /**
-         * The states of walls already worked out since a token last changed: {@link #wallAt} holds the state of a
-         * cell whose {@link #wallSeen} equals {@link #stamp}. A wall takes its heights and post from the state above
-         * it, so without this each wall in a tall column would work out every wall above it again. Null until
-         * {@link #cacheWalls}, which must come before resolving a wall.
-         */
         int[] wallSeen;
         short[] wallAt;
         int stamp = 1;
 
         States(int nx, int ny, int nz, boolean fullConnects) { this(nx, ny, nz, fullConnects, true); }
 
-        /** Without {@code tokens}, {@link #tok} is null and a subclass reads tokens its own way, through {@link #tok(int)}. */
         States(int nx, int ny, int nz, boolean fullConnects, boolean tokens) {
             this.nx = nx; this.ny = ny; this.nz = nz; this.fullConnects = fullConnects;
             px = nx + 2; pz = nz + 2;
@@ -290,10 +208,8 @@ public final class Solver3 {
             tok = tokens ? new short[px * pz * (ny + 2)] : null;
         }
 
-        /** The token at padded cell p. */
         int tok(int p) { return tok[p]; }
 
-        /** The state of the wall at p if it's been worked out since a token last changed, else -1. */
         int wallCached(int p) { return wallSeen[p] == stamp ? wallAt[p] : -1; }
 
         void cacheWall(int p, int state) { wallSeen[p] = stamp; wallAt[p] = (short) state; }
@@ -302,19 +218,13 @@ public final class Solver3 {
 
         void cacheWalls() { wallSeen = new int[tok.length]; wallAt = new short[tok.length]; }
 
-        /** Call after changing a token: any wall's state may have changed with it. */
         void changed() { if (++stamp == 0 && wallSeen != null) { Arrays.fill(wallSeen, 0); stamp = 1; } }
 
-        /**
-         * Is this full block out of sight? It is when every neighbour fills the face they share. No connector fills
-         * a face, so a block that a connector attaches to, or that sets the height of a wall below, always stays.
-         */
         boolean hidden(short[] st, int p) {
             for (int d = 0; d < 4; d++) if (!FACE[st[p + off[d]]][d ^ 2]) return false;
             return FACE[st[p + up]][DOWN] && FACE[st[p + down]][UP];
         }
 
-        /** The corner shape the game gives the stair token t at p, from the stairs in front of and behind it. */
         int stairState(int p, int t) {
             int half = (t - STAIRS) / 20, f = (t - STAIRS) / 5 % 4, left = (f + 3) & 3;
             int n = tok(p + off[f]);
@@ -330,10 +240,8 @@ public final class Solver3 {
             return t;
         }
 
-        /** A stair turns a corner only where the cell beside it isn't a stair facing the same way. Tokens are straight, so equal tokens mean exactly that. */
         boolean differs(int p, int t) { return tok(p) != t; }
 
-        /** Does a connector (0 fence, 1 pane, 2 wall) attach to the cell at p, which lies in direction d from it? */
         boolean connects(int kind, int p, int d) {
             int n = tok(p);
             if (n >= FENCE) return kind == 0 ? n < PANE : n >= PANE;
@@ -355,7 +263,6 @@ public final class Solver3 {
             return state;
         }
 
-        /** A wall's state from its connections, what the block above covers, and whether that block is a wall with a post. */
         static int wallState(int bits, int cover, boolean postAbove) {
             int tall = bits & cover, n = height(bits, tall, N), e = height(bits, tall, E), s = height(bits, tall, S), w = height(bits, tall, W);
             boolean post = postAbove || bits == 0 || (n == 0) != (s == 0) || (e == 0) != (w == 0)
@@ -372,7 +279,6 @@ public final class Solver3 {
         final BooleanSupplier cancelled;
         final int i0, j0, k0;
         final boolean sx, sy, sz;
-        /** Per padded cell: EMPTY, SOLID, NO_DATA (mixed, but outside the quarter that's scored) or its slot in overlap and count. */
         final int[] ref;
         short[][] overlap = new short[256][];
         int[] count = new int[256];
@@ -381,10 +287,8 @@ public final class Solver3 {
         final double lo, hi;
         final boolean[] wanted = new boolean[PART_COUNT];
 
-        // refinement scratch
         int[] aff = new int[64];
         int affN;
-        /** Which cells are in {@link #aff}, so a tall column isn't searched for every cell added to it. */
         boolean[] inAff;
 
         Run(Shape3 sh, ShapeSettings s, BooleanSupplier cancelled) {
@@ -441,11 +345,6 @@ public final class Solver3 {
             return new Result(grid, nx, ny, nz, err / 4096, volume / 4096, counts, sh, sweeps);
         }
 
-        /**
-         * Empties the cells the shape cuts away and notes them in {@code gone}. Returns the full blocks of a hollow
-         * shape that were out of sight before the cut, or null if cancelled: a block behind a cut was hidden by
-         * blocks that are now gone, and judged afterwards it would stand as a cap. {@code st} is scratch.
-         */
         BitSet cut(short[] st, BitSet gone) {
             BitSet unseen = new BitSet(tok.length);
             if (sh.hollow()) {
@@ -480,13 +379,6 @@ public final class Solver3 {
             return unseen;
         }
 
-        // ---------- sampling ----------
-
-        /**
-         * Marks every cell empty, solid or mixed. Each level is cut into strips of a few rows, which are sampled side
-         * by side and then stored in order, so the result never depends on timing. Strips rather than whole levels,
-         * because a shape that lies flat has most of its surface on a few levels.
-         */
         boolean sample() {
             int perLayer = (nz - k0 + STRIP - 1) / STRIP;
             Strip[] strips = new Strip[ny * perLayer];
@@ -507,7 +399,6 @@ public final class Solver3 {
                     if (sy && 2 * j + 1 != ny) ref[p + (ny - 1 - 2 * j) * up] = store(l.overlaps.get(2 * q + 1), l.counts[q]);
                 }
             }
-            // Cells outside the scored quarter only need to know what kind they are.
             if (sx || sz)
                 for (int j = 0; j < ny; j++) {
                     if (cancelled.getAsBoolean()) return false;
@@ -523,12 +414,10 @@ public final class Solver3 {
 
         int store(short[] ov, int cnt) { overlap[slots] = ov; count[slots] = cnt; return slots++; }
 
-        /** A few rows of one level of the grid: their solid cells go straight into {@link #ref}, and their mixed cells are kept here until every strip is done. */
         final class Strip {
             int[] cells = new int[64], counts = new int[64];
             int n;
             boolean stopped;
-            /** For each mixed cell, its overlap with every part, then the same for the cell's mirror image in y. */
             final List<short[]> overlaps = new ArrayList<>();
             final double[] lattice = new double[125], plane = new double[25], line = new double[5];
             final int[] rows = new int[256];
@@ -544,7 +433,6 @@ public final class Solver3 {
                             for (int e = Math.min(nx, i + run); i < e; i++) solid(i, j, jm, k);
                             continue;
                         }
-                        // A block that's sampled can take a while, so one row of them is too long to wait for.
                         if (cancelled.getAsBoolean()) { stopped = true; return; }
                         int c = sampleCell(i, j, k);
                         if (c == 4096) solid(i, j, jm, k);
@@ -564,10 +452,8 @@ public final class Solver3 {
                 if (sy) ref[at(i, jm, k)] = SOLID;
             }
 
-            /** Fills {@link #rows} with the cell's voxels that are inside the shape and returns how many are. */
             int sampleCell(int i, int j, int k) {
                 if (!sh.smooth()) return sampleEvery(i, j, k);
-                // The field at 5×5×5 points a quarter of a block apart, interpolated to the voxel centres between them.
                 int in = 0, above = 0, below = 0, cnt = 0;
                 sh.lattice(i, j, k, lattice);
                 for (double v : lattice) if (v > hi) above++; else if (v < lo) below++; else if (v == v) in++;
@@ -594,7 +480,6 @@ public final class Solver3 {
                 return cnt;
             }
 
-            /** The slow way: the field at every voxel's centre. */
             int sampleEvery(int i, int j, int k) {
                 int cnt = 0;
                 for (int r = 0; r < 256; r++) {
@@ -609,7 +494,6 @@ public final class Solver3 {
                 return cnt;
             }
 
-            /** The sampled cell's overlap with every part in use. */
             short[] overlaps(int[][] partRows) {
                 short[] ov = new short[PART_COUNT];
                 for (int p = 0; p < PART_COUNT; p++) {
@@ -623,12 +507,9 @@ public final class Solver3 {
             }
         }
 
-        // ---------- states ----------
-
         short[] overlapOf(int p) { int r = ref[p]; return r >= 0 ? overlap[r] : r == SOLID ? SOLID_OVERLAP : EMPTY_OVERLAP; }
         int countOf(int p) { int r = ref[p]; return r >= 0 ? count[r] : r == SOLID ? 4096 : 0; }
 
-        /** Voxels where this state and the target in cell p differ. */
         int error(int p, int state) {
             short[] ov = overlapOf(p);
             int both = 0;
@@ -636,7 +517,6 @@ public final class Solver3 {
             return countOf(p) + VOL[state] - 2 * both;
         }
 
-        /** The least error any state of this token can have in cell p, whatever its neighbours are. */
         int bound(int p, int t) {
             if (!dependent(t)) return error(p, t);
             if (t < FENCE) {
@@ -656,9 +536,6 @@ public final class Solver3 {
             return e;
         }
 
-        // ---------- solving ----------
-
-        /** Gives every mixed cell its lowest-error token and returns the cells to refine, as {x, y, z, candidate list}, or null if cancelled. */
         List<int[]> start() {
             List<Integer> ids = new ArrayList<>(List.of(AIR, FULL));
             if (s.slab) ids.addAll(List.of(SLAB_B, SLAB_T));
@@ -670,7 +547,6 @@ public final class Solver3 {
             if (s.wall) ids.add(WALL_POST);
             if (s.chain) for (int t = CHAIN; t < ROD; t++) ids.add(t);
             if (s.rod) for (int t = ROD; t < FENCE; t++) ids.add(t);
-            // A cell on a mirror plane is its own image, so it may only hold tokens that are too.
             candidates = new int[8][];
             for (int m = 0; m < 8; m++) {
                 final int mm = m;
@@ -683,10 +559,9 @@ public final class Solver3 {
                 for (int k = k0; k < nz; k++)
                     for (int i = i0; i < nx; i++) {
                         int p = at(i, j, k);
-                        if (ref[p] == EMPTY) continue;      // already air, which is state 0
+                        if (ref[p] == EMPTY) continue;
                         if (ref[p] < 0) { place(i, j, k, FULL); continue; }
                         int list = (sx && 2 * i + 1 == nx ? 1 : 0) | (sy && 2 * j + 1 == ny ? 2 : 0) | (sz && 2 * k + 1 == nz ? 4 : 0);
-                        // First guess: connectors attach wherever a neighbour will hold something.
                         int bits = 0;
                         for (int d = 0; d < 4; d++) if (ref[p + off[d]] != EMPTY) bits |= 1 << d;
                         int over = ref[p + up];
@@ -705,7 +580,6 @@ public final class Solver3 {
 
         int[][] candidates;
 
-        /** Puts a token in a cell and its mirror image in every cell the shape's symmetry pairs it with. */
         void place(int i, int j, int k, int t) {
             int im = nx - 1 - i, jm = ny - 1 - j, km = nz - 1 - k;
             for (int m = 0; m < 8; m++) {
@@ -720,16 +594,14 @@ public final class Solver3 {
             changed();
         }
 
-        /** Returns how many passes it made, or -1 if cancelled. */
         int refine(List<int[]> orbits) {
             if (!(s.stair || s.fence || s.pane || s.wall)) return 0;
-            // Only now, so a solve dropped while sampling never asks for them.
             inAff = new boolean[tok.length];
             if (s.wall) cacheWalls();
             for (int sweep = 0; sweep < MAX_SWEEPS; sweep++) {
                 boolean changed = false;
                 for (int[] o : orbits) {
-                    if (cancelled.getAsBoolean()) return -1;   // every cell: one in a tall column of walls is slow to pick
+                    if (cancelled.getAsBoolean()) return -1;
                     int i = o[0], j = o[1], k = o[2], c = at(i, j, k);
                     int twin = sy && 2 * j + 1 != ny ? at(i, ny - 1 - j, k) : -1;
                     for (int q = 0; q < affN; q++) inAff[aff[q]] = false;
@@ -760,13 +632,6 @@ public final class Solver3 {
             return MAX_SWEEPS + 1;
         }
 
-        /**
-         * Adds to {@link #aff} the scored cells whose state can change when the token at c does. A stair's shape
-         * and a connector's sides follow the four cells around it, and a connector attaches to a stair by the
-         * stair's shape, so the reach is two steps on c's level. Below any of those, a wall takes its heights and
-         * post from the state above it, and passes its post on to a wall below. Only stair and connector tokens
-         * change with their surroundings, so the others are left out.
-         */
         void gather(int i, int k, int c) {
             column(c);
             for (int[] d : NEAR) {
