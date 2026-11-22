@@ -270,8 +270,12 @@ public final class PaintBlocks {
     public static BlockState turn(BlockState s, int quarters, Direction viewer) {
         quarters = Math.floorMod(quarters, 4);
         if (quarters == 0) return s;
-        if (viewer == Direction.UP)
-            return s.rotate(quarters == 1 ? Rotation.COUNTERCLOCKWISE_90 : quarters == 2 ? Rotation.CLOCKWISE_180 : Rotation.CLOCKWISE_90);
+        if (viewer == Direction.UP) {
+            Rotation rotation = quarters == 1 ? Rotation.COUNTERCLOCKWISE_90 : quarters == 2 ? Rotation.CLOCKWISE_180 : Rotation.CLOCKWISE_90;
+            @SuppressWarnings("deprecation")
+            BlockState turned = s.rotate(rotation);
+            return turned;
+        }
         for (Property<?> p : s.getProperties()) {
             if (p == BlockStateProperties.AXIS) {
                 Direction.Axis a = s.getValue(BlockStateProperties.AXIS);
