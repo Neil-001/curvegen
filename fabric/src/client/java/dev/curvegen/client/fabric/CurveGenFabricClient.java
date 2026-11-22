@@ -28,7 +28,6 @@ import net.minecraft.server.packs.resources.ResourceManagerReloadListener;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.block.state.BlockState;
 
-/** Fabric's client entrypoint. */
 public class CurveGenFabricClient implements ClientModInitializer, ClientPlatform {
     @Override
     public void onInitializeClient() {
@@ -39,14 +38,15 @@ public class CurveGenFabricClient implements ClientModInitializer, ClientPlatfor
             Editor.render(ctx.submitNodeCollector(), ctx.poseStack(), ctx.levelState().cameraRenderState.pos);
             Capture.render(ctx.submitNodeCollector(), ctx.poseStack(), ctx.levelState().cameraRenderState.pos);
         });
-        // Block colours come from the active resource packs, so recompute them whenever packs change.
+
         ResourceLoader.get(PackType.CLIENT_RESOURCES).registerReloadListener(Identifier.fromNamespaceAndPath("curvegen", "block_colours"),
                 (ResourceManagerReloadListener) _ -> ColorIndex.clear());
+
         HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("curvegen", "placement"), (dc, _) -> {
             Editor.renderHud(dc);
             Capture.renderHud(dc);
         });
-        // Keeps the replies to the mod's own /setblock commands out of chat, on a server without the mod.
+
         ClientReceiveMessageEvents.ALLOW_GAME.register((message, overlay) -> !Placement.hidesFeedback(message, overlay));
     }
 

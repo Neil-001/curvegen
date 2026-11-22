@@ -7,11 +7,6 @@ import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.Identifier;
 
-/**
- * One batch of blocks to set, relative to an origin. States travel as raw block-state ids,
- * which Fabric keeps in sync between client and server. Batches stay well under the
- * 32 KiB limit for serverbound custom payloads.
- */
 public record PlaceBlocksPayload(BlockPos origin, int[] offsets, int[] states, boolean last, int total, boolean undo)
         implements CustomPacketPayload {
 
