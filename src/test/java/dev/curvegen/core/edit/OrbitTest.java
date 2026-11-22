@@ -18,9 +18,9 @@ class OrbitTest {
     void theCameraStartsSouthOfTheTargetWithEastOnTheRight() {
         Orbit o = new Orbit();
         o.yaw = 0; o.pitch = 0; o.scale = 10;
-        assertArrayEquals(new double[]{10, 0, 0}, o.project(1, 0, 0), EPS);       // east is right
-        assertArrayEquals(new double[]{0, -10, 0}, o.project(0, 1, 0), EPS);      // up is up the screen, which is -y
-        assertArrayEquals(new double[]{0, 0, 1}, o.project(0, 0, -1), EPS);       // north is further away
+        assertArrayEquals(new double[]{10, 0, 0}, o.project(1, 0, 0), EPS);
+        assertArrayEquals(new double[]{0, -10, 0}, o.project(0, 1, 0), EPS);
+        assertArrayEquals(new double[]{0, 0, 1}, o.project(0, 0, -1), EPS);
     }
 
     @Test
@@ -31,7 +31,6 @@ class OrbitTest {
         assertEquals(0, HandleMath.dot(r, f), EPS);
         assertEquals(0, HandleMath.dot(u, f), EPS);
         for (double[] v : new double[][]{r, u, f}) assertEquals(1, HandleMath.dot(v, v), EPS);
-        // Right-handed: right × up points back at the camera.
         double[] b = o.back();
         assertEquals(b[0], r[1] * u[2] - r[2] * u[1], EPS);
         assertEquals(b[1], r[2] * u[0] - r[0] * u[2], EPS);
@@ -65,10 +64,8 @@ class OrbitTest {
         assertEquals(200, s[0], EPS);
         assertEquals(33, s[1], EPS);
         assertEquals(o.project(p[0], p[1], p[2])[2], s[2], EPS, "it keeps its depth");
-        // The move is square to the look direction.
         double[] step = {moved[0] - p[0], moved[1] - p[1], moved[2] - p[2]};
         assertEquals(0, HandleMath.dot(step, o.forward()), EPS);
-        // Dragged to where it already is, it doesn't move.
         double[] at = o.project(p[0], p[1], p[2]);
         assertArrayEquals(p, o.drag(p, at[0], at[1]), EPS);
     }
@@ -133,7 +130,6 @@ class OrbitTest {
                             "corner " + c + " at " + s[0] + ", " + s[1]);
                 }
             }
-        // It's no smaller than it has to be: from the south, 30 wide and 12 high in a room of 247 by 132.
         o.yaw = 0; o.pitch = 0;
         o.fit(n[0], n[1], n[2], 162, 44, 421, 188, 6);
         assertEquals(247.0 / 30, o.scale, 1e-9);
@@ -147,6 +143,8 @@ class OrbitTest {
         assertEquals(0, o.pick(pts, 1, 1, 6));
         assertEquals(2, o.pick(pts, 10, 0, 6), "two points drawn on the same spot: the one nearer the camera");
         assertEquals(1, o.pick(List.of(pts.get(0), pts.get(1)), 7, 0, 6), "nearest the cursor of two within reach");
+        assertEquals(0, o.pick(List.of(pts.get(0), new double[]{0.000001, 0, 128}), 0, 0, 6),
+                "a point under the cursor wins even when another is much closer to the camera");
         assertEquals(-1, o.pick(pts, 25, -20, 6));
         assertEquals(3, o.pick(pts, 45, -45, 6));
         assertEquals(-1, o.pick(pts, 47, -40, 6), "the reach is a square: 7 pixels out on one axis is too far");

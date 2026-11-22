@@ -57,7 +57,6 @@ class HoldTimerTest {
         HoldTimer t = new HoldTimer();
         t.press(1);
         assertEquals(Event.STEP, t.update(t.takePress(), true, 0, HOLD));
-        // It came up and went down again before the next tick, so it looks held throughout.
         t.press(1);
         assertEquals(Event.STEP, t.update(t.takePress(), true, 600, HOLD));
         assertEquals(1, t.key());
@@ -82,7 +81,6 @@ class HoldTimerTest {
         assertEquals(-1, t.progress(2000, DELAY, HOLD));
         assertEquals(Event.NONE, t.update(-1, true, 2000, HOLD));
         assertEquals(Event.NONE, t.update(-1, true, 5000, HOLD));
-        // Pressed again without ever looking let go: a fresh press, which starts a hold of its own.
         assertEquals(Event.STEP, t.update(1, true, 5100, HOLD));
         assertTrue(t.progress(5600, DELAY, HOLD) > 0);
         assertEquals(Event.OPEN, t.update(-1, true, 8100, HOLD));
@@ -132,11 +130,9 @@ class HoldTimerTest {
         assertEquals(Event.STEP, t.update(t.takePress(), true, 0, 3));
         assertEquals(Event.OPEN, t.update(t.takePress(), true, 3000, 3));
         t.opened();
-        t.reset();   // the box is a screen, which resets the timer every tick
-        // The box closes with the key still down. It repeats, and is let go before the next tick: neither is a press.
+        t.reset();
         assertEquals(Event.NONE, t.update(t.takePress(), false, 4000, 3));
         assertEquals(Event.NONE, t.update(t.takePress(), false, 4050, 3));
-        // Let go and pressed again, even within one tick, is.
         t.press(3);
         assertEquals(Event.STEP, t.update(t.takePress(), true, 4100, 3));
     }

@@ -6,22 +6,16 @@ import dev.curvegen.core.Shape3;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * A 3D shape with its own axes pointing some other way in the world. The volumetric solver always works in the
- * world's orientation, so turning or tipping a shape solves it again through this rather than moving its blocks.
- */
 public final class Turned implements Shape3 {
     private static final Orient UNTURNED = new Orient(Orient.EAST, Orient.UP, Orient.SOUTH);
 
     private final Shape3 in;
-    /** For each own axis: the world axis it runs along, whether it runs backwards, and the shape's size along it. */
     private final int[] axis = new int[3], n;
     private final boolean[] back = new boolean[3];
-    /** For each world axis, the own axis along it. */
     private final int[] own = new int[3];
-    /** Whether the shape leaves {@link Shape3#uniform} alone, so its field can be trusted the same way in any direction. */
-    private final boolean plain;
-    /** Where each of a block's 125 samples, numbered as the world sees them, is among the shape's own. */
+
+    private final boolean keepRun;
+
     private final int[] sample = new int[125];
 
     public static Shape3 of(Shape3 shape, Orient o) { return o.equals(UNTURNED) ? shape : new Turned(shape, o); }
@@ -34,13 +28,7 @@ public final class Turned implements Shape3 {
             back[a] = Orient.sign(o.dir(a)) < 0;
             own[axis[a]] = a;
         }
-        boolean plain;
-        try {
-            plain = in.getClass().getMethod("uniform", int.class, int.class, int.class).getDeclaringClass() == Shape3.class;
-        } catch (NoSuchMethodException _) {
-            plain = false;
-        }
-        this.plain = plain;
+        keepRun = o.x() == Orient.EAST || in.uniformRunsInAllDirections();
         for (int q = 0; q < 125; q++) {
             int[] world = {q % 5, q / 25, q / 5 % 5}, mine = new int[3];
             for (int a = 0; a < 3; a++) mine[a] = back[a] ? 4 - world[axis[a]] : world[axis[a]];
@@ -61,13 +49,12 @@ public final class Turned implements Shape3 {
 
     @Override
     public int uniform(int i, int j, int k) {
-        if (plain) return Shape3.super.uniform(i, j, k);
-        // The shape counts its runs along its own x, which is some other way from here. Only this block is certain.
         int run = in.uniform((int) coord(0, i + .5, j + .5, k + .5), (int) coord(1, i + .5, j + .5, k + .5), (int) coord(2, i + .5, j + .5, k + .5));
-        return Integer.signum(run);
+        return keepRun ? run : Integer.signum(run);
     }
 
-    /** The shape samples its own block, in its own way, and the samples are handed back in the world's order. */
+    @Override public boolean uniformRunsInAllDirections() { return in.uniformRunsInAllDirections(); }
+
     @Override
     public void lattice(int i, int j, int k, double[] lattice) {
         double[] mine = new double[125];

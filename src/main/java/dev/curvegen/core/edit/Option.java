@@ -12,55 +12,34 @@ import java.util.function.Function;
 
 import dev.curvegen.core.Message;
 
-/**
- * One of a shape's own settings, as the radial menu's "Shape options" shows it. A shape lists its options and the
- * menu draws a wedge for each, whatever the shape.
- *
- * <p>Getters read the live settings and setters change them. A setter only has to make the change: the editor
- * records the undo step and fits the box afterwards.
- */
 public sealed interface Option {
-    /** The wedge's translation key. Keep its translated name under about 13 characters. */
     String label();
 
-    /** Null while the option applies. Otherwise a translation key for the greyed-out wedge's tooltip. */
     String off();
 
-    /**
-     * A number. Scrolling changes it by {@code step}, and selecting it opens the number box. The menu keeps what it
-     * passes to {@code set} within the limits, and whole when {@code whole} is set. With {@code round}, as for an
-     * angle, scrolling moves onto the next multiple of {@code step} and goes round from the top limit to the bottom one.
-     */
     record Number(String label, String off, DoubleSupplier get, DoubleConsumer set, double min, double max, double step, boolean whole, boolean round) implements Option {
         public Number(String label, String off, DoubleSupplier get, DoubleConsumer set, double min, double max, double step, boolean whole) {
             this(label, off, get, set, min, max, step, whole, false);
         }
 
-        /** The value nearest to {@code v} that the option accepts. */
         public double fit(double v) {
             double c = Math.max(min, Math.min(max, v));
             return whole ? Math.rint(c) : c;
         }
 
-        /** The value one scroll from {@code v}: up for a {@code dir} of 1, down for -1. */
         public double stepped(double v, int dir) {
             if (!round) return fit(v + dir * step);
-            // Whole numbers from 0 to 359 go round 360 values; other numbers go round from max back to min.
             double span = max - min + (whole ? 1 : 0), to = Stepper.next(v - min, step, dir, -step, span);
             return fit(min + (to % span + span) % span);
         }
     }
 
-    /** One of a few named choices, by index. Scrolling and selecting both step through them. */
     record Cycler(String label, String off, List<String> names, IntSupplier get, IntConsumer set) implements Option {}
 
-    /** A line of text, typed into the text box. {@code check} returns what is wrong with a text, or null when it's fine. */
     record Text(String label, String off, Supplier<String> get, Consumer<String> set, Function<String, Message> check) implements Option {}
 
-    /** Something to do rather than a value, such as adding a point. */
     record Action(String label, String off, Runnable run) implements Option {}
 
-    /** A choice between off and on. */
     static Cycler toggle(String label, String off, BooleanSupplier get, Consumer<Boolean> set) {
         return new Cycler(label, off, List.of("curvegen.choice.off", "curvegen.choice.on"), () -> get.getAsBoolean() ? 1 : 0, v -> set.accept(v == 1));
     }

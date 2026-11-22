@@ -8,7 +8,6 @@ import dev.curvegen.core.paint.Paint.Source;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
-/** The radial menu's Paint wedges. */
 class PaintOptionsTest {
     private static Option find(List<Option> options, String label) {
         return options.stream().filter(o -> o.label().equals(label)).findFirst().orElseThrow();
@@ -131,7 +130,7 @@ class PaintOptionsTest {
         p.source = Source.PATTERN;
         p.fit = Fit.STRETCH;
         assertEquals("curvegen.paint.size_stretch_tip", find(PaintOptions.of(p), "curvegen.paint.size").off());
-        p.fit = null;   // each shape's default repeats
+        p.fit = null;
         assertNull(find(PaintOptions.of(p), "curvegen.paint.size").off());
     }
 

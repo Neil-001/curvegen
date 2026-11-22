@@ -9,30 +9,15 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-/**
- * The radial menu's Paint wedges: Source, then the current source's own options. The menu puts its Choose wedge,
- * which opens a screen, second. Off, Pattern and Mix show the same wedges in the same places, greyed where they don't
- * apply, so the player can still see and turn paint on. A gradient has its own: Direction, Reverse and Edges. A new
- * source's own options go in its case in {@link #of}.
- */
 public final class PaintOptions {
     private PaintOptions() {}
 
-    /** Why the pattern's wedges are greyed with a mix. */
     public static final String MIX_OFF = "curvegen.radial.paint.mix_tip";
 
-    /** Why a gradient's wedges are greyed before one is chosen. */
     public static final String NO_GRADIENT = "curvegen.paint.status_no_gradient";
 
-    /** Every source's wedges, as with Chroma Studio installed, for a shape a gradient can run along. */
     public static List<Option> of(Paint p) { return of(p, true, true); }
 
-    /**
-     * The wedges for {@code p}. Without {@code gradients}, which come from Chroma Studio, Source leaves Gradient out, as
-     * a cycle can't grey one choice; the menu's tooltip says why. A shape that can't {@code wrap}, a 3D equation, has no
-     * length or width for a gradient to run along or across, so Direction leaves those two out and shows the direction
-     * it paints with, as the Paint screen does.
-     */
     public static List<Option> of(Paint p, boolean gradients, boolean wraps) {
         List<Option> out = new ArrayList<>();
         List<Source> sources = new ArrayList<>(List.of(Source.values()));
@@ -49,7 +34,6 @@ public final class PaintOptions {
         return out;
     }
 
-    /** A gradient's Direction, Reverse and Edges, greyed with {@code off} when it isn't null. */
     private static List<Option> gradient(Paint p, String off, boolean wraps) {
         List<Flow> choices = wraps ? List.of(Flow.values()) : List.of(Flow.UP, Flow.OUT);
         List<String> flows = new ArrayList<>();
@@ -62,7 +46,6 @@ public final class PaintOptions {
                 new Option.Cycler("curvegen.paint.edges", off, edges, () -> p.edges.ordinal(), v -> p.edges = Edges.values()[v]));
     }
 
-    /** A pattern's Turn, Slide along, Slide across, Size and Mirror, all greyed with {@code off} when it isn't null. */
     private static List<Option> pattern(Paint p, String off) {
         String sizeOff = off != null ? off : p.fit == Fit.STRETCH ? "curvegen.paint.size_stretch_tip" : null;
         return List.of(

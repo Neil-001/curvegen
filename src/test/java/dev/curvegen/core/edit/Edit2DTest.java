@@ -27,7 +27,6 @@ class Edit2DTest {
         assertArrayEquals(new int[]{Edit2D.MAX_SIZE, 1, Edit2D.MAX_DEPTH}, Edit2D.size(s));
     }
 
-    /** What bump does: one more block on one axis. */
     @Test
     void bumpingGrowsOneAxisByOne() {
         ShapeSettings s = of(Gen.ELLIPSE);
@@ -44,14 +43,13 @@ class Edit2DTest {
 
     @Test
     void aLockedEquationKeepsItsProportions() {
-        ShapeSettings s = of(Gen.EQUATION);   // x from -2pi to 2pi, y from -3 to 3
+        ShapeSettings s = of(Gen.EQUATION);
         assertTrue(s.qLock);
         int h = Edit2D.size(s)[1];
         assertEquals(Solver.run(s.copy()).ny(), h, "the box matches the grid the solver builds");
         Edit2D.resize(s, new int[]{96, h, 1}, X);
         assertEquals(96, s.qW);
         assertEquals(46, Edit2D.size(s)[1], "twice as wide is twice as tall");
-        // Dragging the height moves the width with it.
         Edit2D.resize(s, new int[]{96, 23, 1}, Y);
         assertEquals(48, s.qW);
         assertEquals(23, Edit2D.size(s)[1]);
@@ -77,7 +75,7 @@ class Edit2DTest {
 
     @Test
     void aBeziersPointsStretchWithItsBox() {
-        ShapeSettings s = of(Gen.BEZIER);   // 40 by 24
+        ShapeSettings s = of(Gen.BEZIER);
         Edit2D.resize(s, new int[]{80, 12, 1}, new boolean[]{true, true, false});
         assertArrayEquals(new int[]{80, 12, 1}, Edit2D.size(s));
         assertArrayEquals(new double[]{4, 1}, s.pts.get(0), 1e-12);
@@ -91,25 +89,20 @@ class Edit2DTest {
         s.pts.add(new double[]{10, 4});
         s.pts.add(new double[]{10.5, 9});
         s.pts.add(new double[]{11, 4});
-        // The points span 1 block across. Pushing the right side out by one makes that 2, and the left stays at 10.
         assertArrayEquals(new int[3], Edit2D.bumpPoints(s, 0, 1, 1));
         assertArrayEquals(new double[]{10, 4}, s.pts.get(0), 1e-12);
         assertArrayEquals(new double[]{11, 9}, s.pts.get(1), 1e-12);
         assertArrayEquals(new double[]{12, 4}, s.pts.get(2), 1e-12);
         assertEquals(40, s.bW);
-        // Pushing the left side out keeps the right at 12.
         Edit2D.bumpPoints(s, 0, -1, 2);
         assertArrayEquals(new double[]{8, 4}, s.pts.get(0), 1e-12);
         assertArrayEquals(new double[]{12, 4}, s.pts.get(2), 1e-12);
-        // Pulling in stops at one block.
         Edit2D.bumpPoints(s, 0, 1, -50);
         assertArrayEquals(new double[]{9, 4}, s.pts.get(2), 1e-12);
-        // Past the bottom of the grid, the grid grows and reports how far its corner moved.
         assertArrayEquals(new int[]{0, -6, 0}, Edit2D.bumpPoints(s, 1, -1, 10));
         assertEquals(30, s.bH);
         assertEquals(0, s.pts.get(0)[1], 1e-12);
         assertEquals(15, s.pts.get(1)[1], 1e-12);
-        // At the size limit there's no room, and the points keep their proportions instead of piling up at the edge.
         ShapeSettings full = of(Gen.BEZIER);
         full.bW = Edit2D.MAX_SIZE;
         full.pts.clear();
@@ -122,7 +115,6 @@ class Edit2DTest {
             assertEquals(200, full.pts.get(1)[0], 1e-9);
             assertEquals(400, full.pts.get(2)[0], 1e-9);
         }
-        // Depth and other shapes leave it to the box.
         assertNull(Edit2D.bumpPoints(s, 2, 1, 1));
         assertNull(Edit2D.bumpPoints(of(Gen.ELLIPSE), 0, 1, 1));
     }
@@ -149,13 +141,11 @@ class Edit2DTest {
     @Test
     void draggingAPointPastTheEdgeGrowsTheGrid() {
         ShapeSettings s = of(Gen.BEZIER);
-        // Past the right and the top: the grid grows that way and nothing else moves.
         assertArrayEquals(new int[3], Edit2D.movePoint(s, 3, new double[]{43.2, 30, 0}));
         assertEquals(44, s.bW);
         assertEquals(30, s.bH);
         assertArrayEquals(new double[]{43.2, 30}, s.pts.get(3), 0);
         assertArrayEquals(new double[]{2, 2}, s.pts.get(0), 0);
-        // Past the left and the bottom: the corner moves out and every point shifts to stay where it was.
         assertArrayEquals(new int[]{-3, -1, 0}, Edit2D.movePoint(s, 0, new double[]{-2.5, -1, 0}));
         assertEquals(47, s.bW);
         assertEquals(31, s.bH);
@@ -191,13 +181,10 @@ class Edit2DTest {
         s.pts.add(new double[]{10, 0});
         s.pts.add(new double[]{20, 0});
         s.pts.add(new double[]{30, 0});
-        // Two thirds of the way along a straight curve is between the third and fourth points.
         assertEquals(2, Edit2D.insertPoint(s, new double[]{14, 0.2, 0}));
-        // Near the end of what are now five points, it goes just before the last.
         assertEquals(4, Edit2D.insertPoint(s, new double[]{28, 0, 0}));
         assertEquals(6, s.pts.size());
         assertArrayEquals(new double[]{14, 0.2}, s.pts.get(2), 0);
-        // The ends stay the ends.
         assertEquals(1, Edit2D.insertPoint(s, new double[]{0, 0, 0}));
         assertEquals(s.pts.size() - 1, Edit2D.insertPoint(s, new double[]{30, 0, 0}));
         while (s.pts.size() < Edit2D.MAX_POINTS) assertTrue(Edit2D.insertPoint(s, new double[]{5, 0, 0}) > 0);
@@ -213,7 +200,6 @@ class Edit2DTest {
         s.pts.add(new double[]{12, 10});
         assertEquals(1, Edit2D.duplicatePoint(s, 0));
         assertArrayEquals(new double[]{2, 2.5}, s.pts.get(1), 1e-12);
-        // The last point's copy goes towards the previous one, and the end stays the end.
         assertEquals(3, Edit2D.duplicatePoint(s, 3));
         assertArrayEquals(new double[]{11.5, 10}, s.pts.get(3), 1e-12);
         assertArrayEquals(new double[]{12, 10}, s.pts.get(4), 0);

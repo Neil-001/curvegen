@@ -47,6 +47,8 @@ public interface Shape3 {
         return in ? n : -n;
     }
 
+    default boolean uniformRunsInAllDirections() { return false; }
+
     /** False makes the solver evaluate the field at all 4096 points of a block that holds the surface. It's slow. */
     default boolean smooth() { return true; }
 
