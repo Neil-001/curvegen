@@ -17,17 +17,11 @@ import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.level.block.Block;
 
-/**
- * Chooses a gradient saved in Chroma Studio. The current one comes first when Chroma Studio no longer has it, as
- * after loading a preset whose gradient was since deleted there. Each row shows the steps' blocks from start to end;
- * hovering one lists them. Choosing one hands a copy of it to {@code onPick} and goes back.
- */
 public class GradientChooserScreen extends Screen {
     private static final int M = 8, ROW = 22, SWATCH_W = 48, SWATCH_H = 16, TOP = 26;
     private final Screen parent;
     private final Consumer<Gradient> onPick;
     private final List<Gradient> rows = new ArrayList<>();
-    /** What the list says when there is nothing to choose, or null. */
     private final String empty;
     private int scroll;
 
@@ -47,17 +41,12 @@ public class GradientChooserScreen extends Screen {
         return 0xFF000000 | (b != null ? ColorIndex.of(b) : g.cell(step).rgb());
     }
 
-    /** Draws a gradient's steps side by side, first on the left, in a {@code w} by {@code h} box. */
     static void drawSwatch(GuiGraphicsExtractor ctx, Gradient g, int x, int y, int w, int h) {
         ctx.fill(x - 1, y - 1, x + w + 1, y + h + 1, 0x40FFFFFF);
         int n = g.paletteSize();
         for (int k = 0; k < n; k++) ctx.fill(x + k * w / n, y, x + (k + 1) * w / n, y + h, colour(g, k));
     }
 
-    /**
-     * The gradient's steps' blocks, for its tooltip. A block painting can't place, which Chroma Studio's own filter may
-     * let a gradient hold, is marked, and a line after the list says those take the closest colour.
-     */
     private static String tip(Gradient g) {
         StringBuilder s = new StringBuilder(g.name).append('\n').append(tr("curvegen.paint.gradient_steps", g.paletteSize()));
         boolean any = false;

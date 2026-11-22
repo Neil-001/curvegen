@@ -14,10 +14,8 @@ import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
-/** Puts the wedges of the radial menu's two top-level menus in the player's order. */
 public class WedgeOrderScreen extends ControlScreen {
     private static final int M = 6, GAP = 8, TOP = 50;
-    /** The rows' pitch, closed up on a short screen so the longer list still clears the buttons, and their height. */
     private int row, rowH;
 
     private final Screen parent;
@@ -70,7 +68,6 @@ public class WedgeOrderScreen extends ControlScreen {
     }
 
     private void move(List<String> ids, int row, int by) {
-        // The lists from Radial.order can be changed in place.
         Collections.swap(ids, row, row + by);
         store();
     }
