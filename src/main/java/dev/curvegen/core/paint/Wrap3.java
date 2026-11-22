@@ -8,28 +8,10 @@ import dev.curvegen.core.paint.Paint.Mapping;
 import dev.curvegen.core.paint.Tiling.Strip;
 import java.util.stream.IntStream;
 
-/**
- * Where each block of a solved 3D shape lies on the pattern's one strip. Wrap takes it from the shape's own
- * {@link Shape3.Wrapping}. The three projections lay the pattern flat on the box round the blocks, seen from above,
- * from the front or from the player's right, and carry it straight through: {@code u} runs to the right as seen from
- * there, and {@code v} up, or away from the player from above.
- *
- * <p>The solve is in the world's axes, and the shape's own axes point however {@link Orient} says. An editor's own
- * axes are x to the right, y up and z away from the player, which no turn of the shape changes, and the shapes wrap a
- * pattern unmirrored in those. A shape set out the other way round, as the menu's picture and an export without a
- * hologram are, gets its {@code u} reversed, so the pattern reads the same in the world either way.
- *
- * <p>It depends only on the solve and the mapping, so a repaint for another turn, slide or pattern can reuse it.
- */
 public final class Wrap3 {
-    /** Per block, in the solve's grid order with air left out: its place on the strip. */
     public final float[] u, v;
     public final Strip strip;
     public final Mapping mapping;
-    /**
-     * For a projection, the directions in the world, numbered as {@link Orient}'s, that the pattern's right and up
-     * point: the pattern turns anticlockwise as seen from {@code right × up}. -1 for Wrap, which never turns a block.
-     */
     public final int right, up;
 
     private Wrap3(int blocks, Strip strip, Mapping mapping, int right, int up) {
@@ -37,22 +19,15 @@ public final class Wrap3 {
         this.strip = strip; this.mapping = mapping; this.right = right; this.up = up;
     }
 
-    /** How many blocks are in the solve, which is how many places there are. */
     public int blocks() { return u.length; }
 
-    /**
-     * Places every block of {@code r}, a solve of {@code own} turned by {@code o}. {@code mapping} must be one the
-     * shape can use: Wrap needs {@link Shape3#wrapping}.
-     */
     public static Wrap3 of(Solver3.Result r, Shape3 own, Orient o, Mapping mapping) {
         return of(r, own, mapping == Mapping.WRAP ? own.wrapping() : null, o, mapping);
     }
 
-    /** The same, with the shape's wrapping already worked out, or null for a projection. */
     public static Wrap3 of(Solver3.Result r, Shape3 own, Shape3.Wrapping w, Orient o, Mapping mapping) {
         int nx = r.nx(), ny = r.ny(), nz = r.nz();
         short[] grid = r.grid();
-        // Blocks before each level, so levels can be placed in parallel.
         int[] start = new int[ny + 1];
         for (int y = 0; y < ny; y++) {
             int n = 0;
@@ -71,7 +46,6 @@ public final class Wrap3 {
             return out;
         }
 
-        // Projections: the two own axes the pattern lies along, and the box round the blocks along them.
         int ua = mapping == Mapping.SIDE ? 2 : 0, va = mapping == Mapping.ABOVE ? 2 : 1;
         double[] lo = {Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY}, hi = {Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY};
         double[] world = new double[3];
@@ -80,7 +54,6 @@ public final class Wrap3 {
                 for (int x = 0; x < nx; x++, c++) {
                     if (grid[c] == Pieces3.AIR) continue;
                     world[0] = x; world[1] = y; world[2] = z;
-                    // The block's own lowest corner along each of the two axes.
                     double pu = own(world, ua, axis, back, size) - (back[ua] ? 1 : 0), pv = own(world, va, axis, back, size) - (back[va] ? 1 : 0);
                     lo[0] = Math.min(lo[0], pu); hi[0] = Math.max(hi[0], pu + 1);
                     lo[1] = Math.min(lo[1], pv); hi[1] = Math.max(hi[1], pv + 1);
@@ -96,13 +69,8 @@ public final class Wrap3 {
         return out;
     }
 
-    /** Writes the place of a block's centre, in the world box, into {@code at[0]} and {@code at[1]}. */
     private interface Placer { void place(double[] world, double[] at); }
 
-    /**
-     * Places each block, a level at a time in parallel. {@code start} holds the blocks before each level, and
-     * {@code flip} reverses {@code u}.
-     */
     private void fill(Solver3.Result r, int[] start, boolean flip, Placer placer) {
         int nx = r.nx(), nz = r.nz();
         short[] grid = r.grid();
@@ -122,16 +90,11 @@ public final class Wrap3 {
         });
     }
 
-    /** A point's coordinate along own axis {@code a}, from where it is in the world box. As {@link Orient#toOwn}. */
     private static double own(double[] world, int a, int[] axis, boolean[] back, int[] size) {
         double w = world[axis[a]];
         return back[a] ? size[a] - w : w;
     }
 
-    /**
-     * +1 when the own axes x, y, z make a right-handed set in the world, as the world's own axes do, and -1 when they
-     * make a left-handed one, as an editor's x to the right, y up and z away from the player always do.
-     */
     public static int handedness(Orient o) {
         double[][] m = new double[3][];
         for (int a = 0; a < 3; a++) {

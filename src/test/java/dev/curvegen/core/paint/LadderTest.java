@@ -76,7 +76,6 @@ class LadderTest {
 
     @Test
     void fencesStayInTheBlocksTabFencesGroup() {
-        // The Blocks tab has a wooden fence, so nether bricks' own fence would stand apart from the rest.
         Ladder l = new Ladder(TestWorld.catalog(), one(Cell.block(m("nether_bricks"))), false, true, ALL);
         String fence = pick(l, Family.FENCE);
         assertTrue(fence.equals(m("oak_fence")) || fence.equals(m("spruce_fence")), fence);
@@ -86,14 +85,11 @@ class LadderTest {
 
     @Test
     void fullBlocksThatWouldJoinDifferentlyBecomeGaps() {
-        // The solve had fences attach to full blocks, and leaves don't take them.
         Ladder l = new Ladder(TestWorld.catalog(), one(Cell.block(m("oak_leaves"))), false, true, ALL);
         assertEquals(-1, l.pick(0, Family.FULL));
         assertEquals(Why.GAP, l.why(0, Family.FULL));
-        // With no fences, panes or walls in the shape, it doesn't matter.
         l = new Ladder(TestWorld.catalog(), one(Cell.block(m("oak_leaves"))), false, true, EnumSet.of(Family.FULL));
         assertEquals(m("oak_leaves"), pick(l, Family.FULL));
-        // The other way round: a shape solved for leaves can't take stone bricks, which the Blocks tab has too.
         l = new Ladder(TestWorld.catalog(), one(Cell.block(m("stone_bricks"))), false, false, ALL);
         assertEquals(m("oak_leaves"), pick(l, Family.FULL));
     }
@@ -102,14 +98,11 @@ class LadderTest {
     void oneMaterialSwapsMaterialsWithoutTheShapesPieces() {
         Set<Family> used = EnumSet.of(Family.FULL, Family.SLAB, Family.STAIRS);
         Ladder l = new Ladder(TestWorld.catalog(), one(Cell.block(m("white_wool"))), true, true, used);
-        // Wool has no slabs or stairs; quartz is the closest material that has both.
         assertEquals(m("quartz_block"), pick(l, Family.FULL));
         assertEquals(m("quartz_stairs"), pick(l, Family.STAIRS));
         assertEquals(m("quartz_slab"), pick(l, Family.SLAB));
-        // Without it, full blocks stay wool.
         l = new Ladder(TestWorld.catalog(), one(Cell.block(m("white_wool"))), false, true, used);
         assertEquals(m("white_wool"), pick(l, Family.FULL));
-        // A shape with only full blocks needs no swap.
         l = new Ladder(TestWorld.catalog(), one(Cell.block(m("white_wool"))), true, true, EnumSet.of(Family.FULL));
         assertEquals(m("white_wool"), pick(l, Family.FULL));
     }
@@ -123,7 +116,6 @@ class LadderTest {
 
     @Test
     void anEmptyCellNeverJoinsFencesDifferently() {
-        // Solved for leaves, which fences don't take; the Blocks tab's stone bricks would, so an empty cell can't use them.
         Ladder l = new Ladder(TestWorld.catalog(), one(Cell.EMPTY), false, false, ALL);
         assertEquals(m("oak_leaves"), pick(l, Family.FULL));
     }

@@ -8,28 +8,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-/**
- * A grid of cells for painting a shape, at most {@link #MAX} each way. It never changes once made, so settings can
- * share one between copies. Cells are kept as indices into a palette of the distinct {@link Cell}s, with x along the
- * pattern and y across it, y = 0 being the bottom row.
- *
- * <p>As text ({@link #encode}), for its own file and inside a preset: "name", "width", "height", "palette" (the
- * cells, space separated: a block state such as {@code minecraft:oak_log[axis=x]}, a colour {@code #rrggbb},
- * {@code -} for an empty cell or {@code ?} for a captured block painting can't use) and "rows" (palette indices,
- * comma separated, rows separated by "/", top row first).
- * A bundled pattern's name is a translation key starting {@link #BUNDLED}.
- */
 public final class Pattern implements Palette {
     public static final int MAX = 128;
-    /** Names starting with this are translation keys, for the patterns the mod comes with. */
     public static final String BUNDLED = "curvegen.pattern.";
 
-    /**
-     * One cell: a block state with its properties, as the game writes it, or only a colour 0xRRGGBB (from an image),
-     * or neither: an empty cell. An empty cell is either {@link #EMPTY}, air in a capture or a clear pixel in an image,
-     * or {@link #UNUSABLE}, a captured block painting can't use, such as a torch or a chest. Both take the Blocks tab's
-     * choice, but only {@link #EMPTY} may become a hole.
-     */
     public record Cell(String state, int rgb) {
         public static final Cell EMPTY = new Cell(null, -1);
         public static final Cell UNUSABLE = new Cell(null, -2);
@@ -39,7 +21,6 @@ public final class Pattern implements Palette {
 
         public boolean empty() { return state == null && rgb < 0; }
 
-        /** The block's id without its properties, or null for a colour or an empty cell. */
         public String block() {
             if (state == null) return null;
             int b = state.indexOf('[');
@@ -52,7 +33,6 @@ public final class Pattern implements Palette {
             return rgb < 0 ? "-" : String.format(Locale.ROOT, "#%06x", rgb);
         }
 
-        /** A cell from its text, as {@link Pattern} writes one, or null when the text isn't one. */
         public static Cell parse(String t) {
             if (t.equals("-")) return EMPTY;
             if (t.equals("?")) return UNUSABLE;
@@ -69,10 +49,6 @@ public final class Pattern implements Palette {
     private final short[] cells;
     private final int[] counts;
 
-    /**
-     * @param grid palette indices, row by row from the bottom: {@code grid[y * width + x]}. Indices must be valid,
-     *             and palette entries distinct.
-     */
     public Pattern(String name, int width, int height, List<Cell> palette, int[] grid) {
         if (width < 1 || height < 1 || width > MAX || height > MAX || grid.length != width * height || palette.isEmpty())
             throw new IllegalArgumentException();
@@ -87,7 +63,6 @@ public final class Pattern implements Palette {
         }
     }
 
-    /** Builds a pattern from rows of cells, top row first, as it would be drawn. */
     public static Pattern of(String name, Cell[][] rowsTopFirst) {
         int h = rowsTopFirst.length, w = rowsTopFirst[0].length;
         List<Cell> palette = new ArrayList<>();
@@ -99,14 +74,11 @@ public final class Pattern implements Palette {
         return new Pattern(name, w, h, palette, grid);
     }
 
-    /** The palette index of the cell at x along and y across, y = 0 at the bottom. */
     public int at(int x, int y) { return cells[y * width + x]; }
     @Override public Cell cell(int index) { return palette[index]; }
     @Override public int paletteSize() { return palette.length; }
-    /** How many cells hold this palette entry. */
     @Override public int count(int index) { return counts[index]; }
 
-    /** Whether every cell that isn't empty is only a colour, as in a pattern made from a picture, and there is one. */
     public boolean colourOnly() {
         boolean any = false;
         for (int k = 0; k < palette.length; k++) {
@@ -117,7 +89,6 @@ public final class Pattern implements Palette {
         return any;
     }
 
-    /** Whether the two hold the same cells in the same places, whatever their names. */
     public boolean sameCells(Pattern o) {
         if (o.width != width || o.height != height) return false;
         for (int k = 0; k < cells.length; k++) if (!palette[cells[k]].equals(o.palette[o.cells[k]])) return false;
@@ -147,7 +118,6 @@ public final class Pattern implements Palette {
         return d;
     }
 
-    /** Reads {@link #encode}'s text back, or returns null when it isn't a whole, valid pattern. */
     public static Pattern decode(Map<String, String> d) {
         if (d == null) return null;
         try {

@@ -13,7 +13,6 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class Painter2DTest {
-    /** Every 2D shape and mode, upright and flat, one and three deep. */
     static List<ShapeSettings> shapes() {
         List<ShapeSettings> out = new ArrayList<>();
         for (boolean floor : new boolean[]{false, true})
@@ -65,7 +64,6 @@ class Painter2DTest {
                         Painted out = Painter2D.paint(r, s.depth, paint, s.fullConnects, TestWorld.catalog());
                         assertArrayEquals(before, r.grid(), "painting changed the solve");
                         assertNotNull(out);
-                        // Empty cells get nothing, and every block is counted.
                         int n = r.nx() * r.ny();
                         for (int k = 0; k < out.layers(); k++)
                             for (int c = 0; c < n; c++)
@@ -99,7 +97,6 @@ class Painter2DTest {
         assertTrue(oak > 10 && stone > 10 && Math.abs(oak - stone) < (oak + stone) / 4, oak + " oak, " + stone + " stone");
     }
 
-    /** A flat Bézier line 9 wide with the road on it: white edges, grey between, and a dashed yellow middle. */
     @Test
     void theTwoLaneRoadLiesAlongAFlatCurve() {
         ShapeSettings s = new ShapeSettings();
@@ -109,7 +106,6 @@ class Painter2DTest {
         s.shelf = s.trap = s.fence = s.pane = s.wall = false;
         Solver.Result r = Solver.run(s);
         Painted out = Painter2D.paint(r, 1, paint(Patterns.TWO_LANE_ROAD), true, TestWorld.catalog());
-        // A straight road along y = 10.5: rows 6 to 14 are its 9 blocks across.
         assertEquals(m("white_concrete"), block(out, r, 20, 6));
         assertEquals(m("white_concrete"), block(out, r, 20, 14));
         assertEquals(m("gray_concrete"), block(out, r, 20, 8));
@@ -138,7 +134,6 @@ class Painter2DTest {
         int n = r.nx() * r.ny();
         assertEquals(m("stone_bricks"), out.blocks().get(out.at(c)));
         assertEquals(m("oak_planks"), out.blocks().get(out.at(3 * n + c)));
-        // At depth 1 there's no edge to speak of, so the face takes it.
         assertEquals(1, Painter2D.paint(Solver.run(new ShapeSettings()), 1, p, true, TestWorld.catalog()).layers());
     }
 
@@ -156,13 +151,12 @@ class Painter2DTest {
         assertEquals(2L * blocks, sum);
     }
 
-    /** See {@link Paint2DTiming} for the target. This only catches painting becoming many times slower. */
     @Test
     void repaintingIsQuick() {
         ShapeSettings s = Paint2DTiming.painted(new ShapeSettings());
         s.eW = s.eH = 200; s.eMode = ShapeSettings.EllipseMode.MIDDLE; s.eT = 4;
         Solver.Result r = Solver.run(s);
-        Paint2DTiming.millis(r, s, TestWorld.catalog());   // warm up
+        Paint2DTiming.millis(r, s, TestWorld.catalog());
         assertTrue(Paint2DTiming.millis(r, s, TestWorld.catalog()) < 100);
     }
 
@@ -177,7 +171,6 @@ class Painter2DTest {
             if (out.blocks().get(k).startsWith(m("oak_log"))) assertEquals(1, out.quarters()[k], "44° is nudged past 45°");
     }
 
-    /** Two loops of one equation, nudged to either side of 45°, turn their blocks each their own way. */
     @Test
     void eachLoopTurnsItsOwnBlocks() {
         ShapeSettings s = new ShapeSettings();

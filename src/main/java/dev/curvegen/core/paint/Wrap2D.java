@@ -6,27 +6,15 @@ import dev.curvegen.core.Target;
 import dev.curvegen.core.paint.Tiling.Strip;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
-/**
- * Where each block of a solved 2D shape lies on the pattern's strips. A line or an outline wraps: {@code u} runs along
- * its centre line and {@code v} across its width, from its right-hand side as the line runs. A loop runs anticlockwise
- * from its bottom, or from its back when the shape lies flat, so {@code v} starts on its outside; a line with two
- * ends runs left to right, so {@code v} starts underneath. A filled shape is projected flat:
- * {@code u} is x and {@code v} is y across the box round its blocks.
- *
- * <p>With "Pattern on: Edge", {@code u} runs round the outline (the centre line, for a line) and {@code v} through
- * the depth, so each layer has its own {@code v}: {@link #v} then holds -1 and the caller uses the layer.
- * A block takes the spot on the curve nearest it, so blocks inside a thick line or a filled shape carry the
- * pattern straight through.
- */
 public final class Wrap2D {
-    /** Per grid cell {@code j * nx + i}: the strip it lies on (-1 for an empty cell), and its place on it. */
     public final int[] strip;
     public final float[] u, v;
     public final List<Strip> strips;
-    /** Whether the shape is a line or an outline rather than a filled shape. */
     public final boolean line;
 
     private Wrap2D(int n, boolean line) {
@@ -36,7 +24,6 @@ public final class Wrap2D {
         java.util.Arrays.fill(strip, -1);
     }
 
-    /** Places every non-empty cell of {@code r}. {@code edge} is "Pattern on: Edge" over {@code depth} layers. */
     public static Wrap2D of(Solver.Result r, boolean edge, int depth) {
         Target t = r.target();
         int nx = r.nx(), ny = r.ny();
@@ -63,34 +50,27 @@ public final class Wrap2D {
             if (t.rim != null) segs.add(t.rim);
         }
         List<Poly> polys = Poly.chain(segs, r.floor());
-        // Cells name their chain in 11 bits. An equation with more pieces than that keeps its longest.
-        if (polys.size() > 2047) {
-            polys.sort((a, b) -> Double.compare(b.length, a.length));
-            polys = new ArrayList<>(polys.subList(0, 2047));
-        }
         double width = edge ? depth : line ? t.centreWidth : 1;
         for (Poly p : polys) w.strips.add(new Strip(p.length, width, p.closed));
         if (polys.isEmpty()) return w;
         boolean[] filled = new boolean[nx * ny];
         for (int c = 0; c < filled.length; c++) filled[c] = r.grid()[c] != Pieces.EMPTY;
-        // Every block of a line is within half its width of the centre line, so only an outline needs the sweeps.
-        int[] nearest = line ? Nearest.of(nx, ny, polys, (int) Math.ceil(t.centreWidth / 2) + 1, filled, filled) : Nearest.of(nx, ny, polys, 1, null, filled);
+        Nearest segments = new Nearest(polys);
+        int[] nearest = line ? segments.find(nx, ny, (int) Math.ceil(t.centreWidth / 2) + 1, filled, filled)
+                : segments.find(nx, ny, 1, null, filled);
         for (int j = 0; j < ny; j++)
             for (int i = 0; i < nx; i++) {
                 int c = j * nx + i;
                 if (r.at(i, j) == Pieces.EMPTY || nearest[c] < 0) continue;
-                int code = nearest[c];
-                Poly p = polys.get(code >>> 20);
-                int k = code & 0xFFFFF;
-                double[] at = p.project(k, i + .5, j + .5);
-                w.strip[c] = code >>> 20;
+                int segment = nearest[c], strip = segments.stripOf(segment);
+                double[] at = polys.get(strip).project(segments.segmentInStrip(segment, strip), i + .5, j + .5);
+                w.strip[c] = strip;
                 w.u[c] = (float) at[0];
                 w.v[c] = edge ? -1 : (float) (width / 2 + at[1]);
             }
         return w;
     }
 
-    /** A chain of segments: points xs, ys, with the distance along it to each point. */
     static final class Poly {
         final double[] xs, ys, at;
         final double length;
@@ -105,7 +85,6 @@ public final class Wrap2D {
 
         int segments() { return xs.length - 1; }
 
-        /** Distance along, and signed distance to the left (positive) or right, for the point's projection on segment k. */
         double[] project(int k, double px, double py) {
             double ax = xs[k], ay = ys[k], dx = xs[k + 1] - ax, dy = ys[k + 1] - ay, len2 = dx * dx + dy * dy;
             double f = len2 == 0 ? 0 : Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / len2));
@@ -125,20 +104,12 @@ public final class Wrap2D {
             static Key of(double x, double y) { return new Key(Math.round(x * 1e6), Math.round(y * 1e6)); }
         }
 
-        /** A chain's points while it's being put together, and whether it came in one piece in order. */
         private record Run(List<double[]> pts, boolean inOrder) {}
 
-        /** Ends this close count as one point, which mends the tiny gaps an equation's curve has where it is exactly 0. */
         private static final double JOIN = 0.05;
 
-        /**
-         * Joins segments {x1,y1,x2,y2,...} that share ends into chains. A loop runs anticlockwise from its lowest point,
-         * or from its furthest back one when the shape lies flat. A chain with two ends runs left to right, unless it
-         * came in one piece in order, as a Bézier curve does, which keeps its own direction.
-         */
         static List<Poly> chain(List<double[]> lists, boolean flat) {
             List<double[]> s = new ArrayList<>();
-            // A segment given twice, either way round, counts once: a curve can run right along an equation's range edge.
             java.util.Set<List<Key>> seen = new java.util.HashSet<>();
             for (double[] list : lists)
                 for (int k = 0; k + 3 < list.length; k += 4) {
@@ -154,7 +125,6 @@ public final class Wrap2D {
             }
             boolean[] used = new boolean[s.size()];
             List<Run> runs = new ArrayList<>();
-            // Chains with an end first, from that end, then whatever is left, which is loops.
             for (int pass = 0; pass < 2; pass++)
                 for (int k = 0; k < s.size(); k++) {
                     if (used[k]) continue;
@@ -165,11 +135,7 @@ public final class Wrap2D {
                 }
             mend(runs);
             List<Poly> out = new ArrayList<>();
-            for (Run r : runs) {
-                Poly p = finish(r, flat);
-                // Where an equation is exactly 0 on a sample, it leaves a speck of a segment beside the curve.
-                if (p.length > 2 * JOIN) out.add(p);
-            }
+            for (Run r : runs) out.add(finish(r, flat));
             return out;
         }
 
@@ -199,28 +165,58 @@ public final class Wrap2D {
 
         private static boolean near(double[] a, double[] b) { return Math.abs(a[0] - b[0]) <= JOIN && Math.abs(a[1] - b[1]) <= JOIN; }
 
-        /** Joins chains whose ends almost meet. There are few chains, so this checks every pair. */
         private static void mend(List<Run> runs) {
-            if (runs.size() > 500) return;
-            boolean joined = true;
-            while (joined) {
-                joined = false;
-                for (int a = 0; a < runs.size() && !joined; a++)
-                    for (int b = a + 1; b < runs.size() && !joined; b++) {
-                        List<double[]> p = runs.get(a).pts(), q = runs.get(b).pts();
-                        if (near(p.getFirst(), p.getLast()) || near(q.getFirst(), q.getLast())) continue;   // loops
-                        List<double[]> joinedPts = null;
-                        if (near(p.getLast(), q.getFirst())) joinedPts = concat(p, q);
-                        else if (near(q.getLast(), p.getFirst())) joinedPts = concat(q, p);
-                        else if (near(p.getLast(), q.getLast())) joinedPts = concat(p, q.reversed());
-                        else if (near(p.getFirst(), q.getFirst())) joinedPts = concat(p.reversed(), q);
-                        if (joinedPts != null) {
-                            runs.set(a, new Run(joinedPts, false));
-                            runs.remove(b);
-                            joined = true;
+            Map<Key, Set<Integer>> ends = new HashMap<>();
+            for (int k = 0; k < runs.size(); k++) {
+                List<double[]> pts = runs.get(k).pts();
+                if (near(pts.getFirst(), pts.getLast())) continue;
+                ends.computeIfAbsent(bucket(pts.getFirst()), _ -> new LinkedHashSet<>()).add(k);
+                ends.computeIfAbsent(bucket(pts.getLast()), _ -> new LinkedHashSet<>()).add(k);
+            }
+            for (int a = 0; a < runs.size(); a++) {
+                Run run = runs.get(a);
+                if (run == null || near(run.pts().getFirst(), run.pts().getLast())) continue;
+                List<double[]> p = run.pts();
+                removeEnds(ends, p, a);
+                while (!near(p.getFirst(), p.getLast())) {
+                    int b = firstJoin(ends, runs, p.getFirst(), runs.size());
+                    b = firstJoin(ends, runs, p.getLast(), b);
+                    if (b == runs.size()) break;
+                    List<double[]> q = runs.get(b).pts();
+                    removeEnds(ends, q, b);
+                    runs.set(b, null);
+                    if (near(p.getLast(), q.getFirst())) p = concat(p, q);
+                    else if (near(q.getLast(), p.getFirst())) p = concat(q, p);
+                    else if (near(p.getLast(), q.getLast())) p = concat(p, q.reversed());
+                    else p = concat(p.reversed(), q);
+                    runs.set(a, new Run(p, false));
+                }
+            }
+            runs.removeIf(java.util.Objects::isNull);
+        }
+
+        private static Key bucket(double[] point) {
+            return new Key((long) Math.floor(point[0] / (2 * JOIN)), (long) Math.floor(point[1] / (2 * JOIN)));
+        }
+
+        private static void removeEnds(Map<Key, Set<Integer>> ends, List<double[]> pts, int k) {
+            ends.get(bucket(pts.getFirst())).remove(k);
+            ends.get(bucket(pts.getLast())).remove(k);
+        }
+
+        private static int firstJoin(Map<Key, Set<Integer>> ends, List<Run> runs, double[] point, int best) {
+            Key key = bucket(point);
+            for (int dy = -1; dy <= 1; dy++)
+                for (int dx = -1; dx <= 1; dx++)
+                    for (int k : ends.getOrDefault(new Key(key.x() + dx, key.y() + dy), Set.of())) {
+                        if (k >= best) break;
+                        List<double[]> pts = runs.get(k).pts();
+                        if (near(point, pts.getFirst()) || near(point, pts.getLast())) {
+                            best = k;
+                            break;
                         }
                     }
-            }
+            return best;
         }
 
         private static List<double[]> concat(List<double[]> a, List<double[]> b) {
@@ -257,18 +253,29 @@ public final class Wrap2D {
         }
     }
 
-    /**
-     * The nearest segment to cells' centres, as (chain index << 20 | segment index), or -1. A cell within
-     * {@code reach} cells of a segment checks every segment that near. With {@code only} given, just those cells are
-     * worked out, which is enough when every one is that close to the curve. Otherwise the rest take the best of their
-     * neighbours' answers, swept across the grid both ways, which bounds how far each must look to be made exact.
-     * Cells further than {@link #EXACT} from every segment keep the sweeps' answer, which is at most a spot or so off.
-     * Only cells in {@code wanted} (all, when null) are sure to be exact.
-     */
     static final class Nearest {
-        static int[] of(int nx, int ny, List<Poly> polys, int reach, boolean[] only, boolean[] wanted) {
+        private final List<Poly> polys;
+        private final int[] firstSegment, stripBySegment;
+
+        Nearest(List<Poly> polys) {
+            this.polys = polys;
+            firstSegment = new int[polys.size() + 1];
+            for (int p = 0; p < polys.size(); p++) firstSegment[p + 1] = firstSegment[p] + polys.get(p).segments();
+            stripBySegment = new int[firstSegment[polys.size()]];
+            for (int p = 0; p < polys.size(); p++) java.util.Arrays.fill(stripBySegment, firstSegment[p], firstSegment[p + 1], p);
+        }
+
+        int stripOf(int segment) { return stripBySegment[segment]; }
+
+        int segmentInStrip(int segment, int strip) { return segment - firstSegment[strip]; }
+
+        double distance2(int segment, double x, double y) {
+            int strip = stripOf(segment);
+            return polys.get(strip).distance2(segmentInStrip(segment, strip), x, y);
+        }
+
+        int[] find(int nx, int ny, int reach, boolean[] only, boolean[] wanted) {
             int n = nx * ny;
-            // Each cell's nearby segments, packed: cell c's are near[start[c]] to near[start[c + 1] - 1].
             int[] start = new int[n + 1];
             for (int pass = 0; pass < 2; pass++) {
                 int[] fill = pass == 1 ? start.clone() : null;
@@ -283,17 +290,17 @@ public final class Wrap2D {
                                 int c = j * nx + i;
                                 if (only != null && !only[c]) continue;
                                 if (pass == 0) start[c + 1]++;
-                                else near[fill[c]++] = p << 20 | k;
+                                else near[fill[c]++] = firstSegment[p] + k;
                             }
                     }
                 }
                 if (pass == 0) { for (int c = 0; c < n; c++) start[c + 1] += start[c]; continue; }
-                return finish(nx, ny, polys, start, near, only == null, wanted);
+                return finish(nx, ny, start, near, only == null, wanted);
             }
             throw new IllegalStateException();
         }
 
-        private static int[] finish(int nx, int ny, List<Poly> polys, int[] start, int[] near, boolean sweep, boolean[] wanted) {
+        private int[] finish(int nx, int ny, int[] start, int[] near, boolean sweep, boolean[] wanted) {
             int n = nx * ny;
             int[] best = new int[n];
             double[] dist = new double[n];
@@ -301,28 +308,24 @@ public final class Wrap2D {
                 best[c] = -1; dist[c] = Double.MAX_VALUE;
                 double x = c % nx + .5, y = c / nx + .5;
                 for (int q = start[c]; q < start[c + 1]; q++) {
-                    int code = near[q];
-                    double d = polys.get(code >>> 20).distance2(code & 0xFFFFF, x, y);
-                    if (d < dist[c]) { dist[c] = d; best[c] = code; }
+                    int segment = near[q];
+                    double d = distance2(segment, x, y);
+                    if (d < dist[c]) { dist[c] = d; best[c] = segment; }
                 }
             }
             if (!sweep) return best;
             int[][] fwd = {{-1, 0}, {-1, -1}, {0, -1}, {1, -1}}, back = {{1, 0}, {1, 1}, {0, 1}, {-1, 1}};
             for (int round = 0; round < 2; round++) {
-                for (int j = 0; j < ny; j++) for (int i = 0; i < nx; i++) relax(i, j, nx, ny, fwd, best, dist, polys);
-                for (int j = ny - 1; j >= 0; j--) for (int i = nx - 1; i >= 0; i--) relax(i, j, nx, ny, back, best, dist, polys);
+                for (int j = 0; j < ny; j++) for (int i = 0; i < nx; i++) relax(i, j, nx, ny, fwd, best, dist);
+                for (int j = ny - 1; j >= 0; j--) for (int i = nx - 1; i >= 0; i--) relax(i, j, nx, ny, back, best, dist);
             }
-            // A neighbour's answer is near the truth but can be another segment, so each wanted cell near the outline
-            // then checks every segment no further than that answer.
-            exact(nx, ny, polys, best, dist, wanted);
+            exact(nx, ny, best, dist, wanted);
             return best;
         }
 
         private static final int COARSE = 8, EXACT = 16;
 
-        /** Makes each wanted cell's answer exact: every segment within its current distance is checked. */
-        private static void exact(int nx, int ny, List<Poly> polys, int[] best, double[] dist, boolean[] wanted) {
-            // Buckets cover the segments themselves, which can reach past the grid.
+        private void exact(int nx, int ny, int[] best, double[] dist, boolean[] wanted) {
             double minX = Double.MAX_VALUE, minY = Double.MAX_VALUE, maxX = -Double.MAX_VALUE, maxY = -Double.MAX_VALUE;
             for (Poly p : polys)
                 for (int k = 0; k < p.xs.length; k++) {
@@ -331,7 +334,6 @@ public final class Wrap2D {
                 }
             double ox = Math.floor(minX), oy = Math.floor(minY);
             int bx = (int) ((maxX - ox) / COARSE) + 1, by = (int) ((maxY - oy) / COARSE) + 1;
-            // Each bucket's segments, packed: bucket b's are in[start[b]] to in[start[b + 1] - 1].
             int[] start = new int[bx * by + 1], in = null, fill = null;
             for (int pass = 0; pass < 2; pass++) {
                 if (pass == 1) {
@@ -347,15 +349,12 @@ public final class Wrap2D {
                         for (int j = j0; j <= j1; j++)
                             for (int i = i0; i <= i1; i++) {
                                 if (pass == 0) start[j * bx + i + 1]++;
-                                else in[fill[j * bx + i]++] = p << 20 | k;
+                                else in[fill[j * bx + i]++] = firstSegment[p] + k;
                             }
                     }
                 }
             }
             for (int c = 0; c < nx * ny; c++) {
-                // Deep inside a round shape every spot on its outline is about as near, and checking them all for
-                // every block would take seconds, so each block looks no further than EXACT: one within that of the
-                // outline gets the exact answer, and one deeper keeps the sweeps' unless something nearer turns up.
                 if (best[c] < 0 || wanted != null && !wanted[c]) continue;
                 double limit = Math.min(dist[c], EXACT * EXACT);
                 double x = c % nx + .5 - ox, y = c / nx + .5 - oy, rad = Math.sqrt(limit);
@@ -363,29 +362,28 @@ public final class Wrap2D {
                 int j0 = clamp((int) Math.floor((y - rad) / COARSE), by), j1 = clamp((int) Math.floor((y + rad) / COARSE), by);
                 for (int j = j0; j <= j1; j++)
                     for (int i = i0; i <= i1; i++) {
-                        // A bucket wholly further than the best so far can't hold anything nearer.
                         double gx = Math.max(0, Math.max(i * COARSE - x, x - (i + 1) * COARSE));
                         double gy = Math.max(0, Math.max(j * COARSE - y, y - (j + 1) * COARSE));
                         if (gx * gx + gy * gy >= Math.min(dist[c], limit)) continue;
                         for (int q = start[j * bx + i]; q < start[j * bx + i + 1]; q++) {
-                            int code = in[q];
-                            double d = polys.get(code >>> 20).distance2(code & 0xFFFFF, x + ox, y + oy);
-                            if (d < dist[c]) { dist[c] = d; best[c] = code; }
+                            int segment = in[q];
+                            double d = distance2(segment, x + ox, y + oy);
+                            if (d < dist[c]) { dist[c] = d; best[c] = segment; }
                         }
                     }
             }
         }
 
-        private static void relax(int i, int j, int nx, int ny, int[][] dirs, int[] best, double[] dist, List<Poly> polys) {
+        private void relax(int i, int j, int nx, int ny, int[][] dirs, int[] best, double[] dist) {
             int c = j * nx + i;
             double x = i + .5, y = j + .5;
             for (int[] d : dirs) {
                 int a = i + d[0], b = j + d[1];
                 if (a < 0 || b < 0 || a >= nx || b >= ny) continue;
-                int code = best[b * nx + a];
-                if (code < 0 || code == best[c]) continue;
-                double dd = polys.get(code >>> 20).distance2(code & 0xFFFFF, x, y);
-                if (dd < dist[c]) { dist[c] = dd; best[c] = code; }
+                int segment = best[b * nx + a];
+                if (segment < 0 || segment == best[c]) continue;
+                double dd = distance2(segment, x, y);
+                if (dd < dist[c]) { dist[c] = dd; best[c] = segment; }
             }
         }
 

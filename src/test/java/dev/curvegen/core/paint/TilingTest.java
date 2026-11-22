@@ -8,7 +8,6 @@ import dev.curvegen.core.paint.Tiling.Strip;
 import org.junit.jupiter.api.Test;
 
 class TilingTest {
-    /** A 4 × 2 pattern whose palette index at (x, y) is y * 4 + x. */
     private static final Pattern P;
     static {
         Cell[][] rows = new Cell[2][4];
@@ -32,7 +31,7 @@ class TilingTest {
         assertEquals(0, at(t, 1.5, 1.5));
         assertEquals(1, at(t, 2.5, 0.5));
         assertEquals(4, at(t, 0.5, 2.5));
-        assertEquals(0, at(t, 8.5, 4.5));   // one whole repeat on
+        assertEquals(0, at(t, 8.5, 4.5));
     }
 
     @Test
@@ -54,7 +53,7 @@ class TilingTest {
         assertEquals(0, at(t, 0.5, 4.4));
         assertEquals(4, at(t, 0.5, 4.6));
         assertEquals(4, at(t, 0.5, 8.9));
-        assertEquals(4, at(t, 0.5, 20));    // past the edge, the edge row
+        assertEquals(4, at(t, 0.5, 20));
         assertEquals(1, at(t, 5.5, 0.5));
     }
 
@@ -67,9 +66,7 @@ class TilingTest {
         assertEquals(2, at(t, 25, 1));
     }
 
-    /** Round a closed strip, the end matches the start everywhere across it. */
     private static void seamless(Tiling t, double length) {
-        // Uneven steps, so no point lands exactly on a cell's edge, where rounding could go either way.
         for (double v = 0.2371; v < 10; v += 0.4791)
             for (double u = 0.3119; u < 3; u += 0.5137)
                 assertEquals(at(t, u, v), at(t, u + length, v), "at " + u + ", " + v);
@@ -103,7 +100,6 @@ class TilingTest {
         Paint p = paint();
         p.turn = 90;
         Tiling t = new Tiling(P, p, Fit.REPEAT, new Strip(100, 100, false));
-        // Turned anticlockwise, the pattern's x runs up the strip, and its y the other way along it.
         assertEquals(4, at(t, 0.5, 0.5));
         assertEquals(5, at(t, 0.5, 1.5));
         assertEquals(0, at(t, 1.5, 0.5));
@@ -123,7 +119,6 @@ class TilingTest {
         }
     }
 
-    /** Round a strip closed both ways, as a torus is, the pattern meets itself round both loops at any turn. */
     @Test
     void aStripClosedBothWaysMeetsItselfBothWays() {
         Paint p = paint();
@@ -144,7 +139,6 @@ class TilingTest {
             }
     }
 
-    /** Round a strip closed only across, as a tube is, the pattern meets itself round the tube at any turn. */
     @Test
     void aStripClosedOnlyAcrossMeetsItselfAcross() {
         Paint p = paint();
@@ -163,7 +157,6 @@ class TilingTest {
             }
     }
 
-    /** Round a tube thinner than one repeat, a turned pattern still shows every cell and meets itself round the tube. */
     @Test
     void aThinTubeKeepsATurnedPatternWhole() {
         Paint p = paint();

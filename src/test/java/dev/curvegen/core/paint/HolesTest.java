@@ -16,9 +16,7 @@ import dev.curvegen.core.paint.Pattern.Cell;
 import java.util.BitSet;
 import org.junit.jupiter.api.Test;
 
-/** "Empty spots: Open": which blocks a pattern's empty cells open, and what the blocks beside them become. */
 class HolesTest {
-    /** A 2×2 pattern with one cell of each kind: a block, a captured block painting can't use, an empty cell, a colour. */
     private static final Pattern MIXED = Pattern.of("t", new Cell[][]{
             {Cell.block(m("stone_bricks")), Cell.UNUSABLE},
             {Cell.EMPTY, Cell.colour(0xa12722)}});
@@ -56,7 +54,6 @@ class HolesTest {
         assertNull(mix.holes(), "a mix ignores empty cells");
     }
 
-    /** With Fill, or a pattern without empty cells, Open changes nothing at all. */
     @Test
     void fillAndPatternsWithoutHolesChangeNothing2D() {
         for (ShapeSettings s : Painter2DTest.shapes())
@@ -87,10 +84,6 @@ class HolesTest {
         }
     }
 
-    /**
-     * Every block on an empty cell opens and every other block is painted as with Fill. A hole goes through every layer
-     * of a pattern on the face, and the counts leave it out.
-     */
     @Test
     void holesOpenOnEmptyCells2D() {
         long opened = 0;
@@ -152,7 +145,6 @@ class HolesTest {
                 assertEquals(blocks - open.painted().open(), Painter3Test.blocks(open.result()), what);
                 assertEquals(open.painted().slots().length, Painter3Test.blocks(open.result()), what + ": a slot for every block left");
                 assertEquals(blocks - open.painted().open(), open.painted().total(), what);
-                // Every block left keeps its piece type and its paint; the holes were empty cells under Fill.
                 for (int c = 0, k = 0, o = 0; c < r.grid().length; c++) {
                     if (r.grid()[c] == Pieces3.AIR) { assertEquals(Pieces3.AIR, open.result().grid()[c]); continue; }
                     int e = fill.painted().at(k++);
@@ -167,7 +159,6 @@ class HolesTest {
         assertTrue(opened > 1000, opened + " blocks opened");
     }
 
-    /** A hole on the pattern's face goes straight through a thick shape: every layer, front to back, opens alike. */
     @Test
     void aHoleRunsThroughTheDepth() {
         ShapeSettings s = new ShapeSettings();
@@ -187,10 +178,8 @@ class HolesTest {
         assertEquals(columns * (long) s.depth, open.open());
     }
 
-    /** A fence arm that reached into a hole drops, and a wall under a hole loses what made it tall. */
     @Test
     void neighboursSettle() {
-        // A row of five fences, upright and one deep: the middle one goes.
         byte[] grid = {Pieces.FENCE_R, Pieces.FENCE_LR, Pieces.FENCE_LR, Pieces.FENCE_LR, Pieces.FENCE_L};
         Solver.Result row = result(grid, 5, 1, false);
         BitSet gone = new BitSet();
@@ -201,8 +190,6 @@ class HolesTest {
         assertEquals(Pieces.EMPTY, s.piece(2, 0, 0));
         assertEquals(Pieces.FENCE_R, s.piece(0, 0, 0), "out of reach of the hole, nothing changes");
 
-        // Three deep, a hole in the middle layer only: the fences in front of it and behind it lose the arm towards it.
-        // Front is the way the layers run.
         Settle2D deep = Settle2D.of(row, 3, bits(5 + 2), true, () -> false);
         assertEquals(0, deep.joints(2, 0, 0) >> Settle2D.FRONT & 15, "layer 0 joins neither layer 1 nor anything before it");
         assertEquals(0, deep.joints(2, 0, 2) >> Settle2D.FRONT & 15);
@@ -212,8 +199,6 @@ class HolesTest {
         assertEquals(Pieces.FENCE_L, deep.piece(1, 0, 1));
         assertEquals(Pieces.FENCE_LR, deep.piece(1, 0, 0));
 
-        // Walls with tall sides under full blocks: once the blocks go, the sides are low, and the straight wall in the
-        // middle has no post, as nothing sits on it.
         byte[] wall = {(byte) Pieces.wall(0, 2, true, true), (byte) Pieces.wall(2, 2, true, false), (byte) Pieces.wall(2, 0, true, true),
                 Pieces.FULL, Pieces.FULL, Pieces.FULL};
         Solver.Result w = result(wall, 3, 2, false);
@@ -223,8 +208,6 @@ class HolesTest {
         Settle2D kept = Settle2D.of(w, 1, new BitSet(), true, () -> false);
         assertEquals(Pieces.wall(2, 2, true, false), kept.piece(1, 0, 0), "nothing gone, nothing changes");
 
-        // Flat: a cross of fences loses the arm towards a hole beside it.
-        // Rows go up from the bottom: row 0 holds the arm below the centre, and the hole is the arm above it.
         byte[] flat = {0, (byte) (Pieces.F_FENCE + Pieces.TOP), 0,
                 (byte) (Pieces.F_FENCE + Pieces.RIGHT), (byte) (Pieces.F_FENCE + 15), (byte) (Pieces.F_FENCE + Pieces.LEFT),
                 0, (byte) (Pieces.F_FENCE + Pieces.BOTTOM_SIDE), 0};
@@ -233,7 +216,6 @@ class HolesTest {
         assertEquals(Pieces.F_FENCE + (Pieces.LEFT | Pieces.RIGHT | Pieces.BOTTOM_SIDE | Pieces.TOP), Settle2D.of(result(flat, 3, 3, true), 1, new BitSet(), true, () -> false).piece(1, 1, 0));
     }
 
-    /** A slot's block and how it's turned, or null for the Blocks tab's. */
     private static String entry(Painted p, int e) { return e < 0 ? null : p.blocks().get(e) + " turned " + p.quarters()[e]; }
 
     private static BitSet bits(int... on) {

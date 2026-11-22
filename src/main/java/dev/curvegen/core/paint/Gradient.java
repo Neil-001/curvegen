@@ -7,25 +7,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-/**
- * A gradient saved in Chroma Studio, copied in whole so it paints the same once Chroma Studio has forgotten it. It never
- * changes once made. Its steps run from the gradient's start to its end; each has the colour it stands for and the full
- * block the player saw for it there, hand swaps included. The block is kept as text, so a block this game lacks is kept
- * too, and painting treats it as it treats any unknown block.
- *
- * <p>As a {@link Palette} it has one entry per step, in order, each a cell holding both the step's block and its ideal
- * colour, so {@link Ladder} gives a full block that block and other pieces that block's material or else the piece
- * type's block closest to the ideal colour. Every step counts the same.
- *
- * <p>As text ({@link #encode}): "name", "stops" and "steps", each space separated. A stop is {@code #rrggbb}, or
- * {@code #rrggbb@} and its block for a block stop. A step is {@code #rrggbb@} and its block, then {@code !} when the
- * player chose the block by hand: {@code #8a6f4c@minecraft:oak_log[axis=y]!}.
- */
 public final class Gradient implements Palette {
-    /** One stop: a colour, and the block it came from for a block stop, or null. */
     public record Stop(int rgb, String block) {}
 
-    /** One step: the colour it stands for, the block chosen for it, and whether the player chose that block by hand. */
     public record Step(int ideal, String block, boolean byHand) {}
 
     public final String name;
@@ -33,7 +17,6 @@ public final class Gradient implements Palette {
     private final List<Step> steps;
     private final Cell[] cells;
 
-    /** There must be at least one step, and every step needs a block. */
     public Gradient(String name, List<Stop> stops, List<Step> steps) {
         if (name == null || steps.isEmpty()) throw new IllegalArgumentException();
         this.name = name;
@@ -66,7 +49,6 @@ public final class Gradient implements Palette {
         return d;
     }
 
-    /** Reads {@link #encode}'s text back, or returns null when it isn't a whole, valid gradient. */
     public static Gradient decode(Map<String, String> d) {
         if (d == null || d.get("steps") == null) return null;
         try {

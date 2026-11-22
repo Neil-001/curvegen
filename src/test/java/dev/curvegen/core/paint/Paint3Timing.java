@@ -10,18 +10,8 @@ import java.util.Arrays;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
-/**
- * How long repainting a 3D shape takes without solving it again. A repaint after a turn, slide or pattern change
- * reuses the shape's {@link Wrap3}, which only a new solve or another mapping works out again. Take the
- * {@code @Disabled} off and run {@code ./gradlew :fabric:test --tests '*Paint3Timing*' -i} to see the numbers.
- *
- * <p>The target is 10 ms per repaint for a hollow dome 64 blocks across, so scrolling a pattern round it follows the
- * wheel, and 40 ms up to 128 across. Figures from this machine are in the pull request that added this.
- * {@code Painter3Test.repaintingIsQuick} holds a loose bound that a slow machine still meets.
- */
 class Paint3Timing {
-    /** A hollow half ball, {@code size} across: an ellipsoid shell cut through the middle is what a dome is built as. */
-    static ShapeSettings dome(int size) {
+    static ShapeSettings hollowBall(int size) {
         ShapeSettings s = new ShapeSettings();
         s.gen = Gen.ELLIPSOID; s.e3W = s.e3D = size; s.e3H = size;
         s.paint.source = Paint.Source.PATTERN;
@@ -58,49 +48,36 @@ class Paint3Timing {
     @Test
     @Disabled("prints timings; asserts nothing")
     void timings() {
-        for (int size : new int[]{64, 128, 256}) time("hollow ball, " + size + " across", dome(size));
-        ShapeSettings s = dome(128);
+        for (int size : new int[]{64, 128, 256}) time("hollow ball, " + size + " across", hollowBall(size));
+        ShapeSettings s = hollowBall(128);
         s.e3Mode = ShapeSettings.EllipseMode.FILLED;
         time("filled ball, 128 across", s);
-        s = dome(64);
+        s = hollowBall(64);
         s.gen = Gen.TORUS; s.tRing = s.tW = s.tD = 128; s.tTube = s.tH = 32; s.tHollow = true;
         time("hollow torus, 128 across", s);
         s.tHollow = false;
         time("solid torus, 128 across", s);
-        s = dome(64);
+        s = hollowBall(64);
         s.gen = Gen.BEZIER3; s.b3W = s.b3D = 128; s.b3H = 64; s.b3T = 9;
         s.pts3.clear();
         s.pts3.add(new double[]{0, 0, 0}); s.pts3.add(new double[]{40, 64, 128}); s.pts3.add(new double[]{128, 0, 40}); s.pts3.add(new double[]{128, 64, 128});
         time("3D curve 9 thick, 128 across", s);
-        s = dome(64);
+        s = hollowBall(64);
         s.gen = Gen.SURFACE; s.sW = s.sD = 128; s.sH = 32; s.sT = 2;
         s.sPts.clear();
         for (int k = 0; k < 16; k++) s.sPts.add(new double[]{k % 4 * 128 / 3.0, (k * 7) % 4 * 8, k / 4 * 128 / 3.0});
         time("surface 2 thick, 128 across", s);
-        s = dome(64);
+        s = hollowBall(64);
         s.gen = Gen.EQUATION3; s.q3W = 128;
         time("3D equation, 128 across", s);
     }
 
-    /**
-     * A repaint with "Empty spots: Open" and the bundled lattice, whose openings are about four blocks in nine: the
-     * holes come out, the blocks beside them settle, and the picture's faces are listed again. The settling and the
-     * faces are what holes add.
-     *
-     * <p>Settling used to work out every cell of the grid; now it works out only the cells near a hole, unless holes
-     * are so many that the whole grid is quicker. On 13 November 2026, on a machine busy with other builds, the two
-     * run back to back gave these repaint and settle times (the earlier figures on a quiet machine in brackets):
-     * hollow ball 64 across 5.1 to 12.9 ms before, 3.9 to 4.4 ms after (4.9); 128 across 34 to 36 ms before, 14 to
-     * 17 ms after (19); 256 across 255 to 265 ms before, 71 to 107 ms after (147); the filled ball 128 across, half
-     * its blocks open, still settles every cell, about 96 ms both. Without holes, the hollow balls take 0.9, 1.7 and
-     * 21 ms on a quiet machine.
-     */
     @Test
     @Disabled("prints timings; asserts nothing")
     void holeTimings() {
-        ShapeSettings filled = dome(128);
+        ShapeSettings filled = hollowBall(128);
         filled.e3Mode = ShapeSettings.EllipseMode.FILLED;
-        for (ShapeSettings s : new ShapeSettings[]{dome(64), dome(128), dome(256), filled}) {
+        for (ShapeSettings s : new ShapeSettings[]{hollowBall(64), hollowBall(128), hollowBall(256), filled}) {
             s.paint.pattern = Patterns.LATTICE;
             s.paint.empty = Paint.Empty.OPEN;
             Shape3 own = Shape3.of(s);
