@@ -19,7 +19,6 @@ import net.minecraft.client.gui.screens.options.controls.KeyBindsList;
 import net.minecraft.client.gui.screens.options.controls.KeyBindsScreen;
 import net.minecraft.network.chat.Component;
 
-/** The mod's settings. Each change applies straight away and is saved when the screen closes. */
 public class SettingsScreen extends ControlScreen {
     private static final int M = 6, ROW = 22, GAP = 8, FIELD_W = 62;
 
@@ -28,7 +27,6 @@ public class SettingsScreen extends ControlScreen {
     private final List<Label> labels = new ArrayList<>();
     private int colW;
 
-    /** {@code parent} is the screen to go back to, or null to return to the game. */
     public SettingsScreen(Screen parent) {
         super(Component.translatable("curvegen.screen.curve_generator_settings"));
         this.parent = parent;
@@ -39,7 +37,6 @@ public class SettingsScreen extends ControlScreen {
     @Override
     protected void init() {
         labels.clear();
-        // Two columns: keys, the radial menu and the on-screen text on the left, handles and the hologram on the right.
         colW = Math.min(220, (width - 2 * M - GAP) / 2);
         int left = (width - 2 * colW - GAP) / 2, right = left + colW + GAP;
 
@@ -77,7 +74,6 @@ public class SettingsScreen extends ControlScreen {
         invert.setTooltip(Tooltip.create(Component.translatable("curvegen.screen.reverses_which_way_scrolling_moves_a_handle_while_you")));
         addRenderableWidget(invert);
 
-        // Bottom bar: each button as wide as its text needs.
         int by = height - 26, pad = 16;
         int keysW = tw(tr("curvegen.screen.key_bindings")) + pad, resetW = tw(tr("curvegen.screen.reset_to_defaults")) + pad, doneW = tw(tr("curvegen.screen.done")) + pad + 8;
         Button keys = Button.builder(Component.translatable("curvegen.screen.key_bindings"), _ -> openKeys()).bounds(left, by, keysW, 20).build();
@@ -90,10 +86,6 @@ public class SettingsScreen extends ControlScreen {
         addRenderableWidget(Button.builder(Component.translatable("curvegen.screen.done"), _ -> onClose()).bounds(end - doneW, by, doneW, 20).build());
     }
 
-    /**
-     * A labelled number field with arrows. The field shows the setting times {@code scale}, so an opacity of 0.45
-     * reads as 45. Typed numbers are kept within the limits, and anything that isn't a number changes nothing.
-     */
     private void number(int x, int n, String label, String tip, DoubleSupplier get, DoubleConsumer set,
                         double step, double min, double max, double scale, boolean integer) {
         labels.add(new Label(x, row(n) + 6, label));
@@ -107,7 +99,6 @@ public class SettingsScreen extends ControlScreen {
         }, shown, step, min, max, () -> true, integer).setTooltip(tip == null ? null : Tooltip.create(Component.literal(tip)));
     }
 
-    /** Opens the game's key binds screen. It has no way to show one category, so this scrolls its list to the mod's heading. */
     private void openKeys() {
         KeyBindsScreen keys = new KeyBindsScreen(this, minecraft.options);
         minecraft.gui.setScreen(keys);

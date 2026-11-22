@@ -14,20 +14,14 @@ import net.minecraft.client.input.CharacterEvent;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.network.chat.Component;
 
-/**
- * A small box over the game for typing one value: the number box that holding a move key or choosing a number in the
- * radial menu opens, and the one-line text box for an equation. Enter applies it and Escape leaves things as they were.
- */
 public class InputScreen extends Screen {
     private final String initial;
     private final int wantW;
     private final boolean number;
-    /** What is wrong with a text, or null when it can be applied. */
     private final UnaryOperator<String> check;
     private final Consumer<String> onConfirm;
     private EditBox field;
     private String problem;
-    /** A key that was down when the box opened. Until it comes up, the game repeats it, and the box ignores it. */
     private KeyMapping held;
 
     private static final int H = 58;
@@ -38,20 +32,17 @@ public class InputScreen extends Screen {
         this.initial = initial; this.wantW = wantW; this.number = number; this.check = check; this.onConfirm = onConfirm;
     }
 
-    /** A box for a number from {@code min} to {@code max}, whole if {@code whole} is set. */
     public static InputScreen number(String title, String initial, boolean whole, double min, double max, DoubleConsumer onConfirm) {
         String range = tr(whole ? "curvegen.screen.a_whole_number_from_s_to_s" : "curvegen.screen.a_number_from_s_to_s", fmt(min), fmt(max));
         return new InputScreen(title, initial, 150, true, v -> parse(v, whole, min, max) == null ? range : null,
                 v -> onConfirm.accept(parse(v, whole, min, max)));
     }
 
-    /** Has the box ignore a key that is still down from before it opened, until it's let go. */
     public InputScreen ignoring(KeyMapping key) {
         held = key;
         return this;
     }
 
-    /** A box for a line of text. {@code check} returns what is wrong with a text, or null when it's fine. */
     public static InputScreen text(String title, String initial, UnaryOperator<String> check, Consumer<String> onConfirm) {
         return new InputScreen(title, initial, 300, false, check, onConfirm);
     }
@@ -65,7 +56,6 @@ public class InputScreen extends Screen {
         }
     }
 
-    /** A number as the boxes and wedges show it: no more decimals than it needs, up to four. */
     public static String fmt(double v) {
         if (v == Math.rint(v)) return String.valueOf((long) v);
         return String.format(java.util.Locale.ROOT, "%.4f", v).replaceAll("0+$", "");
@@ -81,7 +71,7 @@ public class InputScreen extends Screen {
         field = new EditBox(font, x0() + 8, y0() + 20, w() - 16, 20, title);
         field.setMaxLength(256);
         field.setValue(text);
-        field.setCursorPosition(0);               // select it all, so typing replaces what's there
+        field.setCursorPosition(0);
         field.setHighlightPos(text.length());
         field.setResponder(v -> problem = check.apply(v));
         addRenderableWidget(field);
@@ -109,7 +99,6 @@ public class InputScreen extends Screen {
         return super.keyReleased(event);
     }
 
-    /** The key can also come up without the box seeing it. */
     @Override
     public void tick() {
         if (held == null) return;
@@ -134,7 +123,6 @@ public class InputScreen extends Screen {
         super.extractRenderState(ctx, mx, my, delta);
     }
 
-    /** The game stays in view behind the box. */
     @Override
     public void extractBackground(GuiGraphicsExtractor ctx, int mx, int my, float delta) { }
 

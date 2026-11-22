@@ -39,11 +39,10 @@ import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.level.block.Block;
 
-/** Every saved preset for one shape tab, with search, a live preview, and pin / rename / delete. */
 public class PresetsScreen extends Screen {
     private final Screen parent;
     private final ShapeSettings.Gen gen;
-    private final BiConsumer<Preset, Boolean> onLoad;   // the preset, and whether to load its blocks
+    private final BiConsumer<Preset, Boolean> onLoad;
 
     private EditBox search;
     private String query = "";
@@ -54,21 +53,14 @@ public class PresetsScreen extends Screen {
     private long lastClickTime;
     private Button previewButton, loadButton;
     private CycleButton<Boolean> blocksButton;
-    /** Whether to load the blocks of presets that have them. */
     private boolean loadBlocks = true;
 
     private final PreviewTexture texture = new PreviewTexture();
     private Preset textureFor;
-    /** A preview is solved per preset, with or without its blocks. */
     private record Key(Preset preset, boolean blocks) {}
-    /** A 2D preview's solve, and its paint when the preset's blocks carry some, or null. */
     private record Shown(Solver.Result result, Painted painted) {}
     private final Map<Key, Shown> results = new HashMap<>();
     private final Map<Key, Future<Shown>> jobs = new HashMap<>();
-    /**
-     * A 3D preset's solve, and its paint when it was loaded with its blocks and paints, or null. A 3D preset's picture
-     * is solved the same way, and a solve is dropped when the mouse has moved on to another preset.
-     */
     private record Shown3(CurveScreen.Solved3 solved, Repaint3.View painted) {}
     private record Job3(Future<Shown3> future, AtomicBoolean cancelled) {}
     private final Map<Key, Shown3> solved3 = new HashMap<>();
@@ -79,7 +71,6 @@ public class PresetsScreen extends Screen {
     private boolean turning;
 
     private static final int ROW = 20, ICON = 12;
-    // 9×9 pixel icons
     static final String[] PIN = {
             "..#####..", "..#####..", "...###...", "...###...", ".#######.", "#########", "....#....", "....#....", "....#...."};
     static final String[] PENCIL = {
@@ -92,7 +83,6 @@ public class PresetsScreen extends Screen {
         this.parent = parent; this.gen = gen; this.onLoad = onLoad;
     }
 
-    // ---------- layout ----------
     private int listX() { return 8; }
     private int listW() { return Math.max(170, Math.min(260, (int) (width * 0.42))); }
     private int listTop() { return 50; }
@@ -137,11 +127,8 @@ public class PresetsScreen extends Screen {
         onLoad.accept(p, withBlocks(p));
     }
 
-    /** Whether loading (and previewing) this preset uses its blocks: only if it has some and the Blocks option is on. */
     private boolean withBlocks(Preset p) { return loadBlocks && p.blocks != null; }
 
-    // ---------- preview ----------
-    /** The block choices the preview of p uses. */
     private Map<Family, Block> choiceFor(Preset p) {
         Map<Family, Block> choice = new EnumMap<>(BlockChoices.CHOICE);
         if (withBlocks(p)) p.applyBlocks(CurveGenClient.SETTINGS.copy(), choice);
@@ -149,7 +136,7 @@ public class PresetsScreen extends Screen {
     }
 
     private ShapeSettings settingsFor(Preset p) {
-        ShapeSettings s = CurveGenClient.SETTINGS.copy();   // current orientation and depth, and pieces unless it has its own
+        ShapeSettings s = CurveGenClient.SETTINGS.copy();
         PresetData.apply(p.data, gen, s);
         if (withBlocks(p)) p.applyBlocks(s, new EnumMap<>(BlockChoices.CHOICE));
         return s;
@@ -164,9 +151,8 @@ public class PresetsScreen extends Screen {
         Future<Shown> job = jobs.get(k);
         if (job == null) {
             ShapeSettings s = settingsFor(p);
-            // Only a preset loaded with its blocks brings its paint. Otherwise the picture is unpainted.
             Paint paint = withBlocks(p) && s.paint.on() ? s.paint.copy() : null;
-            Catalog catalog = paint == null ? null : PaintBlocks.catalog(s, choiceFor(p));   // on this thread, as it reads the game
+            Catalog catalog = paint == null ? null : PaintBlocks.catalog(s, choiceFor(p));
             jobs.put(k, CurveScreen.EXEC.submit(() -> {
                 Solver.Result solved = Solver.run(s);
                 return new Shown(solved, paint == null ? null : Painter2D.paint(solved, s.depth, paint, s.fullConnects, catalog));
@@ -193,7 +179,6 @@ public class PresetsScreen extends Screen {
         if (job == null) {
             ShapeSettings s = settingsFor(p);
             AtomicBoolean cancelled = new AtomicBoolean();
-            // As in 2D, only a preset loaded with its blocks brings its paint. The catalog and colours are read on this thread.
             Paint paint = withBlocks(p) && s.paint.on() ? s.paint.copy() : null;
             Map<Family, Block> choice = choiceFor(p);
             Catalog catalog = paint == null ? null : PaintBlocks.catalog(s, choice);
@@ -213,17 +198,14 @@ public class PresetsScreen extends Screen {
         return r;
     }
 
-    /** Draws a solved 3D preset, seen from the same side each time until the player turns it. */
     private void draw3(GuiGraphicsExtractor ctx, Preset target, Shown3 shown, int x0, int y0, int x1, int y1) {
         Key k = new Key(target, withBlocks(target));
         int[] in = {x0, y0, x1, y1};
-        // A resized window moves the picture's place, and the view goes with it.
         if (!k.equals(pictureFor) || !java.util.Arrays.equals(in, pictureIn)) {
             pictureFor = k; pictureIn = in;
             CurveScreen.Solved3 r = shown.solved();
             var shape = r.result().shape();
             Repaint3.View painted = shown.painted();
-            // A pattern's holes change the blocks, so they show in every colouring. Only Block colours shows the paint.
             picture.mesh(painted != null && painted.mesh() != null ? painted.mesh() : r.mesh(), shape.pad());
             picture.wires(List.of(), 0);
             if (painted != null && CurveScreen.colors == PreviewTexture.Colors.BLOCKS) picture.palette(painted.palette(), painted.perBlock());
@@ -235,14 +217,12 @@ public class PresetsScreen extends Screen {
         ctx.disableScissor();
     }
 
-    // ---------- rendering ----------
     private int rowAt(double mx, double my) {
         if (mx < listX() || mx >= listX() + listW() || my < listTop() || my >= listTop() + visibleRows() * ROW) return -1;
         int i = scroll + (int) ((my - listTop()) / ROW);
         return i < shown.size() ? i : -1;
     }
 
-    /** Which icon (0 pin, 1 rename, 2 delete) is under the mouse in a row whose icons are showing, or -1. */
     private int iconAt(int row, double mx, double my) {
         if (row < 0) return -1;
         Preset p = shown.get(row);
@@ -275,7 +255,6 @@ public class PresetsScreen extends Screen {
         super.extractRenderState(ctx, mx, my, delta);
         ctx.text(font, title, listX(), 10, 0xFFFFFFFF);
 
-        // list
         int x0 = listX(), x1 = x0 + listW(), top = listTop();
         ctx.fill(x0 - 1, top - 1, x1 + 1, listBottom() + 1, 0x80000000);
         if (shown.isEmpty()) {
@@ -305,7 +284,7 @@ public class PresetsScreen extends Screen {
                     if (on) tip = k == 0 ? (p.pinned ? tr("curvegen.screen.unpin") : tr("curvegen.screen.pin_to_the_top")) : k == 1 ? tr("curvegen.screen.rename") : tr("curvegen.screen.delete");
                 }
             } else if (p.pinned) {
-                drawArt(ctx, PIN, iconX(0), iy, 0xFFFFC04D);   // pinned presets always show their pin
+                drawArt(ctx, PIN, iconX(0), iy, 0xFFFFC04D);
             }
         }
         if (shown.size() > visibleRows()) {
@@ -314,7 +293,6 @@ public class PresetsScreen extends Screen {
             ctx.fill(x1 + 2, by, x1 + 4, by + bar, 0xA0FFFFFF);
         }
 
-        // preview
         int px0 = pvX0(), py0 = pvY0(), px1 = pvX1(), py1 = pvY1();
         ctx.fill(px0, py0, px1, py1, 0xFF15181D);
         ctx.outline(px0 - 1, py0 - 1, px1 - px0 + 2, py1 - py0 + 2, 0xFF3A424D);
@@ -366,7 +344,6 @@ public class PresetsScreen extends Screen {
                 if (art[r].charAt(c) == '#') ctx.fill(ox + c, oy + r, ox + c + 1, oy + r + 1, color);
     }
 
-    // ---------- input ----------
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean doubled) {
         double mx = event.x(), my = event.y(); int button = event.button();
@@ -382,14 +359,13 @@ public class PresetsScreen extends Screen {
             default -> { }
         }
         long now = System.currentTimeMillis();
-        if (p == lastClicked && now - lastClickTime < 350) { load(p); return true; }   // double click
+        if (p == lastClicked && now - lastClickTime < 350) { load(p); return true; }
         lastClicked = p; lastClickTime = now;
         selected = p;
         setFocused(null);
         return true;
     }
 
-    /** Dragging a 3D preset's picture turns it. */
     @Override
     public boolean mouseDragged(MouseButtonEvent event, double dx, double dy) {
         if (turning) { picture.cam.orbit(dx, dy); return true; }

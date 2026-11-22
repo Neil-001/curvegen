@@ -12,16 +12,14 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.network.chat.Component;
 
-/** A small dialog on top of the previous screen, or of the world when there is none: a name field, an optional on/off option, and confirm or cancel. */
 public class NameDialogScreen extends Screen {
-    /** What the dialog says about a name: whether it can be used, what the confirm button says, and an optional note. */
     public record Check(boolean allowed, String confirmLabel, String note) {}
 
     private final Screen parent;
     private final String initial;
     private final Function<String, Check> check;
     private final BiConsumer<String, Boolean> onConfirm;
-    private final String optionLabel, optionTip;   // null: no option
+    private final String optionLabel, optionTip;
     private boolean option = true;
     private EditBox field;
     private Button confirm;
@@ -33,7 +31,6 @@ public class NameDialogScreen extends Screen {
         this(parent, title, initial, check, null, null, (name, _) -> onConfirm.accept(name));
     }
 
-    /** With an on/off option under the name field, on at first; onConfirm gets the name and the option. */
     public NameDialogScreen(Screen parent, String title, String initial, Function<String, Check> check,
                             String optionLabel, String optionTip, BiConsumer<String, Boolean> onConfirm) {
         super(Component.literal(title));
@@ -44,18 +41,16 @@ public class NameDialogScreen extends Screen {
     private int h() { return optionLabel != null ? 96 + OPTION_H : 96; }
     private int x0() { return (width - W) / 2; }
     private int y0() { return (height - h()) / 2; }
-    /** Top of the note line, below the name field and the option. */
     private int noteY() { return y0() + 48 + (optionLabel != null ? OPTION_H : 0); }
 
     @Override
     protected void init() {
         int x = x0() + 10, y = y0() + 24;
         String text = field != null ? field.getValue() : initial;
-        // The field reads out as the dialog it is in: a preset, a pattern or a renaming.
         field = new EditBox(font, x, y, W - 20, 20, title);
         field.setMaxLength(80);
         field.setValue(text);
-        field.setCursorPosition(0);               // select it all, so typing replaces the suggestion
+        field.setCursorPosition(0);
         field.setHighlightPos(text.length());
         field.setResponder(_ -> refresh());
         addRenderableWidget(field);
@@ -93,11 +88,10 @@ public class NameDialogScreen extends Screen {
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor ctx, int mx, int my, float delta) {
-        // The screen underneath, not interactive. Without one, as after capturing a pattern, the world shows through.
         if (parent != null) {
             parent.extractBackground(ctx, -1, -1, delta);
             parent.extractRenderState(ctx, -1, -1, delta);
-            ctx.nextStratum();   // above everything the parent drew, items included
+            ctx.nextStratum();
         }
         ctx.fill(0, 0, width, height, 0xA0000000);
         int x = x0(), y = y0();
@@ -110,7 +104,7 @@ public class NameDialogScreen extends Screen {
     }
 
     @Override
-    public void extractBackground(GuiGraphicsExtractor ctx, int mx, int my, float delta) { }   // the parent already drew one
+    public void extractBackground(GuiGraphicsExtractor ctx, int mx, int my, float delta) { }
 
     @Override
     public void onClose() { minecraft.gui.setScreen(parent); }

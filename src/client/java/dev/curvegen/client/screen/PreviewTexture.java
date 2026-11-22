@@ -15,7 +15,6 @@ import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.level.block.Block;
 
-/** Paints a solved grid (pieces, grid lines, axes and the true curve) into one texture. */
 public final class PreviewTexture implements AutoCloseable {
     public enum Colors { STONE, PIECES, BLOCKS }
 
@@ -24,7 +23,6 @@ public final class PreviewTexture implements AutoCloseable {
 
     private DynamicTexture tex;
     private Identifier id;
-    /** Several previews can be open at once (the main screen and the presets list), so each texture gets its own id. */
     private static int nextId;
     public int width, height, sub;
 
@@ -34,11 +32,6 @@ public final class PreviewTexture implements AutoCloseable {
         update(r, colors, curve, grid, BlockChoices.CHOICE, null);
     }
 
-    /**
-     * Paints with the given block choices, for the Blocks colouring, and with the shape's paint, or null when it
-     * isn't painted. Block colours is the only colouring that shows the paint, and a shape painted on its edge shows
-     * its front layer. A pattern's holes change the blocks, so they show in every colouring, as the front layer has them.
-     */
     public void update(Solver.Result r, Colors colors, boolean curve, boolean grid, Map<Pieces.Family, Block> choice, Painted painted) {
         if (painted != null && painted.settled() != null) r = painted.settled().layer(0);
         int[] paintColour = null;
@@ -98,14 +91,12 @@ public final class PreviewTexture implements AutoCloseable {
     private boolean[][] shapeCache = new boolean[Pieces.COUNT][];
     private int shapeSub = -1;
 
-    /** The piece scaled to sub×sub pixels (row 0 at the top), cached per scale. */
     private boolean[] shape(int p) {
         if (shapeSub != sub) { shapeCache = new boolean[Pieces.COUNT][]; shapeSub = sub; }
         boolean[] in = shapeCache[p];
         return in != null ? in : (shapeCache[p] = Silhouette.of(p, sub));
     }
 
-    /** Fill colour (ARGB) of a piece in the given colouring, exactly as the preview paints it. */
     static int colorFor(int p, Colors colors) { return colorFor(p, colors, BlockChoices.CHOICE); }
 
     private static int colorFor(int p, Colors colors, Map<Pieces.Family, Block> choice) {

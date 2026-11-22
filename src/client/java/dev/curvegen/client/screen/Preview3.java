@@ -17,20 +17,13 @@ import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.level.block.Block;
 
-/**
- * The picture of a solved 3D shape: its faces as coloured boxes, with the ideal shape's outline over them.
- * {@link Raster3} draws it into a texture one screen pixel to a pixel, and only when the camera, the shape or the
- * colours have changed since the last frame.
- */
 final class Preview3 implements AutoCloseable {
-    /** The view, in the screen's own coordinates and in blocks from the lowest corner of the box the player set. */
     final Orbit cam = new Orbit();
 
     private Mesh3 mesh;
     private int meshPad, wirePad;
     private List<double[]> wires = List.of();
     private int[] palette = new int[Family.values().length];
-    /** Each block's index into {@link #palette}, for a painted shape, or null to colour by piece type. */
     private int[] perBlock;
     private boolean showWires = true, dirty = true;
     private Orbit drawn;
@@ -41,40 +34,27 @@ final class Preview3 implements AutoCloseable {
     private int factor = 1;
     private static int nextId;
 
-    /** The canvas's own colour, so the picture has no edge. */
     static final int BG = 0xFF15181D;
 
-    /** No more pixels than this are drawn. A larger preview is drawn coarser and stretched. */
     private static final int MOST_PIXELS = 1_600_000;
 
-    /**
-     * The faces to draw. {@code pad} is the room the shape's own box adds around the one the player set. Giving the
-     * mesh already on show again does nothing.
-     */
     void mesh(Mesh3 m, int pad) {
         if (m == mesh && pad == meshPad) return;
         mesh = m; meshPad = pad; dirty = true;
     }
 
-    /** The outline, as {@code Shape3.wireframe} gives it. */
     void wires(List<double[]> lines, int pad) { wires = lines; wirePad = pad; dirty = true; }
 
     void showWires(boolean on) { if (on != showWires) { showWires = on; dirty = true; } }
 
     void palette(int[] rgb) { palette(rgb, null); }
 
-    /**
-     * Colours: {@code rgb} per piece type by ordinal, or for a painted shape a palette whose indices {@code perBlock}
-     * gives for each block, as {@code Repaint3} makes them. Drawing a painted shape costs about what an unpainted one
-     * does, a lookup a face more, and its faces take 4 bytes each more.
-     */
     void palette(int[] rgb, int[] perBlock) {
         if (perBlock != this.perBlock || !Arrays.equals(rgb, palette)) { palette = rgb.clone(); this.perBlock = perBlock; dirty = true; }
     }
 
     boolean hasMesh() { return mesh != null; }
 
-    /** A colour per piece family, as the 2D preview's three colourings give them. */
     static int[] palette(PreviewTexture.Colors colors, Map<Family, Block> choice, boolean top) {
         int[] out = new int[Family.values().length];
         for (Family f : Family.values())
@@ -86,19 +66,16 @@ final class Preview3 implements AutoCloseable {
         return out;
     }
 
-    /** The colour of the first 2D piece of a family, which the Piece types colouring is known by. */
     static int pieceColour(Family f) {
         for (int p = 1; p < Pieces.COUNT; p++) if (Pieces.FAMILY[p] == f) return Pieces.COLOR[p];
         return 0;
     }
 
-    /** Looks at the whole of a shape {@code nx} × {@code ny} × {@code nz} blocks, padding included, in a rectangle of the screen. */
     void fit(int nx, int ny, int nz, int pad, int x0, int y0, int x1, int y1) {
         cam.fit(nx, ny, nz, x0, y0, x1, y1, 6);
         cam.tx -= pad; cam.ty -= pad; cam.tz -= pad;
     }
 
-    /** Draws the picture into a rectangle of the screen, which the caller has filled and clipped to. */
     void draw(GuiGraphicsExtractor ctx, int x0, int y0, int x1, int y1) {
         int gw = x1 - x0, gh = y1 - y0;
         if (gw <= 0 || gh <= 0) return;
@@ -141,7 +118,6 @@ final class Preview3 implements AutoCloseable {
         m.popMatrix();
     }
 
-    /** The view for something whose coordinates start {@code pad} blocks before the box's corner. */
     private static Orbit shifted(Orbit view, int pad) {
         if (pad == 0) return view;
         Orbit o = view.copy();

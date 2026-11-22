@@ -33,17 +33,6 @@ import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.level.block.Block;
 
-/**
- * The pattern library: every saved pattern with its thumbnail, search, and pin, rename and delete, beside a picture
- * of the current shape painted with the pattern under the mouse, or with the current one. Clicking a pattern chooses
- * it. "Capture new…" closes the menus to capture one from the world ({@link Capture}), and once it's named chooses it
- * and opens what {@code reopen} gives. The current pattern shows first, marked as not saved, when the library doesn't
- * hold it, as after loading a preset that carries its own.
- *
- * <p>A picture file dropped onto the library becomes a pattern of colours ({@link ImagePatternScreen}), when Chroma
- * Studio is installed to match them well. Once saved it is chosen, as a click on it would choose it. A line beside "Capture new…" says so, greyed without it, and says why after
- * a drop that made nothing.
- */
 public class PatternLibraryScreen extends Screen {
     private static final ShapeSettings S = CurveGenClient.SETTINGS;
     private static final int M = 8, ROW = 22, SWATCH = 18, ICON = 12, TOP = 50;
@@ -53,42 +42,27 @@ public class PatternLibraryScreen extends Screen {
 
     private EditBox search;
     private String query = "";
-    /** The rows: saved patterns, and null for the current pattern when it isn't saved. */
     private List<Saved> shown = List.of();
     private Pattern unsaved;
     private int scroll;
     private final PaintPicture picture = new PaintPicture();
     private Button captureButton, cancelButton;
-    /**
-     * Why the last drop made no pattern, shown in place of the hint until the next one, or null, and the same with the
-     * file's whole name for its tooltip.
-     */
     private String dropProblem, dropProblemTip;
 
-    /**
-     * @param onPick given the chosen pattern, before the library goes back to {@code parent}
-     * @param reopen the screen to open after a capture started here, or null to open none
-     */
     public PatternLibraryScreen(Screen parent, Consumer<Pattern> onPick, Supplier<Screen> reopen) {
         super(Component.translatable("curvegen.paint.choose_title"));
         this.parent = parent; this.onPick = onPick; this.reopen = reopen;
     }
 
-    /** What a pattern suits, for its tooltip, or null. */
     private static String tip(Pattern p) {
         return p.sameCells(Patterns.TWO_LANE_ROAD) ? tr("curvegen.paint.two_lane_road_tip") : p.sameCells(Patterns.LATTICE) ? tr("curvegen.paint.lattice_tip") : null;
     }
 
-    /** A cell's colour, opaque: its block's, or its own without one, or 0 for an empty cell. */
     static int colour(Pattern.Cell c) {
         Block b = c.block() == null ? null : PaintBlocks.block(c.block());
         return b != null ? 0xFF000000 | ColorIndex.of(b) : c.rgb() >= 0 ? 0xFF000000 | c.rgb() : 0;
     }
 
-    /**
-     * Draws a pattern flat in a {@code size}-pixel square, top row at the top, from its cells' block colours or their
-     * own colours. Empty cells are left dark.
-     */
     static void drawSwatch(GuiGraphicsExtractor ctx, Pattern p, int x, int y, int size) {
         ctx.fill(x - 1, y - 1, x + size + 1, y + size + 1, 0x40FFFFFF);
         ctx.fill(x, y, x + size, y + size, PreviewTexture.BG);
@@ -96,7 +70,6 @@ public class PatternLibraryScreen extends Screen {
         for (int k = 0; k < colour.length; k++) colour[k] = colour(p.cell(k));
         int cell = size / Math.max(p.width, p.height);
         if (cell >= 1) {
-            // Whole pixels per cell, centred, so small patterns stay crisp.
             int ox = x + (size - p.width * cell) / 2, oy = y + (size - p.height * cell) / 2;
             for (int r = 0; r < p.height; r++)
                 for (int c = 0; c < p.width; c++) {
@@ -105,7 +78,6 @@ public class PatternLibraryScreen extends Screen {
                 }
             return;
         }
-        // A pattern bigger than the square: each pixel takes the cell under its centre.
         int n = Math.max(p.width, p.height), dw = size * p.width / n, dh = size * p.height / n;
         int ox = x + (size - dw) / 2, oy = y + (size - dh) / 2;
         for (int py = 0; py < dh; py++)
@@ -115,7 +87,6 @@ public class PatternLibraryScreen extends Screen {
             }
     }
 
-    // ---------- layout ----------
     private int listX() { return M; }
     private int listW() { return Math.max(150, Math.min(240, (int) (width * 0.42))); }
     private int listBottom() { return height - 32; }
@@ -142,7 +113,6 @@ public class PatternLibraryScreen extends Screen {
         refilter();
     }
 
-    /** Lists the saved patterns that match the search again, after the library changed. */
     private void refilter() {
         Pattern current = S.paint.pattern;
         List<Saved> all = PatternStore.list();
@@ -151,10 +121,8 @@ public class PatternLibraryScreen extends Screen {
         scroll = Math.max(0, Math.min(scroll, rows() - visible()));
     }
 
-    /** The pattern in a row. */
     private Pattern patternAt(int row) { return unsaved != null ? row == 0 ? unsaved : shown.get(row - 1).pattern : shown.get(row).pattern; }
 
-    /** The saved pattern in a row, or null for the current pattern that isn't saved. */
     private Saved savedAt(int row) { return unsaved != null ? row == 0 ? null : shown.get(row - 1) : shown.get(row); }
 
     private int rowAt(double mx, double my) {
@@ -165,7 +133,6 @@ public class PatternLibraryScreen extends Screen {
 
     private int iconX(int k) { return listX() + listW() - 4 - (3 - k) * (ICON + 2); }
 
-    /** Which icon (0 pin, 1 rename, 2 delete) is under the mouse in a hovered row of a saved pattern, or -1. */
     private int iconAt(int row, double mx, double my) {
         if (row < 0 || savedAt(row) == null) return -1;
         int y = TOP + (row - scroll) * ROW + (ROW - ICON) / 2;
@@ -176,26 +143,18 @@ public class PatternLibraryScreen extends Screen {
         return -1;
     }
 
-    // ---------- the picture ----------
-    /** The current settings, painted with {@code p}: what choosing it would look like. */
     private static ShapeSettings with(Pattern p) {
         ShapeSettings s = S.copy();
         use(s, p);
         return s;
     }
 
-    /**
-     * Paints {@code s} with {@code p}, making Pattern the source whatever it was, and works out again whether fences,
-     * panes and walls attach to full blocks, which follows the pattern.
-     */
     static void use(ShapeSettings s, Pattern p) {
         s.paint.pattern = p;
         s.paint.source = Paint.Source.PATTERN;
         s.fullConnects = BlockChoices.fullConnects(s);
     }
 
-    // ---------- rendering ----------
-    /** Darkened as the main screen's is, so the hint between the bottom buttons reads over a bright sky. */
     @Override
     public void extractBackground(GuiGraphicsExtractor ctx, int mouseX, int mouseY, float delta) {
         super.extractBackground(ctx, mouseX, mouseY, delta);
@@ -227,7 +186,7 @@ public class PatternLibraryScreen extends Screen {
             String n = saved != null ? saved.name() : tr("curvegen.patterns.unsaved", PatternStore.shownName(p));
             String size = p.width + "×" + p.height;
             int nameX = x0 + SWATCH + 9, right = icons || saved != null && saved.pinned ? iconX(0) - 4 : x1 - 5 - font.width(size) - 6;
-            String whole = null;   // the whole name, for the tooltip, when the row cuts it
+            String whole = null;
             if (font.width(n) > right - nameX) { whole = n; n = font.plainSubstrByWidth(n, right - nameX - font.width("…")) + "…"; }
             ctx.text(font, n, nameX, y + 7, 0xFFE4E9EF, false);
             int iy = y + (ROW - ICON) / 2;
@@ -257,23 +216,19 @@ public class PatternLibraryScreen extends Screen {
             ctx.fill(x1 + 2, by, x1 + 4, by + bar, 0xA0FFFFFF);
         }
 
-        // The picture, with the pattern's name and size under it.
         int px0 = pvX0(), py0 = 26, px1 = width - M, py1 = listBottom(), infoH = 14;
         picture.draw(ctx, font, S.is3d(), px0, py0, px1, py1 - infoH);
         ctx.fill(px0, py1 - infoH, px1, py1, 0xB0000000);
         String info = PatternStore.shownName(target) + "  " + target.width + "×" + target.height;
-        // A name too long for the caption is cut with "…", and hovering the caption gives it whole.
         if (font.width(info) > px1 - px0 - 12) {
             ctx.text(font, font.plainSubstrByWidth(info, px1 - px0 - 12 - font.width("…")) + "…", px0 + 6, py1 - infoH + 3, 0xFFFFFFFF, false);
             if (tip == null && mx >= px0 && mx < px1 && my >= py1 - infoH && my < py1) tip = info;
         } else ctx.text(font, info, px0 + 6, py1 - infoH + 3, 0xFFFFFFFF, false);
 
-        // Between the bottom buttons: that pictures can be dropped here, or why the last one made nothing.
         int hx0 = captureButton.getRight() + 8, hx1 = cancelButton.getX() - 8, hy = cancelButton.getY();
         if (hx1 - hx0 > 20) {
             boolean can = Chroma.available();
             String hint = dropProblem != null ? dropProblem : tr("curvegen.patterns.drop_hint");
-            // One line, or two in the buttons' height when it's longer, the second cut with "…" if it still doesn't fit.
             int room = hx1 - hx0;
             TwoLines two = TwoLines.of(font, hint, room);
             List<String> lines = two.lines();
@@ -288,7 +243,6 @@ public class PatternLibraryScreen extends Screen {
         if (tip != null) ctx.setTooltipForNextFrame(font.split(Component.literal(tip), 200), mx, my);
     }
 
-    // ---------- input ----------
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean doubled) {
         if (super.mouseClicked(event, doubled)) return true;
@@ -301,7 +255,6 @@ public class PatternLibraryScreen extends Screen {
             case 2 -> { delete(saved); return true; }
             default -> { }
         }
-        // Chosen first, so the parent builds its controls from the new settings as it opens.
         onPick.accept(patternAt(row));
         minecraft.gui.setScreen(parent);
         return true;
@@ -316,7 +269,6 @@ public class PatternLibraryScreen extends Screen {
         return super.mouseScrolled(mx, my, h, v);
     }
 
-    /** A picture file dropped on the library: asks for its width, then saves it as a pattern. */
     @Override
     public void onFilesDrop(List<Path> files) {
         if (!Chroma.available()) { problem("curvegen.patterns.drop_needs", null); return; }
@@ -331,7 +283,6 @@ public class PatternLibraryScreen extends Screen {
         int dot = file.lastIndexOf('.');
         String stem = (dot > 0 ? file.substring(0, dot) : file).trim();
         String name = PatternStore.unique(stem.isEmpty() ? tr("curvegen.image.default_name") : stem);
-        // Saved, the new pattern is chosen as a captured one is, and the library goes back to where it was opened from.
         minecraft.gui.setScreen(new ImagePatternScreen(this, read.image(), name, p -> {
             if (p == null) { problem("curvegen.patterns.drop_clear", file); return; }
             onPick.accept(p);
@@ -339,17 +290,12 @@ public class PatternLibraryScreen extends Screen {
         }));
     }
 
-    /**
-     * Shows the message {@code key} about the dropped {@code file}, or none for a null key. On the line a name over 80
-     * pixels keeps its start and end with "…" between, so the rest of the message fits. The tooltip has it whole.
-     */
     private void problem(String key, String file) {
         String shortFile = file;
         if (file != null && font.width(file) > 80) {
             String end = font.plainSubstrByWidth(file, 30, true);
             shortFile = font.plainSubstrByWidth(file, 80 - 30 - font.width("…")) + "…" + end;
         }
-        // A message about no one file, such as Chroma Studio missing, takes no argument: a null one isn't allowed.
         dropProblem = key == null ? null : file == null ? tr(key) : tr(key, shortFile);
         dropProblemTip = key == null ? null : file == null ? tr(key) : tr(key, file);
     }
@@ -372,7 +318,6 @@ public class PatternLibraryScreen extends Screen {
                 Component.translatable("curvegen.screen.delete"), CommonComponents.GUI_CANCEL));
     }
 
-    /** Closes the menus and waits for the corners. Once the pattern is named it is chosen, and {@code reopen}'s screen opens. */
     private void capture() {
         Supplier<Screen> then = reopen;
         minecraft.gui.setScreen(null);
@@ -382,7 +327,6 @@ public class PatternLibraryScreen extends Screen {
         });
     }
 
-    /** Chooses a pattern from outside a screen, such as after a capture from the radial menu: one undo step on a hologram. */
     public static void choose(Pattern p) {
         Editor.edit(null, () -> use(S, p));
     }

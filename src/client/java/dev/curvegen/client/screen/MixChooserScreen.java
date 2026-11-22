@@ -20,17 +20,10 @@ import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.level.block.Block;
 
-/**
- * Chooses the blocks a mix paints with, from the saved patterns and Chroma Studio's palettes in one list, under a
- * heading each, with the current mix first when it is in neither. A pattern gives its blocks, each weighted by how
- * often it appears, and its empty cells are left out. Each row shows the blocks scattered in their shares; hovering
- * one lists them. Choosing one hands it to {@code onPick} and goes back.
- */
 public class MixChooserScreen extends Screen {
     private static final int M = 8, ROW = 22, SWATCH = 18, TOP = 26;
     private final Screen parent;
     private final Consumer<Mix> onPick;
-    /** A heading, a note or a mix to choose. Only a row with a mix can be chosen. */
     private record Row(String text, boolean heading, Mix mix) {
         static Row of(Mix m) { return new Row(null, false, m); }
     }
@@ -42,7 +35,6 @@ public class MixChooserScreen extends Screen {
         this.parent = parent; this.onPick = onPick;
         List<Mix> fromPatterns = new ArrayList<>();
         List<Pattern> patterns = new ArrayList<>(MixSources.patterns.get());
-        // The pattern being painted with may be one of the player's own, loaded from a preset or the paint file.
         Pattern own = CurveGenClient.SETTINGS.paint.pattern;
         if (!patterns.contains(own)) patterns.addFirst(own);
         for (Pattern p : patterns) {
@@ -60,21 +52,18 @@ public class MixChooserScreen extends Screen {
         else for (Mix m : palettes) rows.add(Row.of(m));
     }
 
-    /** A mix's name as the player sees it: one taken from a bundled pattern is translated. */
     static String name(Mix m) { return PatternStore.shownName(m.name); }
 
-    /** Draws a mix in a {@code size}-pixel square: its blocks' colours scattered two pixels at a time, in their shares. */
     static void drawSwatch(GuiGraphicsExtractor ctx, Mix m, int x, int y, int size) {
         ctx.fill(x - 1, y - 1, x + size + 1, y + size + 1, 0x40FFFFFF);
         int[] colour = new int[m.paletteSize()];
-        for (int k = 0; k < colour.length; k++) colour[k] = PatternLibraryScreen.colour(m.cell(k)) | 0xFF000000;   // black for a cell with neither
+        for (int k = 0; k < colour.length; k++) colour[k] = PatternLibraryScreen.colour(m.cell(k)) | 0xFF000000;
         MixLayout scatter = new MixLayout(m, Arrange.SCATTER, MixLayout.MIN_PATCH, 0);
         for (int py = 0; py < size; py += 2)
             for (int px = 0; px < size; px += 2)
                 ctx.fill(x + px, y + py, x + Math.min(size, px + 2), y + Math.min(size, py + 2), colour[scatter.at(px, py, 0)]);
     }
 
-    /** The mix's blocks with their shares, most first, for its tooltip. */
     private static String tip(Mix m) {
         long total = 0;
         List<Integer> order = new ArrayList<>();
