@@ -12,18 +12,11 @@ import org.lwjgl.stb.STBImage;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
 
-/**
- * A picture file read for {@link ImagePattern}: PNG, JPEG, GIF (its first frame), BMP and the other formats the game's
- * own image library reads. Its pixels stay outside the Java heap until {@link #close}.
- */
 public final class ImageFile implements AutoCloseable {
-    /** Files above this many bytes, or pictures above this many pixels, are refused as too large. */
     private static final long MAX_BYTES = 128L << 20, MAX_PIXELS = 64L << 20;
 
-    /** Why a file couldn't be read. */
     public enum Problem { UNREADABLE, TOO_LARGE }
 
-    /** The picture, or what was wrong with the file. */
     public record Result(ImageFile image, Problem problem) {
         static Result of(Problem p) { return new Result(null, p); }
     }
@@ -33,7 +26,6 @@ public final class ImageFile implements AutoCloseable {
 
     private ImageFile(int width, int height, ByteBuffer rgba) { this.width = width; this.height = height; this.rgba = rgba; }
 
-    /** Reads a picture file whole. The caller closes the picture. */
     public static Result read(Path file) {
         ByteBuffer bytes = null;
         if (!Files.isRegularFile(file)) return Result.of(Problem.UNREADABLE);
@@ -60,7 +52,6 @@ public final class ImageFile implements AutoCloseable {
         }
     }
 
-    /** The picture as a pattern {@code cells} wide, or null when every cell would be empty. */
     public Pattern pattern(String name, int cells) {
         ByteBuffer px = rgba;
         return ImagePattern.of(name, (x, y) -> {

@@ -50,13 +50,6 @@ import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Vector3fc;
 
-/**
- * The in-world editor: one hologram at a time, with handles to drag and keys to move, resize and turn it. It knows
- * nothing about any particular shape. An {@link EditShape} supplies the handles' meaning and the blocks.
- *
- * <p>The box and the ideal curve are drawn from the live settings every frame, so they follow a drag at once. The
- * blocks come from a solve on a worker thread and catch up when it finishes.
- */
 public final class Editor {
     private Editor() {}
 
@@ -67,115 +60,76 @@ public final class Editor {
         return t;
     });
 
-    /** How far a handle can be dragged from the player, and how far away the look ray can find the ground. */
     private static final double REACH = 256;
     private static final int UNDO_LIMIT = 100;
-    /** Above this many blocks the HUD warns that placing will take a long time. */
     private static final int VERY_LARGE = 1_000_000;
 
-    /** Everything undo puts back. */
     private record Snapshot(ShapeSettings settings, Box box, Orient orient, int[] follow, int[] pivot) {}
 
     private static boolean active, locked;
     private static EditShape shape;
     private static Box box;
     private static Orient orient;
-    /** While unlocked: the way the player faced last tick, and how far they nudged the shape from where they look. */
     private static int facing;
     private static int[] follow = new int[3];
-    /** What the box turns about, from {@link Box#pivot}. Null until the next turn, after anything else changed the box's size. */
     private static int[] pivot;
     private static final ArrayDeque<Snapshot> undo = new ArrayDeque<>(), redo = new ArrayDeque<>();
-    /** What the last hologram was when it ended, for the radial menu's "Last shape". */
     private static Snapshot last;
 
-    // ---------- solving ----------
     private static boolean dirty;
     private static Future<Object> job;
-    /** Tells the running solve its result is no longer wanted. */
     private static AtomicBoolean jobCancelled;
-    /**
-     * When solves started being dropped because the shape kept changing, in milliseconds, or 0. After
-     * {@link #STARVED_MS} of that the next one runs to its end, so a long drag of a slow shape still shows blocks.
-     */
     private static long droppingSince;
     private static final long STARVED_MS = 400, SLOW_MS = 1000;
-    /** When the running solve started, and how long the last one to finish took. */
     private static long jobStarted, lastSolveMillis;
-    /** The settings of the running solve, and the settings and block choices the hologram was last built from. */
     private static ShapeSettings jobSettings, shown;
     private static Map<Pieces.Family, Block> shownChoices;
-    /**
-     * The block choices the paint in {@link #solved} was worked out with, or null when it's unpainted; those of the
-     * running solve's paint; and those of the running repaint's. Paint reads the choices when it starts, so a change
-     * since then means painting again.
-     */
     private static Map<Pieces.Family, Block> paintChoices, jobPaintChoices, repaintChoices;
-    /** The orientation the running solve was started with, and the box's corner then (moved along with later nudges). */
     private static Orient jobOrient;
     private static int[] jobOrigin;
     private static Object solved;
-    /**
-     * The paint the blocks on show have, and a repaint under way. A paint change repaints the last solve without
-     * solving it again, and the hologram keeps its old blocks until the new ones are ready.
-     */
     private static Paint shownPaint;
-    /** {@link Chroma#matcherVersion} when the blocks on show and the solve under way were painted: when it moves on, they're painted again. */
     private static int shownMatcher, jobMatcher;
     private static Future<Object> paintJob;
     private static Hologram hologram;
-    /** The block limit the hologram was built with, so a change in the settings screen rebuilds it. */
     private static int blockLimit;
     private static int[] hologramOrigin;
     private static BlockPos viewOrigin;
     private static int viewAge;
     private static boolean viewOverwrite, viewCarve;
 
-    // ---------- handles ----------
-    /** A handle: a control point (by index) or one of the box's 26 (by the side it sits on along each axis). */
     private record Handle(int point, int[] sign) {
         boolean isPoint() { return sign == null; }
         boolean same(Handle o) { return o != null && point == o.point && Arrays.equals(sign, o.sign); }
     }
     private static Handle hover;
 
-    /** A drag in progress. Every frame starts again from {@code grab}, so the drag is a function of where the player looks now. */
     private static final class Drag {
         Handle handle;
         Snapshot grab;
         int button;
-        /** The plane the handle moves in: its normal axis and where it sits along it. -1 for a face handle, which moves along {@link #axis}. */
         int normal = -1, axis = -1;
         double coord;
-        /** From where the look ray met the plane or axis to the handle, when grabbed, so the handle doesn't jump. */
         double[] offset = new double[3];
-        /** The handle's position when grabbed, and where it was last sent. */
         double[] start, target;
-        /** Whether scrolling moves the handle along the normal, and which way is away from the player. */
         boolean scrolls;
         int away = 1;
         double scroll;
-        /** Whether the undo entry for this drag is already on the stack (a copied point's is). */
         boolean recorded;
     }
     private static Drag drag;
-    /** Mouse buttons whose press the editor took, so it takes their release too. */
     private static int swallowed;
 
     private static boolean screenOpen;
     private static Snapshot beforeScreen;
-    /** Set when an undo step was recorded or taken back, so a screen that is open doesn't count that change as its own. */
     private static boolean rebase;
-    /** The last {@link #edit} that recorded a step: what it was for, and the step. */
     private static Object editGroup;
     private static Snapshot editStep;
 
     public static boolean isActive() { return active; }
     public static boolean isLocked() { return locked; }
 
-    // ---------- starting and ending ----------
 
-    /** Spawns the hologram for the current settings, locked at the block the player is looking at. */
     public static void start() {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null) return;
@@ -188,7 +142,6 @@ public final class Editor {
         begin();
     }
 
-    /** Brings back the previous hologram where it was, locked. False when there hasn't been one. */
     public static boolean restoreLast() {
         if (last == null || Minecraft.getInstance().player == null) return false;
         reset();
@@ -201,10 +154,6 @@ public final class Editor {
 
     public static boolean hasLast() { return last != null; }
 
-    /**
-     * Picks the handler for the settings as they are now. A solve of the other family of shape, 2D or 3D, means
-     * nothing to the new handler, so it goes, along with the blocks it gave.
-     */
     private static void reshape() {
         EditShape next = EditShape.of(S);
         if (shape == null || next.getClass() != shape.getClass()) {
@@ -214,7 +163,6 @@ public final class Editor {
         shape = next;
     }
 
-    /** Takes up settings something else changed, such as the menu: the handler, an orientation they allow, the box's size. */
     private static void adopt() {
         reshape();
         orient = shape.orient(orient);
@@ -223,7 +171,6 @@ public final class Editor {
         dirty = true;
     }
 
-    /** The menu can switch between a 2D and a 3D shape while it's open, and the hologram is drawn behind it all the while. */
     private static void sync() {
         if (active && (shape instanceof Shape3D) != S.is3d()) adopt();
     }
@@ -260,7 +207,6 @@ public final class Editor {
         Placement.say(Lang.component("curvegen.editor.cancelled"));
     }
 
-    /** Places the hologram's blocks and ends it. */
     public static void confirm() {
         Minecraft mc = Minecraft.getInstance();
         if (!active || mc.player == null || mc.level == null) return;
@@ -280,14 +226,9 @@ public final class Editor {
         end();
     }
 
-    /**
-     * Writes the hologram's blocks to a Litematica schematic, as they stand in the world. Returns a message for the
-     * player either way.
-     */
     public static String export() {
         Minecraft mc = Minecraft.getInstance();
         if (!active) return Lang.tr("curvegen.editor.no_export");
-        // With the menu open, the hologram may still be the shape or the blocks from before a change made there.
         if (catchingUp()) return Lang.tr("curvegen.editor.still_working");
         if (hologram.error != null) return Lang.tr("curvegen.editor.fix_shape", Lang.text(hologram.error));
         if (hologram.size() == 0) return Lang.tr("curvegen.editor.empty_export");
@@ -300,47 +241,33 @@ public final class Editor {
         }
     }
 
-    /**
-     * Whether the hologram's blocks are still behind the settings. A screen that changes them asks this before it
-     * exports, and asking has the hologram take the changes up, which it otherwise does when the screen closes.
-     */
     public static boolean catchingUp() {
         if (!active) return false;
         if (hologram != null && !dirty && job == null && stale()) adopt();
         return hologram == null || dirty || job != null || painting();
     }
 
-    /** Whether the blocks on show have other paint than the settings, or a repaint is under way. */
     private static boolean painting() { return paintJob != null || shownPaint != null && !S.paint.same(shownPaint); }
 
-    /** Whether the hologram was built from other shape settings or block choices than the ones set now. */
     private static boolean stale() { return !solvedFor(true); }
 
-    /**
-     * Whether the hologram's blocks, or with {@code shownOnly} unset the ones a running solve is about to give, are
-     * for the shape settings and block choices as they are now.
-     */
     private static boolean solvedFor(boolean shownOnly) {
         boolean running = !shownOnly && job != null && !jobCancelled.get();
         ShapeSettings ref = running ? jobSettings : shown;
-        // A running solve's blocks get the choices as they are when it finishes, so only the ones on show can be out of date.
         if (ref == null || !running && !BlockChoices.CHOICE.equals(shownChoices)) return false;
         if (running && jobPaintChoices != null && !BlockChoices.CHOICE.equals(jobPaintChoices)) return false;
         ShapeSettings now = S.copy();
-        now.overwrite = ref.overwrite;   // Replace doesn't change which blocks the shape has
-        now.paint.set(ref.paint);        // and paint is put on without solving again
-        // Nor does Carve, but a shape that only works out what to clear while it's on needs a solve when it comes on.
+        now.overwrite = ref.overwrite;
+        now.paint.set(ref.paint);
         if (shownOnly || !shape.solveUsesCarve() || !S.carve) now.carve = ref.carve;
         return now.same(ref);
     }
 
-    // ---------- state ----------
 
     private static Snapshot snapshot() { return new Snapshot(S.copy(), box, orient, follow.clone(), pivot == null ? null : pivot.clone()); }
     private static int[] worldSize() { return orient.worldSize(shape.size()); }
     private static BlockPos origin() { return new BlockPos(hologramOrigin[0], hologramOrigin[1], hologramOrigin[2]); }
 
-    /** Call before an edit, so undo can take it back. */
     private static void record() { record(snapshot()); }
 
     private static void record(Snapshot before) {
@@ -353,7 +280,6 @@ public final class Editor {
     private static void restore(Snapshot s) {
         rebase = true;
         S.set(s.settings);
-        // Block choices aren't part of a snapshot, so this flag has to follow the blocks chosen now.
         S.fullConnects = BlockChoices.fullConnects(S);
         reshape();
         boolean moved = !s.box.equals(box) || !s.orient.equals(orient);
@@ -363,16 +289,14 @@ public final class Editor {
         else resolveUnlessPaintOnly();
     }
 
-    /** Marks the shape for a new solve, unless only its paint changed since the last one, which repaints it instead. */
     private static void resolveUnlessPaintOnly() {
         boolean wasDirty = dirty;
         dirty = true;
         if (!wasDirty && solvedFor(false)) dirty = false;
     }
 
-    /** Takes back the last edit to the hologram. */
     public static void undo() {
-        StepHold.cancel();   // the number box would replace a step that undo has just moved
+        StepHold.cancel();
         if (drag != null) endDrag();
         if (undo.isEmpty()) { Placement.say(Lang.component("curvegen.editor.no_undo")); return; }
         redo.push(snapshot());
@@ -387,30 +311,20 @@ public final class Editor {
         restore(redo.pop());
     }
 
-    /**
-     * The newest undo step, for {@link #retract}. Hold-to-type uses the pair to swap the step a key's press made for
-     * the amount typed, so the two are one undo step.
-     */
     public static Object lastStep() { return undo.peek(); }
 
-    /** Takes back the newest undo step without leaving a redo, if it is still {@code step}. False if it isn't. */
     public static boolean retract(Object step) {
         if (step == null || undo.peek() != step) return false;
         restore(undo.pop());
         return true;
     }
 
-    /**
-     * Makes a change to the settings from outside the editor, such as the radial menu's, as one undo step, and fits
-     * the box to the result. {@code change} only has to change the settings. Changes in a row with the same non-null
-     * {@code group}, such as the steps of scrolling one value, share an undo step.
-     */
     public static void edit(Object group, Runnable change) {
         if (!active) { change.run(); return; }
         if (drag != null) endDrag();
         Snapshot before = snapshot();
         change.run();
-        S.fullConnects = BlockChoices.fullConnects(S);   // it follows the paint
+        S.fullConnects = BlockChoices.fullConnects(S);
         if (S.same(before.settings)) return;
         boolean merges = group != null && group.equals(editGroup) && undo.peek() == editStep;
         if (!merges) {
@@ -425,7 +339,6 @@ public final class Editor {
         if (!wasDirty && solvedFor(false)) dirty = false;
     }
 
-    /** After an edit that can leave control points outside the box: grows it to hold them, where they are in the world. */
     private static void settle() {
         int[] shift = shape.settle();
         if (shift == null) return;
@@ -433,7 +346,6 @@ public final class Editor {
         if (!grown.equals(box)) { box = grown; pivot = null; }
     }
 
-    /** Moves the box and everything drawn relative to it. */
     private static void translate(int dx, int dy, int dz) {
         if (dx == 0 && dy == 0 && dz == 0) return;
         box = box.moved(dx, dy, dz);
@@ -442,7 +354,6 @@ public final class Editor {
             if (o != null) { o[0] += dx; o[1] += dy; o[2] += dz; }
     }
 
-    /** After the orientation changed: fits the box to it and gets the blocks to follow. */
     private static void turned() {
         if (pivot == null) pivot = box.pivot();
         box = box.about(pivot, worldSize());
@@ -458,11 +369,9 @@ public final class Editor {
         viewOrigin = null;
     }
 
-    // ---------- keys ----------
 
     private static int playerFacing() { return Minecraft.getInstance().player.getDirection().get3DDataValue(); }
 
-    /** A quarter turn about the vertical axis. */
     public static void rotate() {
         if (drag != null) return;
         record();
@@ -470,7 +379,6 @@ public final class Editor {
         turned();
     }
 
-    /** A quarter turn about the horizontal axis in front of the player. A 2D shape switches between upright and flat. */
     public static void tip() {
         if (drag != null) return;
         record();
@@ -480,7 +388,6 @@ public final class Editor {
         dirty = true;
     }
 
-    /** Moves the whole shape. Negative amounts go the other way. */
     public static void nudge(Direction d, int amount) {
         if (drag != null || amount == 0) return;
         record();
@@ -489,13 +396,8 @@ public final class Editor {
         if (!locked) { follow[0] += dx; follow[1] += dy; follow[2] += dz; }
     }
 
-    /** Moves the shape along whichever of the six directions the player is looking closest to. */
     public static void nudgeWithView(int amount) { nudge(Minecraft.getInstance().player.getNearestViewDirection(), amount); }
 
-    /**
-     * Moves the side of the box the player is looking towards: out for a positive amount, in for a negative one. The
-     * opposite side stays put. A Bézier curve's points stretch with the box.
-     */
     public static void bump(int amount) {
         if (drag != null || amount == 0) return;
         Direction d = Minecraft.getInstance().player.getNearestViewDirection();
@@ -511,7 +413,6 @@ public final class Editor {
         if (!S.same(before.settings)) { record(before); dirty = true; }
     }
 
-    /** Asks the shape for a world size and fits the box to what it allows. {@code sign} marks the sides that moved. */
     private static void resize(Box from, int[] sign, boolean symmetric, int[] worldWant) {
         boolean[] dragged = new boolean[3];
         for (int a = 0; a < 3; a++) dragged[orient.ownAxis(a)] = sign[a] != 0;
@@ -521,7 +422,7 @@ public final class Editor {
     }
 
     public static void toggleReplace() {
-        if (drag != null) endDrag();   // a drag starts again from its grab every frame, which would drop the change
+        if (drag != null) endDrag();
         record();
         S.overwrite = !S.overwrite;
         Placement.say(Lang.component("curvegen.editor.replace_status", CommonComponents.optionStatus(S.overwrite)));
@@ -535,7 +436,6 @@ public final class Editor {
         Placement.say(Lang.component("curvegen.editor.carve_status", CommonComponents.optionStatus(S.carve)));
     }
 
-    /** Unlocked, the shape follows the player's view and hides its handles. Locked, it stays put and shows them. */
     public static void toggleLock() {
         if (drag != null) endDrag();
         locked = !locked;
@@ -543,7 +443,6 @@ public final class Editor {
         if (!locked) { facing = playerFacing(); follow = new int[3]; }
     }
 
-    /** Adds a point where the player looks at the curve. */
     public static void addPoint() {
         if (!locked || drag != null) return;
         if (shape.points().isEmpty()) { Placement.say(Lang.component("curvegen.editor.points_only")); return; }
@@ -551,7 +450,6 @@ public final class Editor {
         edit(null, () -> insertAtLook(alt));
     }
 
-    /** Sneaking turns an edit of a surface's row into one of its column. */
     private static boolean sneaking() { return Minecraft.getInstance().options.keyShift.isDown(); }
     private static boolean grid() { return shape.pointColumns() > 0; }
     private static String full(boolean alt) {
@@ -564,7 +462,6 @@ public final class Editor {
         return Lang.tr(grid() ? "curvegen.editor.look_surface" : "curvegen.editor.look_curve");
     }
 
-    /** Where the player looks at the curve or surface, in the shape's own axes, or null when they aren't looking at it. */
     private static double[] lookOnCurve() {
         double[] from = toOwn(eye), to = toOwn(new double[]{eye[0] + look[0], eye[1] + look[1], eye[2] + look[2]});
         double[] near = shape.lookAt(from, new double[]{to[0] - from[0], to[1] - from[1], to[2] - from[2]});
@@ -584,21 +481,15 @@ public final class Editor {
         else if (shape.insertPoint(near, alt) < 0) Placement.say(Component.literal(full(alt)));
     }
 
-    /** Removes the point the player looks at. */
     public static void removePoint() {
         if (!locked || drag != null) return;
         if (hover == null || !hover.isPoint()) { Placement.say(Lang.component("curvegen.editor.look_remove")); return; }
         removePoint(hover.point, sneaking());
     }
 
-    /**
-     * What the radial menu's "Shape options" shows: the shape's own options, then adding and removing a point for a
-     * shape that has points. The menu frees the cursor, so both act on what the player was looking at when it opened.
-     */
     public static List<Option> options() {
         if (!active) return List.of();
         List<Option> out = new ArrayList<>(shape.options());
-        // A surface lists its rows and columns as numbers of its own.
         if (!grid() && !shape.points().isEmpty()) {
             String unlocked = locked ? null : "curvegen.editor.lock_first";
             out.add(new Option.Action("curvegen.editor.add_point", unlocked != null ? unlocked
@@ -613,10 +504,8 @@ public final class Editor {
         return out;
     }
 
-    /** The HUD's first line: the shape and its size. */
     public static String describe() { return active ? shape.describe() : ""; }
 
-    /** Null when the hologram's blocks are ready to place or export. Otherwise why they aren't. */
     public static String notReady() {
         if (!active) return Lang.tr("curvegen.editor.no_shape");
         if (hologram == null || dirty || job != null || painting()) return Lang.tr("curvegen.editor.still_working");
@@ -634,12 +523,7 @@ public final class Editor {
         dirty = true;
     }
 
-    // ---------- mouse ----------
 
-    /**
-     * A mouse button went down or up while no screen was open. Returns true when the editor used it, and the game
-     * should then not see it. It only uses a click when a handle is highlighted.
-     */
     public static boolean mouseButton(int button, boolean pressed) {
         int bit = 1 << button;
         if (!pressed) {
@@ -650,7 +534,7 @@ public final class Editor {
         }
         if (!active || !locked || Minecraft.getInstance().gui.screen() != null) return false;
         boolean took = false;
-        if (drag != null) took = true;   // a stray click mid-drag shouldn't break a block
+        if (drag != null) took = true;
         else if (hover != null) {
             if (button == InputConstants.MOUSE_BUTTON_LEFT) { beginDrag(hover, button, false); took = true; }
             else if (hover.isPoint() && button == InputConstants.MOUSE_BUTTON_RIGHT) { removePoint(hover.point, sneaking()); took = true; }
@@ -671,7 +555,6 @@ public final class Editor {
         return took;
     }
 
-    /** The wheel turned while no screen was open. Returns true when a drag used it to move its handle nearer or further. */
     public static boolean mouseScroll(double amount) {
         if (drag == null || !drag.scrolls) return false;
         drag.scroll += ModSettings.invertDragScroll ? -amount : amount;
@@ -714,11 +597,9 @@ public final class Editor {
         if (!d.recorded && (!S.same(d.grab.settings) || !box.equals(d.grab.box))) record(d.grab);
     }
 
-    /** Puts the handle where the player looks now, starting again from the state the drag began in. */
     private static void updateDrag(Minecraft mc) {
         Drag d = drag;
         if (d.normal >= 0) {
-            // Whole steps of the wheel move the plane itself, a block at a time.
             double coord = d.coord + (d.scrolls ? Math.round(d.scroll) * d.away : 0);
             double[] hit = HandleMath.onPlane(eye, look, d.normal, coord, REACH);
             if (hit != null) for (int a = 0; a < 3; a++) d.target[a] = hit[a] + d.offset[a];
@@ -746,9 +627,7 @@ public final class Editor {
         if (!S.same(before) || !box.equals(boxBefore)) dirty = true;
     }
 
-    // ---------- geometry ----------
 
-    /** The camera and the way it looks, refreshed every frame. */
     private static double[] eye = new double[3], look = {0, 0, 1};
 
     private static double[] handlePosition(Handle h) {
@@ -761,7 +640,6 @@ public final class Editor {
         return orient.toOwn(new double[]{world[0] - box.x(), world[1] - box.y(), world[2] - box.z()}, shape.size());
     }
 
-    /** The ideal curve in world coordinates, or null when the shape has none to show yet. */
     private static double[] worldCurve() {
         double[] own = shape.curve(solved);
         if (own == null) return null;
@@ -776,14 +654,12 @@ public final class Editor {
         return out;
     }
 
-    /** Layers of box handles closer together than this many handle widths thin out to one. */
     private static final double THIN = 5;
 
     private static List<Handle> handles() {
         List<Handle> out = new ArrayList<>();
         int n = shape.points().size();
         for (int k = 0; k < n; k++) out.add(new Handle(k, null));
-        // A drag keeps the handles it started with, or the one being dragged could thin out from under it.
         int[] size = (drag != null ? drag.grab.box : box).size();
         for (int[] sign : Box.handles(size, ModSettings.handleSize * THIN)) out.add(new Handle(-1, sign));
         return out;
@@ -795,29 +671,25 @@ public final class Editor {
         return BlockPos.containing(hit.getLocation());
     }
 
-    // ---------- every tick ----------
 
     public static void tick(Minecraft mc) {
         if (!active) return;
         if (mc.player == null || mc.level == null) { end(); return; }
 
-        // The menu can change anything while it's open. When it closes, that becomes one edit.
         boolean open = mc.gui.screen() != null;
         if (open && !screenOpen) {
             if (drag != null) endDrag();
             beforeScreen = snapshot();
         }
-        // An edit the editor recorded itself while the screen was open isn't the screen's to record again.
         if (rebase && beforeScreen != null) beforeScreen = snapshot();
         rebase = false;
         if (!open && screenOpen && beforeScreen != null) {
             Snapshot before = beforeScreen;
             beforeScreen = null;
             S.fullConnects = BlockChoices.fullConnects(S);
-            before.settings.fullConnects = S.fullConnects;   // it follows the blocks, which undo doesn't put back
+            before.settings.fullConnects = S.fullConnects;
             boolean wasDirty = dirty;
             adopt();
-            // A screen that changed nothing, such as chat, shouldn't cost a solve, which can take seconds for a large shape.
             if (!wasDirty && solvedFor(false)) dirty = false;
             if (!S.same(before.settings)) record(before);
         }
@@ -849,7 +721,6 @@ public final class Editor {
                 shownPaint = jobSettings.paint.copy();
                 shownMatcher = jobMatcher;
                 droppingSince = 0;
-                // The solve may have settled a size the settings left open, such as an equation's locked height.
                 Box fitted = box.refit(worldSize());
                 boolean current = !dirty && (!shape.solveUsesOrient() || orient.equals(jobOrient));
                 if (!fitted.equals(box)) { box = fitted; pivot = null; current = false; }
@@ -857,17 +728,15 @@ public final class Editor {
             }
         }
         if (dirty && job != null && !jobCancelled.get()) {
-            // The shape has moved on from what's being solved. A slow solve is dropped, unless that has gone on too long.
             long now = System.currentTimeMillis();
             if (droppingSince == 0) droppingSince = now;
-            // A solve that takes seconds is always dropped: by the time it finished, its blocks would be long out of date.
             if (lastSolveMillis > SLOW_MS || now - jobStarted > SLOW_MS || now - droppingSince < STARVED_MS) jobCancelled.set(true);
         }
         if (dirty && job == null) {
             dirty = false;
-            paintJob = null;   // the solve paints its own blocks
+            paintJob = null;
             ShapeSettings copy = S.copy();
-            jobSettings = S.copy();   // its own copy: a solve may settle values in the one it's given
+            jobSettings = S.copy();
             EditShape solver = shape;
             Orient o = jobOrient = orient;
             jobOrigin = new int[]{box.x(), box.y(), box.z()};
@@ -894,7 +763,6 @@ public final class Editor {
         }
     }
 
-    /** Repaints the last solve when only the paint changed, and puts the new blocks on show when they're ready. */
     private static void repaint() {
         if (paintJob != null && paintJob.isDone()) {
             Object result = null;
@@ -920,9 +788,7 @@ public final class Editor {
         }
     }
 
-    // ---------- rendering ----------
 
-    /** Line segments for one frame: six coordinates and a colour each. {@link Capture} draws its box with them too. */
     static final class Lines {
         float[] xyz = new float[1024];
         int[] color = new int[170];
@@ -936,23 +802,14 @@ public final class Editor {
             color[n++] = argb;
         }
 
-        /** Lines are cut off this close in front of the camera, just short of the game's own near plane. */
         private static final double NEAR = 0.04;
 
-        /**
-         * Draws each segment as a strip facing the camera, in the handles' render type. The game's own line types
-         * fade into fog, which at a short render distance hides the far side of a large shape while its handles
-         * still show. {@code cam} is the camera and {@code forward} the way it looks, and {@code spread} is how
-         * wide half the line is one block in front of the camera, so the strip is as wide as a line on screen.
-         */
         void submit(SubmitNodeCollector out, PoseStack ms, double[] cam, double[] forward, double spread) {
             if (n == 0) return;
             Hologram.submit(out, ms, RenderTypes.debugFilledBox(), true, (pose, vc) -> {
                 for (int k = 0; k < n; k++) {
                     int o = k * 6;
                     double x1 = xyz[o], y1 = xyz[o + 1], z1 = xyz[o + 2], x2 = xyz[o + 3], y2 = xyz[o + 4], z2 = xyz[o + 5];
-                    // How far in front of the camera each end is. The part behind it is cut off here: a strip that
-                    // crossed the camera's own plane would turn inside out there and smear across the screen.
                     double near = (x1 - cam[0]) * forward[0] + (y1 - cam[1]) * forward[1] + (z1 - cam[2]) * forward[2];
                     double far = (x2 - cam[0]) * forward[0] + (y2 - cam[1]) * forward[1] + (z2 - cam[2]) * forward[2];
                     if (near < NEAR && far < NEAR) continue;
@@ -964,11 +821,9 @@ public final class Editor {
                         x2 += (x1 - x2) * t; y2 += (y1 - y2) * t; z2 += (z1 - z2) * t; far = NEAR;
                     }
                     double dx = x2 - x1, dy = y2 - y1, dz = z2 - z1, ax = cam[0] - x1, ay = cam[1] - y1, az = cam[2] - z1;
-                    // Across the line as the camera sees it. It's the same from either end.
                     double px = dy * az - dz * ay, py = dz * ax - dx * az, pz = dx * ay - dy * ax;
                     double len = Math.sqrt(px * px + py * py + pz * pz);
-                    if (len < 1e-9) continue;   // no length, or seen end on
-                    // The width grows with the distance in front of the camera, which keeps it the same on screen.
+                    if (len < 1e-9) continue;
                     double a = near * spread / len, b = far * spread / len;
                     vc.addVertex(pose, (float) (x1 - px * a), (float) (y1 - py * a), (float) (z1 - pz * a)).setColor(color[k]);
                     vc.addVertex(pose, (float) (x1 + px * a), (float) (y1 + py * a), (float) (z1 + pz * a)).setColor(color[k]);
@@ -981,14 +836,8 @@ public final class Editor {
 
     private static final int WHITE = 0xE6FFFFFF, CURVE = 0xFFFFD24A, POINT = 0xFF3F7BE0, FACE = 0xFFF2F2F2, EDGE = 0xFF7FD4FF,
             CORNER = 0xFFFFA646, HOT = 0xFF6BFF8A, GRID = 0x50FFFFFF, POLYGON = 0xAA6EA0FF;
-    /** How strongly a handle shows through terrain and other blocks in front of it, out of 255. */
     private static final int HIDDEN_ALPHA = 90;
 
-    /**
-     * Submits the hologram, its wireframe and its handles for this frame. {@code ms} is the world's pose stack and
-     * {@code cam} the camera position. The game draws the submitted geometry later in the frame, so it must only
-     * capture this frame's data.
-     */
     public static void render(SubmitNodeCollector out, PoseStack ms, Vec3 cam) {
         Minecraft mc = Minecraft.getInstance();
         if (!active || mc.player == null) return;
@@ -997,7 +846,6 @@ public final class Editor {
         eye = new double[]{cam.x, cam.y, cam.z};
         look = new double[]{forward.x(), forward.y(), forward.z()};
 
-        // The radial menu keeps the handles, and the one the player was looking at, for "Remove point".
         Screen screen = mc.gui.screen();
         boolean aiming = locked && screen == null, editing = aiming || locked && screen instanceof RadialScreen;
         if (drag != null) {
@@ -1011,7 +859,6 @@ public final class Editor {
             hover = k < 0 ? null : handles.get(k);
         } else if (!editing) hover = null;
 
-        // Everything below is relative to the box's corner, which keeps the numbers small far from the world's origin.
         double ox = box.x(), oy = box.y(), oz = box.z();
         double cx = cam.x - ox, cy = cam.y - oy, cz = cam.z - oz;
         float width = mc.getWindow().getAppropriateLineWidth();
@@ -1040,7 +887,6 @@ public final class Editor {
             for (int k = 0; k + 5 < curve.length; k += 6)
                 solid.add(curve[k] - ox, curve[k + 1] - oy, curve[k + 2] - oz, curve[k + 3] - ox, curve[k + 4] - oy, curve[k + 5] - oz, CURVE);
         if (editing) {
-            // The control polygon: straight lines from each point to the next, and for a grid of points to the one in the next row too.
             int points = 0, cols = shape.pointColumns();
             while (points < handles.size() && handles.get(points).isPoint()) points++;
             for (int k = 0; k < points; k++) {
@@ -1053,7 +899,6 @@ public final class Editor {
             }
         }
         if (drag != null) grid(faint, ox, oy, oz);
-        // Half a line's width, in blocks, one block in front of the camera.
         double spread = width / 2 * Math.tan(Math.toRadians(mc.gameRenderer.mainCamera().getFov()) / 2) * 2 / mc.getWindow().getHeight();
         double[] camHere = {cx, cy, cz};
         solid.submit(out, ms, camHere, look, spread);
@@ -1061,7 +906,6 @@ public final class Editor {
 
         if (!handles.isEmpty()) {
             double base = ModSettings.handleSize;
-            // Twice: dimmed through whatever is in the way, then as they are where nothing is.
             for (boolean through : new boolean[]{true, false})
                 Hologram.submit(out, ms, through ? Hologram.throughWalls() : RenderTypes.debugFilledBox(), true, (pose, vc) -> {
                     VertexConsumer fill = through ? Hologram.lit(vc) : vc;
@@ -1075,7 +919,6 @@ public final class Editor {
                         if (!h.isPoint()) for (int s : h.sign) if (s != 0) moving++;
                         int color = hot ? HOT : h.isPoint() ? POINT : moving == 1 ? FACE : moving == 2 ? EDGE : CORNER;
                         if (through) color = ARGB.color(HIDDEN_ALPHA, color);
-                        // The handle being dragged stands out from the rest.
                         if (drag != null && !h.same(drag.handle)) color = HandleMath.dimmed(color);
                         double x = p[0] - ox, y = p[1] - oy, z = p[2] - oz;
                         Hologram.filledBox(pose, fill, x - r, y - r, z - r, x + r, y + r, z + r, color, cx, cy, cz);
@@ -1085,7 +928,6 @@ public final class Editor {
         ms.popPose();
     }
 
-    /** A faint grid on the plane the dragged handle moves in, or a line along its axis. */
     private static void grid(Lines lines, double ox, double oy, double oz) {
         Drag d = drag;
         double[] p = handlePosition(d.handle);
@@ -1108,19 +950,16 @@ public final class Editor {
         }
     }
 
-    // ---------- HUD ----------
 
     static String key(KeyMapping k) { return k.getTranslatedKeyMessage().getString(); }
 
     public static void renderHud(GuiGraphicsExtractor dc) {
         Minecraft mc = Minecraft.getInstance();
-        // A screen covers the hints or draws its own, and the menu's labels need the room. Capture has the lines while it runs.
         if (!active || Capture.isActive() || mc.player == null || mc.gui.screen() != null) return;
         StepHold.renderBar(dc);
         var font = mc.font;
         int room = dc.guiWidth() - 12;
         List<Component> lines = new ArrayList<>();
-        // The shape's own lines can be switched off. What's wrong or still being worked out shows either way.
         boolean info = ModSettings.showShapeInfo;
         if (info) lines.add((locked ? Component.literal(shape.describe()) : Lang.component("curvegen.editor.following", shape.describe())).withStyle(ChatFormatting.WHITE));
         if (hologram != null && hologram.error != null) lines.add(Lang.component(hologram.error).withStyle(ChatFormatting.RED));
@@ -1143,7 +982,6 @@ public final class Editor {
         if (!Placement.canPlace(mc))
             lines.add(Lang.component("curvegen.editor.permission_edit").withStyle(ChatFormatting.RED));
 
-        // Key hints, flowed into as many lines as the screen's width needs.
         List<String> hints = new ArrayList<>(List.of(
                 Lang.tr("curvegen.editor.hint.menu", key(CurveGenClient.RADIAL)),
                 Lang.tr("curvegen.editor.hint.place", key(CurveGenClient.CONFIRM)),

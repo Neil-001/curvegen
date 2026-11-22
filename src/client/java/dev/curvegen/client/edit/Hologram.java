@@ -26,13 +26,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
-/**
- * The translucent blocks of one solved shape. It takes block offsets and states from whatever solved them, works out
- * once which faces can be seen from outside, and after that only checks the world: which spots placing would change,
- * and which are under water.
- */
 public final class Hologram {
-    /** A block and the faces of it worth drawing: 12 coordinates a quad, with the side each quad faces. */
     private record Entry(int dx, int dy, int dz, BlockState state, float[] quads, byte[] sides, int rgb) {}
 
     private static final float[] NO_QUADS = new float[0];
@@ -40,15 +34,12 @@ public final class Hologram {
 
     private final List<Entry> entries;
     private final List<BlockPos> carve;
-    /** False above the block limit, when only the wireframe shows. */
     private final boolean drawn;
     private final int blockLimit;
     public final Message error;
 
-    /** Refreshed a few times a second: what placing right now would change, given the blocks already in the world. */
     private List<Entry> toPlace = List.of();
     private List<BlockPos> toBreak = List.of();
-    /** The same two lists, split by whether the spot is under water. Each half draws at a different time in the frame. */
     private List<Entry> placeWet = List.of(), placeDry = List.of();
     private List<BlockPos> breakWet = List.of(), breakDry = List.of();
 
@@ -58,7 +49,6 @@ public final class Hologram {
         carve = content.carve();
         drawn = content.blocks().size() <= blockLimit;
         List<Entry> out = new ArrayList<>(content.blocks().size());
-        // A face against a neighbour that is a whole cube can't be seen, so it isn't drawn.
         Map<BlockState, VoxelShape> shapes = new IdentityHashMap<>();
         LongOpenHashSet cubes = new LongOpenHashSet();
         if (drawn)
@@ -86,7 +76,6 @@ public final class Hologram {
                     if (!(hidden[5] && b.maxX >= 1)) { quads.add(new float[]{e, c, d, e, f, d, e, f, g, e, c, g}); sides.add((byte) 5); }
                 }
             }
-            // A shape too large to draw can have millions of blocks, which then share the two empty arrays.
             float[] flat = quads.isEmpty() ? NO_QUADS : new float[quads.size() * 12];
             byte[] side = quads.isEmpty() ? NO_SIDES : new byte[quads.size()];
             for (int q = 0; q < side.length; q++) {
@@ -100,7 +89,6 @@ public final class Hologram {
 
     public int size() { return entries.size(); }
 
-    /** Every block of the shape, whatever is in the world: what an export holds. */
     public List<EditShape.Placed> blocks() {
         List<EditShape.Placed> out = new ArrayList<>(entries.size());
         for (Entry e : entries) out.add(new EditShape.Placed(e.dx, e.dy, e.dz, e.state));
@@ -110,12 +98,10 @@ public final class Hologram {
     public int placing() { return toPlace.size(); }
     public int clearing() { return toBreak.size(); }
 
-    /** Where the shape may put a block when Replace is off: air and things like grass, water or snow layers. */
     public static boolean free(BlockState current) { return current.isAir() || current.canBeReplaced(); }
 
     private static boolean underWater(Minecraft mc, BlockPos p) { return mc.level.getFluidState(p).is(FluidTags.WATER); }
 
-    /** Works out what placing at {@code origin} right now would actually do. */
     public void refresh(Minecraft mc, BlockPos origin, boolean overwrite, boolean carving) {
         List<Entry> place = new ArrayList<>(), wet = new ArrayList<>(), dry = new ArrayList<>();
         for (Entry e : entries) {
@@ -136,10 +122,6 @@ public final class Hologram {
         placeWet = wet; placeDry = dry; breakWet = brkWet; breakDry = brkDry;
     }
 
-    /**
-     * Lists what placing at {@code origin} changes: positions, the states to set and the states there now. Carving
-     * comes first, so it never removes anything the shape itself places.
-     */
     public void collect(Minecraft mc, BlockPos origin, boolean overwrite, boolean carving, List<BlockPos> pos, List<BlockState> states, List<BlockState> old) {
         if (carving)
             for (BlockPos o : carve) {
@@ -155,11 +137,6 @@ public final class Hologram {
         }
     }
 
-    /**
-     * Submits the boxes. {@code ms} is already moved to the hologram's origin and (cx, cy, cz) is the camera from there.
-     * Water is drawn between the two phases. Boxes on the camera's side of the surface go after it, so they draw over
-     * water behind them. Boxes on the far side go before it, so they show through the surface.
-     */
     public void submit(SubmitNodeCollector out, PoseStack ms, boolean camWet, float opacity, double cx, double cy, double cz) {
         if (!drawn) return;
         boolean clear = toBreak.size() <= blockLimit;
@@ -176,7 +153,6 @@ public final class Hologram {
                 float[] q = e.quads;
                 for (int k = 0; k < e.sides.length; k++) {
                     int o = k * 12;
-                    // Only the faces turned towards the camera: the render type doesn't cull the others.
                     boolean seen = switch (e.sides[k]) {
                         case 0 -> cy < q[o + 1]; case 1 -> cy > q[o + 1];
                         case 2 -> cz < q[o + 2]; case 3 -> cz > q[o + 2];
@@ -185,53 +161,38 @@ public final class Hologram {
                     if (seen) for (int v = 0; v < 12; v += 3) fill.addVertex(pose, q[o + v], q[o + v + 1], q[o + v + 2]).setColor(color);
                 }
             }
-            // Blocks carving will remove, in red. Slightly larger than the block, or a full block would hide its own box.
             int red = ARGB.colorFromFloat(0.28f, 1f, 0.2f, 0.25f);
             for (BlockPos o : clear)
                 filledBox(pose, fill, o.getX() - .005, o.getY() - .005, o.getZ() - .005, o.getX() + 1.005, o.getY() + 1.005, o.getZ() + 1.005, red, cx, cy, cz);
         });
     }
 
-    /**
-     * Submits custom geometry either after translucent terrain or before it. The after-terrain phase is only reachable
-     * on the game's own collector, so a collector from another mod gets everything before the water.
-     */
     static void submit(SubmitNodeCollector out, PoseStack ms, RenderType type, boolean afterTerrain, SubmitNodeCollector.CustomGeometryRenderer geometry) {
         if (afterTerrain && out instanceof SubmitNodeStorage storage)
             storage.order(0).afterTerrain.submit(new CustomFeatureRenderer.Submit(ms.last().copy(), type, geometry));
         else out.submitCustomGeometry(ms, type, geometry);
     }
 
-    /**
-     * The faces of a box that the camera at (cx, cy, cz) can see. The filled-box render type no longer culls back faces,
-     * and drawing them too would blend every box twice.
-     */
     static void filledBox(PoseStack.Pose pose, VertexConsumer vc, double x0, double y0, double z0, double x1, double y1, double z1,
                           int color, double cx, double cy, double cz) {
         float a = (float) x0, b = (float) y0, c = (float) z0, d = (float) x1, e = (float) y1, f = (float) z1;
-        if (cy < y0) quad(pose, vc, color, a, b, c, d, b, c, d, b, f, a, b, f);   // down
-        if (cy > y1) quad(pose, vc, color, a, e, c, a, e, f, d, e, f, d, e, c);   // up
-        if (cz < z0) quad(pose, vc, color, a, b, c, a, e, c, d, e, c, d, b, c);   // north
-        if (cz > z1) quad(pose, vc, color, a, b, f, d, b, f, d, e, f, a, e, f);   // south
-        if (cx < x0) quad(pose, vc, color, a, b, c, a, b, f, a, e, f, a, e, c);   // west
-        if (cx > x1) quad(pose, vc, color, d, b, c, d, e, c, d, e, f, d, b, f);   // east
+        if (cy < y0) quad(pose, vc, color, a, b, c, d, b, c, d, b, f, a, b, f);
+        if (cy > y1) quad(pose, vc, color, a, e, c, a, e, f, d, e, f, d, e, c);
+        if (cz < z0) quad(pose, vc, color, a, b, c, a, e, c, d, e, c, d, b, c);
+        if (cz > z1) quad(pose, vc, color, a, b, f, d, b, f, d, e, f, a, e, f);
+        if (cx < x0) quad(pose, vc, color, a, b, c, a, b, f, a, e, f, a, e, c);
+        if (cx > x1) quad(pose, vc, color, d, b, c, d, e, c, d, e, f, d, b, f);
     }
 
     private static void quad(PoseStack.Pose pose, VertexConsumer vc, int color, float... xyz) {
         for (int i = 0; i < 12; i += 3) vc.addVertex(pose, xyz[i], xyz[i + 1], xyz[i + 2]).setColor(color);
     }
 
-    /**
-     * A render type that draws plain coloured quads over everything, whatever is in front. The game has no such
-     * type for untextured boxes, so this is the one it draws see-through name tags with, on a white texture.
-     */
     static RenderType throughWalls() { return RenderTypes.textSeeThrough(WHITE); }
     private static final Identifier WHITE = Identifier.fromNamespaceAndPath("curvegen", "textures/white.png");
 
-    /** A vertex consumer for {@link #throughWalls}, which wants a texture coordinate and a light level on every vertex. */
     static VertexConsumer lit(VertexConsumer vc) { return new Lit(vc); }
 
-    /** Completes each vertex as soon as it has its colour. */
     private record Lit(VertexConsumer vc) implements VertexConsumer {
         @Override public VertexConsumer addVertex(float x, float y, float z) { vc.addVertex(x, y, z); return this; }
         @Override public VertexConsumer setColor(int r, int g, int b, int a) { vc.setColor(r, g, b, a).setUv(0.5f, 0.5f).setLight(0xF000F0); return this; }

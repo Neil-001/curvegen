@@ -24,18 +24,12 @@ import net.minecraft.world.level.EmptyBlockGetter;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 
-/**
- * Average colour of a block as you see it: its side face for upright shapes, its top face for floors.
- * Read from the textures of the active resource packs, with tints (grass, leaves…) applied per face.
- */
 public final class ColorIndex {
     private ColorIndex() {}
 
     private static final Map<Block, Integer> SIDE = new HashMap<>(), TOP = new HashMap<>();
-    /** Per texture: {red, green, blue, coverage}, or {-1} when it can't be read. */
     private static final Map<Identifier, int[]> TEXTURES = new HashMap<>();
 
-    /** Colour for the current build: the top face for a floor, or for a 3D shape set to match by its top. */
     public static int of(Block block) {
         ShapeSettings s = CurveGenClient.SETTINGS;
         return of(block, s.is3d() ? s.topColours : s.floor);
@@ -74,7 +68,6 @@ public final class ColorIndex {
             }
             if (w > 0) return ((int) (r / w) << 16) | ((int) (g / w) << 8) | (int) (b / w);
 
-            // No quads on that face (unusual models): fall back to the particle texture.
             int[] p = average(CurveGenClient.platform.particleMaterial(model, state).sprite());
             if (p != null) {
                 int rr = p[0], gg = p[1], bb = p[2];
@@ -85,12 +78,10 @@ public final class ColorIndex {
                 return (rr << 16) | (gg << 8) | bb;
             }
         } catch (Exception _) {
-            // fall through to the map colour
         }
         return state.getMapColor(EmptyBlockGetter.INSTANCE, BlockPos.ZERO).col;
     }
 
-    /** The tint a block has outside a world. A modded tint source that fails just means "no tint". */
     private static int tint(BlockState state, int index) {
         try {
             BlockTintSource source = Minecraft.getInstance().getBlockColors().getTintSource(state, index);
@@ -117,7 +108,6 @@ public final class ColorIndex {
                     r += (long) ((argb >> 16) & 0xFF) * a; g += (long) ((argb >> 8) & 0xFF) * a; b += (long) (argb & 0xFF) * a; w += a;
                 }
             if (w == 0) return new int[]{-1};
-            // Coverage (how much of the texture is opaque) weighs overlays such as the grass side's green fringe.
             return new int[]{(int) (r / w), (int) (g / w), (int) (b / w), (int) Math.max(1, w / 255)};
         } catch (Exception _) {
             return new int[]{-1};
@@ -129,7 +119,6 @@ public final class ColorIndex {
         return max == 0 ? 0 : (max - min) / (double) max;
     }
 
-    // ---------- CIELAB ----------
     public static double[] lab(int rgb) { return Lab.of(rgb); }
 
     public static double distance(int rgbA, int rgbB) { return Lab.distance(rgbA, rgbB); }

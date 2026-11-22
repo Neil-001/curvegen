@@ -17,7 +17,6 @@ import org.junit.jupiter.api.Test;
 
 class TranslationResourcesTest {
     private static final Path LANG = Path.of("../src/main/resources/assets/curvegen/lang");
-    // Matches Chroma Studio's languages, including the shared English source.
     private static final Set<String> LOCALES = Set.of("de_de", "en_us", "es_es", "fr_fr", "ja_jp",
             "ko_kr", "pl_pl", "pt_br", "ru_ru", "zh_cn");
     private static final Pattern FORMAT = Pattern.compile("%(?:(\\d+)\\$)?s|%%");

@@ -16,28 +16,18 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.core.Direction;
 import net.minecraft.resources.Identifier;
 
-/** The client side that doesn't depend on the mod loader. The loader's client entrypoint, in {@code dev.curvegen.client.fabric} or {@code dev.curvegen.client.neoforge}, hooks it up. */
 public final class CurveGenClient {
     private CurveGenClient() {}
 
-    /** Shape settings live for the whole session, so reopening the screen picks up where you left off. */
     public static final ShapeSettings SETTINGS = new ShapeSettings();
 
     public static ClientPlatform platform;
 
-    /** The heading for the keys in the Controls screen. Each loader registers it in its own way. */
     public static final KeyMapping.Category CATEGORY = new KeyMapping.Category(Identifier.fromNamespaceAndPath("curvegen", "main"));
     public static KeyMapping OPEN, RADIAL, CONFIRM, CANCEL, ROTATE, TIP, FORWARD, BACK, BUMP_OUT, BUMP_IN, LOCK, UNDO, REDO, REPLACE, CARVE, ADD_POINT, REMOVE_POINT;
-    /** Moves along one world axis each, in {@link Direction} order. Unbound until the player assigns them. */
     private static final KeyMapping[] MOVE = new KeyMapping[6];
-    /** Every key, in the order the Controls screen lists them. */
     private static final List<KeyMapping> KEYS = new ArrayList<>();
 
-    /**
-     * A key that moves or resizes the hologram by a number of blocks: every nudge and bump key. A tap passes 1.
-     * Held, {@link StepHold} opens the number box and passes the typed amount instead. A negative amount goes the
-     * other way.
-     */
     public record StepKey(KeyMapping key, IntConsumer action) {}
     public static final List<StepKey> STEP_KEYS = new ArrayList<>();
 
@@ -53,7 +43,6 @@ public final class CurveGenClient {
         return k;
     }
 
-    /** Loads the settings, creates the keys and returns them for the loader to register, along with {@link #CATEGORY}. */
     public static List<KeyMapping> init(ClientPlatform loader) {
         platform = loader;
         ModSettings.load();
@@ -80,10 +69,8 @@ public final class CurveGenClient {
         return KEYS;
     }
 
-    /** Call at the end of every client tick. */
     public static void tick(Minecraft mc) {
         while (OPEN.consumeClick()) mc.gui.setScreen(new CurveScreen());
-        // Z takes back an edit while there's a hologram, and the last placement otherwise. Y puts either back.
         while (UNDO.consumeClick()) { if (Editor.isActive()) Editor.undo(); else Placement.undo(); }
         while (REDO.consumeClick()) { if (Editor.isActive()) Editor.redo(); else Placement.redo(); }
         while (RADIAL.consumeClick()) if (mc.gui.screen() == null && mc.player != null) mc.gui.setScreen(new RadialScreen());
@@ -91,9 +78,8 @@ public final class CurveGenClient {
         for (KeyMapping k : KEYS) {
             if (k == OPEN || k == UNDO || k == REDO || k == RADIAL) continue;
             while (k.consumeClick()) {
-                // Cancel backs out of capturing a pattern first, a step at a time.
                 if (k == CANCEL && Capture.isActive()) Capture.back();
-                else if (Editor.isActive()) press(k);   // otherwise drained, so it doesn't fire when a hologram appears
+                else if (Editor.isActive()) press(k);
             }
         }
         Placement.tick(mc);

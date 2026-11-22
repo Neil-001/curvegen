@@ -10,7 +10,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import org.junit.jupiter.api.Test;
 
-/** The chat lines a server sends for a command, built the way the game's {@code Commands} and {@code CommandSourceStack} build them. */
 class PlacementFeedbackTest {
     private static Component success(int x, int y, int z) { return Component.translatable("commands.setblock.success", x, y, z); }
 
@@ -18,7 +17,6 @@ class PlacementFeedbackTest {
 
     private static Component failure(String key) { return failure(Component.translatable(key)); }
 
-    /** The second line of a syntax error: the end of the command, then "<--[HERE]". */
     private static Component context(String command) {
         MutableComponent context = Component.empty().withStyle(ChatFormatting.GRAY)
                 .withStyle(s -> s.withClickEvent(new ClickEvent.SuggestCommand("/" + command)));
@@ -39,7 +37,6 @@ class PlacementFeedbackTest {
         CommandReplies r = sent(3);
         assertTrue(Placement.hides(r, success(0, 64, 0)));
         assertTrue(Placement.hides(r, failure("commands.setblock.failed")));
-        // The numbers can arrive as text.
         assertTrue(Placement.hides(r, Component.translatable("commands.setblock.success", "2", Component.literal("64"), "0")));
         assertFalse(Placement.hides(r, success(2, 64, 0)), "every command has been answered");
     }
