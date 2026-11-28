@@ -1,4 +1,5 @@
 name: Release
+run-name: ${{ inputs.planned_release && fromJSON(inputs.planned_release).run_name || 'Release' }}
 
 # Publishes each selected branch to Modrinth, CurseForge and GitHub releases. */stable branches release, and
 # so does main in a repository whose variable RELEASE_MAIN is true: one that publishes its newest Minecraft
@@ -17,16 +18,20 @@ on:
         description: Build and show what would be published, without publishing
         type: boolean
         default: false
+      planned_release:
+        description: Release entry supplied by the workflow
+        default: ''
 
-# Two runs must not release at the same time.
+# The sequence and its individual releases need separate locks.
 concurrency:
-  group: release
+  group: ${{ inputs.planned_release == '' && 'release' || 'release-line' }}
 
 permissions:
   contents: read
 
 jobs:
   plan:
+    if: inputs.planned_release == ''
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -60,23 +65,116 @@ jobs:
                    else .[] | "- `\(.branch)` as `\(.tag)`" end' <<< "$plan"
           } >> "$GITHUB_STEP_SUMMARY"
 
-  release:
+  release-in-order:
     needs: plan
     if: needs.plan.outputs.branches != '[]'
-    strategy:
-      fail-fast: false   # one branch failing doesn't stop the others
-      matrix:
-        include: ${{ fromJSON(needs.plan.outputs.branches) }}
-    name: ${{ matrix.tag }}
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Release one line at a time
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PLAN: ${{ needs.plan.outputs.branches }}
+          TARGETS: ${{ inputs.targets }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          run_id=
+          run_name=
+          cancel_release() {
+            if [[ -n "$run_name" && -z "$run_id" ]]; then
+              run_id=$(timeout 3s gh api -X GET "repos/$GH_REPO/actions/workflows/release.yml/runs" \
+                -f head_sha="$GITHUB_SHA" -f event=workflow_dispatch -F per_page=100 |
+                jq -r --arg name "$run_name" '[.workflow_runs[] | select(.display_title == $name)][0].id // empty') || true
+            fi
+            if [[ -n "$run_id" ]]; then
+              timeout 3s gh run cancel "$run_id" || true
+            fi
+          }
+          trap cancel_release EXIT
+          trap 'exit 1' INT TERM
+          echo "### Release runs" >> "$GITHUB_STEP_SUMMARY"
+          while IFS= read -r entry; do
+            tag=$(jq -r '.tag' <<< "$entry")
+            branch=$(jq -r '.branch' <<< "$entry")
+            parent="$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT"
+            run_name="$tag ($branch, $parent)"
+            planned=$(jq -c --arg sha "$GITHUB_SHA" --arg name "$run_name" --arg parent "$parent" \
+              '. + {workflow_sha: $sha, run_name: $name, parent: $parent}' <<< "$entry")
+            request=$(jq -cn --arg ref "$GITHUB_REF_NAME" --arg planned "$planned" \
+              --arg targets "$TARGETS" --argjson dry_run "$DRY_RUN" \
+              '{ref: $ref, inputs: {planned_release: $planned, targets: $targets, dry_run: $dry_run}}')
+            run_id=$(timeout 10s gh api -X POST -H 'X-GitHub-Api-Version: 2026-03-10' \
+              "repos/$GH_REPO/actions/workflows/release.yml/dispatches" --input - --jq '.workflow_run_id' <<< "$request")
+            url="$GITHUB_SERVER_URL/$GH_REPO/actions/runs/$run_id"
+            printf -- '- [`%s`](%s)\n' "$tag" "$url" >> "$GITHUB_STEP_SUMMARY"
+            errors=0
+            while true; do
+              if state=$(timeout 5s gh api "repos/$GH_REPO/actions/runs/$run_id" --jq '.status + ":" + (.conclusion // "")'); then
+                if [[ "$state" == completed:* ]]; then
+                  run_id=
+                  run_name=
+                  if [[ "$state" != completed:success ]]; then
+                    echo "::error::$tag ended with ${state#completed:}. See $url."
+                    exit 1
+                  fi
+                  break
+                fi
+                errors=0
+              elif (( ++errors == 3 )); then
+                echo "::error::Could not check the status of $tag. See $url."
+                exit 1
+              fi
+              sleep 5 &
+              wait "$!"
+            done
+          done < <(jq -c '.[]' <<< "$PLAN")
+
+  check-release:
+    if: inputs.planned_release != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      needed: ${{ steps.check.outputs.needed }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: check
+        env:
+          PLANNED: ${{ inputs.planned_release }}
+        run: |
+          if [[ "$GITHUB_ACTOR" != 'github-actions[bot]' ]]; then
+            echo "::error::Select branches to release from the Release workflow."
+            exit 1
+          fi
+          if [[ "$(jq -r '.workflow_sha' <<< "$PLANNED")" != "$GITHUB_SHA" ]]; then
+            echo "::error::The release workflow changed during this sequence. Start a new run."
+            exit 1
+          fi
+          tag=$(jq -er '.tag' <<< "$PLANNED")
+          if git show-ref --verify --quiet "refs/tags/$tag"; then
+            echo "::notice::Skipping $tag because it is already released."
+            echo "needed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  release:
+    needs: check-release
+    if: needs.check-release.outputs.needed == 'true'
+    name: ${{ fromJSON(inputs.planned_release).tag }}
     permissions:
       contents: write   # creates the tag and the GitHub release
       actions: read     # looks for an earlier run's CurseForge marker
     uses: ./.github/workflows/release-branch.yml
     with:
-      line: ${{ matrix.line }}
-      version: ${{ matrix.version }}
-      tag: ${{ matrix.tag }}
-      sha: ${{ matrix.sha }}
+      line: ${{ fromJSON(inputs.planned_release).line }}
+      version: ${{ fromJSON(inputs.planned_release).version }}
+      tag: ${{ fromJSON(inputs.planned_release).tag }}
+      sha: ${{ fromJSON(inputs.planned_release).sha }}
+      parent: ${{ fromJSON(inputs.planned_release).parent }}
       targets: ${{ inputs.targets }}
       dry_run: ${{ inputs.dry_run }}
     secrets: inherit

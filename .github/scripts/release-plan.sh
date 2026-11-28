@@ -67,4 +67,4 @@ for branch in "${branches[@]}"; do
 		'. + [{branch: $branch, line: $line, version: $version, tag: $tag, sha: $sha}]' <<< "$plan")
 done
 
-echo "$plan"
+jq -c 'sort_by(.branch == "main", (.line | split(".") | map(tonumber? // .)))' <<< "$plan"
