@@ -173,12 +173,12 @@ jobs:
             *) echo "::error::Modrinth answered $status when checking for $VERSION."; exit 1 ;;
           esac
 
-      - &check-sequence
-        name: Check the release sequence is active
-        env:
+      - name: Check the release sequence is active
+        if: contains(inputs.targets, 'modrinth') && steps.modrinth.outputs.exists == 'false'
+        env: &check-sequence-env
           GH_TOKEN: ${{ github.token }}
           PARENT: ${{ inputs.parent }}
-        run: |
+        run: &check-sequence-command |
           status=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PARENT" --jq '.status')
           if [[ "$status" != in_progress ]]; then
             echo "::error::The release sequence is no longer active. Start a new release run."
@@ -218,7 +218,10 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - *check-sequence
+      - name: Check the release sequence is active
+        if: contains(inputs.targets, 'curseforge') && steps.curseforge.outputs.exists == 'false'
+        env: *check-sequence-env
+        run: *check-sequence-command
 
       # One attempt only. A second try after an upload whose answer was lost would put the file there twice.
       - name: Publish to CurseForge
@@ -268,7 +271,9 @@ jobs:
           name: release-${{ inputs.line }}
           path: dist
 
-      - *check-sequence
+      - name: Check the release sequence is active
+        env: *check-sequence-env
+        run: *check-sequence-command
 
       - uses: Kira-NT/mc-publish@c23376546a97f5ba7984e94445da359459b14419   # v3.3.2
         with:

@@ -82,14 +82,21 @@ jobs:
         run: |
           run_id=
           run_name=
+          dispatch_pid=
+          dispatch_result=$(mktemp)
           cancel_release() {
+            trap '' INT TERM
+            if [[ -n "$dispatch_pid" ]]; then
+              kill "$dispatch_pid" 2>/dev/null || true
+            fi
+            rm -f "$dispatch_result"
             if [[ -n "$run_name" && -z "$run_id" ]]; then
-              run_id=$(timeout 3s gh api -X GET "repos/$GH_REPO/actions/workflows/release.yml/runs" \
+              run_id=$(timeout -k 1s 2s gh api -X GET "repos/$GH_REPO/actions/workflows/release.yml/runs" \
                 -f head_sha="$GITHUB_SHA" -f event=workflow_dispatch -F per_page=100 |
                 jq -r --arg name "$run_name" '[.workflow_runs[] | select(.display_title == $name)][0].id // empty') || true
             fi
             if [[ -n "$run_id" ]]; then
-              timeout 3s gh run cancel "$run_id" || true
+              timeout -k 1s 2s gh run cancel "$run_id" || true
             fi
           }
           trap cancel_release EXIT
@@ -105,8 +112,13 @@ jobs:
             request=$(jq -cn --arg ref "$GITHUB_REF_NAME" --arg planned "$planned" \
               --arg targets "$TARGETS" --argjson dry_run "$DRY_RUN" \
               '{ref: $ref, inputs: {planned_release: $planned, targets: $targets, dry_run: $dry_run}}')
-            run_id=$(timeout 10s gh api -X POST -H 'X-GitHub-Api-Version: 2026-03-10' \
-              "repos/$GH_REPO/actions/workflows/release.yml/dispatches" --input - --jq '.workflow_run_id' <<< "$request")
+            timeout 10s gh api -X POST -H 'X-GitHub-Api-Version: 2026-03-10' \
+              "repos/$GH_REPO/actions/workflows/release.yml/dispatches" --input - \
+              --jq '.workflow_run_id // empty' <<< "$request" > "$dispatch_result" &
+            dispatch_pid=$!
+            wait "$dispatch_pid"
+            dispatch_pid=
+            read -r run_id < "$dispatch_result"
             url="$GITHUB_SERVER_URL/$GH_REPO/actions/runs/$run_id"
             printf -- '- [`%s`](%s)\n' "$tag" "$url" >> "$GITHUB_STEP_SUMMARY"
             errors=0
