@@ -20,6 +20,10 @@ on:
         description: The commit to build and tag
         type: string
         required: true
+      parent:
+        description: The release sequence run and attempt
+        type: string
+        required: true
       targets:
         type: string
         required: true
@@ -169,6 +173,18 @@ jobs:
             *) echo "::error::Modrinth answered $status when checking for $VERSION."; exit 1 ;;
           esac
 
+      - name: Check the release sequence is active
+        if: contains(inputs.targets, 'modrinth') && steps.modrinth.outputs.exists == 'false'
+        env: &check-sequence-env
+          GH_TOKEN: ${{ github.token }}
+          PARENT: ${{ inputs.parent }}
+        run: &check-sequence-command |
+          status=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PARENT" --jq '.status')
+          if [[ "$status" != in_progress ]]; then
+            echo "::error::The release sequence is no longer active. Start a new release run."
+            exit 1
+          fi
+
       - name: Publish to Modrinth
         if: contains(inputs.targets, 'modrinth') && steps.modrinth.outputs.exists == 'false'
         uses: Kira-NT/mc-publish@c23376546a97f5ba7984e94445da359459b14419   # v3.3.2
@@ -201,6 +217,11 @@ jobs:
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Check the release sequence is active
+        if: contains(inputs.targets, 'curseforge') && steps.curseforge.outputs.exists == 'false'
+        env: *check-sequence-env
+        run: *check-sequence-command
 
       # One attempt only. A second try after an upload whose answer was lost would put the file there twice.
       - name: Publish to CurseForge
@@ -243,11 +264,16 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write
+      actions: read
     steps:
       - uses: actions/download-artifact@v8
         with:
           name: release-${{ inputs.line }}
           path: dist
+
+      - name: Check the release sequence is active
+        env: *check-sequence-env
+        run: *check-sequence-command
 
       - uses: Kira-NT/mc-publish@c23376546a97f5ba7984e94445da359459b14419   # v3.3.2
         with:

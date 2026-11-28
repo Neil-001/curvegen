@@ -185,6 +185,11 @@ class ReleasePlanTest(unittest.TestCase):
             self.assertEqual(plan("all"), [result[1]], "all still means the stable branches")
             self.assertEqual(plan(""), main, "left empty, it is main where main releases")
             self.assertEqual(plan("", main_releases=False), [result[1]], "and all elsewhere")
+            for line in ["26.10", "1.21.2", "1.21.11"]:
+                git("update-ref", f"refs/remotes/origin/{line}/stable", "HEAD")
+            branches = "main,26.10/stable,1.21.11/stable,1.21.2/stable,26.1/stable"
+            self.assertEqual([item["branch"] for item in plan(branches)],
+                             ["1.21.2/stable", "1.21.11/stable", "26.1/stable", "26.10/stable", "main"])
             with self.assertRaises(subprocess.CalledProcessError):
                 plan("main", main_releases=False)
             with self.assertRaises(subprocess.CalledProcessError):
